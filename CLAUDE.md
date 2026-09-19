@@ -127,10 +127,15 @@ want to share a **room** (not just building) with. This must be:
 
 ## Status / decisions log
 
-- Tech stack: Python backend (this repo). An interactive web grid UI, version
-  save/load/compare, and export-from-UI are planned as a **separate, later
-  effort** — not part of the current solver/CLI restructuring pass.
+- Tech stack: Python backend (this repo) + a FastAPI web app
+  (`rostering/webapp/`) with a React/Vite/TypeScript/dnd-kit frontend
+  (`frontend/`). Single-workspace design: no season picker in the UI —
+  upload a raw survey export, configure buildings/rooms directly in the
+  browser, solve, drag helpers between cells, save/restore named versions,
+  export to Excel. State persists as JSON under `data/workspace/`
+  (gitignored). Run via `rostering serve` (see README.md).
 - Equipment eligibility is a **hard** constraint (see above).
 - The solver's role scope is fixed at the 6 roles listed above; the
-  structural/overlay roles are deliberately out of solver scope and handled
-  via the manual-overlay file described above.
+  structural/overlay roles are deliberately out of solver scope, entered
+  manually in the same grid (dropdowns, not drag-and-drop) and merged in at
+  export time.
