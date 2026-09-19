@@ -27,6 +27,10 @@ SMALL_CONFIG = [
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ROSTERING_WORKSPACE_DIR", str(tmp_path / "workspace"))
+    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
+    from rostering.webapp import config_store as config_store_module
+
+    importlib.reload(config_store_module)
     from rostering.webapp import workspace as workspace_module
 
     importlib.reload(workspace_module)
@@ -36,13 +40,22 @@ def client(tmp_path, monkeypatch):
     return TestClient(api_module.app)
 
 
-def test_initial_state_is_empty(client):
+def test_initial_state_has_default_config(client):
     resp = client.get("/api/state")
     assert resp.status_code == 200
     data = resp.json()
     assert data["helpers"] == []
-    assert data["config"] == []
     assert data["assignments"] == []
+    # Seeded from the bundled default (a copy of the latest season's
+    # roster), not empty — see rostering/webapp/config_store.py.
+    assert {b["name"] for b in data["config"]} == {"Mala Strana", "Karlov", "Troja", "Karlin"}
+
+
+def test_config_persists_across_reset(client, tmp_path):
+    client.put("/api/config", json=SMALL_CONFIG)
+    assert client.post("/api/reset").json()["config"][0]["name"] == "B"
+    # The persistent config file itself was overwritten too.
+    assert (tmp_path / "buildings-config.yaml").exists()
 
 
 @pytest.mark.skipif(not RAW_2026.exists(), reason="real season data not present on this machine")

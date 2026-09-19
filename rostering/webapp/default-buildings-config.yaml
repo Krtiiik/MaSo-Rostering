@@ -1,0 +1,65 @@
+# Default buildings/rooms layout for the web app, seeded from the most
+# recent season's roster (data/seasons/2026-jaro/config.yaml) as a sensible
+# starting point. Copied to data/buildings-config.yaml on first run, and
+# overwritten there whenever a user saves changes on the Buildings page —
+# see rostering/webapp/config_store.py.
+Mala Strana:
+  S3:
+    Opravovatel: 3
+    Menic: 2
+    Skenovac: 1
+    Kreslic: 4
+  S4:
+    Opravovatel: 2
+    Menic: 1
+    Skenovac: 1
+    Kreslic: 4
+  S5:
+    Opravovatel: 2
+    Menic: 1
+    Skenovac: 1
+    Kreslic: 4
+  S9:
+    Opravovatel: 3
+    Menic: 2
+    Skenovac: 1
+    Kreslic: 4
+
+  Fotograf: 2
+
+Karlov:
+  M1:
+    Opravovatel: 5
+    Menic: 4
+    Skenovac: 2
+    Kreslic: 8
+
+  Fotograf: 1
+
+Troja:
+  N1:
+    Opravovatel: 5
+    Menic: 4
+    Skenovac: 2
+    Kreslic: 8
+  N4:
+    Opravovatel: 2
+    Menic: 1
+    Skenovac: 1
+    Kreslic: 4
+  N6:
+    Opravovatel: 2
+    Menic: 1
+    Skenovac: 1
+    Kreslic: 4
+
+  Fotograf: 1
+
+Karlin:
+  K1:
+    Opravovatel: 3
+    Menic: 2
+    Skenovac: 1
+    Kreslic: 4
+
+  Fotograf: 1

@@ -139,3 +139,9 @@ want to share a **room** (not just building) with. This must be:
   structural/overlay roles are deliberately out of solver scope, entered
   manually in the same grid (dropdowns, not drag-and-drop) and merged in at
   export time.
+- The web app's buildings/rooms layout defaults to a bundled copy of the most
+  recent season's config and persists separately in
+  `data/buildings-config.yaml` (`rostering/webapp/config_store.py`), distinct
+  from the per-run `data/workspace/state.json` blob — so it survives "start
+  over" resets and app restarts instead of needing to be re-entered by hand
+  each time.

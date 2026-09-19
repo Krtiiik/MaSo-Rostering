@@ -42,11 +42,17 @@ Then run the server, which also serves the built frontend:
 rostering serve
 ```
 
-Open http://127.0.0.1:8000. Upload the raw survey export, configure
-buildings/rooms, solve, then drag helpers between cells to adjust. Save
-named versions, restore/delete them, and export the current roster to Excel
-from the same page. All working state lives under `data/workspace/`
-(gitignored, since it holds real helper data).
+Open http://127.0.0.1:8000. Upload the raw survey export, then use the
+"Continue to buildings & rooms →" button to configure buildings/rooms, solve,
+then drag helpers between cells to adjust. Save named versions, restore/delete
+them, and export the current roster to Excel from the same page. All working
+state lives under `data/workspace/` (gitignored, since it holds real helper
+data).
+
+The buildings/rooms layout is pre-filled with a default (seeded from the most
+recent season's roster) and persists separately in `data/buildings-config.yaml`
+— it's saved there whenever you edit it on the Buildings page, so it survives
+"start over" resets and app restarts.
 
 For frontend development with hot reload, run the backend (`rostering
 serve --port 8000`) and, in another terminal, `npm run dev` inside

@@ -32,6 +32,7 @@ from rostering.webapp.serialize import (
     solver_config_from_dict,
     solver_config_to_dict,
 )
+from rostering.webapp import config_store
 from rostering.webapp.workspace import Workspace
 
 app = FastAPI(title="Rostering")
@@ -115,6 +116,9 @@ def put_config(buildings: list[dict]) -> dict:
     state = workspace.load()
     state["config"] = buildings
     workspace.save(state)
+    # Persisted separately from the (gitignored, ephemeral) workspace state so
+    # this layout survives "start over" resets and app restarts.
+    config_store.save_default_config(buildings)
     return state
 
 

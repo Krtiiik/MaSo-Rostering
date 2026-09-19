@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 from rostering.domain import ManualRoles
 from rostering.solver.model import SolverConfig
+from rostering.webapp import config_store
 from rostering.webapp.serialize import manual_roles_to_dict, solver_config_to_dict
 
 # Overridable so tests (and anyone running multiple workspaces) don't have to
@@ -41,7 +42,7 @@ class Workspace:
         return {
             "helpers": [],
             "ingestion_warnings": [],
-            "config": [],
+            "config": config_store.load_default_config(),
             "solver_config": solver_config_to_dict(SolverConfig()),
             "assignments": [],
             "manual_roles": manual_roles_to_dict(ManualRoles()),
