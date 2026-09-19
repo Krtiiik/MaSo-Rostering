@@ -292,3 +292,77 @@ button:disabled {
   padding: 0.2rem 0.5rem;
   margin-right: 0.25rem;
 }
+
+.helpers-table {
+  border-collapse: collapse;
+  background: white;
+  min-width: 100%;
+}
+
+.helpers-table th,
+.helpers-table td {
+  border: 1px solid #ddd;
+  padding: 0.4rem 0.5rem;
+  vertical-align: top;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.helpers-table th {
+  background: #eee;
+}
+
+.role-pref-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  max-width: 320px;
+}
+
+.role-pref-badge {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.friend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  max-width: 260px;
+}
+
+.friend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+}
+
+.friend-chip.resolved {
+  background: #e6f4ea;
+  border: 1px solid #8fcf9f;
+}
+
+.friend-chip.unresolved {
+  background: #fdecea;
+  border: 1px solid #e0a0a0;
+}
+
+.friend-chip.unresolved .unresolved-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.friend-chip.unresolved select,
+.friend-chip.unresolved button {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.3rem;
+  white-space: nowrap;
+}

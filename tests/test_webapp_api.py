@@ -186,6 +186,65 @@ def test_version_lifecycle(client):
     assert client.get(f"/api/versions/{created['slug']}").status_code == 404
 
 
+def _seed_helper_with_unresolved_friend(client):
+    helpers = [
+        {
+            "id": 1,
+            "name": "Anna",
+            "role_preferences": {},
+            "building_preferences": [],
+            "friends": [],
+            "can_bring_notebook": False,
+            "can_bring_camera": False,
+            "unresolved_friend_names": ["Terka"],
+        },
+        {
+            "id": 2,
+            "name": "Tereza",
+            "role_preferences": {},
+            "building_preferences": [],
+            "friends": [],
+            "can_bring_notebook": False,
+            "can_bring_camera": False,
+            "unresolved_friend_names": [],
+        },
+    ]
+    from rostering.webapp.api import workspace
+
+    state = workspace.load()
+    state["helpers"] = helpers
+    workspace.save(state)
+
+
+def test_resolve_friend_matches_to_helper(client):
+    _seed_helper_with_unresolved_friend(client)
+    resp = client.put("/api/helpers/1/friends", json={"name": "Terka", "action": "resolve", "resolved_helper_id": 2})
+    assert resp.status_code == 200
+    helper = next(h for h in resp.json()["helpers"] if h["id"] == 1)
+    assert helper["friends"] == [2]
+    assert helper["unresolved_friend_names"] == []
+
+
+def test_resolve_friend_dismiss_marks_not_attending(client):
+    _seed_helper_with_unresolved_friend(client)
+    resp = client.put("/api/helpers/1/friends", json={"name": "Terka", "action": "dismiss"})
+    assert resp.status_code == 200
+    helper = next(h for h in resp.json()["helpers"] if h["id"] == 1)
+    assert helper["friends"] == []
+    assert helper["unresolved_friend_names"] == []
+
+
+def test_resolve_friend_unknown_name_404s(client):
+    _seed_helper_with_unresolved_friend(client)
+    resp = client.put("/api/helpers/1/friends", json={"name": "Nobody", "action": "dismiss"})
+    assert resp.status_code == 400
+
+
+def test_resolve_friend_unknown_helper_404s(client):
+    resp = client.put("/api/helpers/999/friends", json={"name": "Terka", "action": "dismiss"})
+    assert resp.status_code == 404
+
+
 def test_reset_clears_workspace(client):
     _seed_two_helpers(client)
     resp = client.post("/api/reset")

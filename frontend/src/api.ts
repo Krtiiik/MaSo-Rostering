@@ -30,6 +30,11 @@ export const api = {
     return fetch(`${BASE}/upload`, { method: "POST", body: form }).then((r) => asJson<WorkspaceState>(r));
   },
 
+  resolveFriend: (
+    helperId: number,
+    body: { name: string; action: "resolve" | "dismiss"; resolved_helper_id?: number },
+  ): Promise<WorkspaceState> => putJson(`/helpers/${helperId}/friends`, body),
+
   putConfig: (buildings: BuildingConfig[]): Promise<WorkspaceState> => putJson("/config", buildings),
 
   putSolverConfig: (config: SolverConfigT): Promise<WorkspaceState> => putJson("/solver-config", config),

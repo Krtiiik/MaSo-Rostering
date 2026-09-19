@@ -56,6 +56,12 @@ class VersionCreate(BaseModel):
     name: str
 
 
+class FriendResolution(BaseModel):
+    name: str
+    action: str  # "resolve" or "dismiss"
+    resolved_helper_id: Optional[int] = None
+
+
 def _recompute_unsatisfied_pairs(state: dict[str, Any]) -> list[list[int]]:
     helpers = [helper_from_dict(h) for h in state["helpers"]]
     friend_scoring = solver_config_from_dict(state["solver_config"]).friend_scoring
@@ -102,6 +108,35 @@ async def upload_responses(file: UploadFile = File(...)) -> dict:
     state["ingestion_warnings"] = result.warnings
     state["assignments"] = []
     state["diagnostics"] = {"status": None, "objective_value": None, "unsatisfied_friend_pairs": []}
+    workspace.save(state)
+    return state
+
+
+@app.put("/api/helpers/{helper_id}/friends")
+def resolve_friend(helper_id: int, body: FriendResolution) -> dict:
+    state = workspace.load()
+    helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
+    if helper is None:
+        raise HTTPException(status_code=404, detail=f"No such helper: {helper_id}")
+    if body.name not in helper["unresolved_friend_names"]:
+        raise HTTPException(
+            status_code=400, detail=f"{body.name!r} is not an unresolved friend name for helper {helper_id}"
+        )
+
+    if body.action == "resolve":
+        if body.resolved_helper_id is None:
+            raise HTTPException(status_code=400, detail="resolved_helper_id is required for action=resolve")
+        known_ids = {h["id"] for h in state["helpers"]}
+        if body.resolved_helper_id not in known_ids:
+            raise HTTPException(status_code=404, detail=f"No such helper: {body.resolved_helper_id}")
+        if body.resolved_helper_id not in helper["friends"]:
+            helper["friends"].append(body.resolved_helper_id)
+    elif body.action == "dismiss":
+        pass
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
+
+    helper["unresolved_friend_names"] = [n for n in helper["unresolved_friend_names"] if n != body.name]
     workspace.save(state)
     return state
 
