@@ -22,7 +22,7 @@ def test_load_real_2026_jaro_config():
 
 
 def test_load_example_config_with_explicit_max():
-    buildings = load_buildings(REPO_ROOT / "buildings.example.yaml")
+    buildings = load_buildings(REPO_ROOT / "examples" / "buildings.example.yaml")
     s4 = next(r for r in buildings["Malá Strana"].rooms if r.name == "S4")
     assert s4.capacities[Role.Kreslic].minimum == 2
     assert s4.capacities[Role.Kreslic].maximum == 4

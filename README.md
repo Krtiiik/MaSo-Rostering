@@ -23,8 +23,8 @@ rostering solve config.yaml helpers.csv \
     -o roster.xlsx --manual-roles manual-roles.yaml
 ```
 
-See `buildings.example.yaml`, `helpers.example.csv`, and
-`manual-roles.example.yaml` for the input file formats.
+See `examples/buildings.example.yaml`, `examples/helpers.example.csv`, and
+`examples/manual-roles.example.yaml` for the input file formats.
 
 ### Interactive web app
 
