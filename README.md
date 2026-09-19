@@ -14,11 +14,11 @@ python -m venv .venv
 
 ```
 # 1. Convert a raw Google Forms export into the canonical helpers CSV
-rostering ingest data/seasons/2026-jaro/raw-response.xlsx -o data/seasons/2026-jaro/helpers.csv
+rostering ingest raw-response.xlsx -o helpers.csv
 
 # 2. Solve and export a roster
-rostering solve data/seasons/2026-jaro/config.yaml data/seasons/2026-jaro/helpers.csv \
-    -o roster.xlsx --manual-roles data/seasons/2026-jaro/manual-roles.yaml
+rostering solve config.yaml helpers.csv \
+    -o roster.xlsx --manual-roles manual-roles.yaml
 ```
 
 See `buildings.example.yaml`, `helpers.example.csv`, and
