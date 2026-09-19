@@ -5,9 +5,10 @@ import type { WorkspaceState } from "../types";
 interface Props {
   state: WorkspaceState;
   onStateChange: (state: WorkspaceState) => void;
+  onContinue: () => void;
 }
 
-export function UploadPage({ state, onStateChange }: Props) {
+export function UploadPage({ state, onStateChange, onContinue }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,9 @@ export function UploadPage({ state, onStateChange }: Props) {
               </ul>
             </details>
           )}
+          <button className="cta-button" onClick={onContinue}>
+            Continue to buildings &amp; rooms →
+          </button>
         </div>
       )}
     </div>

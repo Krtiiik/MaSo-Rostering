@@ -145,6 +145,21 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.cta-button {
+  display: block;
+  margin-top: 0.75rem;
+  padding: 0.6rem 1.1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  background: #2e9e5b;
+  border-color: #2e9e5b;
+}
+
+.cta-button:hover {
+  background: #278a4f;
+  border-color: #278a4f;
+}
+
 .error {
   color: #b00020;
 }

@@ -50,7 +50,9 @@ export default function App() {
 
       <div className="app-body">
         <main className="app-main">
-          {tab === "upload" && <UploadPage state={state} onStateChange={onStateChange} />}
+          {tab === "upload" && (
+            <UploadPage state={state} onStateChange={onStateChange} onContinue={() => setTab("config")} />
+          )}
           {tab === "config" && (
             <ConfigPage state={state} onStateChange={onStateChange} onSolved={() => setTab("grid")} />
           )}
