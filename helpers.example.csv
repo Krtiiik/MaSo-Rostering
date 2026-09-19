@@ -1,0 +1,4 @@
+id,name,role_preferences,building_preferences,friends,can_bring_notebook,can_bring_camera,unresolved_friends
+1,Anna,Opravovatel=Ano;Menic=Nevadi;Skenovac=Ne;Kreslic=Klidne;Fotograf=Ano,A,"2,3",true,true,
+2,Petr,Opravovatel=Ne;Menic=Ano;Skenovac=Klidne;Kreslic=Nevadi;Fotograf=Spise_ne,B,1,false,false,
+3,Lucie,Opravovatel=Klidne;Menic=Klidne;Skenovac=Ano;Kreslic=Ne;Fotograf=Nevadi,A;B,1,true,false,

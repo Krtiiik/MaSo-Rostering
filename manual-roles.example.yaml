@@ -1,0 +1,24 @@
+# Example manual-roles overlay file (see rostering/manual.py and CLAUDE.md
+# "Out-of-solver roles"). Pass this to `rostering solve --manual-roles ...`.
+# helper_id refers to the `id` column in the season's helpers.csv.
+
+structural:
+  - role: VedouciBudovy       # building lead
+    building: Malá Strana
+    helper_id: 1
+  - role: PravaRuka           # building lead's deputy
+    building: Malá Strana
+    helper_id: 2
+  - role: VedouciMistnosti    # room lead — needs `room` too
+    building: Malá Strana
+    room: S3
+    helper_id: 3
+  - role: TechnickaPodpora
+    building: Karlov
+    helper_id: 4
+
+overlay:
+  - role: Registrace                # registration desk, before the event
+    helper_id: 5
+  - role: UvadeciPredavaniCen       # ushering / award-ceremony support, after
+    helper_id: 6

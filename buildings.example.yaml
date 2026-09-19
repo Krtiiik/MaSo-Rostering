@@ -1,0 +1,30 @@
+# Example season config (see rostering/config.py for the loader).
+#
+# Each top-level key is a building name. Its value is a mapping where each
+# key is either:
+#   - a room name, whose value is a {Role: capacity} mapping, or
+#   - a role name (no nested room), meaning a requirement that applies
+#     anywhere in the building rather than to one specific room.
+#
+# A role's capacity is either a bare integer (minimum headcount, unbounded
+# maximum) or a {min: X, max: Y} mapping for an explicit upper bound.
+Malá Strana:
+  S3:
+    Opravovatel: 3
+    Menic: 2
+    Skenovac: 1
+    Kreslic: 4
+  S4:
+    Opravovatel: 2
+    Menic: 1
+    Skenovac: 1
+    Kreslic: {min: 2, max: 4}
+  Fotograf: 2  # anywhere in Malá Strana, not tied to one room
+
+Karlov:
+  M1:
+    Opravovatel: 5
+    Menic: 4
+    Skenovac: 2
+    Kreslic: 8
+  Fotograf: 1

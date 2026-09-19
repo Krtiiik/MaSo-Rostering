@@ -1,0 +1,18 @@
+# Contains real helpers' personal data (names, emails, phone numbers) —
+# never commit. Kept on disk for the tool to read/write, just not tracked.
+/data/
+
+# Claude Code harness state, not project content.
+/.claude/
+
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+roster.xlsx
+*.tmp.xlsx
