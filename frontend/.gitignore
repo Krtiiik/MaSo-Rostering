@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Screenshots from the e2e smoke driver — verification output, not source.
+e2e/screenshots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
