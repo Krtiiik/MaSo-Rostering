@@ -48,6 +48,13 @@ def _cmd_solve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    uvicorn.run("rostering.webapp.api:app", host=args.host, port=args.port, reload=args.reload)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MaSo Roster Generator")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -63,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
     solve_parser.add_argument("--output", "-o", default=Path("roster.xlsx"), type=Path)
     solve_parser.add_argument("--manual-roles", type=Path, default=None, help="Optional manual-roles.yaml overlay.")
     solve_parser.set_defaults(func=_cmd_solve)
+
+    serve_parser = subparsers.add_parser("serve", help="Run the interactive web app.")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.add_argument("--reload", action="store_true", help="Auto-reload on code changes (development).")
+    serve_parser.set_defaults(func=_cmd_serve)
 
     return parser
 
