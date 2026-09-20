@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Buildings & rooms tab: the "+ Add room" column now stretches to match
+  the capacity grid's actual height instead of a fixed, overly tall
+  min-height. The "Remove building" button moved to the left of the
+  building name field and is bottom-aligned with it.
+
 ### Fixed
 
 - Roster grid: helper names assigned to the same room/role cell were laid
