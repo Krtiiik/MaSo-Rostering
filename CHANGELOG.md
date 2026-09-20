@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Roster grid: helper names assigned to the same room/role cell were laid
+  out horizontally, overflowing the cell instead of stacking. Cells now
+  stack names vertically, one per line.
+
 ## [0.2.0] - 2026-09-20
 
 ### Added
