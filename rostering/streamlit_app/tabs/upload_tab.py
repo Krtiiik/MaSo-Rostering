@@ -80,36 +80,39 @@ def _render_helpers_overview(state: dict) -> None:
     st.dataframe(rows, width="stretch", hide_index=True)
 
 
+_DISMISS = "__dismiss__"
+
+
 def _render_friend_resolution(state: dict) -> None:
-    pairs = [(h, name) for h in state["helpers"] for name in h["unresolved_friend_names"]]
-    if not pairs:
+    unresolved = [(h, h["unresolved_friend_names"]) for h in state["helpers"] if h["unresolved_friend_names"]]
+    if not unresolved:
         return
 
     st.subheader("Resolve friend names")
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
-    for helper, name in pairs:
+    for helper, names in unresolved:
         candidates = [hid for hid in other_helpers if hid != helper["id"]]
-        cols = st.columns([3, 3, 2, 2])
-        cols[0].write(f"**{helper['name']}** named:")
-        cols[1].write(f"“{name}”")
-        chosen = cols[2].selectbox(
-            "Match to…",
-            options=candidates,
-            format_func=lambda hid: other_helpers[hid],
-            key=f"match_{helper['id']}_{name}",
-            label_visibility="collapsed",
-        )
-        if cols[3].button("Match", key=f"match_btn_{helper['id']}_{name}"):
-            try:
-                session.set_state(
-                    mutations.resolve_friend(session.get_workspace(), helper["id"], name, "resolve", chosen)
-                )
-            except mutations.RosteringError as exc:
-                st.error(str(exc))
-            st.rerun()
-        if st.button("Not attending", key=f"dismiss_{helper['id']}_{name}"):
-            try:
-                session.set_state(mutations.resolve_friend(session.get_workspace(), helper["id"], name, "dismiss"))
-            except mutations.RosteringError as exc:
-                st.error(str(exc))
-            st.rerun()
+        cols = st.columns([2] + [3] * len(names))
+        cols[0].markdown(f"**{helper['name']}** named:")
+        for col, name in zip(cols[1:], names):
+            options = [None, _DISMISS, *candidates]
+            choice = col.selectbox(
+                name,
+                options=options,
+                format_func=lambda v: "✕ not attending" if v == _DISMISS else (other_helpers[v] if v is not None else f"“{name}”…"),
+                key=f"match_{helper['id']}_{name}",
+                label_visibility="collapsed",
+            )
+            if choice is not None:
+                try:
+                    if choice == _DISMISS:
+                        session.set_state(
+                            mutations.resolve_friend(session.get_workspace(), helper["id"], name, "dismiss")
+                        )
+                    else:
+                        session.set_state(
+                            mutations.resolve_friend(session.get_workspace(), helper["id"], name, "resolve", choice)
+                        )
+                except mutations.RosteringError as exc:
+                    st.error(str(exc))
+                st.rerun()

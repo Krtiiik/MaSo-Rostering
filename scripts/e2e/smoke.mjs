@@ -56,17 +56,29 @@ if (xlsxPath) {
   await page.screenshot({ path: path.join(SHOT_DIR, "02-helpers-loaded.png"), fullPage: true });
   console.log("helpers dataframe rendered");
 
-  // Resolve one unresolved friend name and dismiss another, if any exist.
-  const matchButtons = page.getByRole("button", { name: "Match" });
-  const matchCount = await matchButtons.count();
-  console.log(`unresolved friend rows with a Match button: ${matchCount}`);
-  if (matchCount > 0) {
-    await matchButtons.first().click();
+  // Resolve one unresolved friend name to a candidate, and dismiss another as
+  // "not attending", if any exist. Each unresolved name is its own inline
+  // selectbox (placeholder = the quoted name; options are the unselected
+  // placeholder, then a "not attending" sentinel, then every other helper as
+  // a candidate — in that order so "not attending" doesn't require scrolling
+  // past a long, virtualized candidate list) that applies immediately on
+  // selection — there are no separate Match/dismiss buttons any more.
+  const friendSelects = page.locator('[data-testid="stSelectbox"]');
+  const friendSelectCount = await friendSelects.count();
+  console.log(`unresolved friend selectboxes: ${friendSelectCount}`);
+  if (friendSelectCount > 0) {
+    await friendSelects.first().scrollIntoViewIfNeeded();
+    await friendSelects.first().click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.getByRole("option").nth(2).click(); // 0 = placeholder, 1 = "not attending", 2 = first candidate
     await page.waitForTimeout(500);
   }
-  const dismissButtons = page.getByRole("button", { name: "Not attending" });
-  if ((await dismissButtons.count()) > 0) {
-    await dismissButtons.first().click();
+  const friendSelectsAfter = page.locator('[data-testid="stSelectbox"]');
+  if ((await friendSelectsAfter.count()) > 0) {
+    await friendSelectsAfter.first().scrollIntoViewIfNeeded();
+    await friendSelectsAfter.first().click();
+    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
+    await page.getByRole("option").nth(1).click(); // "not attending"
     await page.waitForTimeout(500);
   }
   await page.screenshot({ path: path.join(SHOT_DIR, "03-after-friend-actions.png"), fullPage: true });
