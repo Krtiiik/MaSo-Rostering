@@ -13,10 +13,12 @@ _ROLE_ORDER = [r.name for r in Role]
 
 _ADD_ROOM_COL_CSS = """
 <style>
+div[data-testid="stHorizontalBlock"]:has(div[class*="st-key-add_room_col_"]) {
+    align-items: stretch;
+}
 div[class*="st-key-add_room_col_"] { height: 100%; }
 div[class*="st-key-add_room_col_"] button {
     height: 100%;
-    min-height: 180px;
     width: 100%;
     writing-mode: vertical-rl;
     text-orientation: mixed;
@@ -119,11 +121,11 @@ def render() -> None:
 
     for bi, building in enumerate(buildings):
         with st.expander(building["name"] or f"Building {bi + 1}", expanded=True):
-            cols = st.columns([4, 1])
-            building["name"] = cols[0].text_input("Building name", value=building["name"], key=f"bname_{bi}")
-            if cols[1].button("Remove building", key=f"remove_building_{bi}"):
+            cols = st.columns([1, 4], vertical_alignment="bottom")
+            if cols[0].button("Remove building", key=f"remove_building_{bi}"):
                 buildings.pop(bi)
                 st.rerun()
+            building["name"] = cols[1].text_input("Building name", value=building["name"], key=f"bname_{bi}")
 
             _render_building_table(building, bi)
 
