@@ -46,7 +46,9 @@ def test_unresolved_friend_names_are_surfaced_not_dropped():
     result = parse_raw_survey(SEASONS_DIR / "2026-jaro" / "raw-response.xlsx")
     someone_unresolved = next(h for h in result.helpers if h.unresolved_friend_names)
     assert someone_unresolved.unresolved_friend_names
-    assert any("could not resolve friend name" in w for w in result.warnings)
+    # Unresolved friend names are surfaced via `unresolved_friend_names` (and
+    # resolved interactively in the UI), not duplicated into `warnings`.
+    assert not any("could not resolve friend name" in w for w in result.warnings)
 
 
 def test_legacy_csv_round_trip(tmp_path):

@@ -233,8 +233,6 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
                 row.get(friends_col), name_to_id, first_name_to_ids
             )
             friend_ids = [fid for fid in friend_ids if fid != idx]
-            for unresolved_name in unresolved_friends:
-                warnings.append(f"{name}: could not resolve friend name {unresolved_name!r}")
 
         helpers.append(
             Helper(
