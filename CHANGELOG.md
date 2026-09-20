@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Buildings tab: the per-building capacity editor is now a single horizontal
+  table (role rows, building-wide Min/Max columns, then a Min/Max column
+  pair per room) using `number_input` steppers instead of a vertical
+  `data_editor` per room, with remove-room buttons under each room and a
+  vertical "+ Add room" button alongside the table.
+
 ## [0.1.0] - 2026-09-20
 
 ### Added
