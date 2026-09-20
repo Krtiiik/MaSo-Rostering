@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 
-import pandas as pd
 import streamlit as st
 
 from rostering.domain import Role
@@ -12,39 +11,91 @@ from rostering.streamlit_app import mutations, session
 _ROLE_LABELS = {r.name: r.value for r in Role}
 _ROLE_ORDER = [r.name for r in Role]
 
-
-def _capacity_rows(capacities: dict) -> pd.DataFrame:
-    rows = []
-    for role_name in _ROLE_ORDER:
-        cap = capacities.get(role_name, {"minimum": 0, "maximum": None})
-        rows.append({"Role": _ROLE_LABELS[role_name], "Min": cap.get("minimum", 0), "Max": cap.get("maximum")})
-    return pd.DataFrame(rows)
-
-
-def _capacities_from_rows(df: pd.DataFrame) -> dict:
-    capacities = {}
-    for role_name, (_, row) in zip(_ROLE_ORDER, df.iterrows()):
-        maximum = row["Max"]
-        capacities[role_name] = {
-            "minimum": int(row["Min"]) if pd.notna(row["Min"]) else 0,
-            "maximum": None if pd.isna(maximum) else int(maximum),
-        }
-    return capacities
+_ADD_ROOM_COL_CSS = """
+<style>
+div[class*="st-key-add_room_col_"] { height: 100%; }
+div[class*="st-key-add_room_col_"] button {
+    height: 100%;
+    min-height: 180px;
+    width: 100%;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+</style>
+"""
 
 
-def _capacity_editor(capacities: dict, key: str) -> dict:
-    edited = st.data_editor(
-        _capacity_rows(capacities),
-        key=key,
-        hide_index=True,
-        width="stretch",
-        disabled=["Role"],
-        column_config={
-            "Min": st.column_config.NumberColumn(min_value=0, step=1),
-            "Max": st.column_config.NumberColumn(min_value=0, step=1, help="Blank = unbounded"),
-        },
+def _capacity_cell(min_col, max_col, capacities: dict, role_name: str, key: str) -> None:
+    cap = capacities.get(role_name, {"minimum": 0, "maximum": None})
+    minimum = min_col.number_input(
+        "Min",
+        value=int(cap.get("minimum") or 0),
+        min_value=0,
+        step=1,
+        key=f"{key}_min",
+        label_visibility="collapsed",
     )
-    return _capacities_from_rows(edited)
+    existing_max = cap.get("maximum")
+    maximum = max_col.number_input(
+        "Max",
+        value=int(existing_max) if existing_max is not None else None,
+        min_value=0,
+        step=1,
+        key=f"{key}_max",
+        label_visibility="collapsed",
+        placeholder="∞",
+    )
+    capacities[role_name] = {"minimum": int(minimum), "maximum": None if maximum is None else int(maximum)}
+
+
+def _render_building_table(building: dict, bi: int) -> None:
+    rooms: list[dict] = building["rooms"]
+    n_units = 1 + len(rooms)  # building-wide unit + one per room
+
+    outer = st.columns([1 + 2 * n_units, 1])
+    with outer[0]:
+        header_cols = st.columns([1] + [2] * n_units)
+        header_cols[0].write("")
+        header_cols[1].markdown(f"**{building['name'] or 'Building'} (overall)**")
+        for ri, room in enumerate(rooms):
+            with header_cols[2 + ri]:
+                room["name"] = st.text_input(
+                    "Room name", value=room["name"], key=f"rname_{bi}_{ri}", label_visibility="collapsed"
+                )
+
+        subheader_cols = st.columns([1] + [1, 1] * n_units)
+        subheader_cols[0].write("")
+        for i in range(n_units):
+            subheader_cols[1 + 2 * i].caption("Min")
+            subheader_cols[2 + 2 * i].caption("Max")
+
+        for role_name in _ROLE_ORDER:
+            row_cols = st.columns([1] + [1, 1] * n_units)
+            row_cols[0].write(_ROLE_LABELS[role_name])
+            _capacity_cell(row_cols[1], row_cols[2], building["capacities"], role_name, key=f"bcap_{bi}_{role_name}")
+            for ri, room in enumerate(rooms):
+                _capacity_cell(
+                    row_cols[3 + 2 * ri],
+                    row_cols[4 + 2 * ri],
+                    room["capacities"],
+                    role_name,
+                    key=f"rcap_{bi}_{ri}_{role_name}",
+                )
+
+        remove_cols = st.columns([1] + [2] * n_units)
+        remove_cols[0].write("")
+        remove_cols[1].write("")
+        for ri, room in enumerate(rooms):
+            if remove_cols[2 + ri].button("Remove room", key=f"remove_room_{bi}_{ri}", width="stretch"):
+                rooms.pop(ri)
+                st.rerun()
+
+    with outer[1]:
+        st.markdown(_ADD_ROOM_COL_CSS, unsafe_allow_html=True)
+        with st.container(key=f"add_room_col_{bi}"):
+            if st.button("+ Add room", key=f"add_room_{bi}", width="stretch"):
+                rooms.append({"name": f"Room {len(rooms) + 1}", "capacities": {}})
+                st.rerun()
 
 
 def _ensure_drafts(state: dict) -> None:
@@ -74,23 +125,7 @@ def render() -> None:
                 buildings.pop(bi)
                 st.rerun()
 
-            st.caption("Building-wide requirements (not tied to one room)")
-            building["capacities"] = _capacity_editor(building["capacities"], key=f"bcap_{bi}")
-
-            st.caption("Rooms")
-            for ri, room in enumerate(building["rooms"]):
-                room_cols = st.columns([4, 1])
-                room["name"] = room_cols[0].text_input("Room name", value=room["name"], key=f"rname_{bi}_{ri}")
-                if room_cols[1].button("Remove room", key=f"remove_room_{bi}_{ri}"):
-                    building["rooms"].pop(ri)
-                    st.rerun()
-                room["capacities"] = _capacity_editor(room["capacities"], key=f"rcap_{bi}_{ri}")
-
-            with st.form(key=f"add_room_form_{bi}", clear_on_submit=True):
-                new_room_name = st.text_input("New room name")
-                if st.form_submit_button("+ Add room") and new_room_name:
-                    building["rooms"].append({"name": new_room_name, "capacities": {}})
-                    st.rerun()
+            _render_building_table(building, bi)
 
     with st.form(key="add_building_form", clear_on_submit=True):
         new_building_name = st.text_input("New building name")
