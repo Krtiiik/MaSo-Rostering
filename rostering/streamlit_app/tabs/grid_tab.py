@@ -52,26 +52,27 @@ def render() -> None:
         st.info("Configure at least one building with a room first.")
         return
 
-    cols = st.columns(2)
-    if cols[0].button("Re-solve" if state["assignments"] else "Solve", type="primary"):
-        with st.spinner("Solving…"):
-            try:
-                session.set_state(mutations.solve(session.get_workspace()))
-                st.rerun()
-            except mutations.RosteringError as exc:
-                st.error(str(exc))
+    with st.bottom:
+        cols = st.columns(2)
+        if cols[0].button("Re-solve" if state["assignments"] else "Solve", type="primary"):
+            with st.spinner("Solving…"):
+                try:
+                    session.set_state(mutations.solve(session.get_workspace()))
+                    st.rerun()
+                except mutations.RosteringError as exc:
+                    st.error(str(exc))
 
-    if state["assignments"]:
-        try:
-            export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
-            cols[1].download_button(
-                "Export to Excel",
-                data=export_bytes,
-                file_name="roster.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        except mutations.RosteringError:
-            pass
+        if state["assignments"]:
+            try:
+                export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
+                cols[1].download_button(
+                    "Export to Excel",
+                    data=export_bytes,
+                    file_name="roster.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            except mutations.RosteringError:
+                pass
 
     diagnostics = state["diagnostics"]
     if diagnostics["status"]:

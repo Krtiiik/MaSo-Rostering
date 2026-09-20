@@ -158,24 +158,25 @@ def render() -> None:
         key="w_symmetric",
     )
 
-    action_cols = st.columns(2)
-    if action_cols[0].button("Save config"):
-        try:
-            session.set_state(mutations.put_config(session.get_workspace(), buildings))
-            st.success("Config saved.")
-        except mutations.RosteringError as exc:
-            st.error(str(exc))
-
-    disabled = not state["helpers"]
-    if action_cols[1].button("Save & solve", type="primary", disabled=disabled):
-        with st.spinner("Solving…"):
+    with st.bottom:
+        action_cols = st.columns(2)
+        if action_cols[0].button("Save config"):
             try:
-                mutations.put_config(session.get_workspace(), buildings)
-                mutations.put_solver_config(session.get_workspace(), solver_config)
-                session.set_state(mutations.solve(session.get_workspace()))
-                session.switch_tab("3. Roster")
-                st.rerun()
+                session.set_state(mutations.put_config(session.get_workspace(), buildings))
+                st.success("Config saved.")
             except mutations.RosteringError as exc:
                 st.error(str(exc))
-    if disabled:
-        st.caption("Upload helper responses first.")
+
+        disabled = not state["helpers"]
+        if action_cols[1].button("Save & solve", type="primary", disabled=disabled):
+            with st.spinner("Solving…"):
+                try:
+                    mutations.put_config(session.get_workspace(), buildings)
+                    mutations.put_solver_config(session.get_workspace(), solver_config)
+                    session.set_state(mutations.solve(session.get_workspace()))
+                    session.switch_tab("3. Roster")
+                    st.rerun()
+                except mutations.RosteringError as exc:
+                    st.error(str(exc))
+        if disabled:
+            st.caption("Upload helper responses first.")
