@@ -1,0 +1,8 @@
+# Ship a minimal metadata file that can be picked up by Streamlit at runtime.
+[project]
+name = "rostering-assignment-grid"
+version = "0.0.1"
+
+[[tool.streamlit.component.components]]
+name = "rostering_assignment_grid"
+asset_dir = "frontend/build"

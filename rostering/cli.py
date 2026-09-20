@@ -49,10 +49,23 @@ def _cmd_solve(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    import uvicorn
+    import subprocess
 
-    uvicorn.run("rostering.webapp.api:app", host=args.host, port=args.port, reload=args.reload)
-    return 0
+    app_path = Path(__file__).resolve().parent / "streamlit_app" / "app.py"
+    cmd = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.address",
+        args.host,
+        "--server.port",
+        str(args.port),
+    ]
+    if args.reload:
+        cmd += ["--server.runOnSave", "true"]
+    return subprocess.call(cmd)
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,0 +1,2 @@
+recursive-include rostering_assignment_grid/frontend/build *
+include pyproject.toml

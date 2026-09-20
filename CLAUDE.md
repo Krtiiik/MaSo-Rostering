@@ -127,21 +127,39 @@ want to share a **room** (not just building) with. This must be:
 
 ## Status / decisions log
 
-- Tech stack: Python backend (this repo) + a FastAPI web app
-  (`rostering/webapp/`) with a React/Vite/TypeScript/dnd-kit frontend
-  (`frontend/`). Single-workspace design: no season picker in the UI —
-  upload a raw survey export, configure buildings/rooms directly in the
-  browser, solve, drag helpers between cells, save/restore named versions,
-  export to Excel. State persists as JSON under `data/workspace/`
-  (gitignored). Run via `rostering serve` (see README.md).
+- Tech stack: a single-process [Streamlit](https://streamlit.io) app
+  (`rostering/streamlit_app/`) calling the domain/solver/ingest/export
+  modules directly, in-process — no HTTP API layer (the project previously
+  shipped a FastAPI backend + separate React/Vite/dnd-kit frontend; both
+  were removed in favor of Streamlit to cut the toolchain down to one
+  language). `app.py` is the entry point; `mutations.py` holds
+  Streamlit-free state-mutation functions (upload, solve, move a helper,
+  friend resolution, ...) that the three tabs (`tabs/upload_tab.py`,
+  `tabs/config_tab.py`, `tabs/grid_tab.py`) call into and that tests exercise
+  directly. Single-workspace design: no season picker in the UI — upload a
+  raw survey export, configure buildings/rooms directly in the browser,
+  solve, drag helpers between cells, save/restore named versions, export to
+  Excel. State persists as JSON under `data/workspace/` (gitignored). Run via
+  `rostering serve` (see README.md).
+- The one piece of UI Streamlit can't do natively — drag-and-drop — is a
+  custom Streamlit component (CCv2) at `components/rostering-assignment-grid/`
+  (React + dnd-kit, generated from Streamlit's official CCv2
+  `component-template` and then customized). It's packaged as its own
+  installable distribution, separate from the `rostering` package, because
+  Streamlit's CCv2 manifest scanner discovers packaged components by
+  scanning *installed distributions* for their own `pyproject.toml`, not by
+  finding arbitrary subpackages nested inside a different, larger
+  distribution — see README.md "Setup" for the two-package editable-install
+  this requires. Its built JS/CSS bundle is checked into git so a normal
+  `pip install -e` alone is enough to run the app.
 - Equipment eligibility is a **hard** constraint (see above).
 - The solver's role scope is fixed at the 6 roles listed above; the
   structural/overlay roles are deliberately out of solver scope, entered
-  manually in the same grid (dropdowns, not drag-and-drop) and merged in at
-  export time.
+  manually below the drag-and-drop grid (native `st.selectbox`/
+  `st.multiselect` widgets, not drag-and-drop) and merged in at export time.
 - The web app's buildings/rooms layout defaults to a bundled copy of the most
   recent season's config and persists separately in
-  `data/buildings-config.yaml` (`rostering/webapp/config_store.py`), distinct
-  from the per-run `data/workspace/state.json` blob — so it survives "start
-  over" resets and app restarts instead of needing to be re-entered by hand
-  each time.
+  `data/buildings-config.yaml` (`rostering/persistence/config_store.py`),
+  distinct from the per-run `data/workspace/state.json` blob — so it
+  survives "start over" resets and app restarts instead of needing to be
+  re-entered by hand each time.
