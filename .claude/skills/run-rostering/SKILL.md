@@ -68,12 +68,18 @@ netstat -ano | grep -E ":8501" | grep LISTENING   # must be empty before you sta
 
 ROSTERING_WORKSPACE_DIR=/e/tmp/rostering-run-workspace \
 ROSTERING_BUILDINGS_CONFIG_PATH=/e/tmp/rostering-buildings-config.yaml \
-  "/e/Code/.venvs/rostering/Scripts/rostering.exe" serve --port 8501 \
+  "/e/Code/.venvs/rostering/Scripts/rostering.exe" serve --port 8501 --headless \
   < /dev/null > /e/tmp/rostering-streamlit.log 2>&1 &
 disown
 
 timeout 30 bash -c 'until curl -sf http://localhost:8501/ >/dev/null 2>&1; do sleep 1; done' && echo APP_UP
 ```
+
+`--headless` maps to Streamlit's `--server.headless true` and stops it from
+auto-opening a browser tab on launch — always pass it for agent/scripted
+runs like this one (a real browser tab popping open on the user's machine
+for a test run you're driving with Playwright is unwanted noise). Leave it
+off for the human path below, where auto-opening is the point.
 
 Drive it with the smoke script (from `scripts/e2e/`):
 
@@ -85,11 +91,13 @@ or equivalently `npm run smoke -- ../../data/seasons/2026-jaro/raw-response.xlsx
 With no path argument it only checks the app shell loads (file input
 attached). With a path, it uploads that `.xlsx` via the Upload tab, waits
 for the parsed-helpers `st.dataframe` to render, resolves one unresolved
-friend name via its "Match" button and dismisses another via "Not
-attending" (if any unresolved names exist), switches to the Buildings tab
-and clicks "Save & solve", switches to the Roster tab, drags the first
-helper chip into the first grid cell (exercising the CCv2 component), and
-checks the Export button is present.
+friend name to a candidate and dismisses another as "not attending" via
+the inline per-name selectboxes in the "Resolve friend names" section (if
+any unresolved names exist — each selectbox applies its choice immediately
+on selection, there's no separate confirm button), switches to the
+Buildings tab and clicks "Save & solve", switches to the Roster tab, drags
+the first helper chip into the first grid cell (exercising the CCv2
+component), and checks the Export button is present.
 
 Screenshots land in `scripts/e2e/screenshots/` (`01-app-loaded.png`,
 `02-helpers-loaded.png`, `03-after-friend-actions.png`,
@@ -163,6 +171,26 @@ These call the `mutations.*` functions directly against an isolated
   handler, since the tab strip renders before any tab's `render()` is
   called) — if you add a new cross-tab navigation action, reuse
   `session.switch_tab`, don't hand-roll the session-state write.
+
+- **A `rostering serve` process must be restarted to pick up Python code
+  changes**, not just have the browser tab reloaded. Streamlit's own file
+  watcher only prompts "Source file changed — Rerun?" in the browser and
+  won't auto-apply without a click (or `--reload`, which sets
+  `server.runOnSave` and still needs the *browser* connected to receive
+  it) — a background Playwright-driven run has no one to click that prompt.
+  After editing any `rostering/` source, `taskkill` the old PID (see above)
+  and relaunch before re-running the smoke script, or you'll silently test
+  stale code.
+- **`st.selectbox` renders as a virtualized `react-aria` combobox, not a
+  native `<select>`.** Playwright must click the `[data-testid="stSelectbox"]`
+  wrapper to open it, then wait for `[role="listbox"]` before querying
+  `getByRole("option")` — with many options only a small visible window
+  (around 11) is actually in the DOM at once, so targeting an option by
+  name/index that isn't near the top requires scrolling the listbox first.
+  If you control the options' order (as in the friend-name-resolution
+  selectboxes), put anything a test needs to select — e.g. a "not
+  attending" sentinel — right after the placeholder instead of at the end
+  of a long candidate list, so it's always in the initial render window.
 
 ## Troubleshooting
 

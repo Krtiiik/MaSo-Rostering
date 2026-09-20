@@ -65,6 +65,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     ]
     if args.reload:
         cmd += ["--server.runOnSave", "true"]
+    if args.headless:
+        cmd += ["--server.headless", "true"]
     return subprocess.call(cmd)
 
 
@@ -88,6 +90,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)
     serve_parser.add_argument("--reload", action="store_true", help="Auto-reload on code changes (development).")
+    serve_parser.add_argument(
+        "--headless", action="store_true", help="Don't auto-open a browser tab (for scripted/agent runs)."
+    )
     serve_parser.set_defaults(func=_cmd_serve)
 
     return parser
