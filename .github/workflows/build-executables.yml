@@ -1,0 +1,130 @@
+name: Build standalone executables
+
+# Builds a standalone rostering CLI/app executable (no Python install
+# required) for Windows, Linux, and macOS via PyInstaller. See
+# packaging/rostering.spec for why it's a one-directory build rather than
+# --onefile.
+#
+# - Pushing a `v*.*.*` tag attaches the three archives to a GitHub Release
+#   for that tag (creating it if it doesn't exist).
+# - workflow_dispatch lets you trigger a build (as a workflow artifact,
+#   without a release) to sanity-check packaging without cutting a release.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write  # softprops/action-gh-release needs this to attach assets
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset_name: windows-x64
+            archive_ext: zip
+          - os: ubuntu-latest
+            asset_name: linux-x64
+            archive_ext: tar.gz
+          - os: macos-latest
+            asset_name: macos-arm64
+            archive_ext: tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rostering + the assignment-grid component (non-editable)
+        # Non-editable on purpose: the built executable must not depend on
+        # this checkout's file layout at run time. The grid component's
+        # built JS/CSS bundle is committed to git (see README.md), so this
+        # needs no Node/npm step.
+        run: |
+          pip install .
+          pip install ./components/rostering-assignment-grid
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/rostering.spec --noconfirm --clean
+
+      - name: Smoke-test the built executable (CLI)
+        shell: bash
+        # examples/*.example.* has far more role capacity than its 3 sample
+        # helpers can fill, so `solve` correctly reports infeasible (exit 1,
+        # "No feasible roster found") — that still proves ortools' native
+        # solver loaded and ran. Only a crash (a different exit code, or a
+        # Python traceback from a missing module/DLL) means packaging broke.
+        run: |
+          set -eux
+          BIN=dist/rostering/rostering
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then BIN="dist/rostering/rostering.exe"; fi
+          "$BIN" --help
+          set +e
+          OUTPUT=$("$BIN" solve examples/buildings.example.yaml examples/helpers.example.csv -o /tmp/smoke-roster.xlsx 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          if [ "$STATUS" -ne 1 ] || ! echo "$OUTPUT" | grep -q "No feasible roster found"; then
+            echo "Unexpected solve failure (packaging likely broken)"
+            exit 1
+          fi
+
+      - name: Smoke-test the built executable (serve)
+        shell: bash
+        run: |
+          set -eux
+          BIN=dist/rostering/rostering
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then BIN="dist/rostering/rostering.exe"; fi
+
+          # Preempt Streamlit's first-run interactive email prompt, which
+          # would otherwise hang a headless/non-TTY launch forever waiting
+          # on stdin (see .claude/skills/run-rostering/SKILL.md).
+          mkdir -p ~/.streamlit
+          printf '[browser]\ngatherUsageStats = false\n' > ~/.streamlit/config.toml
+          printf '[general]\nemail = ""\n' > ~/.streamlit/credentials.toml
+
+          export ROSTERING_WORKSPACE_DIR="$RUNNER_TEMP/rostering-smoke-workspace"
+          export ROSTERING_BUILDINGS_CONFIG_PATH="$RUNNER_TEMP/rostering-smoke-buildings.yaml"
+          "$BIN" serve --port 8501 --headless < /dev/null > "$RUNNER_TEMP/serve.log" 2>&1 &
+          SERVER_PID=$!
+
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8501/ > /dev/null 2>&1; then
+              echo "App is up"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8501/ > /dev/null || { cat "$RUNNER_TEMP/serve.log"; exit 1; }
+          kill "$SERVER_PID" || true
+
+      - name: Package archive (zip)
+        if: matrix.archive_ext == 'zip'
+        shell: bash
+        run: |
+          cd dist
+          7z a "../rostering-${{ github.ref_name }}-${{ matrix.asset_name }}.zip" rostering
+
+      - name: Package archive (tar.gz)
+        if: matrix.archive_ext == 'tar.gz'
+        shell: bash
+        run: tar -C dist -czf "rostering-${{ github.ref_name }}-${{ matrix.asset_name }}.tar.gz" rostering
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rostering-${{ matrix.asset_name }}
+          path: rostering-*.${{ matrix.archive_ext }}
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rostering-*.${{ matrix.archive_ext }}
+          fail_on_unmatched_files: true

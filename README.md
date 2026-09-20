@@ -76,6 +76,27 @@ into `frontend/build/` on every save (Vite in `--watch` mode); refresh the
 Streamlit page to pick up each rebuild — Streamlit's CCv2 registers the
 component from the built files, not a live dev server.
 
+### Standalone executables
+
+Every `vX.Y.Z` tag push builds and publishes standalone executables (no
+Python install required) for Windows, Linux, and macOS to that tag's
+[GitHub Release](../../releases), via
+`.github/workflows/build-executables.yml`. Download the archive for your
+platform, extract it, and run `rostering` (or `rostering.exe` on Windows)
+from inside the extracted folder — it's the same CLI documented above
+(`ingest`, `solve`, `serve`).
+
+To build one locally:
+
+```
+pip install -e ".[packaging]"
+pyinstaller packaging/rostering.spec --noconfirm --clean
+dist/rostering/rostering --help
+```
+
+See `packaging/rostering.spec` for why this is a one-directory build (a
+`dist/rostering/` folder) rather than a single `--onefile` executable.
+
 ## Tests
 
 ```

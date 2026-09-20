@@ -49,25 +49,30 @@ def _cmd_solve(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    import subprocess
+    # Runs Streamlit in-process via its bootstrap module rather than
+    # shelling out to `sys.executable -m streamlit`: the latter breaks in a
+    # PyInstaller-frozen executable, where sys.executable is the app itself,
+    # not a Python interpreter that understands `-m`.
+    from streamlit.web import bootstrap
 
-    app_path = Path(__file__).resolve().parent / "streamlit_app" / "app.py"
-    cmd = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(app_path),
-        "--server.address",
-        args.host,
-        "--server.port",
-        str(args.port),
-    ]
+    app_path = str(Path(__file__).resolve().parent / "streamlit_app" / "app.py")
+    # Streamlit defaults global.developmentMode to True whenever its own
+    # __file__ doesn't look like a normal site-packages install (true inside
+    # a PyInstaller-frozen executable) — and refuses --server.port while
+    # that's on. This is a real install either way, so force it off.
+    flag_options: dict = {
+        "server_address": args.host,
+        "server_port": args.port,
+        "global_developmentMode": False,
+    }
     if args.reload:
-        cmd += ["--server.runOnSave", "true"]
+        flag_options["server_runOnSave"] = True
     if args.headless:
-        cmd += ["--server.headless", "true"]
-    return subprocess.call(cmd)
+        flag_options["server_headless"] = True
+
+    bootstrap.load_config_options(flag_options=flag_options)
+    bootstrap.run(app_path, False, [], flag_options)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
