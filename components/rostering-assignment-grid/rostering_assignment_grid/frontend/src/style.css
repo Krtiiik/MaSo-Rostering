@@ -42,6 +42,9 @@
 .grid-cell {
   min-width: 110px;
   min-height: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .grid-cell.drop-over {
