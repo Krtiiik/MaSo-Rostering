@@ -31,7 +31,13 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for pkg in ("streamlit", "ortools", "rostering_assignment_grid"):
+for pkg in ("streamlit", "ortools", "rostering_assignment_grid", "rostering"):
+    # "rostering" must be collect_all'd too, not just left to the import
+    # graph: rostering.streamlit_app.app is never `import`ed by any other
+    # module (streamlit.web.bootstrap loads it by file path instead), so
+    # PyInstaller's static analysis alone never discovers it and the whole
+    # streamlit_app/ package (app.py, tabs/, mutations.py, session.py,
+    # versions_sidebar.py) would silently be missing from the frozen build.
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
     binaries += pkg_binaries
