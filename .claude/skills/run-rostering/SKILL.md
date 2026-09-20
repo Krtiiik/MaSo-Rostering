@@ -55,24 +55,44 @@ No setup needed on the Python side beyond the two editable installs in
 
 ## Run (agent path)
 
-Start the app with an isolated workspace dir (so you don't clobber real
-helper data in `data/workspace/`), confirm nothing else already owns the
-port first, then poll until healthy. Redirect stdin from `/dev/null`
-explicitly — a backgrounded command that inherits a non-`/dev/null` stdin
-can still hang on the first-run prompt above even with the preempt files in
-place, if this is the very first time `rostering serve` has run under this
-tool's shell:
+**Pick a port carefully if you're in a worktree.** If the working directory
+is under `.claude/worktrees/...` rather than the main checkout, assume other
+Claude Code sessions are running concurrently against this same repo — in
+the main checkout, in another worktree, or both — and any of them may
+already have their own `rostering serve` bound to the default port (8501).
+Don't hardcode `--port 8501` in that case: probe for a free port first and
+use that same port consistently through launch, health-check, and
+`ROSTERING_APP_URL` for any driver script. A stale/leftover listener from an
+earlier attempt in the *same* session is a different problem (see the
+Gotchas entry below) — the check here is specifically about other,
+independent sessions you don't control. From the main checkout (not a
+worktree), 8501 is a reasonable default since you're less likely to collide,
+but it's still worth a quick check if you've had a server running earlier in
+this session.
 
 ```bash
-netstat -ano | grep -E ":8501" | grep LISTENING   # must be empty before you start
+port=8501
+while netstat -ano | grep -E ":$port " | grep -q LISTENING; do
+  port=$((port + 1))
+done
+echo "using port $port"
+```
 
+Start the app with an isolated workspace dir (so you don't clobber real
+helper data in `data/workspace/`), then poll until healthy. Redirect stdin
+from `/dev/null` explicitly — a backgrounded command that inherits a
+non-`/dev/null` stdin can still hang on the first-run prompt above even with
+the preempt files in place, if this is the very first time `rostering serve`
+has run under this tool's shell:
+
+```bash
 ROSTERING_WORKSPACE_DIR=/e/tmp/rostering-run-workspace \
 ROSTERING_BUILDINGS_CONFIG_PATH=/e/tmp/rostering-buildings-config.yaml \
-  "/e/Code/.venvs/rostering/Scripts/rostering.exe" serve --port 8501 --headless \
+  "/e/Code/.venvs/rostering/Scripts/rostering.exe" serve --port "$port" --headless \
   < /dev/null > /e/tmp/rostering-streamlit.log 2>&1 &
 disown
 
-timeout 30 bash -c 'until curl -sf http://localhost:8501/ >/dev/null 2>&1; do sleep 1; done' && echo APP_UP
+timeout 30 bash -c "until curl -sf http://localhost:$port/ >/dev/null 2>&1; do sleep 1; done" && echo APP_UP
 ```
 
 `--headless` maps to Streamlit's `--server.headless true` and stops it from
@@ -81,10 +101,11 @@ runs like this one (a real browser tab popping open on the user's machine
 for a test run you're driving with Playwright is unwanted noise). Leave it
 off for the human path below, where auto-opening is the point.
 
-Drive it with the smoke script (from `scripts/e2e/`):
+Drive it with the smoke script (from `scripts/e2e/`). If you picked a
+non-default port above, set `ROSTERING_APP_URL` so the script targets it:
 
 ```bash
-node smoke.mjs ../../data/seasons/2026-jaro/raw-response.xlsx
+ROSTERING_APP_URL="http://localhost:$port" node smoke.mjs ../../data/seasons/2026-jaro/raw-response.xlsx
 ```
 
 or equivalently `npm run smoke -- ../../data/seasons/2026-jaro/raw-response.xlsx`.
@@ -105,10 +126,11 @@ Screenshots land in `scripts/e2e/screenshots/` (`01-app-loaded.png`,
 per step and exits non-zero if any browser console error fired.
 
 Stop the server when done — Windows/git-bash has no `lsof`, so find the
-listener via `netstat` and kill by PID:
+listener via `netstat` and kill by PID (use whichever port you actually
+launched on):
 
 ```bash
-netstat -ano | grep -E ":8501" | grep LISTENING
+netstat -ano | grep -E ":$port" | grep LISTENING
 taskkill //PID <pid> //F //T   # double-slash form
 ```
 
@@ -152,13 +174,17 @@ These call the `mutations.*` functions directly against an isolated
   distance constraint. Use `page.mouse.move/down/move.../up` with a few
   intermediate `move` steps instead (see `scripts/e2e/smoke.mjs`).
 - **A stale process can make a fresh `rostering serve` silently no-op.** If
-  an old process from a previous session is still bound to port 8501, a new
-  launch logs `[Errno 10048] ... only one usage of each socket address` and
-  exits — but if you already have a health-check loop polling that port, it
-  can report `APP_UP` against the *old* process and you won't notice the new
-  one never started. Always confirm `netstat` shows exactly one listener on
-  the port you expect right after launching, not just that the health check
-  passed.
+  an old process — your own from earlier in this session, or (in a
+  worktree) an unrelated session's — is still bound to the port you pick, a
+  new launch logs `[Errno 10048] ... only one usage of each socket address`
+  and exits — but if you already have a health-check loop polling that
+  port, it can report `APP_UP` against the *old* process and you won't
+  notice the new one never started. Always confirm `netstat` shows exactly
+  one listener on the port you expect right after launching, not just that
+  the health check passed. This is exactly why picking a free port up front
+  (see "Run (agent path)" above) isn't optional in a worktree — it's not
+  just about avoiding a bind error, it's about not silently testing against
+  someone else's already-running server.
 - **Streamlit's tab strip (`st.segmented_control`) is keyed to
   `st.session_state["_active_tab"]`.** Switching tabs from Python (the
   Upload tab's "Continue →" CTA, the post-solve jump to Roster) goes through
@@ -205,7 +231,7 @@ These call the `mutations.*` functions directly against an isolated
   installed. Run `cd scripts/e2e && npm install` and invoke the script from
   inside `scripts/e2e/` (or via `npm run smoke`).
 - **`waiting for locator('input[type="file"]')` timeout** in the smoke
-  script: the app isn't actually up (check `curl -sf http://localhost:8501/`
+  script: the app isn't actually up (check `curl -sf http://localhost:$port/`
   and `netstat`), or `ROSTERING_APP_URL` points somewhere wrong.
 - **`StreamlitAPIException: Component '...' must be declared in
   pyproject.toml with asset_dir to use file-backed js`** on `rostering
