@@ -54,6 +54,19 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller packaging/rostering.spec --noconfirm --clean
 
+      - name: Verify the Streamlit app files were bundled
+        # rostering.streamlit_app.app is only ever loaded by file path (see
+        # rostering/cli.py's _cmd_serve), never `import`ed by other code, so
+        # PyInstaller's import-graph analysis can silently drop it (and the
+        # rest of streamlit_app/) even though the CLI/solve smoke tests and
+        # the `serve` HTTP check below all still pass — curling `/` only
+        # fetches the static shell and never triggers script execution.
+        shell: bash
+        run: |
+          set -eux
+          APP=dist/rostering/_internal/rostering/streamlit_app/app.py
+          test -f "$APP"
+
       - name: Smoke-test the built executable (CLI)
         shell: bash
         # examples/*.example.* has far more role capacity than its 3 sample

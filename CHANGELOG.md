@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `rostering` with no subcommand (e.g. double-clicking the standalone
+  `.exe` from Explorer) now defaults to `rostering serve`, so a
+  non-technical user can launch the app without knowing about the CLI.
+
+### Fixed
+
+- Standalone executable: `rostering serve` crashed with
+  `FileNotFoundError: ... rostering\streamlit_app\app.py` because
+  `packaging/rostering.spec` only force-collected `streamlit`, `ortools`,
+  and `rostering_assignment_grid` — the `rostering` package itself was left
+  to PyInstaller's static import-graph analysis, which never discovers
+  `rostering.streamlit_app.app` since it's only ever loaded by file path
+  (via `streamlit.web.bootstrap`), never `import`ed. The whole
+  `streamlit_app/` package was silently missing from every frozen build.
+  Now `rostering` is `collect_all`'d too, and the build workflow verifies
+  `app.py` actually lands in the bundle (the prior `serve` smoke test only
+  curled `/`, which succeeds even with a broken script since script
+  execution only starts once a browser session connects).
+
 ### Changed
 
 - Buildings tab: the per-building capacity editor is now a single horizontal
