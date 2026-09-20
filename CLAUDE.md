@@ -125,6 +125,20 @@ want to share a **room** (not just building) with. This must be:
   these mark whether the helper can bring a notebook / camera respectively,
   not "new helper" as might be assumed at a glance.
 
+## Versioning
+
+Follows [Semantic Versioning](https://semver.org) with a `CHANGELOG.md` in
+[Keep a Changelog](https://keepachangelog.com) format. Log user-facing
+changes under `## [Unreleased]` as they land; when that's accumulated
+enough to be worth shipping, move it under a new
+`## [X.Y.Z] - YYYY-MM-DD` heading, bump `version` in `pyproject.toml` to
+match, and tag the commit (`git tag -a vX.Y.Z -m "vX.Y.Z"`). Started at
+`0.1.0` (2026-09-20), whose entry is the standalone-executable GitHub
+Action. Pushing a `v*.*.*` tag triggers
+`.github/workflows/build-executables.yml`, which builds and attaches that
+release's Windows/Linux/macOS executables — so cutting a release means
+pushing the tag, not just creating it locally.
+
 ## Status / decisions log
 
 - Tech stack: a single-process [Streamlit](https://streamlit.io) app
