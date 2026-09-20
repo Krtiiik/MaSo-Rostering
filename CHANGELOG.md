@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   choice couldn't be reviewed or changed afterwards. The row now stays
   visible with the current decision selected, and re-picking it updates
   the friend link instead of duplicating or losing it.
+- Buildings & rooms tab: the "+ Add room" column now stretches to match
+  the capacity grid's actual height instead of a fixed, overly tall
+  min-height. The "Remove building" button moved to the left of the
+  building name field and is bottom-aligned with it.
+- Roster grid: helper names assigned to the same room/role cell were laid
+  out horizontally, overflowing the cell instead of stacking. Cells now
+  stack names vertically, one per line.
 
 ## [0.2.0] - 2026-09-20
 
