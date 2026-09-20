@@ -77,7 +77,9 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MaSo Roster Generator")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    # Not required: a bare `rostering` (e.g. double-clicking the standalone
+    # .exe from Explorer) must default to `serve` — see main() below.
+    subparsers = parser.add_subparsers(dest="command")
 
     ingest_parser = subparsers.add_parser("ingest", help="Convert a raw survey export into the canonical helpers CSV.")
     ingest_parser.add_argument("raw_survey", type=Path, help="Path to the raw survey .xlsx export.")
@@ -104,6 +106,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        # No subcommand at all (double-clicking the standalone .exe from
+        # Explorer launches it with no argv) -> default to `serve` with a
+        # visible browser tab, so a non-technical user just double-clicks.
+        argv = ["serve"]
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)

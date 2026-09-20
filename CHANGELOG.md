@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `rostering` with no subcommand (e.g. double-clicking the standalone
+  `.exe` from Explorer) now defaults to `rostering serve`, so a
+  non-technical user can launch the app without knowing about the CLI.
+
 ### Fixed
 
 - Standalone executable: `rostering serve` crashed with
