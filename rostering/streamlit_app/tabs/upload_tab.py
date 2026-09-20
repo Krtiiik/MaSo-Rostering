@@ -80,7 +80,8 @@ def _render_helpers_overview(state: dict) -> None:
     st.dataframe(rows, width="stretch", hide_index=True)
 
 
-_DISMISS = "__dismiss__"
+_DISMISS_LABEL = "✕ Not attending"
+_UNRESOLVED_PLACEHOLDER = "Unresolved / Unmatched / Unknown"
 
 
 def _render_friend_resolution(state: dict) -> None:
@@ -91,28 +92,42 @@ def _render_friend_resolution(state: dict) -> None:
     st.subheader("Resolve friend names")
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
     for helper, names in unresolved:
-        candidates = [hid for hid in other_helpers if hid != helper["id"]]
-        cols = st.columns([2] + [3] * len(names))
-        cols[0].markdown(f"**{helper['name']}** named:")
-        for col, name in zip(cols[1:], names):
-            options = [None, _DISMISS, *candidates]
-            choice = col.selectbox(
+        candidates = sorted(
+            (hid for hid in other_helpers if hid != helper["id"]),
+            key=lambda hid: other_helpers[hid].lower(),
+        )
+        helper_id_by_name = {other_helpers[hid]: hid for hid in candidates}
+        options = [_DISMISS_LABEL, *(other_helpers[hid] for hid in candidates)]
+
+        st.markdown(f"**{helper['name']}** named:")
+        for name in names:
+            _, label_col, select_col = st.columns([0.3, 2, 3])
+            label_col.write(f"“{name}”")
+            choice = select_col.selectbox(
                 name,
                 options=options,
-                format_func=lambda v: "✕ not attending" if v == _DISMISS else (other_helpers[v] if v is not None else f"“{name}”…"),
+                index=None,
+                placeholder=_UNRESOLVED_PLACEHOLDER,
+                accept_new_options=True,
                 key=f"match_{helper['id']}_{name}",
                 label_visibility="collapsed",
             )
-            if choice is not None:
-                try:
-                    if choice == _DISMISS:
-                        session.set_state(
-                            mutations.resolve_friend(session.get_workspace(), helper["id"], name, "dismiss")
-                        )
-                    else:
-                        session.set_state(
-                            mutations.resolve_friend(session.get_workspace(), helper["id"], name, "resolve", choice)
-                        )
-                except mutations.RosteringError as exc:
-                    st.error(str(exc))
-                st.rerun()
+            if choice is None:
+                continue
+            resolved_id = helper_id_by_name.get(choice)
+            if choice != _DISMISS_LABEL and resolved_id is None:
+                select_col.warning(f"“{choice}” doesn't match any known helper.")
+                continue
+            try:
+                if choice == _DISMISS_LABEL:
+                    session.set_state(
+                        mutations.resolve_friend(session.get_workspace(), helper["id"], name, "dismiss")
+                    )
+                else:
+                    session.set_state(
+                        mutations.resolve_friend(session.get_workspace(), helper["id"], name, "resolve", resolved_id)
+                    )
+            except mutations.RosteringError as exc:
+                st.error(str(exc))
+                continue
+            st.rerun()
