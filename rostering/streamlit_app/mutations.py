@@ -96,8 +96,13 @@ def resolve_friend(
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
     if helper is None:
         raise RosteringError(f"No such helper: {helper_id}")
-    if name not in helper["unresolved_friend_names"]:
-        raise RosteringError(f"{name!r} is not an unresolved friend name for helper {helper_id}")
+    decisions = helper.setdefault("friend_name_decisions", {})
+    if name not in helper["unresolved_friend_names"] and name not in decisions:
+        raise RosteringError(f"{name!r} is not a known friend name for helper {helper_id}")
+
+    previous_id = decisions.get(name)
+    if previous_id is not None and previous_id in helper["friends"]:
+        helper["friends"].remove(previous_id)
 
     if action == "resolve":
         if resolved_helper_id is None:
@@ -107,8 +112,9 @@ def resolve_friend(
             raise RosteringError(f"No such helper: {resolved_helper_id}")
         if resolved_helper_id not in helper["friends"]:
             helper["friends"].append(resolved_helper_id)
+        decisions[name] = resolved_helper_id
     elif action == "dismiss":
-        pass
+        decisions[name] = None
     else:
         raise RosteringError(f"Unknown action: {action}")
 

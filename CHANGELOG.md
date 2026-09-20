@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Friend-name resolution (upload tab): picking a match (or dismissing)
+  from a name's selectbox made that row disappear immediately, so the
+  choice couldn't be reviewed or changed afterwards. The row now stays
+  visible with the current decision selected, and re-picking it updates
+  the friend link instead of duplicating or losing it.
+
 ## [0.2.0] - 2026-09-20
 
 ### Added

@@ -85,13 +85,19 @@ _UNRESOLVED_PLACEHOLDER = "Unresolved / Unmatched / Unknown"
 
 
 def _render_friend_resolution(state: dict) -> None:
-    unresolved = [(h, h["unresolved_friend_names"]) for h in state["helpers"] if h["unresolved_friend_names"]]
-    if not unresolved:
+    rows = []
+    for h in state["helpers"]:
+        decisions = h.get("friend_name_decisions", {})
+        names = list(h["unresolved_friend_names"]) + [n for n in decisions if n not in h["unresolved_friend_names"]]
+        if names:
+            rows.append((h, names))
+    if not rows:
         return
 
     st.subheader("Resolve friend names")
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
-    for helper, names in unresolved:
+    for helper, names in rows:
+        decisions = helper.get("friend_name_decisions", {})
         candidates = sorted(
             (hid for hid in other_helpers if hid != helper["id"]),
             key=lambda hid: other_helpers[hid].lower(),
@@ -103,16 +109,26 @@ def _render_friend_resolution(state: dict) -> None:
         for name in names:
             _, label_col, select_col = st.columns([0.3, 2, 3])
             label_col.write(f"“{name}”")
+            was_decided = name in decisions
+            default_index = None
+            if was_decided:
+                decided_id = decisions[name]
+                if decided_id is None:
+                    default_index = options.index(_DISMISS_LABEL)
+                else:
+                    decided_name = other_helpers.get(decided_id)
+                    if decided_name in options:
+                        default_index = options.index(decided_name)
             choice = select_col.selectbox(
                 name,
                 options=options,
-                index=None,
+                index=default_index,
                 placeholder=_UNRESOLVED_PLACEHOLDER,
                 accept_new_options=True,
                 key=f"match_{helper['id']}_{name}",
                 label_visibility="collapsed",
             )
-            if choice is None:
+            if choice is None or (was_decided and choice == _dismiss_or_name(decisions[name], other_helpers)):
                 continue
             resolved_id = helper_id_by_name.get(choice)
             if choice != _DISMISS_LABEL and resolved_id is None:
@@ -131,3 +147,7 @@ def _render_friend_resolution(state: dict) -> None:
                 st.error(str(exc))
                 continue
             st.rerun()
+
+
+def _dismiss_or_name(decided_id: int | None, other_helpers: dict[int, str]) -> str:
+    return _DISMISS_LABEL if decided_id is None else other_helpers.get(decided_id, _DISMISS_LABEL)

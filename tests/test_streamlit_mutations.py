@@ -198,6 +198,7 @@ def test_resolve_friend_matches_to_helper(workspace):
     helper = next(h for h in state["helpers"] if h["id"] == 1)
     assert helper["friends"] == [2]
     assert helper["unresolved_friend_names"] == []
+    assert helper["friend_name_decisions"] == {"Terka": 2}
 
 
 def test_resolve_friend_dismiss_marks_not_attending(workspace):
@@ -206,6 +207,23 @@ def test_resolve_friend_dismiss_marks_not_attending(workspace):
     helper = next(h for h in state["helpers"] if h["id"] == 1)
     assert helper["friends"] == []
     assert helper["unresolved_friend_names"] == []
+    assert helper["friend_name_decisions"] == {"Terka": None}
+
+
+def test_resolve_friend_can_be_changed_after_first_decision(workspace):
+    _seed_helper_with_unresolved_friend(workspace)
+    mutations.resolve_friend(workspace, 1, "Terka", "resolve", 2)
+    # Re-picking a different helper for the same name should update, not
+    # duplicate, the friend link, and should still be revisitable afterwards.
+    state = mutations.resolve_friend(workspace, 1, "Terka", "dismiss")
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    assert helper["friends"] == []
+    assert helper["friend_name_decisions"] == {"Terka": None}
+
+    state = mutations.resolve_friend(workspace, 1, "Terka", "resolve", 2)
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    assert helper["friends"] == [2]
+    assert helper["friend_name_decisions"] == {"Terka": 2}
 
 
 def test_resolve_friend_unknown_name_raises(workspace):
