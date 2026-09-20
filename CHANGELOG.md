@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The "Continue", "Save & solve", and "Solve"/"Export to Excel" buttons in
+  each tab now live in a floating bar anchored to the bottom of the
+  viewport (`st.bottom`) instead of being placed inline within each
+  tab's content, so the main action is always in the same spot regardless
+  of scroll position or which tab is active.
+
 ### Fixed
 
 - Friend-name resolution (upload tab): picking a match (or dismissing)

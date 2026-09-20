@@ -45,9 +45,10 @@ def render() -> None:
                 for warning in state["ingestion_warnings"]:
                     st.write(f"- {warning}")
 
-        if st.button("Continue to buildings & rooms →", type="primary"):
-            session.switch_tab("2. Buildings")
-            st.rerun()
+        with st.bottom:
+            if st.button("Continue to buildings & rooms →", type="primary"):
+                session.switch_tab("2. Buildings")
+                st.rerun()
 
         _render_helpers_overview(state)
         _render_friend_resolution(state)
