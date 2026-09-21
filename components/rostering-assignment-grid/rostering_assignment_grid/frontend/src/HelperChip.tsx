@@ -4,7 +4,7 @@ import type { Helper } from "./types";
 interface Props {
   helper: Helper;
   unsatisfiedFriend?: boolean;
-  friendHighlight?: "satisfied" | "unsatisfied";
+  friendHighlight?: "satisfied" | "unsatisfied" | "requester";
   onHoverChange?: (hovering: boolean) => void;
 }
 
@@ -17,8 +17,7 @@ export function HelperChip({ helper, unsatisfiedFriend, friendHighlight, onHover
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 }
     : undefined;
 
-  const highlightClass =
-    friendHighlight === "satisfied" ? " friend-highlight-satisfied" : friendHighlight === "unsatisfied" ? " friend-highlight-unsatisfied" : "";
+  const highlightClass = friendHighlight ? ` friend-highlight-${friendHighlight}` : "";
 
   return (
     <div

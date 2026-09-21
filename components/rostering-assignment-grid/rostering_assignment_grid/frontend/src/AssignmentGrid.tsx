@@ -76,11 +76,31 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return set;
   }, [unsatisfied_friend_pairs]);
 
+  // Reverse index of each helper's own (raw, unfiltered by solver scoring
+  // config) friend list: who named THEM. Used to highlight, on hover, the
+  // other helpers who requested the hovered one — independent of whether
+  // the hovered helper requested them back.
+  const requestersOf = useMemo(() => {
+    const map = new Map<number, Set<number>>();
+    for (const h of helpers) {
+      for (const friendId of h.friends) {
+        if (friendId === h.id || !helpersById.has(friendId)) continue;
+        if (!map.has(friendId)) map.set(friendId, new Set());
+        map.get(friendId)!.add(h.id);
+      }
+    }
+    return map;
+  }, [helpers, helpersById]);
+
   function renderChip(h: Helper) {
-    let friendHighlight: "satisfied" | "unsatisfied" | undefined;
+    let friendHighlight: "satisfied" | "unsatisfied" | "requester" | undefined;
     if (hoveredHelperId !== null && hoveredHelperId !== h.id) {
       const status = friendsOf.get(hoveredHelperId)?.get(h.id);
-      if (status !== undefined) friendHighlight = status ? "satisfied" : "unsatisfied";
+      if (status !== undefined) {
+        friendHighlight = status ? "satisfied" : "unsatisfied";
+      } else if (requestersOf.get(hoveredHelperId)?.has(h.id)) {
+        friendHighlight = "requester";
+      }
     }
     return (
       <HelperChip

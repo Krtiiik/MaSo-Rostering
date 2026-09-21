@@ -84,3 +84,8 @@
   outline: 2px solid var(--st-red-color, #dc3545);
   outline-offset: 1px;
 }
+
+.helper-chip.friend-highlight-requester {
+  outline: 2px solid var(--st-purple-color, #9c27b0);
+  outline-offset: 1px;
+}

@@ -89,6 +89,7 @@ def render() -> None:
             "name": h["name"],
             "can_bring_notebook": h["can_bring_notebook"],
             "can_bring_camera": h["can_bring_camera"],
+            "friends": h["friends"],
         }
         for h in state["helpers"]
     ]
