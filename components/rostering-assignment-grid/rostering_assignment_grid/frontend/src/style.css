@@ -71,8 +71,13 @@
 }
 
 .helper-chip.unsatisfied {
-  border-color: var(--st-orange-color, #e0a800);
-  background: var(--st-orange-background-color, #fff6e0);
+  border-color: var(--st-red-color, #dc3545);
+  background: var(--st-red-background-color, #ffe9eb);
+}
+
+.helper-chip.satisfied {
+  border-color: var(--st-green-color, #21c354);
+  background: var(--st-green-background-color, #e6f8ec);
 }
 
 .helper-chip.friend-highlight {

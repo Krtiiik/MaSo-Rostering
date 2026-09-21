@@ -121,6 +121,9 @@ class SolveResult:
     objective_value: float
     # (helper_a_id, helper_b_id) pairs whose friend request was not satisfied.
     unsatisfied_friend_pairs: list[tuple[int, int]] = field(default_factory=list)
+    # (helper_a_id, helper_b_id) pairs whose friend request ended up satisfied
+    # (both assigned to the same room).
+    satisfied_friend_pairs: list[tuple[int, int]] = field(default_factory=list)
 
 
 @dataclass

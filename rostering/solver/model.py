@@ -176,6 +176,7 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
         )
 
     unsatisfied_pairs = [pair for pair, var in satisfied_vars.items() if solver.Value(var) == 0]
+    satisfied_pairs = [pair for pair, var in satisfied_vars.items() if solver.Value(var) == 1]
     status_name = "OPTIMAL" if status == cp_model.OPTIMAL else "FEASIBLE"
 
     return SolveResult(
@@ -183,4 +184,5 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
         status=status_name,
         objective_value=solver.ObjectiveValue(),
         unsatisfied_friend_pairs=unsatisfied_pairs,
+        satisfied_friend_pairs=satisfied_pairs,
     )

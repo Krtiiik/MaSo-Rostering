@@ -131,6 +131,7 @@ def test_friends_are_soft_not_hard_when_rooms_force_separation():
     rooms_used = {a.room for a in result.assignments}
     assert rooms_used == {"R1", "R2"}
     assert (1, 2) in result.unsatisfied_friend_pairs or (2, 1) in result.unsatisfied_friend_pairs
+    assert result.satisfied_friend_pairs == []
 
 
 def test_friends_are_colocated_when_feasible():
@@ -147,6 +148,7 @@ def test_friends_are_colocated_when_feasible():
 
     assert result is not None
     assert result.unsatisfied_friend_pairs == []
+    assert (1, 2) in result.satisfied_friend_pairs or (2, 1) in result.satisfied_friend_pairs
     rooms_used = {a.room for a in result.assignments}
     assert rooms_used == {"R1"} or rooms_used == {"R2"}
 

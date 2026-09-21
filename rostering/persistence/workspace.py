@@ -46,7 +46,12 @@ class Workspace:
             "solver_config": solver_config_to_dict(SolverConfig()),
             "assignments": [],
             "manual_roles": manual_roles_to_dict(ManualRoles()),
-            "diagnostics": {"status": None, "objective_value": None, "unsatisfied_friend_pairs": []},
+            "diagnostics": {
+                "status": None,
+                "objective_value": None,
+                "unsatisfied_friend_pairs": [],
+                "satisfied_friend_pairs": [],
+            },
         }
 
     def load(self) -> dict[str, Any]:
