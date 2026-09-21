@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.domain import OverlayRole, Role, StructuralRole, normalize_name
+from rostering.domain import OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.streamlit_app import mutations, session
 from rostering_assignment_grid import assignment_grid
 
@@ -27,6 +27,25 @@ _MANUAL_ROWS_AFTER = [
     (StructuralRole.TechnickaPodpora, "building"),
 ]
 _STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
+
+# Czech wording as shown on the registration form (see
+# rostering.ingest.preferences), for display in the roster grid's helper
+# hover card — not to be confused with Preference's member names, which are
+# ASCII-normalized identifiers rather than display text.
+_PREFERENCE_LABELS = {
+    Preference.Ano.name: "Ano",
+    Preference.Klidne.name: "Klidně",
+    Preference.Nevadi.name: "Nevadí",
+    Preference.Spise_ne.name: "Spíš ne",
+    Preference.Ne.name: "Ne",
+}
+
+
+def _grid_role_preferences(role_preferences: dict[str, str]) -> dict[str, dict[str, object]]:
+    return {
+        role: {"level": Preference[pref].value, "label": _PREFERENCE_LABELS[pref]}
+        for role, pref in role_preferences.items()
+    }
 
 
 def _flatten_rooms(config: list[dict]) -> list[dict]:
@@ -163,6 +182,8 @@ def render() -> None:
             "name": h["name"],
             "can_bring_notebook": h["can_bring_notebook"],
             "can_bring_camera": h["can_bring_camera"],
+            "role_preferences": _grid_role_preferences(h["role_preferences"]),
+            "building_preferences": h["building_preferences"],
             "friends": h["friends"],
         }
         for h in state["helpers"]

@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from the solver's satisfied/unsatisfied diagnostics — those are collapsed
   by the friend-scoring config's mode/symmetric settings and could make a
   one-directional request look mutual or disappear entirely from the grid.
+- Roster grid: hovering a helper chip now shows a card with that helper's
+  preferred building(s), a star-rating list of their preference for each of
+  the 6 roles, and their friend requests — color-coded to match the grid's
+  existing highlighting (green = friend co-located, red = friend elsewhere,
+  purple = someone else requested to room with them).
 - `StructuralAssignment`/`OverlayAssignment` (`rostering.domain`) now
   accept a `helper_name` in addition to `helper_id`, for manual-role
   entries referring to someone who isn't a registered helper.

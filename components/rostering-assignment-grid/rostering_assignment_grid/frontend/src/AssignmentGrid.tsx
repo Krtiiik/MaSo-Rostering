@@ -5,7 +5,15 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { Cell } from "./Cell";
 import { HelperChip } from "./HelperChip";
 import { ManualCell } from "./ManualCell";
-import type { Assignment, AssignmentGridData, AssignmentGridState, Helper, ManualEntry } from "./types";
+import type {
+  Assignment,
+  AssignmentGridData,
+  AssignmentGridState,
+  FriendCardEntry,
+  Helper,
+  HelperCardData,
+  ManualEntry,
+} from "./types";
 
 export type AssignmentGridProps = Pick<
   FrontendRendererArgs<AssignmentGridState, AssignmentGridData>,
@@ -107,6 +115,53 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return set;
   }, [friendsOf]);
 
+  // Reverse of each helper's `friends` list — who named THEM, so the hover
+  // card can show "requested by" separately from the helper's own requests.
+  const requestedByOf = useMemo(() => {
+    const map = new Map<number, number[]>();
+    for (const h of helpers) {
+      for (const friendId of h.friends) {
+        if (!map.has(friendId)) map.set(friendId, []);
+        map.get(friendId)!.push(h.id);
+      }
+    }
+    return map;
+  }, [helpers]);
+
+  // The hover card's role-preference list follows the same solver-role rows
+  // shown in the grid (manual rows excluded — helpers don't rate those).
+  const roleOrder = useMemo(() => rows.filter((r) => r.kind === "role").map((r) => r.key), [rows]);
+  const roleLabels = useMemo(
+    () => Object.fromEntries(rows.filter((r) => r.kind === "role").map((r) => [r.key, r.label])),
+    [rows],
+  );
+
+  function friendEntry(id: number): FriendCardEntry {
+    return { id, name: helpersById.get(id)?.name ?? `#${id}` };
+  }
+
+  function isColocated(a: number, b: number): boolean {
+    const roomA = assignmentByHelper.get(a);
+    const roomB = assignmentByHelper.get(b);
+    return !!roomA && !!roomB && roomA.building === roomB.building && roomA.room === roomB.room;
+  }
+
+  function cardDataFor(h: Helper): HelperCardData {
+    const sharedFriends: FriendCardEntry[] = [];
+    const differentFriends: FriendCardEntry[] = [];
+    for (const friendId of h.friends) {
+      (isColocated(h.id, friendId) ? sharedFriends : differentFriends).push(friendEntry(friendId));
+    }
+    return {
+      helper: h,
+      roleOrder,
+      roleLabels,
+      sharedFriends,
+      differentFriends,
+      requestedBy: (requestedByOf.get(h.id) ?? []).map(friendEntry),
+    };
+  }
+
   function renderChip(h: Helper) {
     let friendHighlight: "satisfied" | "unsatisfied" | "requester" | undefined;
     if (hoveredHelperId !== null && hoveredHelperId !== h.id) {
@@ -121,6 +176,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
       <HelperChip
         key={h.id}
         helper={h}
+        card={cardDataFor(h)}
         unsatisfiedFriend={unsatisfiedHelperIds.has(h.id)}
         friendHighlight={friendHighlight}
         onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
