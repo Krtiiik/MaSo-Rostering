@@ -149,10 +149,18 @@ def _match_enum(enum_cls, value: str):
 def manual_roles_to_dict(manual: ManualRoles) -> dict:
     return {
         "structural": [
-            {"role": s.role.name, "building": s.building, "room": s.room, "helper_id": s.helper_id}
+            {
+                "role": s.role.name,
+                "building": s.building,
+                "room": s.room,
+                "helper_id": s.helper_id,
+                "helper_name": s.helper_name,
+            }
             for s in manual.structural
         ],
-        "overlay": [{"role": o.role.name, "helper_id": o.helper_id} for o in manual.overlay],
+        "overlay": [
+            {"role": o.role.name, "helper_id": o.helper_id, "helper_name": o.helper_name} for o in manual.overlay
+        ],
     }
 
 
@@ -162,12 +170,17 @@ def manual_roles_from_dict(data: dict) -> ManualRoles:
             role=_match_enum(StructuralRole, s["role"]),
             building=s["building"],
             room=s.get("room"),
-            helper_id=int(s["helper_id"]),
+            helper_id=s.get("helper_id"),
+            helper_name=s.get("helper_name"),
         )
         for s in (data or {}).get("structural", [])
     ]
     overlay = [
-        OverlayAssignment(role=_match_enum(OverlayRole, o["role"]), helper_id=int(o["helper_id"]))
+        OverlayAssignment(
+            role=_match_enum(OverlayRole, o["role"]),
+            helper_id=o.get("helper_id"),
+            helper_name=o.get("helper_name"),
+        )
         for o in (data or {}).get("overlay", [])
     ]
     return ManualRoles(structural=structural, overlay=overlay)

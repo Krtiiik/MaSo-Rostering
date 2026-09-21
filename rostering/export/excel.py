@@ -182,7 +182,7 @@ def write_roster(
     structural_building: dict[tuple[StructuralRole, str], list[str]] = defaultdict(list)
     structural_room: dict[tuple[str, str], list[str]] = defaultdict(list)
     for entry in manual.structural:
-        name = annotate_id(entry.helper_id)
+        name = annotate_id(entry.helper_id, entry.helper_name or "")
         if entry.role is StructuralRole.VedouciMistnosti and entry.room:
             structural_room[(entry.building, entry.room)].append(name)
         else:
@@ -323,7 +323,7 @@ def write_roster(
     tech_lists: dict[str, list[str]] = defaultdict(list)
     for entry in manual.structural:
         if entry.role is StructuralRole.TechnickaPodpora:
-            tech_lists[entry.building].append(annotate_id(entry.helper_id))
+            tech_lists[entry.building].append(annotate_id(entry.helper_id, entry.helper_name or ""))
     track_width(0, StructuralRole.TechnickaPodpora.value)
     ws.write(row, 0, StructuralRole.TechnickaPodpora.value, cell_format(bold=True, top="medium", bottom="medium", left="medium", right="medium"))
     fmt = cell_format(wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")

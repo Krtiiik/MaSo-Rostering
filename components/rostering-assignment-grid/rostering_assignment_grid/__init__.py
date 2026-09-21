@@ -43,16 +43,20 @@ def _noop() -> None:
 def assignment_grid(
     *,
     rooms: list[dict[str, str]],
-    roles: list[str],
-    role_labels: dict[str, str],
+    rows: list[dict[str, Any]],
     helpers: list[dict[str, Any]],
     assignments: list[dict[str, Any]],
+    manual_entries: list[dict[str, Any]],
+    helper_names: list[str],
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
-    """Render the grid. Returns ``{"helper_id", "building", "room", "role"}``
-    for a drop that just happened this rerun, or ``None`` otherwise — CCv2
-    triggers reset automatically after the rerun that reports them, so
-    callers don't need to dedupe.
+    """Render the grid, including any non-droppable manual-role rows.
+
+    ``rows`` describes every row top to bottom: ``{"kind": "role", "key",
+    "label"}`` for a solver-role row (drag-and-drop, matched against
+    ``assignments``), or ``{"kind": "manual", "key", "label", "scope"}`` for
+    a manual-role row (``scope`` one of ``"building"``/``"room"``/``"global"``,
+    matched against ``manual_entries`` by ``key``/``building``/``room``).
 
     Each ``helpers`` entry's ``friends`` (raw, resolved-to-id friend
     requests straight from ingestion) is what drives the grid's own
@@ -62,16 +66,29 @@ def assignment_grid(
     the friend-scoring config's ``mode``/``symmetric`` settings and can
     silently merge or drop a one-directional request. The grid always
     reflects what helpers actually wrote on the form.
+
+    Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
+    a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
+    "room", "names"}`` for an edited manual-role cell (``names`` is the
+    cell's full new list of names), or ``None`` otherwise — CCv2 triggers
+    reset automatically after the rerun that reports them, so callers don't
+    need to dedupe.
     """
     result = _component(
         key=key,
         data={
             "rooms": rooms,
-            "roles": roles,
-            "role_labels": role_labels,
+            "rows": rows,
             "helpers": helpers,
             "assignments": assignments,
+            "manual_entries": manual_entries,
+            "helper_names": helper_names,
         },
         on_drop_change=_noop,
+        on_manual_set_change=_noop,
     )
-    return result.drop
+    if result.drop:
+        return {"type": "drop", **result.drop}
+    if result.manual_set:
+        return {"type": "manual_set", **result.manual_set}
+    return None

@@ -130,17 +130,30 @@ class SolveResult:
 class StructuralAssignment:
     role: StructuralRole
     building: str
-    helper_id: int
+    # Exactly one of helper_id/helper_name is meaningful: helper_id for a
+    # registered helper, helper_name for someone typed in by hand (manual
+    # roles are often filled by people who never registered as a helper).
+    helper_id: Optional[int] = None
+    helper_name: Optional[str] = None
     room: Optional[str] = None  # only meaningful for VedouciMistnosti
 
 
 @dataclass
 class OverlayAssignment:
     role: OverlayRole
-    helper_id: int
+    helper_id: Optional[int] = None
+    helper_name: Optional[str] = None
 
 
 @dataclass
 class ManualRoles:
     structural: list[StructuralAssignment] = field(default_factory=list)
     overlay: list[OverlayAssignment] = field(default_factory=list)
+
+
+def manual_assignment_name(helper_id: Optional[int], helper_name: Optional[str], helper_name_by_id: dict[int, str]) -> str:
+    """Resolve a manual-role entry's display name: the registered helper's
+    name if ``helper_id`` is set, otherwise the hand-typed ``helper_name``."""
+    if helper_id is not None:
+        return helper_name_by_id.get(helper_id, f"#{helper_id}")
+    return helper_name or ""
