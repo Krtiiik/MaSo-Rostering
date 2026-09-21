@@ -8,10 +8,12 @@ Expected YAML shape::
       - role: VedouciBudovy        # or VedouciMistnosti / PravaRuka / TechnickaPodpora
         building: Malá Strana
         room: S3                   # only meaningful for VedouciMistnosti
-        helper_id: 12
+        helper_id: 12               # a registered helper, or...
+        helper_name: Some Person    # ...a hand-typed name for someone unregistered
     overlay:
       - role: Registrace            # or UvadeciPredavaniCen
         helper_id: 3
+        helper_name: Some Person
 """
 from __future__ import annotations
 
@@ -49,7 +51,8 @@ def load_manual_roles(path: Optional[str | Path]) -> ManualRoles:
         StructuralAssignment(
             role=_match_enum(StructuralRole, entry["role"]),
             building=entry["building"],
-            helper_id=int(entry["helper_id"]),
+            helper_id=entry.get("helper_id"),
+            helper_name=entry.get("helper_name"),
             room=entry.get("room"),
         )
         for entry in data.get("structural", []) or []
@@ -57,7 +60,8 @@ def load_manual_roles(path: Optional[str | Path]) -> ManualRoles:
     overlay = [
         OverlayAssignment(
             role=_match_enum(OverlayRole, entry["role"]),
-            helper_id=int(entry["helper_id"]),
+            helper_id=entry.get("helper_id"),
+            helper_name=entry.get("helper_name"),
         )
         for entry in data.get("overlay", []) or []
     ]

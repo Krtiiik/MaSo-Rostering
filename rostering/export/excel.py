@@ -19,6 +19,7 @@ from rostering.domain import (
     Role,
     SolveResult,
     StructuralRole,
+    manual_assignment_name,
 )
 
 _ROLE_COLORS: dict[Role, str] = {
@@ -135,7 +136,7 @@ def write_roster(
         col += len(b.rooms)
 
     for entry in manual.structural:
-        name = helper_name_by_id.get(entry.helper_id, f"#{entry.helper_id}")
+        name = manual_assignment_name(entry.helper_id, entry.helper_name, helper_name_by_id)
         target_row = structural_row_start[entry.role]
         if entry.role is StructuralRole.VedouciMistnosti and entry.room:
             col_idx = room_col.get((entry.building, entry.room))
@@ -159,5 +160,5 @@ def _overlay_sheet(workbook: xlsxwriter.Workbook, comp: Competition, manual: Man
     row = 1
     for entry in manual.overlay:
         ws.write(row, 0, entry.role.value)
-        ws.write(row, 1, helper_name_by_id.get(entry.helper_id, f"#{entry.helper_id}"))
+        ws.write(row, 1, manual_assignment_name(entry.helper_id, entry.helper_name, helper_name_by_id))
         row += 1

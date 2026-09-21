@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Roster tab: the manual structural/overlay roles (Vedoucí budovy, Pravá
+  ruka, Vedoucí místností, Uvaděči / Předávání cen, Registrace, Technická
+  podpora) are now extra rows in the same assignment grid instead of a
+  separate section of selectboxes/multiselects below it, matching the
+  historical hand-built roster layout. Their cells are not drag-and-drop
+  targets; each has a name input with autocomplete suggestions from
+  registered helpers, plus the ability to type a new name for someone who
+  isn't a registered helper (manual roles are commonly filled by people who
+  never registered).
+
+### Added
+
+- `StructuralAssignment`/`OverlayAssignment` (`rostering.domain`) now
+  accept a `helper_name` in addition to `helper_id`, for manual-role
+  entries referring to someone who isn't a registered helper.
+
 ## [0.3.0] - 2026-09-21
 
 ### Changed
