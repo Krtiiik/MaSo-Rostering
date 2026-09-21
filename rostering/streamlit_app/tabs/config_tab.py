@@ -137,13 +137,14 @@ def render() -> None:
 
     st.subheader("Solver weights")
     weights = solver_config["weights"]
-    weights["role_preference"] = st.number_input(
+    weight_cols = st.columns(3)
+    weights["role_preference"] = weight_cols[0].number_input(
         "Role preference weight", value=int(weights["role_preference"]), key="w_role_pref"
     )
-    weights["building_mismatch"] = st.number_input(
+    weights["building_mismatch"] = weight_cols[1].number_input(
         "Building mismatch weight", value=int(weights["building_mismatch"]), key="w_building"
     )
-    weights["friend_unsatisfied"] = st.number_input(
+    weights["friend_unsatisfied"] = weight_cols[2].number_input(
         "Friend-unsatisfied weight", value=int(weights["friend_unsatisfied"]), key="w_friend"
     )
     friend_scoring = solver_config["friend_scoring"]
