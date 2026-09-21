@@ -4,7 +4,7 @@ import { DndContext } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { Cell } from "./Cell";
 import { HelperChip } from "./HelperChip";
-import type { Assignment, AssignmentGridData, AssignmentGridState, Helper } from "./types";
+import type { Assignment, AssignmentGridData, AssignmentGridState, FriendCardEntry, Helper, HelperCardData } from "./types";
 
 export type AssignmentGridProps = Pick<
   FrontendRendererArgs<AssignmentGridState, AssignmentGridData>,
@@ -71,6 +71,45 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return set;
   }, [satisfied_friend_pairs]);
 
+  // Reverse of each helper's `friends` list — who named THEM, so the hover
+  // card can show "requested by" separately from the helper's own requests.
+  const requestedByOf = useMemo(() => {
+    const map = new Map<number, number[]>();
+    for (const h of helpers) {
+      for (const friendId of h.friends) {
+        if (!map.has(friendId)) map.set(friendId, []);
+        map.get(friendId)!.push(h.id);
+      }
+    }
+    return map;
+  }, [helpers]);
+
+  function friendEntry(id: number): FriendCardEntry {
+    return { id, name: helpersById.get(id)?.name ?? `#${id}` };
+  }
+
+  function isColocated(a: number, b: number): boolean {
+    const roomA = assignmentByHelper.get(a);
+    const roomB = assignmentByHelper.get(b);
+    return !!roomA && !!roomB && roomA.building === roomB.building && roomA.room === roomB.room;
+  }
+
+  function cardDataFor(h: Helper): HelperCardData {
+    const sharedFriends: FriendCardEntry[] = [];
+    const differentFriends: FriendCardEntry[] = [];
+    for (const friendId of h.friends) {
+      (isColocated(h.id, friendId) ? sharedFriends : differentFriends).push(friendEntry(friendId));
+    }
+    return {
+      helper: h,
+      roleOrder: roles,
+      roleLabels: role_labels,
+      sharedFriends,
+      differentFriends,
+      requestedBy: (requestedByOf.get(h.id) ?? []).map(friendEntry),
+    };
+  }
+
   function renderChip(h: Helper) {
     const friendHighlighted =
       hoveredHelperId !== null && hoveredHelperId !== h.id && (unsatisfiedFriendsOf.get(hoveredHelperId)?.has(h.id) ?? false);
@@ -78,6 +117,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
       <HelperChip
         key={h.id}
         helper={h}
+        card={cardDataFor(h)}
         unsatisfiedFriend={unsatisfiedFriendsOf.has(h.id)}
         satisfiedFriend={satisfiedHelperIds.has(h.id)}
         friendHighlighted={friendHighlighted}

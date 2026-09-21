@@ -84,3 +84,73 @@
   outline: 2px solid var(--st-blue-color, #1c83e1);
   outline-offset: 1px;
 }
+
+.helper-card {
+  position: fixed;
+  z-index: 1000;
+  width: 260px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: var(--st-base-radius, 6px);
+  border: 1px solid var(--st-border-color, #ddd);
+  background: var(--st-background-color, #fff);
+  color: var(--st-text-color, inherit);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  white-space: normal;
+  cursor: default;
+  pointer-events: none;
+}
+
+.helper-card-name {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.helper-card-section {
+  margin-top: 6px;
+}
+
+.helper-card-label {
+  font-size: 0.8em;
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.helper-card-roles,
+.helper-card-friends {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.helper-card-roles li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.helper-card-stars {
+  color: var(--st-orange-color, #d9a400);
+  letter-spacing: 1px;
+}
+
+.helper-card-stars-empty {
+  color: inherit;
+  opacity: 0.6;
+  letter-spacing: normal;
+  font-style: italic;
+}
+
+.helper-card-friends li.friend-shared {
+  color: var(--st-green-color, #21c354);
+}
+
+.helper-card-friends li.friend-different {
+  color: var(--st-red-color, #dc3545);
+}
+
+.helper-card-friends li.friend-requested-by {
+  color: var(--st-violet-color, #8b5cf6);
+}

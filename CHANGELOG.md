@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Roster grid: hovering a helper chip now shows a card with that helper's
+  preferred building(s), a star-rating list of their preference for each of
+  the 6 roles, and their friend requests — color-coded to match the grid's
+  existing highlighting (green = friend co-located, red = friend elsewhere,
+  purple = someone else requested to room with them).
+
 - Roster grid: hovering a helper chip with an unsatisfied friend request now
   highlights the specific friend(s) they're still not sharing a room with,
   wherever they're placed in the grid — not just a generic "has an
