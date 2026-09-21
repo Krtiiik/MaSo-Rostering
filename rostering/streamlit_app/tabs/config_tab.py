@@ -14,12 +14,38 @@ _ROLE_ORDER = [r.name for r in Role]
 _ADD_ROOM_COL_CSS = """
 <style>
 div[data-testid="stHorizontalBlock"]:has(div[class*="st-key-add_room_col_"]) {
-    align-items: stretch;
+    align-items: stretch !important;
 }
-div[class*="st-key-add_room_col_"] { height: 100%; }
+/* Filling the button down to 100% height via plain nested percentage
+   heights makes Chromium's flex layout runaway (each reflow re-measures a
+   stale, ever-growing ancestor height), ballooning the column to roughly
+   the full page height. Anchoring the column with absolute positioning
+   against its (now stretched-to-the-table) stColumn parent sidesteps that
+   feedback loop entirely, since an absolutely positioned box can't feed
+   back into its ancestors' auto-height calculation. !important is needed
+   throughout because Streamlit's own emotion-cache rules for these same
+   elements are injected into <head> after this markdown's <style> tag and
+   would otherwise win the cascade on tied specificity. */
+div[data-testid="stColumn"]:has(div[class*="st-key-add_room_col_"]) {
+    position: relative !important;
+}
+div[class*="st-key-add_room_col_"] {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+div[class*="st-key-add_room_col_"] > div[data-testid="stElementContainer"] {
+    height: 100% !important;
+    flex: 1 1 auto !important;
+}
+div[class*="st-key-add_room_col_"] div[data-testid="stButton"] {
+    height: 100% !important;
+    display: flex !important;
+}
 div[class*="st-key-add_room_col_"] button {
-    height: 100%;
-    width: 100%;
+    height: 100% !important;
+    width: 100% !important;
     writing-mode: vertical-rl;
     text-orientation: mixed;
 }

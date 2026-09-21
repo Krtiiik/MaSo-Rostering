@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the capacity grid's actual height instead of a fixed, overly tall
   min-height. The "Remove building" button moved to the left of the
   building name field and is bottom-aligned with it.
+- Buildings & rooms tab: the "+ Add room" column's height-matching CSS
+  from the fix above still ballooned it to roughly the full page height
+  in practice, because filling it via plain nested `height: 100%` triggers
+  a Chromium flexbox layout runaway (each reflow re-measures a stale,
+  ever-growing ancestor height). It's now anchored with absolute
+  positioning against its already-correctly-stretched column instead,
+  which can't feed back into an ancestor's auto-height calculation.
 - Roster grid: helper names assigned to the same room/role cell were laid
   out horizontally, overflowing the cell instead of stacking. Cells now
   stack names vertically, one per line.
