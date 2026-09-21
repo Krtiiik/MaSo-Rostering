@@ -16,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an unsatisfied request" marker with no way to see who the request was
   with. Hovering also highlights, in purple, any other helper who named
   *them* as a friend (independent of whether it's reciprocated), so both
-  directions of the friend graph are visible from one chip.
+  directions of the friend graph are visible from one chip. All of this is
+  computed from each helper's raw friend list as entered on the form, not
+  from the solver's satisfied/unsatisfied diagnostics — those are collapsed
+  by the friend-scoring config's mode/symmetric settings and could make a
+  one-directional request look mutual or disappear entirely from the grid.
 
 ### Changed
 

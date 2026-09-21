@@ -24,8 +24,6 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   role_labels,
   helpers,
   assignments,
-  unsatisfied_friend_pairs,
-  satisfied_friend_pairs,
   setTriggerValue,
 }): ReactElement => {
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
@@ -46,40 +44,37 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     .filter((h) => !assignmentByHelper.has(h.id))
     .sort((a, b) => a.name.localeCompare(b.name, "cs"));
 
-  // Maps each helper to every friend they named (or were named by), in both
-  // directions, along with whether that particular request is satisfied
-  // (co-located) or not — so hovering a helper can reveal each friend's
-  // status individually, wherever they're placed in the grid.
+  // Every friend-relation signal below is derived directly from each
+  // helper's own `friends` list (the raw, resolved-to-id requests from
+  // ingestion) plus current assignments — deliberately NOT from the
+  // solver's satisfied/unsatisfied_friend_pairs diagnostics, which are
+  // collapsed by the friend-scoring config's mode/symmetric settings and
+  // can silently merge or drop a one-directional request. A request A
+  // named but B didn't reciprocate must stay asymmetric here.
+  const sameRoom = (aId: number, bId: number) => {
+    const a = assignmentByHelper.get(aId);
+    const b = assignmentByHelper.get(bId);
+    return !!a && !!b && a.building === b.building && a.room === b.room;
+  };
+
+  // Maps each helper to the friends THEY named, directed, with whether that
+  // specific request is satisfied (co-located) — so hovering a helper
+  // reveals each of their own requests individually, wherever placed.
   const friendsOf = useMemo(() => {
     const map = new Map<number, Map<number, boolean>>();
-    const link = (a: number, b: number, satisfied: boolean) => {
-      if (!map.has(a)) map.set(a, new Map());
-      map.get(a)!.set(b, satisfied);
-    };
-    for (const [a, b] of satisfied_friend_pairs) {
-      link(a, b, true);
-      link(b, a, true);
-    }
-    for (const [a, b] of unsatisfied_friend_pairs) {
-      link(a, b, false);
-      link(b, a, false);
+    for (const h of helpers) {
+      for (const friendId of h.friends) {
+        if (friendId === h.id || !helpersById.has(friendId)) continue;
+        if (!map.has(h.id)) map.set(h.id, new Map());
+        map.get(h.id)!.set(friendId, sameRoom(h.id, friendId));
+      }
     }
     return map;
-  }, [satisfied_friend_pairs, unsatisfied_friend_pairs]);
+  }, [helpers, helpersById, assignmentByHelper]);
 
-  const unsatisfiedHelperIds = useMemo(() => {
-    const set = new Set<number>();
-    for (const [a, b] of unsatisfied_friend_pairs) {
-      set.add(a);
-      set.add(b);
-    }
-    return set;
-  }, [unsatisfied_friend_pairs]);
-
-  // Reverse index of each helper's own (raw, unfiltered by solver scoring
-  // config) friend list: who named THEM. Used to highlight, on hover, the
-  // other helpers who requested the hovered one — independent of whether
-  // the hovered helper requested them back.
+  // Reverse index: who named THEM. Used to highlight, on hover, the other
+  // helpers who requested the hovered one — independent of whether the
+  // hovered helper requested them back.
   const requestersOf = useMemo(() => {
     const map = new Map<number, Set<number>>();
     for (const h of helpers) {
@@ -91,6 +86,21 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     }
     return map;
   }, [helpers, helpersById]);
+
+  // A helper gets the persistent "unsatisfied" marker if at least one
+  // friend THEY named isn't currently co-located with them.
+  const unsatisfiedHelperIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const [helperId, targets] of friendsOf) {
+      for (const satisfied of targets.values()) {
+        if (!satisfied) {
+          set.add(helperId);
+          break;
+        }
+      }
+    }
+    return set;
+  }, [friendsOf]);
 
   function renderChip(h: Helper) {
     let friendHighlight: "satisfied" | "unsatisfied" | "requester" | undefined;

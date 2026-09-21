@@ -24,8 +24,6 @@ export interface AssignmentGridData {
   role_labels: Record<string, string>;
   helpers: Helper[];
   assignments: Assignment[];
-  unsatisfied_friend_pairs: [number, number][];
-  satisfied_friend_pairs: [number, number][];
 }
 
 export interface DropEvent {
