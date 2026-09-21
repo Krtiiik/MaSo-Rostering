@@ -52,6 +52,11 @@ _ROLE_LABELS: dict[Role, str] = {
 
 _STRUCTURAL_COLOR = ("#CCCCCC", "#D9D9D9")
 
+# Fill for a helper slot that exists (row-block sized for it) but has no
+# helper assigned, so an empty slot reads as "empty" rather than as if it
+# were just another same-colored cell in the role's block.
+_EMPTY_SLOT_COLOR = "#F2F2F2"
+
 _OVERLAY_COLORS: dict[OverlayRole, tuple[str, str]] = {
     OverlayRole.UvadeciPredavaniCen: ("#D5A6BD", "#EAD1DC"),
     OverlayRole.Registrace: ("#B4A7D6", "#D9D2E9"),
@@ -101,10 +106,17 @@ def write_roster(
 
     workbook = xlsxwriter.Workbook(str(out_path))
     ws = workbook.add_worksheet(_SHEET_NAME)
-    ws.set_column(0, 0, 16.5)
-    if num_cols >= 1:
-        ws.set_column(1, num_cols, 19.5)
     ws.freeze_panes(0, 1)
+
+    # Column widths are set at the end, sized to the longest single-cell
+    # text actually written to each column (comma-joined multi-name
+    # aggregate cells are excluded — they're wrapped and shouldn't force
+    # the whole column wide).
+    col_width_chars: dict[int, int] = {}
+
+    def track_width(col_idx: int, text: str) -> None:
+        if text:
+            col_width_chars[col_idx] = max(col_width_chars.get(col_idx, 0), len(text))
 
     fmt_cache: dict[tuple, object] = {}
     _BORDER_STYLE = {"none": 0, "thin": 1, "medium": 2}
@@ -138,9 +150,11 @@ def write_roster(
         right = "medium" if col_idx == gend else "thin"
         return top, bottom, left, right
 
-    def write_building_row(row: int, building_name: str, text: str, fmt) -> None:
+    def write_building_row(row: int, building_name: str, text: str, fmt, track: bool = True) -> None:
         start, end = building_span[building_name]
         if start == end:
+            if track:
+                track_width(start, text)
             ws.write(row, start, text, fmt)
         else:
             ws.merge_range(row, start, row, end, text, fmt)
@@ -160,6 +174,7 @@ def write_roster(
             c = start + i
             _, _, left, right = per_room_borders(1, 1, 1, c)
             fmt = cell_format(bold=True, top="thin", bottom="medium", left=left, right=right)
+            track_width(c, room.name)
             ws.write(1, c, room.name, fmt)
     row = 2
 
@@ -175,28 +190,32 @@ def write_roster(
 
     label_color, data_color = _STRUCTURAL_COLOR
     for structural_role in (StructuralRole.VedouciBudovy, StructuralRole.PravaRuka):
+        track_width(0, structural_role.value)
         ws.write(row, 0, structural_role.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
-        fmt = cell_format(fill=data_color, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
+        filled_fmt = cell_format(fill=data_color, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
+        empty_fmt = cell_format(fill=_EMPTY_SLOT_COLOR, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
         ws.set_row(row, _WRAP_ROW_HEIGHT)
         for b in buildings:
             names = structural_building.get((structural_role, b.name), [])
-            write_building_row(row, b.name, ", ".join(names), fmt)
+            write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
         row += 1
 
     # ---- Vedoucí místností: per room ----
+    track_width(0, StructuralRole.VedouciMistnosti.value)
     ws.write(row, 0, StructuralRole.VedouciMistnosti.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
     for b in buildings:
         start, end = building_span[b.name]
         for i, room in enumerate(b.rooms):
             c = start + i
             names = structural_room.get((b.name, room.name), [])
+            _, _, left, right = per_room_borders(row, row, row, c)
             if names:
-                _, _, left, right = per_room_borders(row, row, row, c)
+                text = ", ".join(names)
                 fmt = cell_format(fill=data_color, top="medium", bottom="medium", left=left, right=right)
-                ws.write(row, c, ", ".join(names), fmt)
+                track_width(c, text)
+                ws.write(row, c, text, fmt)
             else:
-                _, _, left, right = per_room_borders(row, row, row, c)
-                ws.write_blank(row, c, None, cell_format(fill=data_color, top="medium", bottom="medium", left=left, right=right))
+                ws.write_blank(row, c, None, cell_format(fill=_EMPTY_SLOT_COLOR, top="medium", bottom="medium", left=left, right=right))
     row += 1
 
     # ---- Solved roles: Opravovatel, Menic, Skenovac, Kreslic, Fotograf ----
@@ -222,6 +241,7 @@ def write_roster(
         role_row_start[solved_role] = row
         role_label_color, role_data_color = _ROLE_COLORS[solved_role]
         label_fmt = cell_format(fill=role_label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium")
+        track_width(0, _ROLE_LABELS[solved_role])
         if max_min > 1:
             ws.merge_range(row, 0, row + max_min - 1, 0, _ROLE_LABELS[solved_role], label_fmt)
         else:
@@ -233,7 +253,7 @@ def write_roster(
                 for i in range(len(b.rooms)):
                     c = start + i
                     top, bottom, left, right = per_room_borders(row, row + max_min - 1, data_row, c)
-                    ws.write_blank(data_row, c, None, cell_format(fill=role_data_color, top=top, bottom=bottom, left=left, right=right))
+                    ws.write_blank(data_row, c, None, cell_format(fill=_EMPTY_SLOT_COLOR, top=top, bottom=bottom, left=left, right=right))
         role_row_end[solved_role] = row + max_min - 1
         row += max_min
 
@@ -249,10 +269,12 @@ def write_roster(
         target_row = role_row_start[a.role] + placed
         _, role_data_color = _ROLE_COLORS[a.role]
         top, bottom, left, right = per_room_borders(role_row_start[a.role], role_row_end[a.role], target_row, col_idx)
+        text = annotate_id(a.helper_id, a.helper_name)
+        track_width(col_idx, text)
         ws.write(
             target_row,
             col_idx,
-            annotate_id(a.helper_id, a.helper_name),
+            text,
             cell_format(fill=role_data_color, top=top, bottom=bottom, left=left, right=right),
         )
         placement_counters[key] = placed + 1
@@ -277,21 +299,24 @@ def write_roster(
 
     for overlay_role in _OVERLAY_ORDER:
         overlay_label_color, overlay_data_color = _OVERLAY_COLORS[overlay_role]
+        track_width(0, overlay_role.value)
         ws.write(row, 0, overlay_role.value, cell_format(fill=overlay_label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
-        fmt = cell_format(fill=overlay_data_color, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
+        filled_fmt = cell_format(fill=overlay_data_color, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
+        empty_fmt = cell_format(fill=_EMPTY_SLOT_COLOR, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
         ws.set_row(row, _WRAP_ROW_HEIGHT)
         for b in buildings:
             names = overlay_by_building.get((overlay_role, b.name), [])
-            write_building_row(row, b.name, ", ".join(names), fmt)
+            write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
         row += 1
 
     # ---- Zaloha (no fill, building-wide, matching the historical layout) ----
+    track_width(0, _ROLE_LABELS[Role.Zaloha])
     ws.write(row, 0, _ROLE_LABELS[Role.Zaloha], cell_format(bold=True, top="medium", bottom="medium", left="medium", right="medium"))
     fmt = cell_format(wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
     ws.set_row(row, _WRAP_ROW_HEIGHT)
     for b in buildings:
         names = zaloha_by_building.get(b.name, [])
-        write_building_row(row, b.name, ", ".join(names), fmt)
+        write_building_row(row, b.name, ", ".join(names), fmt, track=False)
     row += 1
 
     # ---- Technicka podpora (no fill, building-wide) ----
@@ -299,11 +324,16 @@ def write_roster(
     for entry in manual.structural:
         if entry.role is StructuralRole.TechnickaPodpora:
             tech_lists[entry.building].append(annotate_id(entry.helper_id))
+    track_width(0, StructuralRole.TechnickaPodpora.value)
     ws.write(row, 0, StructuralRole.TechnickaPodpora.value, cell_format(bold=True, top="medium", bottom="medium", left="medium", right="medium"))
     fmt = cell_format(wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
     ws.set_row(row, _WRAP_ROW_HEIGHT)
     for b in buildings:
         names = tech_lists.get(b.name, [])
-        write_building_row(row, b.name, ", ".join(names), fmt)
+        write_building_row(row, b.name, ", ".join(names), fmt, track=False)
+
+    for c in range(0, num_cols + 1):
+        chars = col_width_chars.get(c, 8)
+        ws.set_column(c, c, min(max(chars + 2, 8), 40))
 
     workbook.close()

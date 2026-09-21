@@ -16,7 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   followed by the overlay roles (Uvaděči / Předávání cen, Registrace),
   Záloha, and Technická podpora — plus matching per-role label/data cell
   colors, a bordered grid, Arial font, frozen first column, and "(n)"/"(f)"
-  equipment tags appended to helper names.
+  equipment tags appended to helper names. Empty helper slots (a role's
+  row-block sized larger than a room's actual headcount) now get a neutral
+  soft-gray fill instead of the role's color, so an empty slot reads as
+  empty rather than as another filled cell in that role's block. Column
+  widths are now sized to roughly fit their content instead of a fixed
+  width for every column.
 
 ### Fixed
 
