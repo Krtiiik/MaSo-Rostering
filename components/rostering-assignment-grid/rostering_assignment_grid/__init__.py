@@ -47,14 +47,21 @@ def assignment_grid(
     role_labels: dict[str, str],
     helpers: list[dict[str, Any]],
     assignments: list[dict[str, Any]],
-    unsatisfied_friend_pairs: list[list[int]],
-    satisfied_friend_pairs: list[list[int]],
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Render the grid. Returns ``{"helper_id", "building", "room", "role"}``
     for a drop that just happened this rerun, or ``None`` otherwise — CCv2
     triggers reset automatically after the rerun that reports them, so
     callers don't need to dedupe.
+
+    Each ``helpers`` entry's ``friends`` (raw, resolved-to-id friend
+    requests straight from ingestion) is what drives the grid's own
+    orange/green/red/purple friend-request highlighting client-side —
+    deliberately *not* the solver's ``unsatisfied_friend_pairs``/
+    ``satisfied_friend_pairs`` diagnostics, since those are collapsed by
+    the friend-scoring config's ``mode``/``symmetric`` settings and can
+    silently merge or drop a one-directional request. The grid always
+    reflects what helpers actually wrote on the form.
     """
     result = _component(
         key=key,
@@ -64,8 +71,6 @@ def assignment_grid(
             "role_labels": role_labels,
             "helpers": helpers,
             "assignments": assignments,
-            "unsatisfied_friend_pairs": unsatisfied_friend_pairs,
-            "satisfied_friend_pairs": satisfied_friend_pairs,
         },
         on_drop_change=_noop,
     )

@@ -100,8 +100,6 @@ def render() -> None:
         role_labels=_ROLE_LABELS,
         helpers=grid_helpers,
         assignments=state["assignments"],
-        unsatisfied_friend_pairs=diagnostics["unsatisfied_friend_pairs"],
-        satisfied_friend_pairs=diagnostics.get("satisfied_friend_pairs", []),
         key="assignment_grid",
     )
     if event:
