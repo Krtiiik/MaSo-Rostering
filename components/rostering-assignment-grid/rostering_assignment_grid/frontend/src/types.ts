@@ -23,7 +23,7 @@ export interface AssignmentGridData {
   role_labels: Record<string, string>;
   helpers: Helper[];
   assignments: Assignment[];
-  unsatisfied_helper_ids: number[];
+  unsatisfied_friend_pairs: [number, number][];
 }
 
 export interface DropEvent {

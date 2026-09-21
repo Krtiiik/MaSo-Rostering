@@ -4,9 +4,11 @@ import type { Helper } from "./types";
 interface Props {
   helper: Helper;
   unsatisfiedFriend?: boolean;
+  friendHighlighted?: boolean;
+  onHoverChange?: (hovering: boolean) => void;
 }
 
-export function HelperChip({ helper, unsatisfiedFriend }: Props) {
+export function HelperChip({ helper, unsatisfiedFriend, friendHighlighted, onHoverChange }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(helper.id),
   });
@@ -21,8 +23,10 @@ export function HelperChip({ helper, unsatisfiedFriend }: Props) {
       style={style}
       {...listeners}
       {...attributes}
-      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}`}
+      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${friendHighlighted ? " friend-highlight" : ""}`}
       title={unsatisfiedFriend ? "Has an unsatisfied friend request" : undefined}
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
     >
       {helper.name}
       {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}

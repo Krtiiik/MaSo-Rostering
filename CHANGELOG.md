@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Roster grid: hovering a helper chip with an unsatisfied friend request now
+  highlights the specific friend(s) they're still not sharing a room with,
+  wherever they're placed in the grid — not just a generic "has an
+  unsatisfied request" marker on the hovered chip itself.
+
 ## [0.3.0] - 2026-09-21
 
 ### Changed

@@ -83,7 +83,6 @@ def render() -> None:
         parts.append(f"{unsatisfied} unsatisfied friend request(s)")
         st.caption(" · ".join(parts))
 
-    unsatisfied_helper_ids = sorted({hid for pair in diagnostics["unsatisfied_friend_pairs"] for hid in pair})
     grid_helpers = [
         {
             "id": h["id"],
@@ -100,7 +99,7 @@ def render() -> None:
         role_labels=_ROLE_LABELS,
         helpers=grid_helpers,
         assignments=state["assignments"],
-        unsatisfied_helper_ids=unsatisfied_helper_ids,
+        unsatisfied_friend_pairs=diagnostics["unsatisfied_friend_pairs"],
         key="assignment_grid",
     )
     if event:
