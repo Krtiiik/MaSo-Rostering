@@ -33,8 +33,8 @@ from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs
 
 @dataclass
 class SolverWeights:
-    role_preference: int = 1
-    building_mismatch: int = 10
+    role_preference: int = 4
+    building_mismatch: int = 3
     friend_unsatisfied: int = 5
 
 
@@ -42,7 +42,7 @@ class SolverWeights:
 class SolverConfig:
     weights: SolverWeights = field(default_factory=SolverWeights)
     friend_scoring: FriendScoringConfig = field(default_factory=FriendScoringConfig)
-    time_limit_seconds: float = 10.0
+    time_limit_seconds: float = 60.0
 
 
 def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) -> Optional[SolveResult]:
