@@ -42,13 +42,16 @@
 .grid-cell {
   min-width: 110px;
   min-height: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .grid-cell.drop-over {
   background: var(--st-blue-background-color, #e6f4ff);
+}
+
+.grid-cell-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .helper-chip {

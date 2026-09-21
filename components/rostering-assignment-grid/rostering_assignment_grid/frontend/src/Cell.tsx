@@ -10,7 +10,7 @@ export function Cell({ id, children }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <td ref={setNodeRef} className={`grid-cell${isOver ? " drop-over" : ""}`}>
-      {children}
+      <div className="grid-cell-inner">{children}</div>
     </td>
   );
 }

@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Roster grid: helper names assigned to the same room/role cell were laid
   out horizontally, overflowing the cell instead of stacking. Cells now
   stack names vertically, one per line.
+- Roster grid: the previous fix applied `display: flex` directly to each
+  `<td>`, which overrides its table-cell display and made the browser
+  collapse every room's column into the first one — all buildings' helpers
+  visually piled into a single leftmost column. The flex-column layout now
+  lives on an inner wrapper `<div>` inside each cell instead, so rooms keep
+  their own columns while names still stack vertically within each cell.
 
 ## [0.2.0] - 2026-09-20
 
