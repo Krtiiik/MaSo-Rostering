@@ -47,7 +47,7 @@ def assignment_grid(
     role_labels: dict[str, str],
     helpers: list[dict[str, Any]],
     assignments: list[dict[str, Any]],
-    unsatisfied_helper_ids: list[int],
+    unsatisfied_friend_pairs: list[list[int]],
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Render the grid. Returns ``{"helper_id", "building", "room", "role"}``
@@ -63,7 +63,7 @@ def assignment_grid(
             "role_labels": role_labels,
             "helpers": helpers,
             "assignments": assignments,
-            "unsatisfied_helper_ids": unsatisfied_helper_ids,
+            "unsatisfied_friend_pairs": unsatisfied_friend_pairs,
         },
         on_drop_change=_noop,
     )

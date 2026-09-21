@@ -1,5 +1,5 @@
 import { FrontendRendererArgs } from "@streamlit/component-v2-lib";
-import { FC, ReactElement, useMemo } from "react";
+import { FC, ReactElement, useMemo, useState } from "react";
 import { DndContext } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { Cell } from "./Cell";
@@ -24,9 +24,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   role_labels,
   helpers,
   assignments,
-  unsatisfied_helper_ids,
+  unsatisfied_friend_pairs,
   setTriggerValue,
 }): ReactElement => {
+  const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
+
   const helpersById = useMemo(() => {
     const map = new Map<number, Helper>();
     for (const h of helpers) map.set(h.id, h);
@@ -42,7 +44,33 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   const unassignedHelpers = helpers
     .filter((h) => !assignmentByHelper.has(h.id))
     .sort((a, b) => a.name.localeCompare(b.name, "cs"));
-  const unsatisfiedSet = useMemo(() => new Set(unsatisfied_helper_ids), [unsatisfied_helper_ids]);
+  // Maps each helper to the friends they still don't share a room with, in
+  // both directions, so hovering either side of an unsatisfied pair can
+  // highlight the other.
+  const unsatisfiedFriendsOf = useMemo(() => {
+    const map = new Map<number, Set<number>>();
+    for (const [a, b] of unsatisfied_friend_pairs) {
+      if (!map.has(a)) map.set(a, new Set());
+      map.get(a)!.add(b);
+      if (!map.has(b)) map.set(b, new Set());
+      map.get(b)!.add(a);
+    }
+    return map;
+  }, [unsatisfied_friend_pairs]);
+
+  function renderChip(h: Helper) {
+    const friendHighlighted =
+      hoveredHelperId !== null && hoveredHelperId !== h.id && (unsatisfiedFriendsOf.get(hoveredHelperId)?.has(h.id) ?? false);
+    return (
+      <HelperChip
+        key={h.id}
+        helper={h}
+        unsatisfiedFriend={unsatisfiedFriendsOf.has(h.id)}
+        friendHighlighted={friendHighlighted}
+        onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
+      />
+    );
+  }
 
   // Consecutive rooms sharing a building (the order the Python side sends
   // them in, following the buildings/rooms config) group into one building
@@ -86,9 +114,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         {unassignedHelpers.length > 0 && (
           <div className="unassigned-pool">
             <strong>Unassigned:</strong>{" "}
-            {unassignedHelpers.map((h) => (
-              <HelperChip key={h.id} helper={h} unsatisfiedFriend={unsatisfiedSet.has(h.id)} />
-            ))}
+            {unassignedHelpers.map((h) => renderChip(h))}
           </div>
         )}
 
@@ -115,9 +141,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                 <th className="row-label">{role_labels[role] ?? role}</th>
                 {rooms.map(({ building, room }) => (
                   <Cell key={`${building}::${room}::${role}`} id={`${building}::${room}::${role}`}>
-                    {helpersInCell(building, room, role).map((h) => (
-                      <HelperChip key={h.id} helper={h} unsatisfiedFriend={unsatisfiedSet.has(h.id)} />
-                    ))}
+                    {helpersInCell(building, room, role).map((h) => renderChip(h))}
                   </Cell>
                 ))}
               </tr>

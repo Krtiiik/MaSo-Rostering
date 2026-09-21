@@ -74,3 +74,8 @@
   border-color: var(--st-orange-color, #e0a800);
   background: var(--st-orange-background-color, #fff6e0);
 }
+
+.helper-chip.friend-highlight {
+  outline: 2px solid var(--st-blue-color, #1c83e1);
+  outline-offset: 1px;
+}
