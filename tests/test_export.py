@@ -29,6 +29,7 @@ def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
     result = SolveResult(
         assignments=[
             Assignment(helper_id=1, helper_name="Anna", building="Malá Strana", room="S3", role=Role.Opravovatel),
+            Assignment(helper_id=2, helper_name="Petr", building="Malá Strana", room="S3", role=Role.Zaloha),
         ],
         status="OPTIMAL",
         objective_value=0.0,
@@ -37,6 +38,8 @@ def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
         structural=[
             StructuralAssignment(role=StructuralRole.VedouciBudovy, building="Malá Strana", helper_id=1),
         ],
+        # Overlay entries have no building of their own — write_roster locates
+        # Petr's building via his solved assignment above.
         overlay=[OverlayAssignment(role=OverlayRole.Registrace, helper_id=2)],
     )
 
@@ -45,17 +48,13 @@ def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
 
     assert out_path.exists()
     wb = openpyxl.load_workbook(out_path)
-    assert "Roster" in wb.sheetnames
-    assert "Registrace a predavani cen" in wb.sheetnames
+    assert wb.sheetnames == ["Pomocníci v místnostech"]
 
-    roster_ws = wb["Roster"]
-    values = {cell.value for row in roster_ws.iter_rows() for cell in row if cell.value}
+    ws = wb["Pomocníci v místnostech"]
+    values = {cell.value for row in ws.iter_rows() for cell in row if cell.value}
     assert "Anna" in values
     assert "Vedoucí budovy" in values
-
-    overlay_ws = wb["Registrace a predavani cen"]
-    overlay_values = [cell.value for row in overlay_ws.iter_rows() for cell in row if cell.value]
-    assert "Petr" in overlay_values
+    assert any(cell.value and "Petr" in cell.value for row in ws.iter_rows() for cell in row)
 
 
 def test_write_roster_with_no_manual_roles(tmp_path):
