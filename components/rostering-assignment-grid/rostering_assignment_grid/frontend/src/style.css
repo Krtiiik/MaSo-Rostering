@@ -71,16 +71,16 @@
 }
 
 .helper-chip.unsatisfied {
-  border-color: var(--st-red-color, #dc3545);
-  background: var(--st-red-background-color, #ffe9eb);
+  border-color: var(--st-orange-color, #e0a800);
+  background: var(--st-orange-background-color, #fff6e0);
 }
 
-.helper-chip.satisfied {
-  border-color: var(--st-green-color, #21c354);
-  background: var(--st-green-background-color, #e6f8ec);
+.helper-chip.friend-highlight-satisfied {
+  outline: 2px solid var(--st-green-color, #21c354);
+  outline-offset: 1px;
 }
 
-.helper-chip.friend-highlight {
-  outline: 2px solid var(--st-blue-color, #1c83e1);
+.helper-chip.friend-highlight-unsatisfied {
+  outline: 2px solid var(--st-red-color, #dc3545);
   outline-offset: 1px;
 }

@@ -45,42 +45,49 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   const unassignedHelpers = helpers
     .filter((h) => !assignmentByHelper.has(h.id))
     .sort((a, b) => a.name.localeCompare(b.name, "cs"));
-  // Maps each helper to the friends they still don't share a room with, in
-  // both directions, so hovering either side of an unsatisfied pair can
-  // highlight the other.
-  const unsatisfiedFriendsOf = useMemo(() => {
-    const map = new Map<number, Set<number>>();
+
+  // Maps each helper to every friend they named (or were named by), in both
+  // directions, along with whether that particular request is satisfied
+  // (co-located) or not — so hovering a helper can reveal each friend's
+  // status individually, wherever they're placed in the grid.
+  const friendsOf = useMemo(() => {
+    const map = new Map<number, Map<number, boolean>>();
+    const link = (a: number, b: number, satisfied: boolean) => {
+      if (!map.has(a)) map.set(a, new Map());
+      map.get(a)!.set(b, satisfied);
+    };
+    for (const [a, b] of satisfied_friend_pairs) {
+      link(a, b, true);
+      link(b, a, true);
+    }
     for (const [a, b] of unsatisfied_friend_pairs) {
-      if (!map.has(a)) map.set(a, new Set());
-      map.get(a)!.add(b);
-      if (!map.has(b)) map.set(b, new Set());
-      map.get(b)!.add(a);
+      link(a, b, false);
+      link(b, a, false);
     }
     return map;
-  }, [unsatisfied_friend_pairs]);
+  }, [satisfied_friend_pairs, unsatisfied_friend_pairs]);
 
-  // Helpers with at least one friend request that IS satisfied (the friend
-  // is already co-located in the same cell, so no hover-to-find is needed
-  // here — unlike the unsatisfied case above).
-  const satisfiedHelperIds = useMemo(() => {
+  const unsatisfiedHelperIds = useMemo(() => {
     const set = new Set<number>();
-    for (const [a, b] of satisfied_friend_pairs) {
+    for (const [a, b] of unsatisfied_friend_pairs) {
       set.add(a);
       set.add(b);
     }
     return set;
-  }, [satisfied_friend_pairs]);
+  }, [unsatisfied_friend_pairs]);
 
   function renderChip(h: Helper) {
-    const friendHighlighted =
-      hoveredHelperId !== null && hoveredHelperId !== h.id && (unsatisfiedFriendsOf.get(hoveredHelperId)?.has(h.id) ?? false);
+    let friendHighlight: "satisfied" | "unsatisfied" | undefined;
+    if (hoveredHelperId !== null && hoveredHelperId !== h.id) {
+      const status = friendsOf.get(hoveredHelperId)?.get(h.id);
+      if (status !== undefined) friendHighlight = status ? "satisfied" : "unsatisfied";
+    }
     return (
       <HelperChip
         key={h.id}
         helper={h}
-        unsatisfiedFriend={unsatisfiedFriendsOf.has(h.id)}
-        satisfiedFriend={satisfiedHelperIds.has(h.id)}
-        friendHighlighted={friendHighlighted}
+        unsatisfiedFriend={unsatisfiedHelperIds.has(h.id)}
+        friendHighlight={friendHighlight}
         onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
       />
     );
