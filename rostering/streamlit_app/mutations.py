@@ -44,16 +44,19 @@ def _build_competition(state: dict[str, Any]) -> Competition:
     return Competition(buildings=buildings, helpers=helpers)
 
 
-def _recompute_unsatisfied_pairs(state: dict[str, Any]) -> list[list[int]]:
+def _recompute_friend_pairs(state: dict[str, Any]) -> tuple[list[list[int]], list[list[int]]]:
+    """Return (satisfied, unsatisfied) friend pairs given the current assignments."""
     helpers = [helper_from_dict(h) for h in state["helpers"]]
     friend_scoring = solver_config_from_dict(state["solver_config"]).friend_scoring
     pairs = build_friend_pairs(helpers, friend_scoring)
     room_by_helper = {a["helper_id"]: (a["building"], a["room"]) for a in state["assignments"]}
-    unsatisfied = []
+    satisfied, unsatisfied = [], []
     for a_id, b_id, _weight in pairs:
-        if room_by_helper.get(a_id) is None or room_by_helper.get(a_id) != room_by_helper.get(b_id):
+        if room_by_helper.get(a_id) is not None and room_by_helper.get(a_id) == room_by_helper.get(b_id):
+            satisfied.append([a_id, b_id])
+        else:
             unsatisfied.append([a_id, b_id])
-    return unsatisfied
+    return satisfied, unsatisfied
 
 
 def get_state(workspace: Workspace) -> dict:
@@ -80,7 +83,12 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str) -> 
     state["helpers"] = [helper_to_dict(h) for h in result.helpers]
     state["ingestion_warnings"] = result.warnings
     state["assignments"] = []
-    state["diagnostics"] = {"status": None, "objective_value": None, "unsatisfied_friend_pairs": []}
+    state["diagnostics"] = {
+        "status": None,
+        "objective_value": None,
+        "unsatisfied_friend_pairs": [],
+        "satisfied_friend_pairs": [],
+    }
     workspace.save(state)
     return state
 
@@ -162,13 +170,19 @@ def solve(workspace: Workspace) -> dict:
 
     if result is None:
         state["assignments"] = []
-        state["diagnostics"] = {"status": "INFEASIBLE", "objective_value": None, "unsatisfied_friend_pairs": []}
+        state["diagnostics"] = {
+            "status": "INFEASIBLE",
+            "objective_value": None,
+            "unsatisfied_friend_pairs": [],
+            "satisfied_friend_pairs": [],
+        }
     else:
         state["assignments"] = [assignment_to_dict(a) for a in result.assignments]
         state["diagnostics"] = {
             "status": result.status,
             "objective_value": result.objective_value,
             "unsatisfied_friend_pairs": [list(p) for p in result.unsatisfied_friend_pairs],
+            "satisfied_friend_pairs": [list(p) for p in result.satisfied_friend_pairs],
         }
     workspace.save(state)
     return state
@@ -186,7 +200,9 @@ def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, 
         {"helper_id": helper_id, "helper_name": helper_name, "building": building, "room": room, "role": role}
     )
     state["assignments"] = assignments
-    state["diagnostics"]["unsatisfied_friend_pairs"] = _recompute_unsatisfied_pairs(state)
+    satisfied, unsatisfied = _recompute_friend_pairs(state)
+    state["diagnostics"]["satisfied_friend_pairs"] = satisfied
+    state["diagnostics"]["unsatisfied_friend_pairs"] = unsatisfied
     workspace.save(state)
     return state
 
@@ -233,6 +249,7 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
         status=state["diagnostics"].get("status") or "MANUAL",
         objective_value=state["diagnostics"].get("objective_value") or 0.0,
         unsatisfied_friend_pairs=[tuple(p) for p in state["diagnostics"].get("unsatisfied_friend_pairs", [])],
+        satisfied_friend_pairs=[tuple(p) for p in state["diagnostics"].get("satisfied_friend_pairs", [])],
     )
     manual: ManualRoles = manual_roles_from_dict(state["manual_roles"])
 

@@ -25,6 +25,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   helpers,
   assignments,
   unsatisfied_friend_pairs,
+  satisfied_friend_pairs,
   setTriggerValue,
 }): ReactElement => {
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
@@ -58,6 +59,18 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return map;
   }, [unsatisfied_friend_pairs]);
 
+  // Helpers with at least one friend request that IS satisfied (the friend
+  // is already co-located in the same cell, so no hover-to-find is needed
+  // here — unlike the unsatisfied case above).
+  const satisfiedHelperIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const [a, b] of satisfied_friend_pairs) {
+      set.add(a);
+      set.add(b);
+    }
+    return set;
+  }, [satisfied_friend_pairs]);
+
   function renderChip(h: Helper) {
     const friendHighlighted =
       hoveredHelperId !== null && hoveredHelperId !== h.id && (unsatisfiedFriendsOf.get(hoveredHelperId)?.has(h.id) ?? false);
@@ -66,6 +79,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         key={h.id}
         helper={h}
         unsatisfiedFriend={unsatisfiedFriendsOf.has(h.id)}
+        satisfiedFriend={satisfiedHelperIds.has(h.id)}
         friendHighlighted={friendHighlighted}
         onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
       />
