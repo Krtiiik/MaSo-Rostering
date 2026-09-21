@@ -39,7 +39,9 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return map;
   }, [assignments]);
 
-  const unassignedHelpers = helpers.filter((h) => !assignmentByHelper.has(h.id));
+  const unassignedHelpers = helpers
+    .filter((h) => !assignmentByHelper.has(h.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "cs"));
   const unsatisfiedSet = useMemo(() => new Set(unsatisfied_helper_ids), [unsatisfied_helper_ids]);
 
   // Consecutive rooms sharing a building (the order the Python side sends
@@ -59,7 +61,8 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return assignments
       .filter((a) => a.building === building && a.room === room && a.role === role)
       .map((a) => helpersById.get(a.helper_id))
-      .filter((h): h is Helper => h !== undefined);
+      .filter((h): h is Helper => h !== undefined)
+      .sort((a, b) => a.name.localeCompare(b.name, "cs"));
   }
 
   function handleDragEnd(event: DragEndEvent) {

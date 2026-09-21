@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   visually piled into a single leftmost column. The flex-column layout now
   lives on an inner wrapper `<div>` inside each cell instead, so rooms keep
   their own columns while names still stack vertically within each cell.
+- Roster grid: helpers within a cell, and in the "Unassigned" pool, are now
+  always sorted by name instead of following assignment/upload order.
 
 ## [0.2.0] - 2026-09-20
 
