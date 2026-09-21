@@ -1,6 +1,6 @@
 """Core domain model shared by ingestion, the solver, and export.
 
-Terminology follows CLAUDE.md at the repo root — read that first if a term
+Terminology follows CLAUDE.md — read that first if a term
 here (Role, building preference "set", friend scoring, manual/overlay roles)
 is unclear.
 """

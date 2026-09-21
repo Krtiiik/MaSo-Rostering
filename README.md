@@ -1,7 +1,7 @@
 # Rostering
 
 Assigns registered helpers to buildings/rooms/roles for the MaSo math
-competition. See [CLAUDE.md](CLAUDE.md) for the domain glossary and context.
+competition. See [CLAUDE.md](.claude/CLAUDE.md) for the domain glossary and context.
 
 ## Setup
 
