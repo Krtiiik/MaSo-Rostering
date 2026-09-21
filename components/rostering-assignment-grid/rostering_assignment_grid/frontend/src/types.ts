@@ -3,6 +3,7 @@ export interface Helper {
   name: string;
   can_bring_notebook: boolean;
   can_bring_camera: boolean;
+  friends: number[];
 }
 
 export interface RoomRef {

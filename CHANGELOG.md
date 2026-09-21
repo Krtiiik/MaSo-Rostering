@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   they're placed in the grid — green if that particular request is
   satisfied (co-located), red if it isn't — instead of only a generic "has
   an unsatisfied request" marker with no way to see who the request was
-  with.
+  with. Hovering also highlights, in purple, any other helper who named
+  *them* as a friend (independent of whether it's reciprocated), so both
+  directions of the friend graph are visible from one chip.
 
 ### Changed
 
