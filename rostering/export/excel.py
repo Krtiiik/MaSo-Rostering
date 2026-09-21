@@ -68,7 +68,7 @@ def write_roster(
     ws = workbook.add_worksheet("Roster")
 
     building_fmt = workbook.add_format({"bold": True, "align": "center", "valign": "vcenter", "bg_color": "#AAAAAA"})
-    role_label_fmt = workbook.add_format({"bold": True, "align": "left", "valign": "vcenter", "bg_color": "#CCCCCC"})
+    role_label_fmt = workbook.add_format({"bold": True, "align": "left", "valign": "top", "bg_color": "#CCCCCC"})
     role_formats = {role: workbook.add_format({"bg_color": color}) for role, color in _ROLE_COLORS.items()}
 
     ws.set_column(0, 0, 22)
