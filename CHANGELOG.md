@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Excel roster export now matches the layout and styling of the historical
+  hand-built rosters: a single sheet (previously split across a "Roster"
+  sheet and a separate overlay sheet) with the structural roles (Vedoucí
+  budovy, Pravá ruka, Vedoucí místností) listed above the 6 solved roles,
+  followed by the overlay roles (Uvaděči / Předávání cen, Registrace),
+  Záloha, and Technická podpora — plus matching per-role label/data cell
+  colors, a bordered grid, Arial font, frozen first column, and "(n)"/"(f)"
+  equipment tags appended to helper names.
+
+### Fixed
+
+- Excel roster export: a role's row-block was sized only from its
+  configured *minimum* per-room headcount, so a room where the solver
+  actually placed more helpers than that minimum (capacities are usually
+  unbounded above) overflowed into the next role's rows instead of
+  expanding its own block.
+
 ## [0.3.0] - 2026-09-21
 
 ### Changed
