@@ -9,14 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Roster grid: hovering a helper chip with an unsatisfied friend request now
-  highlights the specific friend(s) they're still not sharing a room with,
-  wherever they're placed in the grid — not just a generic "has an
-  unsatisfied request" marker on the hovered chip itself.
-- Roster grid: helper chips with a friend request now show it as green
-  (satisfied — the friend is co-located) or red (unsatisfied), instead of a
-  single orange "unsatisfied" marker with no satisfied-request indicator at
-  all.
+- Roster grid: a helper chip with an unsatisfied friend request is marked
+  orange; hovering it now highlights every friend they named, wherever
+  they're placed in the grid — green if that particular request is
+  satisfied (co-located), red if it isn't — instead of only a generic "has
+  an unsatisfied request" marker with no way to see who the request was
+  with.
 
 ## [0.3.0] - 2026-09-21
 
