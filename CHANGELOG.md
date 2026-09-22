@@ -56,6 +56,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept a `helper_name` in addition to `helper_id`, for manual-role
   entries referring to someone who isn't a registered helper.
 
+### Fixed
+
+- Buildings tab: clicking "Remove room" under a room could remove a
+  different room (typically the rightmost one) instead of the one the
+  button was under, and could also silently carry a removed room's stale
+  name/capacity values into the room that shifted into its place. Caused
+  by widgets being keyed by the room's position in the list rather than
+  the room itself.
+
 ### Changed
 
 - Upload tab's "Resolve friend names" now lets an unresolved name be matched
