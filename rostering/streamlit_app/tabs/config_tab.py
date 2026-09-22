@@ -78,7 +78,7 @@ def _render_building_table(building: dict, bi: int) -> None:
         for ri, room in enumerate(rooms):
             with header_cols[2 + ri]:
                 room["name"] = st.text_input(
-                    "Room name", value=room["name"], key=f"rname_{bi}_{ri}", label_visibility="collapsed"
+                    "Room name", value=room["name"], key=f"rname_{bi}_{id(room)}", label_visibility="collapsed"
                 )
 
         subheader_cols = st.columns([1] + [1] * n_units)
@@ -95,14 +95,14 @@ def _render_building_table(building: dict, bi: int) -> None:
                     row_cols[2 + ri],
                     room["capacities"],
                     role_name,
-                    key=f"rcap_{bi}_{ri}_{role_name}",
+                    key=f"rcap_{bi}_{id(room)}_{role_name}",
                 )
 
         remove_cols = st.columns([1] + [1] * n_units)
         remove_cols[0].write("")
         remove_cols[1].write("")
         for ri, room in enumerate(rooms):
-            if remove_cols[2 + ri].button("Remove room", key=f"remove_room_{bi}_{ri}", width="stretch"):
+            if remove_cols[2 + ri].button("Remove room", key=f"remove_room_{bi}_{id(room)}", width="stretch"):
                 rooms.pop(ri)
                 st.rerun()
 
