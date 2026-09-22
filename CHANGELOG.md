@@ -25,7 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preferred building(s), a star-rating list of their preference for each of
   the 6 roles, and their friend requests — color-coded to match the grid's
   existing highlighting (green = friend co-located, red = friend elsewhere,
-  purple = someone else requested to room with them).
+  purple = someone else requested to room with them). The card appears after
+  a short hover delay (so it doesn't flash while skimming across the grid)
+  anchored with one corner near the cursor tip, and follows the cursor while
+  it stays over the chip.
 - `StructuralAssignment`/`OverlayAssignment` (`rostering.domain`) now
   accept a `helper_name` in addition to `helper_id`, for manual-role
   entries referring to someone who isn't a registered helper.
