@@ -56,6 +56,10 @@ export interface GridRow {
   key: string;
   label: string;
   scope?: "building" | "room" | "global";
+  // Whether helpers can express a preference for this role on the form —
+  // false for Záloha, which is a solver-only overflow role never offered as
+  // a choice (see CLAUDE.md). Omitted/true for every other role row.
+  preferenceable?: boolean;
 }
 
 export interface ManualEntry {

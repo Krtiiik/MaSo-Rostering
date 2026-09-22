@@ -128,9 +128,13 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return map;
   }, [helpers]);
 
-  // The hover card's role-preference list follows the same solver-role rows
-  // shown in the grid (manual rows excluded — helpers don't rate those).
-  const roleOrder = useMemo(() => rows.filter((r) => r.kind === "role").map((r) => r.key), [rows]);
+  // The hover card's role-preference list follows the solver-role rows shown
+  // in the grid, minus manual rows (helpers don't rate those) and Záloha
+  // (never offered as a choice on the form — see GridRow.preferenceable).
+  const roleOrder = useMemo(
+    () => rows.filter((r) => r.kind === "role" && r.preferenceable !== false).map((r) => r.key),
+    [rows],
+  );
   const roleLabels = useMemo(
     () => Object.fromEntries(rows.filter((r) => r.kind === "role").map((r) => [r.key, r.label])),
     [rows],

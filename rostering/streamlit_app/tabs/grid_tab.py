@@ -61,7 +61,18 @@ def _grid_rows() -> list[dict]:
         {"kind": "manual", "key": role.name, "label": role.value, "scope": scope}
         for role, scope in _MANUAL_ROWS_BEFORE
     ]
-    rows += [{"kind": "role", "key": name, "label": _ROLE_LABELS[name]} for name in _ROLE_ORDER]
+    rows += [
+        {
+            "kind": "role",
+            "key": name,
+            "label": _ROLE_LABELS[name],
+            # Záloha is a solver-only overflow role, never offered as a
+            # choice on the form — excluded from the hover card's
+            # role-preference list (see CLAUDE.md).
+            "preferenceable": name != Role.Zaloha.name,
+        }
+        for name in _ROLE_ORDER
+    ]
     rows += [
         {"kind": "manual", "key": role.name, "label": role.value, "scope": scope}
         for role, scope in _MANUAL_ROWS_AFTER
