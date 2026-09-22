@@ -54,9 +54,15 @@ def assignment_grid(
 
     ``rows`` describes every row top to bottom: ``{"kind": "role", "key",
     "label"}`` for a solver-role row (drag-and-drop, matched against
-    ``assignments``), or ``{"kind": "manual", "key", "label", "scope"}`` for
-    a manual-role row (``scope`` one of ``"building"``/``"room"``/``"global"``,
-    matched against ``manual_entries`` by ``key``/``building``/``room``).
+    ``assignments``), or ``{"kind": "manual", "key", "label", "scope",
+    "allowDuplicateDrop"}`` for a manual-role row (``scope`` one of
+    ``"building"``/``"room"``/``"global"``, matched against
+    ``manual_entries`` by ``key``/``building``/``room``). When
+    ``allowDuplicateDrop`` is true (only meaningful for ``scope: "room"``),
+    the cell also accepts dropping a helper's existing chip onto the cell
+    for the room they're already solved into, which adds them to that
+    manual row without removing their solved-role assignment (reported via
+    the same ``manual_set`` trigger as a typed/picked name would be).
 
     Each ``helpers`` entry's ``friends`` (raw, resolved-to-id friend
     requests straight from ingestion) is what drives the grid's own

@@ -48,6 +48,13 @@
   background: var(--st-blue-background-color, #e6f4ff);
 }
 
+/* A room-scoped overlay cell while a helper from a *different* room is
+   being dragged — it cannot accept that drop (overlay duplication is
+   room-locked to the helper's own solved-role room). */
+.grid-cell.drop-disabled {
+  opacity: 0.5;
+}
+
 .grid-cell-inner {
   display: flex;
   flex-direction: column;
@@ -108,6 +115,15 @@
 
 .manual-chip-new {
   border-style: dashed;
+}
+
+/* A registered helper duplicated into a room-scoped overlay slot (dropped
+   or picked in addition to their solved-role assignment elsewhere in the
+   grid) — dotted to distinguish it from a normal solid chip (primary
+   placement) and a dashed one (unregistered free-text name). */
+.manual-chip-duplicate {
+  border-style: dotted;
+  border-width: 2px;
 }
 
 .manual-chip-remove {

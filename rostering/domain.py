@@ -47,7 +47,8 @@ class OverlayRole(Enum):
     helper's solved role (see CLAUDE.md)."""
 
     Registrace = "Registrace"
-    UvadeciPredavaniCen = "Uvaděči / Předávání cen"
+    UvadeciUcastniku = "Uvaděči účastníků"
+    FoceniPredavaniCen = "Focení předávání cen"
 
 
 def normalize_name(value: Optional[str]) -> str:
@@ -142,6 +143,11 @@ class OverlayAssignment:
     role: OverlayRole
     helper_id: Optional[int] = None
     helper_name: Optional[str] = None
+    # Only meaningful for room-scoped overlay roles (a helper can only be
+    # duplicated into an overlay slot in the room they're already solved
+    # into); None for building/global-scoped overlay roles like Registrace.
+    building: Optional[str] = None
+    room: Optional[str] = None
 
 
 @dataclass

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The overlay role "Uvaděči / Předávání cen" is now two separate,
+  room-scoped roles: **Uvaděči účastníků** and **Focení předávání cen**.
+  Both can still be filled by typing/picking a name, and now also accept
+  dragging a helper's existing chip directly onto the overlay cell for the
+  room they're already solved into — this duplicates them into that
+  overlay slot (shown with a dotted chip border to mark it as a
+  duplicate) without moving their solved-role assignment. A cross-room
+  drop (a different room than the helper's own) is rejected.
+
 - Roster grid: a helper chip with an unsatisfied friend request is marked
   orange; hovering it now highlights every friend they named, wherever
   they're placed in the grid — green if that particular request is

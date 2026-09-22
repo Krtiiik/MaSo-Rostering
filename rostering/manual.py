@@ -11,9 +11,11 @@ Expected YAML shape::
         helper_id: 12               # a registered helper, or...
         helper_name: Some Person    # ...a hand-typed name for someone unregistered
     overlay:
-      - role: Registrace            # or UvadeciPredavaniCen
+      - role: Registrace            # or UvadeciUcastniku / FoceniPredavaniCen
         helper_id: 3
         helper_name: Some Person
+        building: Malá Strana        # only meaningful for room-scoped roles
+        room: S3                     # (UvadeciUcastniku, FoceniPredavaniCen)
 """
 from __future__ import annotations
 
@@ -62,6 +64,8 @@ def load_manual_roles(path: Optional[str | Path]) -> ManualRoles:
             role=_match_enum(OverlayRole, entry["role"]),
             helper_id=entry.get("helper_id"),
             helper_name=entry.get("helper_name"),
+            building=entry.get("building"),
+            room=entry.get("room"),
         )
         for entry in data.get("overlay", []) or []
     ]
