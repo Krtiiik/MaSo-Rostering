@@ -98,8 +98,14 @@ def resolve_friend(
     helper_id: int,
     name: str,
     action: str,
-    resolved_helper_id: Optional[int] = None,
+    resolved_helper_ids: Optional[list[int]] = None,
 ) -> dict:
+    """Resolve (or dismiss) one unresolved friend name for a helper.
+
+    A single free-text name can refer to more than one person (e.g. a
+    group nickname), so ``resolved_helper_ids`` is a list — the name is
+    matched to every helper id in it.
+    """
     state = workspace.load()
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
     if helper is None:
@@ -108,19 +114,23 @@ def resolve_friend(
     if name not in helper["unresolved_friend_names"] and name not in decisions:
         raise RosteringError(f"{name!r} is not a known friend name for helper {helper_id}")
 
-    previous_id = decisions.get(name)
-    if previous_id is not None and previous_id in helper["friends"]:
-        helper["friends"].remove(previous_id)
+    previous_ids = decisions.get(name) or []
+    for previous_id in previous_ids:
+        if previous_id in helper["friends"]:
+            helper["friends"].remove(previous_id)
 
     if action == "resolve":
-        if resolved_helper_id is None:
-            raise RosteringError("resolved_helper_id is required for action=resolve")
+        if not resolved_helper_ids:
+            raise RosteringError("resolved_helper_ids is required for action=resolve")
         known_ids = {h["id"] for h in state["helpers"]}
-        if resolved_helper_id not in known_ids:
-            raise RosteringError(f"No such helper: {resolved_helper_id}")
-        if resolved_helper_id not in helper["friends"]:
-            helper["friends"].append(resolved_helper_id)
-        decisions[name] = resolved_helper_id
+        unknown_ids = [hid for hid in resolved_helper_ids if hid not in known_ids]
+        if unknown_ids:
+            raise RosteringError(f"No such helper(s): {unknown_ids}")
+        new_ids = list(dict.fromkeys(resolved_helper_ids))
+        for hid in new_ids:
+            if hid not in helper["friends"]:
+                helper["friends"].append(hid)
+        decisions[name] = new_ids
     elif action == "dismiss":
         decisions[name] = None
     else:
