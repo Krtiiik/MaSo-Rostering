@@ -6,8 +6,8 @@
 #   - a role name (no nested room), meaning a requirement that applies
 #     anywhere in the building rather than to one specific room.
 #
-# A role's capacity is either a bare integer (minimum headcount, unbounded
-# maximum) or a {min: X, max: Y} mapping for an explicit upper bound.
+# A role's capacity is a bare integer: the minimum headcount required.
+# There is no upper bound.
 Malá Strana:
   S3:
     Opravovatel: 3
@@ -18,7 +18,7 @@ Malá Strana:
     Opravovatel: 2
     Menic: 1
     Skenovac: 1
-    Kreslic: {min: 2, max: 4}
+    Kreslic: 2
   Fotograf: 2  # anywhere in Malá Strana, not tied to one room
 
 Karlov:

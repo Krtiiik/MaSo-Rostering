@@ -2,7 +2,7 @@
 
 Hard constraints:
 - each helper gets exactly one room and exactly one role;
-- room/building role headcounts stay within their configured min/max;
+- room/building role headcounts meet their configured minimum;
 - a helper without a notebook can never be Kreslič; without a camera, never
   Fotograf (see CLAUDE.md "Equipment eligibility").
 
@@ -67,7 +67,7 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
         # No rooms configured anywhere: fall back to one unlimited synthetic
         # room per building so the model stays feasible instead of crashing.
         for b in buildings:
-            synthetic = Room(name=f"{b.name} (unconfigured)", capacities={Role.Zaloha: RoleCapacity(0, None)})
+            synthetic = Room(name=f"{b.name} (unconfigured)", capacities={Role.Zaloha: RoleCapacity(0)})
             room_id = len(rooms)
             rooms.append((b.name, synthetic))
             building_rooms[b.name].append(room_id)
@@ -109,21 +109,17 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
     # Room-level capacities.
     for room_id, (_bname, room) in enumerate(rooms):
         for role, cap in room.capacities.items():
-            terms = [role_room_var[h.id, role, room_id] for h in helpers]
             if cap.minimum:
+                terms = [role_room_var[h.id, role, room_id] for h in helpers]
                 model.Add(sum(terms) >= cap.minimum)
-            if cap.maximum is not None:
-                model.Add(sum(terms) <= cap.maximum)
 
     # Building-level capacities (aggregated across the building's rooms).
     for b in buildings:
         room_ids = building_rooms.get(b.name, [])
         for role, cap in b.capacities.items():
-            terms = [role_room_var[h.id, role, rid] for rid in room_ids for h in helpers]
             if cap.minimum:
+                terms = [role_room_var[h.id, role, rid] for rid in room_ids for h in helpers]
                 model.Add(sum(terms) >= cap.minimum)
-            if cap.maximum is not None:
-                model.Add(sum(terms) <= cap.maximum)
 
     penalty_terms: list[cp_model.LinearExprT] = []
     max_pref = max(p.value for p in Preference)

@@ -6,9 +6,11 @@ two steps: first sniff out the raw shape (dict-of-rooms vs list-of-buildings,
 building-level scalar role counts vs per-room dicts), then hand the
 normalized values to pydantic models for validation/coercion.
 
-A role's capacity may be written as a bare int (old style — treated as
-``minimum``, unbounded ``maximum``) or as a ``{min: X, max: Y}`` mapping (new
-style, for an explicit upper bound).
+A role's capacity is a minimum headcount, written as a bare int. There is no
+upper bound — with the small helper counts this project deals with, capping
+a room's headcount has never been necessary. Older files may still carry a
+``{min: X, max: Y}`` mapping from before the upper bound was removed; ``max``
+is simply ignored when present.
 """
 from __future__ import annotations
 
@@ -27,19 +29,17 @@ class RoleCapacityModel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     minimum: int = 0
-    maximum: Optional[int] = None
 
     def to_domain(self) -> RoleCapacity:
-        return RoleCapacity(minimum=self.minimum, maximum=self.maximum)
+        return RoleCapacity(minimum=self.minimum)
 
 
 def _parse_capacity(value: CapacityInput, context: str) -> RoleCapacityModel:
     if isinstance(value, dict):
         minimum = value.get("min", value.get("minimum", 0))
-        maximum = value.get("max", value.get("maximum"))
-        return RoleCapacityModel(minimum=int(minimum), maximum=None if maximum is None else int(maximum))
+        return RoleCapacityModel(minimum=int(minimum))
     try:
-        return RoleCapacityModel(minimum=int(value), maximum=None)
+        return RoleCapacityModel(minimum=int(value))
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid capacity value for {context}: {value!r}") from exc
 
@@ -62,17 +62,6 @@ def _parse_role_capacity_map(mapping: object, context: str) -> dict[Role, RoleCa
             continue  # not a role key (e.g. a nested room name) — ignore
         result[role] = _parse_capacity(raw_value, f"{context}.{role_name}").to_domain()
     return result
-
-
-def _ensure_unbounded_zaloha(rooms: list[Room]) -> None:
-    """Záloha is the overflow sink: every room must accept unlimited Záloha
-    so every helper always has somewhere feasible to go."""
-    for room in rooms:
-        existing = room.capacities.get(Role.Zaloha)
-        if existing is None:
-            room.capacities[Role.Zaloha] = RoleCapacity(minimum=0, maximum=None)
-        elif existing.maximum is not None:
-            room.capacities[Role.Zaloha] = RoleCapacity(minimum=existing.minimum, maximum=None)
 
 
 def load_buildings(config_path: str | Path) -> dict[str, Building]:
@@ -106,7 +95,6 @@ def load_buildings(config_path: str | Path) -> dict[str, Building]:
                             continue
                         building_capacities[role] = _parse_capacity(sub_val, f"{name}.{sub_key}").to_domain()
 
-            _ensure_unbounded_zaloha(rooms)
             buildings[name] = Building(name=name, rooms=rooms, capacities=building_capacities)
 
     elif isinstance(raw_buildings, list):
@@ -127,7 +115,6 @@ def load_buildings(config_path: str | Path) -> dict[str, Building]:
             role_reqs = building_entry.get("role_requirements") or building_entry.get("requirements") or {}
             building_capacities = _parse_role_capacity_map(role_reqs, str(name))
 
-            _ensure_unbounded_zaloha(rooms)
             buildings[str(name)] = Building(name=str(name), rooms=rooms, capacities=building_capacities)
 
     return buildings

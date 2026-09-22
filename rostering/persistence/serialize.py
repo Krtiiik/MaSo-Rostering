@@ -25,11 +25,11 @@ from rostering.solver.scoring import FriendScoringConfig, FriendScoringMode
 
 
 def role_capacity_to_dict(cap: RoleCapacity) -> dict:
-    return {"minimum": cap.minimum, "maximum": cap.maximum}
+    return {"minimum": cap.minimum}
 
 
 def role_capacity_from_dict(data: dict) -> RoleCapacity:
-    return RoleCapacity(minimum=int(data.get("minimum", 0)), maximum=data.get("maximum"))
+    return RoleCapacity(minimum=int(data.get("minimum", 0)))
 
 
 def _role_caps_to_dict(caps: dict[Role, RoleCapacity]) -> dict[str, dict]:

@@ -19,7 +19,7 @@ from rostering.export.excel import write_roster
 
 
 def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
-    room = Room(name="S3", capacities={Role.Opravovatel: RoleCapacity(1, None), Role.Zaloha: RoleCapacity(0, None)})
+    room = Room(name="S3", capacities={Role.Opravovatel: RoleCapacity(1), Role.Zaloha: RoleCapacity(0)})
     building = Building(name="Malá Strana", rooms=[room])
     helpers = [
         Helper(id=1, name="Anna"),
@@ -58,7 +58,7 @@ def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
 
 
 def test_write_roster_with_no_manual_roles(tmp_path):
-    room = Room(name="S3", capacities={Role.Zaloha: RoleCapacity(0, None)})
+    room = Room(name="S3", capacities={Role.Zaloha: RoleCapacity(0)})
     building = Building(name="B", rooms=[room])
     helpers = [Helper(id=1, name="Anna")]
     comp = Competition(buildings={"B": building}, helpers=helpers)

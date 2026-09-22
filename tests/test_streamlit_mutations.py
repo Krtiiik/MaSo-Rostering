@@ -16,8 +16,8 @@ SMALL_CONFIG = [
             {
                 "name": "R1",
                 "capacities": {
-                    "Opravovatel": {"minimum": 0, "maximum": None},
-                    "Zaloha": {"minimum": 0, "maximum": None},
+                    "Opravovatel": {"minimum": 0},
+                    "Zaloha": {"minimum": 0},
                 },
             }
         ],

@@ -81,7 +81,6 @@ class Helper:
 @dataclass
 class RoleCapacity:
     minimum: int = 0
-    maximum: Optional[int] = None  # None = unbounded
 
 
 @dataclass

@@ -55,6 +55,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   isn't a registered helper (manual roles are commonly filled by people who
   never registered).
 
+### Removed
+
+- The per-role *maximum* headcount setting (buildings/rooms config, the
+  Buildings tab's "Max" column, and the corresponding CP-SAT upper-bound
+  constraint) — helper counts are small enough that capping a room's
+  headcount was never actually needed. Only the *minimum* headcount setting
+  remains. Older config files with a `{min, max}` mapping still load; `max`
+  is now silently ignored.
+
 ### Fixed
 
 - Excel roster export: a role's row-block was sized only from its
