@@ -34,40 +34,13 @@
   background: var(--st-secondary-background-color, #f3f3f3);
 }
 
-.room-header.merged {
-  cursor: pointer;
-}
-
-.room-header.merged:hover {
-  background: var(--st-blue-background-color, #e6f4ff);
-}
-
-/* A thin clickable seam between two adjacent (unmerged) room columns in the
-   same building, running the full height of the table — click anywhere
-   along it to merge the two columns it sits between (see CLAUDE.md
-   "Out-of-solver roles"). Unmerging happens by clicking a merged column's
-   header instead, since a merged pair has no interior seam to click. */
-.room-divider {
-  width: 6px;
-  min-width: 6px;
-  max-width: 6px;
-  padding: 0;
-  cursor: pointer;
-  background: var(--st-secondary-background-color, #eef1f5);
-  border-left: 1px dashed var(--st-widget-border-color, #d5dae1);
-  border-right: 1px dashed var(--st-widget-border-color, #d5dae1);
-}
-
-.room-divider:hover {
-  background: var(--st-blue-background-color, #e6f4ff);
-}
-
 .row-label {
   background: var(--st-secondary-background-color, #f9f9f9);
   white-space: nowrap;
 }
 
 .grid-cell {
+  position: relative;
   min-width: 110px;
   min-height: 28px;
 }
@@ -81,6 +54,55 @@
    room-locked to the helper's own solved-role room). */
 .grid-cell.drop-disabled {
   opacity: 0.5;
+}
+
+/* Clickable edge handle on a cell that has a mergeable neighbor to its
+   right in this row — merges the two cells (like Excel's cell merge) when
+   clicked. Only that one row's cells merge; other rows for the same rooms
+   are unaffected (see CLAUDE.md "Out-of-solver roles"). Always present but
+   subtle, brightening on hover for discoverability without cluttering the
+   default (unmerged) layout. */
+.cell-merge-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: pointer;
+  z-index: 5;
+  background: var(--st-widget-border-color, #d5dae1);
+  opacity: 0.35;
+}
+
+.cell-merge-handle:hover {
+  opacity: 1;
+  background: var(--st-blue-color, #1c83e1);
+}
+
+/* Small "unmerge" control shown in the corner of an already-merged cell —
+   splits it back into individual room cells for this row only. */
+.cell-unmerge-handle {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 3px;
+  background: var(--st-secondary-background-color, #eef1f5);
+  border: 1px solid var(--st-widget-border-color, #d5dae1);
+  color: inherit;
+  z-index: 5;
+  opacity: 0.6;
+}
+
+.cell-unmerge-handle:hover {
+  opacity: 1;
+  background: var(--st-blue-background-color, #e6f4ff);
 }
 
 .grid-cell-inner {
@@ -126,6 +148,7 @@
 }
 
 .manual-cell {
+  position: relative;
   min-width: 140px;
 }
 

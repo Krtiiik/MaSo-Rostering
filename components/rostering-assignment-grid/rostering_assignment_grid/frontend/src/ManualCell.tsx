@@ -1,5 +1,6 @@
 import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { useId, useState } from "react";
+import type { MouseEvent } from "react";
 import type { ManualEntry } from "./types";
 
 interface HelperLocation {
@@ -24,6 +25,13 @@ interface Props {
   building?: string | null;
   rooms?: string[] | null;
   helperLocations?: Map<number, HelperLocation>;
+  // Present only when this cell has a mergeable neighbor to its right in
+  // this specific row (see CLAUDE.md "Out-of-solver roles") — renders a
+  // small clickable edge handle.
+  onMergeRight?: () => void;
+  // Present only when this cell is currently merged (spans more than one
+  // room) — renders a small clickable "unmerge" icon.
+  onUnmerge?: () => void;
 }
 
 /**
@@ -47,6 +55,8 @@ export function ManualCell({
   building,
   rooms,
   helperLocations,
+  onMergeRight,
+  onUnmerge,
 }: Props) {
   const [draft, setDraft] = useState("");
   const names = entries.map((e) => e.name);
@@ -85,6 +95,13 @@ export function ManualCell({
 
   function removeName(name: string) {
     onChange(names.filter((n) => n !== name));
+  }
+
+  function stop<T>(handler: () => T) {
+    return (e: MouseEvent) => {
+      e.stopPropagation();
+      handler();
+    };
   }
 
   const cellClass = [
@@ -132,6 +149,19 @@ export function ManualCell({
           onBlur={commitDraft}
         />
       </div>
+      {onMergeRight && (
+        <div className="cell-merge-handle" title="Click to merge with the next cell" onClick={stop(onMergeRight)} />
+      )}
+      {onUnmerge && (
+        <button
+          type="button"
+          className="cell-unmerge-handle"
+          title="Click to split this merged cell back apart"
+          onClick={stop(onUnmerge)}
+        >
+          ⊟
+        </button>
+      )}
     </td>
   );
 }

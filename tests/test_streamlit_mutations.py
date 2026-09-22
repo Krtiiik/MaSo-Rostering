@@ -182,30 +182,37 @@ TWO_ROOM_CONFIG = [
 ]
 
 
-def test_room_merge_round_trip(workspace):
+def test_cell_merge_round_trip(workspace):
     mutations.put_config(workspace, TWO_ROOM_CONFIG)
-    state = mutations.set_room_merges(workspace, "B", [["R1", "R2"]], merged=True)
-    assert state["room_merges"] == {"B": [["R1", "R2"]]}
+    state = mutations.set_cell_merges(workspace, "Opravovatel", "B", [["R1", "R2"]], merged=True)
+    assert state["cell_merges"] == {"Opravovatel": {"B": [["R1", "R2"]]}}
 
-    # Extending the merge to a third room appends rather than replaces.
-    state = mutations.set_room_merges(workspace, "B", [["R2", "R3"]], merged=True)
-    assert state["room_merges"] == {"B": [["R1", "R2"], ["R2", "R3"]]}
+    # Extending the merge to a third room appends rather than replaces, and
+    # is scoped to this row only — a different row_key is untouched.
+    state = mutations.set_cell_merges(workspace, "Opravovatel", "B", [["R2", "R3"]], merged=True)
+    assert state["cell_merges"] == {"Opravovatel": {"B": [["R1", "R2"], ["R2", "R3"]]}}
+    state = mutations.set_cell_merges(workspace, "Zaloha", "B", [["R2", "R3"]], merged=True)
+    assert state["cell_merges"] == {
+        "Opravovatel": {"B": [["R1", "R2"], ["R2", "R3"]]},
+        "Zaloha": {"B": [["R2", "R3"]]},
+    }
 
-    # Unmerging clears the listed pairs and drops the building key entirely
-    # once empty (not just an empty list).
-    state = mutations.set_room_merges(workspace, "B", [["R1", "R2"], ["R2", "R3"]], merged=False)
-    assert state["room_merges"] == {}
+    # Unmerging clears the listed pairs and drops empty building/row_key
+    # entries entirely (not just an empty list).
+    state = mutations.set_cell_merges(workspace, "Opravovatel", "B", [["R1", "R2"], ["R2", "R3"]], merged=False)
+    state = mutations.set_cell_merges(workspace, "Zaloha", "B", [["R2", "R3"]], merged=False)
+    assert state["cell_merges"] == {}
 
 
-def test_put_config_prunes_stale_room_merges(workspace):
+def test_put_config_prunes_stale_cell_merges(workspace):
     mutations.put_config(workspace, TWO_ROOM_CONFIG)
-    mutations.set_room_merges(workspace, "B", [["R1", "R2"]], merged=True)
+    mutations.set_cell_merges(workspace, "Opravovatel", "B", [["R1", "R2"]], merged=True)
 
     # Re-configuring without R2 makes the R1/R2 pair stale — it must not
     # linger in state and silently misapply if R2 is ever reintroduced.
     single_room_config = [{"name": "B", "rooms": [{"name": "R1", "capacities": {}}], "capacities": {}}]
     state = mutations.put_config(workspace, single_room_config)
-    assert state["room_merges"] == {}
+    assert state["cell_merges"] == {}
 
 
 def test_version_lifecycle(workspace):

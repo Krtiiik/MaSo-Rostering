@@ -33,16 +33,19 @@ export interface HelperCardData {
   requestedBy: FriendCardEntry[]; // helpers who requested THIS helper (purple)
 }
 
-// One grid column. Normally one physical room; when adjacent rooms are
-// merged via the grid's room-merge UI, `rooms` holds all of them and the
-// column shows their combined content under a joined header label (see
-// CLAUDE.md "Out-of-solver roles" and rostering.domain.group_adjacent_rooms).
-// Merging is purely presentational — `Assignment`/`ManualEntry` below still
-// always name an exact, unmerged room.
-export interface RoomGroup {
+export interface RoomRef {
   building: string;
-  rooms: string[];
+  room: string;
 }
+
+// {row_key: {building: [[room_a, room_b], ...]}} — adjacent-room pairs
+// currently merged into one wider cell for that one row only (a solved
+// role's key, or a room-scoped manual role's key), like merging cells
+// within a single row in Excel — every other row for the same rooms is
+// unaffected (see CLAUDE.md "Out-of-solver roles" and
+// rostering.domain.group_adjacent_rooms). The column layout itself (header
+// rows) never merges.
+export type CellMerges = Record<string, Record<string, [string, string][]>>;
 
 export interface Assignment {
   helper_id: number;
@@ -56,12 +59,14 @@ export interface Assignment {
 // roles (see CLAUDE.md "Out-of-solver roles"), matched against
 // `manual_entries` by key/building/room. `scope` controls how many columns
 // a manual row's cells span: one per building, one per room, or a single
-// cell spanning the whole table. `allowDuplicateDrop` (meaningful for
-// `scope: "room"` or `scope: "building"`) marks a manual row whose cells
-// also accept dropping a helper's existing chip onto the cell for the
-// room/building they're already solved into — duplicating them into that
-// manual role without moving their solved assignment — in addition to the
-// always-available typed/picked name entry.
+// cell spanning the whole table — independent of that row's own cell
+// merges (see `CellMerges`), which only apply within `scope: "room"` rows.
+// `allowDuplicateDrop` (meaningful for `scope: "room"` or `scope:
+// "building"`) marks a manual row whose cells also accept dropping a
+// helper's existing chip onto the cell for the room/building they're
+// already solved into — duplicating them into that manual role without
+// moving their solved assignment — in addition to the always-available
+// typed/picked name entry.
 export interface GridRow {
   kind: "role" | "manual";
   key: string;
@@ -79,11 +84,12 @@ export interface ManualEntry {
 }
 
 export interface AssignmentGridData {
-  room_groups: RoomGroup[];
+  rooms: RoomRef[];
   rows: GridRow[];
   helpers: Helper[];
   assignments: Assignment[];
   manual_entries: ManualEntry[];
+  cell_merges: CellMerges;
   helper_names: string[];
 }
 
@@ -103,9 +109,12 @@ export interface ManualSetEvent {
   names: string[];
 }
 
-// Fired by clicking a column divider (merge) or a merged column's header
-// (unmerge, one event listing every internal pair of that column's group).
-export interface RoomMergeEvent {
+// Fired by clicking the edge between two of one row's cells (merge) or an
+// already-merged cell in that row (unmerge, listing every internal pair of
+// that cell's group). `key` is the row it applies to — a merge in one row
+// never affects any other row for the same rooms.
+export interface CellMergeEvent {
+  key: string;
   building: string;
   pairs: [string, string][];
   merged: boolean;
@@ -119,5 +128,5 @@ export interface AssignmentGridState {
   [key: string]: unknown;
   drop: DropEvent;
   manual_set: ManualSetEvent;
-  room_merge: RoomMergeEvent;
+  cell_merge: CellMergeEvent;
 }

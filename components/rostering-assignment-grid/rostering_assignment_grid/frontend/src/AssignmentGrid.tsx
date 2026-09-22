@@ -13,7 +13,6 @@ import type {
   Helper,
   HelperCardData,
   ManualEntry,
-  RoomGroup,
 } from "./types";
 
 export type AssignmentGridProps = Pick<
@@ -22,30 +21,45 @@ export type AssignmentGridProps = Pick<
 > &
   AssignmentGridData;
 
-// One column-layout entry: either a room group (a normal data column) or a
-// clickable divider between two adjacent groups in the same building (see
-// CLAUDE.md "Out-of-solver roles" — clicking a divider merges the two
-// columns it sits between; clicking a merged group's header splits it back
-// apart). Buildings never share a divider between them — only rooms within
-// the same building can be merged.
-type ColumnItem =
-  | { kind: "group"; group: RoomGroup }
-  | { kind: "divider"; building: string; leftRoom: string; rightRoom: string };
+// One cell's worth of adjacent rooms *for one specific row* — normally a
+// single room, or several if that row's own cells are currently merged
+// (see CLAUDE.md "Out-of-solver roles"). The column layout (header rows)
+// never merges; only individual rows do, like merging cells within one row
+// in Excel.
+interface RowGroup {
+  building: string;
+  rooms: string[];
+}
+
+function groupAdjacentRooms(roomNames: string[], mergedPairs: [string, string][]): string[][] {
+  const merged = new Set(mergedPairs.map(([a, b]) => `${a}::${b}`));
+  const groups: string[][] = [];
+  for (const name of roomNames) {
+    const last = groups[groups.length - 1];
+    if (last && merged.has(`${last[last.length - 1]}::${name}`)) {
+      last.push(name);
+    } else {
+      groups.push([name]);
+    }
+  }
+  return groups;
+}
 
 /**
  * The drag-and-drop {building, room} x role grid, plus the non-droppable
  * manual structural/overlay role rows rendered as part of the same table
  * (see CLAUDE.md "Out-of-solver roles"). Drop events, manual-role edits, and
- * room-merge clicks are reported back to Python via the
- * `drop`/`manual_set`/`room_merge` triggers — no direct network/API calls,
+ * cell-merge clicks are reported back to Python via the
+ * `drop`/`manual_set`/`cell_merge` triggers — no direct network/API calls,
  * ported from the project's old React app's GridPage.tsx/Cell.tsx/HelperChip.tsx.
  */
 const AssignmentGrid: FC<AssignmentGridProps> = ({
-  room_groups,
+  rooms,
   rows,
   helpers,
   assignments,
   manual_entries,
+  cell_merges,
   helper_names,
   setTriggerValue,
 }): ReactElement => {
@@ -195,55 +209,57 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     );
   }
 
-  // room_groups (one entry per column — normally one room, or several if
-  // merged) interleaved with a clickable divider between every pair of
-  // adjacent groups that share a building (clicking one merges that pair;
-  // see CLAUDE.md "Out-of-solver roles"). Buildings never share a divider.
-  const columnLayout = useMemo(() => {
-    const items: ColumnItem[] = [];
-    for (let i = 0; i < room_groups.length; i++) {
-      const group = room_groups[i];
-      items.push({ kind: "group", group });
-      const next = room_groups[i + 1];
-      if (next && next.building === group.building) {
-        items.push({
-          kind: "divider",
-          building: group.building,
-          leftRoom: group.rooms[group.rooms.length - 1],
-          rightRoom: next.rooms[0],
-        });
-      }
-    }
-    return items;
-  }, [room_groups]);
-
-  // Consecutive column-layout entries (groups + their interleaved dividers)
-  // sharing a building group into one building header cell spanning them —
-  // also used for building-scoped manual role cells, whose colSpan must
-  // likewise cover any divider columns within that building's span.
+  // Consecutive rooms sharing a building (the order the Python side sends
+  // them in, following the buildings/rooms config) group into one building
+  // header cell spanning its rooms — also used for building-scoped manual
+  // role cells. The column layout is always one column per physical room;
+  // only individual rows (see `groupsForRow`) ever merge cells.
   const buildingGroups = useMemo(() => {
     const groups: { building: string; count: number }[] = [];
-    for (const item of columnLayout) {
-      const building = item.kind === "group" ? item.group.building : item.building;
+    for (const r of rooms) {
       const last = groups[groups.length - 1];
-      if (last && last.building === building) last.count += 1;
-      else groups.push({ building, count: 1 });
+      if (last && last.building === r.building) last.count += 1;
+      else groups.push({ building: r.building, count: 1 });
     }
     return groups;
-  }, [columnLayout]);
+  }, [rooms]);
 
-  function unmergePairs(group: RoomGroup): [string, string][] {
+  const roomsByBuilding = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const r of rooms) {
+      if (!map.has(r.building)) map.set(r.building, []);
+      map.get(r.building)!.push(r.room);
+    }
+    return map;
+  }, [rooms]);
+
+  // This one row's own cell groups, left to right across every building —
+  // computed fresh per row from that row's own `cell_merges` entry, so a
+  // merge in one row never affects any other row for the same rooms.
+  function groupsForRow(rowKey: string): RowGroup[] {
+    const result: RowGroup[] = [];
+    for (const bg of buildingGroups) {
+      const roomNames = roomsByBuilding.get(bg.building) ?? [];
+      const pairs = cell_merges[rowKey]?.[bg.building] ?? [];
+      for (const group of groupAdjacentRooms(roomNames, pairs)) {
+        result.push({ building: bg.building, rooms: group });
+      }
+    }
+    return result;
+  }
+
+  function unmergePairsFor(groupRooms: string[]): [string, string][] {
     const pairs: [string, string][] = [];
-    for (let i = 0; i < group.rooms.length - 1; i++) pairs.push([group.rooms[i], group.rooms[i + 1]]);
+    for (let i = 0; i < groupRooms.length - 1; i++) pairs.push([groupRooms[i], groupRooms[i + 1]]);
     return pairs;
   }
 
-  function mergeDivider(item: Extract<ColumnItem, { kind: "divider" }>) {
-    setTriggerValue("room_merge", { building: item.building, pairs: [[item.leftRoom, item.rightRoom]], merged: true });
+  function mergeCellRight(rowKey: string, building: string, leftRoom: string, rightRoom: string) {
+    setTriggerValue("cell_merge", { key: rowKey, building, pairs: [[leftRoom, rightRoom]], merged: true });
   }
 
-  function unmergeGroup(group: RoomGroup) {
-    setTriggerValue("room_merge", { building: group.building, pairs: unmergePairs(group), merged: false });
+  function unmergeCell(rowKey: string, building: string, groupRooms: string[]) {
+    setTriggerValue("cell_merge", { key: rowKey, building, pairs: unmergePairsFor(groupRooms), merged: false });
   }
 
   function helpersInGroupCell(building: string, groupRooms: string[], role: string): Helper[] {
@@ -315,43 +331,36 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     setTriggerValue("drop", { helper_id: helperId, building, room, role });
   }
 
-  function dividerProps(item: Extract<ColumnItem, { kind: "divider" }>) {
-    return {
-      className: "room-divider",
-      title: "Click to merge these two columns",
-      onClick: () => mergeDivider(item),
-    };
-  }
-
   function renderManualRow(key: string, scope: "building" | "room" | "global", allowDuplicateDrop: boolean): ReactNode {
     if (scope === "room") {
-      return columnLayout.map((item, idx) =>
-        item.kind === "divider" ? (
-          <td key={`divider::${idx}`} {...dividerProps(item)} />
-        ) : (
+      const groups = groupsForRow(key);
+      return groups.map((group, idx) => {
+        const next = groups[idx + 1];
+        const canMergeRight = !!next && next.building === group.building;
+        return (
           <ManualCell
-            key={`${item.group.building}::${item.group.rooms.join("+")}::${key}`}
-            entries={manualEntriesForGroup(key, item.group.building, item.group.rooms)}
-            colSpan={1}
+            key={`${group.building}::${group.rooms.join("+")}::${key}`}
+            entries={manualEntriesForGroup(key, group.building, group.rooms)}
+            colSpan={group.rooms.length}
             datalistId={datalistId}
-            onChange={(names) =>
-              setTriggerValue("manual_set", { key, building: item.group.building, room: item.group.rooms[0], names })
-            }
-            dropId={allowDuplicateDrop ? `duplicate::${key}::${item.group.building}::${item.group.rooms[0]}` : undefined}
+            onChange={(names) => setTriggerValue("manual_set", { key, building: group.building, room: group.rooms[0], names })}
+            dropId={allowDuplicateDrop ? `duplicate::${key}::${group.building}::${group.rooms[0]}` : undefined}
             manualKey={key}
-            building={item.group.building}
-            rooms={allowDuplicateDrop ? item.group.rooms : null}
+            building={group.building}
+            rooms={allowDuplicateDrop ? group.rooms : null}
             helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
+            onMergeRight={canMergeRight ? () => mergeCellRight(key, group.building, group.rooms[group.rooms.length - 1], next!.rooms[0]) : undefined}
+            onUnmerge={group.rooms.length > 1 ? () => unmergeCell(key, group.building, group.rooms) : undefined}
           />
-        ),
-      );
+        );
+      });
     }
     if (scope === "global") {
       return (
         <ManualCell
           key={`global::${key}`}
           entries={manualEntriesFor(key, null, null)}
-          colSpan={columnLayout.length}
+          colSpan={rooms.length}
           datalistId={datalistId}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
@@ -373,7 +382,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     ));
   }
 
-  if (room_groups.length === 0) {
+  if (rooms.length === 0) {
     return <p>Configure at least one building with a room first.</p>;
   }
 
@@ -404,20 +413,9 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             </tr>
             <tr>
               <th></th>
-              {columnLayout.map((item, idx) =>
-                item.kind === "divider" ? (
-                  <th key={`divider::${idx}`} {...dividerProps(item)} />
-                ) : (
-                  <th
-                    key={`${item.group.building}::${item.group.rooms.join("+")}`}
-                    className={item.group.rooms.length > 1 ? "room-header merged" : "room-header"}
-                    title={item.group.rooms.length > 1 ? "Click to split these rooms back apart" : undefined}
-                    onClick={item.group.rooms.length > 1 ? () => unmergeGroup(item.group) : undefined}
-                  >
-                    {item.group.rooms.join(" + ")}
-                  </th>
-                ),
-              )}
+              {rooms.map(({ building, room }) => (
+                <th key={`${building}::${room}`}>{room}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -425,18 +423,25 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
               <tr key={`${rowDef.kind}::${rowDef.key}`}>
                 <th className="row-label">{rowDef.label}</th>
                 {rowDef.kind === "role"
-                  ? columnLayout.map((item, idx) =>
-                      item.kind === "divider" ? (
-                        <td key={`divider::${idx}`} {...dividerProps(item)} />
-                      ) : (
+                  ? groupsForRow(rowDef.key).map((group, idx, groups) => {
+                      const next = groups[idx + 1];
+                      const canMergeRight = !!next && next.building === group.building;
+                      return (
                         <Cell
-                          key={`${item.group.building}::${item.group.rooms.join("+")}::${rowDef.key}`}
-                          id={`${item.group.building}::${item.group.rooms[0]}::${rowDef.key}`}
+                          key={`${group.building}::${group.rooms.join("+")}::${rowDef.key}`}
+                          id={`${group.building}::${group.rooms[0]}::${rowDef.key}`}
+                          colSpan={group.rooms.length}
+                          onMergeRight={
+                            canMergeRight
+                              ? () => mergeCellRight(rowDef.key, group.building, group.rooms[group.rooms.length - 1], next!.rooms[0])
+                              : undefined
+                          }
+                          onUnmerge={group.rooms.length > 1 ? () => unmergeCell(rowDef.key, group.building, group.rooms) : undefined}
                         >
-                          {helpersInGroupCell(item.group.building, item.group.rooms, rowDef.key).map((h) => renderChip(h))}
+                          {helpersInGroupCell(group.building, group.rooms, rowDef.key).map((h) => renderChip(h))}
                         </Cell>
-                      ),
-                    )
+                      );
+                    })
                   : renderManualRow(rowDef.key, rowDef.scope ?? "global", rowDef.allowDuplicateDrop ?? false)}
               </tr>
             ))}

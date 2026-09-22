@@ -46,11 +46,15 @@ class Workspace:
             "solver_config": solver_config_to_dict(SolverConfig()),
             "assignments": [],
             "manual_roles": manual_roles_to_dict(ManualRoles()),
-            # {building_name: [[room_a, room_b], ...]} — adjacent room pairs
-            # currently merged into one display column in the roster grid
-            # and Excel export (see rostering.domain.group_adjacent_rooms).
-            # Empty by default: the unmerged, one-column-per-room layout.
-            "room_merges": {},
+            # {row_key: {building_name: [[room_a, room_b], ...]}} — adjacent
+            # room-pairs currently merged into one wider cell *for that one
+            # row* (a solved role's key, or a room-scoped manual role's key)
+            # in the roster grid and Excel export, like merging cells within
+            # a single spreadsheet row (see
+            # rostering.domain.group_adjacent_rooms). Other rows for the
+            # same rooms are unaffected. Empty by default: the unmerged,
+            # one-column-per-room layout for every row.
+            "cell_merges": {},
             "diagnostics": {
                 "status": None,
                 "objective_value": None,
