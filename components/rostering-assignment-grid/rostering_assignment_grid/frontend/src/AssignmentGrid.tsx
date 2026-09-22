@@ -221,8 +221,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
       const helperId = Number(active.id);
       const loc = assignmentByHelper.get(helperId);
       // Should already be unreachable (the cell disables itself for a
-      // mismatched room), but guard against it directly too.
-      if (!loc || loc.building !== overData.building || loc.room !== overData.room) return;
+      // mismatched location), but guard against it directly too. A null
+      // `overData.room` means this is a building-scoped cell (Registrace) —
+      // matched on building alone, not the exact room.
+      const roomOk = overData.room == null || loc?.room === overData.room;
+      if (!loc || loc.building !== overData.building || !roomOk) return;
       const helper = helpersById.get(helperId);
       if (!helper) return;
       const existingNames = manualEntriesFor(overData.key, overData.building ?? null, overData.room ?? null).map(
@@ -281,6 +284,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         colSpan={g.count}
         datalistId={datalistId}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
+        dropId={allowDuplicateDrop ? `duplicate::${key}::${g.building}` : undefined}
+        manualKey={key}
+        building={g.building}
+        room={null}
+        helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
       />
     ));
   }

@@ -43,16 +43,17 @@ they're layered on by hand after the solver runs:
 - **Overlay roles** (a helper keeps their solved main role *and* can
   additionally be tagged with one of these, since the duties happen
   before/after the event and don't conflict in time): **Registrace**
-  (registration desk, building/global-scoped), **Uvaděči účastníků**
-  (participant ushering) and **Focení předávání cen** (photographing the
-  award ceremony) — these last two are **room-scoped**: a helper can only
-  be tagged into the overlay slot for the room they're already solved
-  into, not a different room. In the roster grid these two can be filled
-  either by drag-and-dropping a helper's existing chip onto the overlay
-  cell for their own room (which duplicates them into that slot without
-  moving their solved assignment — shown with a dotted border to mark it
-  as a duplicate) or by typing/picking a name as with any other manual
-  role.
+  (registration desk), **Uvaděči účastníků** (participant ushering) and
+  **Focení předávání cen** (photographing the award ceremony). All three
+  are scoped to where the helper is already solved into — Registrace by
+  **building**, the other two by **room** (stricter: same room, not just
+  same building) — so a helper can only be tagged into the overlay slot
+  for their own building/room, not a different one. In the roster grid
+  all three can be filled either by drag-and-dropping a helper's existing
+  chip onto their own building's/room's overlay cell (which duplicates
+  them into that slot without moving their solved assignment — shown with
+  a dotted border to mark it as a duplicate) or by typing/picking a name
+  as with any other manual role.
 
 ## Preference scale
 

@@ -13,9 +13,11 @@ interface Props {
   datalistId: string;
   onChange: (names: string[]) => void;
   // When set, this cell also accepts dropping a helper's existing chip —
-  // only while the dragged helper's own solved-role room matches
-  // `building`/`room` (see CLAUDE.md "Out-of-solver roles"); `dropId` must
-  // be unique across the grid.
+  // only while the dragged helper's own solved-role location matches
+  // `building` (and, if `room` is non-null, `room` too — a null `room`
+  // means this is a building-scoped cell, matched on building alone; see
+  // CLAUDE.md "Out-of-solver roles"). `dropId` must be unique across the
+  // grid.
   dropId?: string;
   manualKey?: string;
   building?: string | null;
@@ -30,7 +32,9 @@ interface Props {
  * unregistered — manual roles are commonly filled by people who never
  * registered as a helper. A dragged-in registered helper's chip is styled
  * with a dotted border to mark it as a duplicate of their solved-role
- * placement, not a move.
+ * placement, not a move. Building-scoped duplicate-drop cells (`room` left
+ * null) accept a drop from anywhere in that building; room-scoped ones
+ * (`room` set) require the exact room too.
  */
 export function ManualCell({
   entries,
@@ -53,13 +57,14 @@ export function ManualCell({
   const fallbackId = useId();
 
   let dropDisabled = true;
-  let roomMismatch = false;
+  let locationMismatch = false;
   if (droppable && active) {
     const loc = helperLocations?.get(Number(active.id));
-    if (loc && loc.building === building && loc.room === room) {
+    const matches = !!loc && loc.building === building && (room == null || loc.room === room);
+    if (matches) {
       dropDisabled = false;
     } else {
-      roomMismatch = true;
+      locationMismatch = true;
     }
   }
 
@@ -85,7 +90,7 @@ export function ManualCell({
     "grid-cell",
     "manual-cell",
     isOver && !dropDisabled ? "drop-over" : "",
-    droppable && roomMismatch ? "drop-disabled" : "",
+    droppable && locationMismatch ? "drop-disabled" : "",
   ]
     .filter(Boolean)
     .join(" ");
