@@ -7,6 +7,10 @@ interface Props {
   // Omitted for roles rendered as plain free text (see GridRow.plain_text) —
   // no autocomplete suggestions against registered helper names.
   datalistId?: string;
+  // Single-holder role (see GridRow.single_entry) — cap the cell at one
+  // name; the add-input is hidden once a name is set, so replacing it
+  // requires removing the existing one first.
+  singleEntry?: boolean;
   onChange: (names: string[]) => void;
 }
 
@@ -17,9 +21,10 @@ interface Props {
  * — manual roles are commonly filled by people who never registered as a
  * helper.
  */
-export function ManualCell({ entries, colSpan, datalistId, onChange }: Props) {
+export function ManualCell({ entries, colSpan, datalistId, singleEntry = false, onChange }: Props) {
   const [draft, setDraft] = useState("");
   const names = entries.map((e) => e.name);
+  const canAddMore = !singleEntry || entries.length === 0;
 
   function commitDraft() {
     const value = draft.trim();
@@ -49,20 +54,22 @@ export function ManualCell({ entries, colSpan, datalistId, onChange }: Props) {
             </button>
           </span>
         ))}
-        <input
-          className="manual-cell-input"
-          list={datalistId}
-          value={draft}
-          placeholder="+ add name"
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitDraft();
-            }
-          }}
-          onBlur={commitDraft}
-        />
+        {canAddMore && (
+          <input
+            className="manual-cell-input"
+            list={datalistId}
+            value={draft}
+            placeholder="+ add name"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitDraft();
+              }
+            }}
+            onBlur={commitDraft}
+          />
+        )}
       </div>
     </td>
   );

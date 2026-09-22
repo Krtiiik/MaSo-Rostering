@@ -60,6 +60,9 @@ export interface GridRow {
   // helper (e.g. Vedoucí budovy) render as plain free text instead of an
   // autocomplete against registered helper names.
   plain_text?: boolean;
+  // "manual" rows for a single-holder role (e.g. one building lead) cap
+  // their cell at one name instead of allowing a list.
+  single_entry?: boolean;
 }
 
 export interface ManualEntry {

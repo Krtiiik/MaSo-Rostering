@@ -221,7 +221,12 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     setTriggerValue("drop", { helper_id: helperId, building, room, role });
   }
 
-  function renderManualRow(key: string, scope: "building" | "room" | "global", plainText: boolean): ReactNode {
+  function renderManualRow(
+    key: string,
+    scope: "building" | "room" | "global",
+    plainText: boolean,
+    singleEntry: boolean,
+  ): ReactNode {
     if (scope === "room") {
       return rooms.map(({ building, room }) => (
         <ManualCell
@@ -229,6 +234,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           entries={manualEntriesFor(key, building, room)}
           colSpan={1}
           datalistId={plainText ? undefined : datalistId}
+          singleEntry={singleEntry}
           onChange={(names) => setTriggerValue("manual_set", { key, building, room, names })}
         />
       ));
@@ -240,6 +246,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           entries={manualEntriesFor(key, null, null)}
           colSpan={rooms.length}
           datalistId={plainText ? undefined : datalistId}
+          singleEntry={singleEntry}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
       );
@@ -250,6 +257,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         entries={manualEntriesFor(key, g.building, null)}
         colSpan={g.count}
         datalistId={plainText ? undefined : datalistId}
+        singleEntry={singleEntry}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
       />
     ));
@@ -301,7 +309,12 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                         {helpersInCell(building, room, rowDef.key).map((h) => renderChip(h))}
                       </Cell>
                     ))
-                  : renderManualRow(rowDef.key, rowDef.scope ?? "global", rowDef.plain_text ?? false)}
+                  : renderManualRow(
+                      rowDef.key,
+                      rowDef.scope ?? "global",
+                      rowDef.plain_text ?? false,
+                      rowDef.single_entry ?? false,
+                    )}
               </tr>
             ))}
           </tbody>

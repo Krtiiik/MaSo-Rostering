@@ -134,7 +134,7 @@ class StructuralAssignment:
     # roles are often filled by people who never registered as a helper).
     helper_id: Optional[int] = None
     helper_name: Optional[str] = None
-    room: Optional[str] = None  # only meaningful for VedouciMistnosti
+    room: Optional[str] = None  # only meaningful for VedouciMistnosti / PravaRuka
 
 
 @dataclass

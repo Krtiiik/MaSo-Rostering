@@ -15,10 +15,12 @@ _ROLE_LABELS = {r.name: r.value for r in Role}
 
 # Manual rows before the solved roles (building leadership, then room leads)
 # and after them (before/after-event overlay duties, then tech support) —
-# ordering follows the season's historical hand-built roster layout.
+# ordering follows the season's historical hand-built roster layout. Pravá
+# ruka (the building lead's deputy) is scoped per room, not per building —
+# each room can have its own deputy.
 _MANUAL_ROWS_BEFORE = [
     (StructuralRole.VedouciBudovy, "building"),
-    (StructuralRole.PravaRuka, "building"),
+    (StructuralRole.PravaRuka, "room"),
     (StructuralRole.VedouciMistnosti, "room"),
 ]
 _MANUAL_ROWS_AFTER = [
@@ -32,7 +34,9 @@ _STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
 # as a helper (teachers, organizers), so their manual-role cells are plain
 # free text rather than an autocomplete/pick against registered helpers —
 # unlike overlay roles and Technická podpora, which layer onto an already
-# registered, already-assigned helper.
+# registered, already-assigned helper. Each is also a single-holder role (one
+# building lead, one deputy, one lead per room), so their cells cap at one
+# name rather than the multi-name lists overlay/Technická podpora cells allow.
 _PLAIN_TEXT_ROLE_NAMES = {
     StructuralRole.VedouciBudovy.name,
     StructuralRole.PravaRuka.name,
@@ -75,6 +79,7 @@ def _grid_rows() -> list[dict]:
             "label": role.value,
             "scope": scope,
             "plain_text": role.name in _PLAIN_TEXT_ROLE_NAMES,
+            "single_entry": role.name in _PLAIN_TEXT_ROLE_NAMES,
         }
         for role, scope in _MANUAL_ROWS_BEFORE
     ]
@@ -86,6 +91,7 @@ def _grid_rows() -> list[dict]:
             "label": role.value,
             "scope": scope,
             "plain_text": role.name in _PLAIN_TEXT_ROLE_NAMES,
+            "single_entry": role.name in _PLAIN_TEXT_ROLE_NAMES,
         }
         for role, scope in _MANUAL_ROWS_AFTER
     ]
@@ -144,6 +150,7 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
     names = [n.strip() for n in event.get("names", []) if n and n.strip()]
     manual = state["manual_roles"]
     if key in _PLAIN_TEXT_ROLE_NAMES:
+        names = names[-1:]  # single-holder role — keep only the latest name
         resolved = [{"helper_id": None, "helper_name": n} for n in names]
     else:
         resolved = [_resolve_manual_name(state, n) for n in names]
