@@ -34,6 +34,34 @@
   background: var(--st-secondary-background-color, #f3f3f3);
 }
 
+.room-header.merged {
+  cursor: pointer;
+}
+
+.room-header.merged:hover {
+  background: var(--st-blue-background-color, #e6f4ff);
+}
+
+/* A thin clickable seam between two adjacent (unmerged) room columns in the
+   same building, running the full height of the table — click anywhere
+   along it to merge the two columns it sits between (see CLAUDE.md
+   "Out-of-solver roles"). Unmerging happens by clicking a merged column's
+   header instead, since a merged pair has no interior seam to click. */
+.room-divider {
+  width: 6px;
+  min-width: 6px;
+  max-width: 6px;
+  padding: 0;
+  cursor: pointer;
+  background: var(--st-secondary-background-color, #eef1f5);
+  border-left: 1px dashed var(--st-widget-border-color, #d5dae1);
+  border-right: 1px dashed var(--st-widget-border-color, #d5dae1);
+}
+
+.room-divider:hover {
+  background: var(--st-blue-background-color, #e6f4ff);
+}
+
 .row-label {
   background: var(--st-secondary-background-color, #f9f9f9);
   white-space: nowrap;

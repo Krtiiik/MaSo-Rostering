@@ -2,18 +2,21 @@
 
 Reproduces the layout and styling of the historical hand-built rosters
 (`data/rosters/Rozdělení pomocníků Praha - *.xlsx`): a single sheet with one
-column per room (grouped under merged building headers) and one row-block
-per role. Row-block order top to bottom: Vedoucí budovy (building-wide),
-Pravá ruka and Vedoucí místností (per room), the 6 solved
-roles (Opravovatel/Měnič/.../Fotograf; Záloha is deferred to the bottom to
-match the historical layout), the overlay roles (Uvaděči účastníků, Focení
-předávání cen, Registrace), then Záloha and Technická podpora. See
-CLAUDE.md for the role glossary.
+column per room — or, if the organizer merged adjacent rooms in the roster
+grid's room-merge UI, one column per merged room *group* (see
+`rostering.domain.group_adjacent_rooms`) — grouped under merged building
+headers, and one row-block per role. Row-block order top to bottom: Vedoucí
+budovy (building-wide), Pravá ruka and Vedoucí místností (per room/group),
+the 6 solved roles (Opravovatel/Měnič/.../Fotograf; Záloha is deferred to
+the bottom to match the historical layout), the overlay roles (Uvaděči
+účastníků, Focení předávání cen, Registrace), then Záloha and Technická
+podpora. See CLAUDE.md for the role glossary.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 import xlsxwriter
 
@@ -25,6 +28,7 @@ from rostering.domain import (
     Role,
     SolveResult,
     StructuralRole,
+    group_adjacent_rooms,
 )
 
 _SHEET_NAME = "Pomocníci v místnostech"
@@ -85,17 +89,27 @@ def write_roster(
     result: SolveResult,
     manual: ManualRoles,
     out_path: str | Path,
+    room_merges: Optional[dict[str, list[list[str]]]] = None,
 ) -> None:
     helper_by_id = {h.id: h for h in comp.helpers}
     buildings = [b for b in comp.buildings.values() if b.rooms]
+    room_merges = room_merges or {}
+
+    # Column layout: one column per room *group* — adjacent rooms merged in
+    # the roster grid collapse into a single, wider-content column here too.
+    room_groups: dict[str, list[list[str]]] = {
+        b.name: group_adjacent_rooms([r.name for r in b.rooms], room_merges.get(b.name, [])) for b in buildings
+    }
+    room_obj = {(b.name, r.name): r for b in buildings for r in b.rooms}
 
     room_col: dict[tuple[str, str], int] = {}
     building_span: dict[str, tuple[int, int]] = {}
     col = 1
     for b in buildings:
         start = col
-        for room in b.rooms:
-            room_col[(b.name, room.name)] = col
+        for group in room_groups[b.name]:
+            for room_name in group:
+                room_col[(b.name, room_name)] = col
             col += 1
         building_span[b.name] = (start, col - 1)
     num_cols = max(col - 1, 1)
@@ -171,12 +185,13 @@ def write_roster(
         write_building_row(0, b.name, b.name, header_fmt_merged)
     for b in buildings:
         start, end = building_span[b.name]
-        for i, room in enumerate(b.rooms):
+        for i, group in enumerate(room_groups[b.name]):
             c = start + i
             _, _, left, right = per_room_borders(1, 1, 1, c)
             fmt = cell_format(bold=True, top="thin", bottom="medium", left=left, right=right)
-            track_width(c, room.name)
-            ws.write(1, c, room.name, fmt)
+            text = " + ".join(group)
+            track_width(c, text)
+            ws.write(1, c, text, fmt)
     row = 2
 
     # ---- Structural roles: Vedoucí budovy is building-wide; Pravá ruka and
@@ -202,15 +217,15 @@ def write_roster(
         write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
     row += 1
 
-    # ---- Pravá ruka, Vedoucí místností: per room ----
+    # ---- Pravá ruka, Vedoucí místností: per room/group ----
     for structural_role in _ROOM_SCOPED_STRUCTURAL_ROLES:
         track_width(0, structural_role.value)
         ws.write(row, 0, structural_role.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
         for b in buildings:
             start, end = building_span[b.name]
-            for i, room in enumerate(b.rooms):
+            for i, group in enumerate(room_groups[b.name]):
                 c = start + i
-                names = structural_room.get((structural_role, b.name, room.name), [])
+                names = [n for room_name in group for n in structural_room.get((structural_role, b.name, room_name), [])]
                 _, _, left, right = per_room_borders(row, row, row, c)
                 if names:
                     text = ", ".join(names)
@@ -236,11 +251,19 @@ def write_roster(
     for solved_role in _ROLE_ORDER:
         max_min = 1
         for b in buildings:
-            for r in b.rooms:
-                cap = r.capacities.get(solved_role)
-                if cap:
-                    max_min = max(max_min, cap.minimum)
-                max_min = max(max_min, assignment_counts.get((solved_role, b.name, r.name), 0))
+            for group in room_groups[b.name]:
+                # A merged group's column must fit the *sum* across its
+                # rooms — all of them share one column now — not the max of
+                # any single room, unlike the per-building/global maximum
+                # this loop takes overall.
+                group_min = 0
+                group_count = 0
+                for n in group:
+                    cap = room_obj[(b.name, n)].capacities.get(solved_role)
+                    if cap:
+                        group_min += cap.minimum
+                    group_count += assignment_counts.get((solved_role, b.name, n), 0)
+                max_min = max(max_min, group_min, group_count)
         role_row_start[solved_role] = row
         role_label_color, role_data_color = _ROLE_COLORS[solved_role]
         label_fmt = cell_format(fill=role_label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium")
@@ -253,21 +276,24 @@ def write_roster(
             data_row = row + r_offset
             for b in buildings:
                 start, end = building_span[b.name]
-                for i in range(len(b.rooms)):
+                for i in range(len(room_groups[b.name])):
                     c = start + i
                     top, bottom, left, right = per_room_borders(row, row + max_min - 1, data_row, c)
                     ws.write_blank(data_row, c, None, cell_format(fill=_EMPTY_SLOT_COLOR, top=top, bottom=bottom, left=left, right=right))
         role_row_end[solved_role] = row + max_min - 1
         row += max_min
 
-    placement_counters: dict[tuple[Role, str, str], int] = {}
+    # Keyed by column (not room): a merged group's rooms share one column
+    # and must stack into consecutive rows within it rather than overwrite
+    # each other.
+    placement_counters: dict[tuple[Role, str, int], int] = {}
     for a in result.assignments:
         if a.role not in role_row_start:
             continue
         col_idx = room_col.get((a.building, a.room))
         if col_idx is None:
             continue
-        key = (a.role, a.building, a.room)
+        key = (a.role, a.building, col_idx)
         placed = placement_counters.get(key, 0)
         target_row = role_row_start[a.role] + placed
         _, role_data_color = _ROLE_COLORS[a.role]
