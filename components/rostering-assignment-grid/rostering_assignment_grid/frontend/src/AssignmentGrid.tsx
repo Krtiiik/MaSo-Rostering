@@ -13,6 +13,7 @@ import type {
   Helper,
   HelperCardData,
   ManualEntry,
+  RoomGroup,
 } from "./types";
 
 export type AssignmentGridProps = Pick<
@@ -21,16 +22,26 @@ export type AssignmentGridProps = Pick<
 > &
   AssignmentGridData;
 
+// One column-layout entry: either a room group (a normal data column) or a
+// clickable divider between two adjacent groups in the same building (see
+// CLAUDE.md "Out-of-solver roles" — clicking a divider merges the two
+// columns it sits between; clicking a merged group's header splits it back
+// apart). Buildings never share a divider between them — only rooms within
+// the same building can be merged.
+type ColumnItem =
+  | { kind: "group"; group: RoomGroup }
+  | { kind: "divider"; building: string; leftRoom: string; rightRoom: string };
+
 /**
  * The drag-and-drop {building, room} x role grid, plus the non-droppable
  * manual structural/overlay role rows rendered as part of the same table
- * (see CLAUDE.md "Out-of-solver roles"). Drop events and manual-role edits
- * are reported back to Python via the `drop`/`manual_set` triggers — no
- * direct network/API calls, ported from the project's old React app's
- * GridPage.tsx/Cell.tsx/HelperChip.tsx.
+ * (see CLAUDE.md "Out-of-solver roles"). Drop events, manual-role edits, and
+ * room-merge clicks are reported back to Python via the
+ * `drop`/`manual_set`/`room_merge` triggers — no direct network/API calls,
+ * ported from the project's old React app's GridPage.tsx/Cell.tsx/HelperChip.tsx.
  */
 const AssignmentGrid: FC<AssignmentGridProps> = ({
-  rooms,
+  room_groups,
   rows,
   helpers,
   assignments,
@@ -184,23 +195,60 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     );
   }
 
-  // Consecutive rooms sharing a building (the order the Python side sends
-  // them in, following the buildings/rooms config) group into one building
-  // header cell spanning its rooms — also used for building-scoped manual
-  // role cells.
+  // room_groups (one entry per column — normally one room, or several if
+  // merged) interleaved with a clickable divider between every pair of
+  // adjacent groups that share a building (clicking one merges that pair;
+  // see CLAUDE.md "Out-of-solver roles"). Buildings never share a divider.
+  const columnLayout = useMemo(() => {
+    const items: ColumnItem[] = [];
+    for (let i = 0; i < room_groups.length; i++) {
+      const group = room_groups[i];
+      items.push({ kind: "group", group });
+      const next = room_groups[i + 1];
+      if (next && next.building === group.building) {
+        items.push({
+          kind: "divider",
+          building: group.building,
+          leftRoom: group.rooms[group.rooms.length - 1],
+          rightRoom: next.rooms[0],
+        });
+      }
+    }
+    return items;
+  }, [room_groups]);
+
+  // Consecutive column-layout entries (groups + their interleaved dividers)
+  // sharing a building group into one building header cell spanning them —
+  // also used for building-scoped manual role cells, whose colSpan must
+  // likewise cover any divider columns within that building's span.
   const buildingGroups = useMemo(() => {
     const groups: { building: string; count: number }[] = [];
-    for (const r of rooms) {
+    for (const item of columnLayout) {
+      const building = item.kind === "group" ? item.group.building : item.building;
       const last = groups[groups.length - 1];
-      if (last && last.building === r.building) last.count += 1;
-      else groups.push({ building: r.building, count: 1 });
+      if (last && last.building === building) last.count += 1;
+      else groups.push({ building, count: 1 });
     }
     return groups;
-  }, [rooms]);
+  }, [columnLayout]);
 
-  function helpersInCell(building: string, room: string, role: string): Helper[] {
+  function unmergePairs(group: RoomGroup): [string, string][] {
+    const pairs: [string, string][] = [];
+    for (let i = 0; i < group.rooms.length - 1; i++) pairs.push([group.rooms[i], group.rooms[i + 1]]);
+    return pairs;
+  }
+
+  function mergeDivider(item: Extract<ColumnItem, { kind: "divider" }>) {
+    setTriggerValue("room_merge", { building: item.building, pairs: [[item.leftRoom, item.rightRoom]], merged: true });
+  }
+
+  function unmergeGroup(group: RoomGroup) {
+    setTriggerValue("room_merge", { building: group.building, pairs: unmergePairs(group), merged: false });
+  }
+
+  function helpersInGroupCell(building: string, groupRooms: string[], role: string): Helper[] {
     return assignments
-      .filter((a) => a.building === building && a.room === room && a.role === role)
+      .filter((a) => a.building === building && groupRooms.includes(a.room) && a.role === role)
       .map((a) => helpersById.get(a.helper_id))
       .filter((h): h is Helper => h !== undefined)
       .sort((a, b) => a.name.localeCompare(b.name, "cs"));
@@ -210,32 +258,50 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     return manual_entries.filter((e) => e.key === key && e.building === building && e.room === room);
   }
 
+  // Room-scope variant: unions entries across every room in a (possibly
+  // merged) group, since dropped/typed entries stay keyed to the exact room
+  // they belong to even when displayed together in one merged column.
+  function manualEntriesForGroup(key: string, building: string, groupRooms: string[]): ManualEntry[] {
+    return manual_entries.filter(
+      (e) => e.key === key && e.building === building && e.room !== null && groupRooms.includes(e.room),
+    );
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
 
     const overData = over.data.current as
-      | { type?: string; key?: string; building?: string | null; room?: string | null }
+      | { type?: string; key?: string; building?: string | null; rooms?: string[] | null }
       | undefined;
     if (overData?.type === "duplicate" && overData.key) {
       const helperId = Number(active.id);
       const loc = assignmentByHelper.get(helperId);
       // Should already be unreachable (the cell disables itself for a
       // mismatched location), but guard against it directly too. A null
-      // `overData.room` means this is a building-scoped cell (Registrace) —
-      // matched on building alone, not the exact room.
-      const roomOk = overData.room == null || loc?.room === overData.room;
+      // `overData.rooms` means this is a building-scoped cell (Registrace)
+      // — matched on building alone; a non-null `rooms` matches if the
+      // helper's own room is any one of them (more than one room means the
+      // underlying columns are currently merged).
+      const roomOk = overData.rooms == null || (!!loc && overData.rooms.includes(loc.room));
       if (!loc || loc.building !== overData.building || !roomOk) return;
       const helper = helpersById.get(helperId);
       if (!helper) return;
-      const existingNames = manualEntriesFor(overData.key, overData.building ?? null, overData.room ?? null).map(
-        (e) => e.name,
-      );
+      // The canonical room a *new* entry is stored under is the group's
+      // first room — existing entries can be scattered across the group's
+      // other rooms though (e.g. entered before two rooms were merged), so
+      // the dedup/display list below unions across the whole group.
+      const canonicalRoom = overData.rooms == null ? null : overData.rooms[0];
+      const existingNames = (
+        overData.rooms == null
+          ? manualEntriesFor(overData.key, overData.building ?? null, null)
+          : manualEntriesForGroup(overData.key, overData.building!, overData.rooms)
+      ).map((e) => e.name);
       if (existingNames.includes(helper.name)) return;
       setTriggerValue("manual_set", {
         key: overData.key,
         building: overData.building ?? null,
-        room: overData.room ?? null,
+        room: canonicalRoom,
         names: [...existingNames, helper.name],
       });
       return;
@@ -249,29 +315,43 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     setTriggerValue("drop", { helper_id: helperId, building, room, role });
   }
 
+  function dividerProps(item: Extract<ColumnItem, { kind: "divider" }>) {
+    return {
+      className: "room-divider",
+      title: "Click to merge these two columns",
+      onClick: () => mergeDivider(item),
+    };
+  }
+
   function renderManualRow(key: string, scope: "building" | "room" | "global", allowDuplicateDrop: boolean): ReactNode {
     if (scope === "room") {
-      return rooms.map(({ building, room }) => (
-        <ManualCell
-          key={`${building}::${room}::${key}`}
-          entries={manualEntriesFor(key, building, room)}
-          colSpan={1}
-          datalistId={datalistId}
-          onChange={(names) => setTriggerValue("manual_set", { key, building, room, names })}
-          dropId={allowDuplicateDrop ? `duplicate::${key}::${building}::${room}` : undefined}
-          manualKey={key}
-          building={building}
-          room={room}
-          helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
-        />
-      ));
+      return columnLayout.map((item, idx) =>
+        item.kind === "divider" ? (
+          <td key={`divider::${idx}`} {...dividerProps(item)} />
+        ) : (
+          <ManualCell
+            key={`${item.group.building}::${item.group.rooms.join("+")}::${key}`}
+            entries={manualEntriesForGroup(key, item.group.building, item.group.rooms)}
+            colSpan={1}
+            datalistId={datalistId}
+            onChange={(names) =>
+              setTriggerValue("manual_set", { key, building: item.group.building, room: item.group.rooms[0], names })
+            }
+            dropId={allowDuplicateDrop ? `duplicate::${key}::${item.group.building}::${item.group.rooms[0]}` : undefined}
+            manualKey={key}
+            building={item.group.building}
+            rooms={allowDuplicateDrop ? item.group.rooms : null}
+            helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
+          />
+        ),
+      );
     }
     if (scope === "global") {
       return (
         <ManualCell
           key={`global::${key}`}
           entries={manualEntriesFor(key, null, null)}
-          colSpan={rooms.length}
+          colSpan={columnLayout.length}
           datalistId={datalistId}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
@@ -287,13 +367,13 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         dropId={allowDuplicateDrop ? `duplicate::${key}::${g.building}` : undefined}
         manualKey={key}
         building={g.building}
-        room={null}
+        rooms={null}
         helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
       />
     ));
   }
 
-  if (rooms.length === 0) {
+  if (room_groups.length === 0) {
     return <p>Configure at least one building with a room first.</p>;
   }
 
@@ -324,9 +404,20 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             </tr>
             <tr>
               <th></th>
-              {rooms.map(({ building, room }) => (
-                <th key={`${building}::${room}`}>{room}</th>
-              ))}
+              {columnLayout.map((item, idx) =>
+                item.kind === "divider" ? (
+                  <th key={`divider::${idx}`} {...dividerProps(item)} />
+                ) : (
+                  <th
+                    key={`${item.group.building}::${item.group.rooms.join("+")}`}
+                    className={item.group.rooms.length > 1 ? "room-header merged" : "room-header"}
+                    title={item.group.rooms.length > 1 ? "Click to split these rooms back apart" : undefined}
+                    onClick={item.group.rooms.length > 1 ? () => unmergeGroup(item.group) : undefined}
+                  >
+                    {item.group.rooms.join(" + ")}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody>
@@ -334,11 +425,18 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
               <tr key={`${rowDef.kind}::${rowDef.key}`}>
                 <th className="row-label">{rowDef.label}</th>
                 {rowDef.kind === "role"
-                  ? rooms.map(({ building, room }) => (
-                      <Cell key={`${building}::${room}::${rowDef.key}`} id={`${building}::${room}::${rowDef.key}`}>
-                        {helpersInCell(building, room, rowDef.key).map((h) => renderChip(h))}
-                      </Cell>
-                    ))
+                  ? columnLayout.map((item, idx) =>
+                      item.kind === "divider" ? (
+                        <td key={`divider::${idx}`} {...dividerProps(item)} />
+                      ) : (
+                        <Cell
+                          key={`${item.group.building}::${item.group.rooms.join("+")}::${rowDef.key}`}
+                          id={`${item.group.building}::${item.group.rooms[0]}::${rowDef.key}`}
+                        >
+                          {helpersInGroupCell(item.group.building, item.group.rooms, rowDef.key).map((h) => renderChip(h))}
+                        </Cell>
+                      ),
+                    )
                   : renderManualRow(rowDef.key, rowDef.scope ?? "global", rowDef.allowDuplicateDrop ?? false)}
               </tr>
             ))}

@@ -38,6 +38,20 @@ class RosteringError(Exception):
     ``st.error(str(exc))``."""
 
 
+def _prune_room_merges(config: list[dict], room_merges: dict) -> dict:
+    """Drop merge pairs that no longer name two actually-adjacent rooms
+    (e.g. after a room was renamed, reordered, or removed in the Buildings
+    tab), so stale state never lingers or misapplies to the wrong rooms."""
+    pruned: dict[str, list[list[str]]] = {}
+    for b in config:
+        names = [r["name"] for r in b["rooms"]]
+        adjacent = {(names[i], names[i + 1]) for i in range(len(names) - 1)}
+        pairs = [list(p) for p in room_merges.get(b["name"], []) if tuple(p) in adjacent]
+        if pairs:
+            pruned[b["name"]] = pairs
+    return pruned
+
+
 def _build_competition(state: dict[str, Any]) -> Competition:
     buildings = config_from_list(state["config"])
     helpers = [helper_from_dict(h) for h in state["helpers"]]
@@ -138,6 +152,7 @@ def put_config(workspace: Workspace, buildings: list[dict], config_path: Optiona
         raise RosteringError(f"Invalid config: {exc}") from exc
     state = workspace.load()
     state["config"] = buildings
+    state["room_merges"] = _prune_room_merges(buildings, state.get("room_merges", {}))
     workspace.save(state)
     if config_path is None:
         config_store.save_default_config(buildings)
@@ -218,6 +233,30 @@ def put_manual_roles(workspace: Workspace, manual_roles: dict) -> dict:
     return state
 
 
+def set_room_merges(workspace: Workspace, building: str, pairs: list[list[str]], merged: bool) -> dict:
+    """Merge or unmerge one or more adjacent-room-name pairs within
+    ``building`` (see ``rostering.domain.group_adjacent_rooms``). The grid
+    sends a single pair when merging (clicking the divider between two
+    columns) and every internal pair of a group when unmerging (clicking a
+    merged column to split it back into individual rooms)."""
+    state = workspace.load()
+    room_merges = {k: [list(p) for p in v] for k, v in state.get("room_merges", {}).items()}
+    current = {tuple(p) for p in room_merges.get(building, [])}
+    for pair in pairs:
+        key = (pair[0], pair[1])
+        if merged:
+            current.add(key)
+        else:
+            current.discard(key)
+    if current:
+        room_merges[building] = [list(p) for p in sorted(current)]
+    else:
+        room_merges.pop(building, None)
+    state["room_merges"] = room_merges
+    workspace.save(state)
+    return state
+
+
 def list_versions(workspace: Workspace) -> list[dict]:
     return workspace.list_versions()
 
@@ -256,7 +295,7 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         tmp_path = Path(tmp.name)
     try:
-        write_roster(comp, result, manual, tmp_path)
+        write_roster(comp, result, manual, tmp_path, room_merges=state.get("room_merges", {}))
         return tmp_path.read_bytes()
     finally:
         tmp_path.unlink(missing_ok=True)

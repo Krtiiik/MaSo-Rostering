@@ -42,7 +42,7 @@ def _noop() -> None:
 
 def assignment_grid(
     *,
-    rooms: list[dict[str, str]],
+    room_groups: list[dict[str, Any]],
     rows: list[dict[str, Any]],
     helpers: list[dict[str, Any]],
     assignments: list[dict[str, Any]],
@@ -51,6 +51,15 @@ def assignment_grid(
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Render the grid, including any non-droppable manual-role rows.
+
+    ``room_groups`` is the column layout: ``[{"building", "rooms": [...]}]``,
+    one entry per column — normally one room per group, but adjacent rooms
+    within a building can be merged into one wider column via the grid's
+    room-merge UI (click the divider between two columns to merge, click a
+    merged column's header to split it back apart; see CLAUDE.md
+    "Out-of-solver roles" and ``rostering.domain.group_adjacent_rooms``).
+    Merging is purely presentational — every other argument here still
+    refers to exact, unmerged room names.
 
     ``rows`` describes every row top to bottom: ``{"kind": "role", "key",
     "label"}`` for a solver-role row (drag-and-drop, matched against
@@ -77,14 +86,16 @@ def assignment_grid(
     Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
     a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
     "room", "names"}`` for an edited manual-role cell (``names`` is the
-    cell's full new list of names), or ``None`` otherwise — CCv2 triggers
-    reset automatically after the rerun that reports them, so callers don't
-    need to dedupe.
+    cell's full new list of names), ``{"type": "room_merge", "building",
+    "pairs", "merged"}`` for a merge/unmerge click (``pairs`` is one or more
+    ``[room_a, room_b]`` adjacent-name pairs to set to ``merged``), or
+    ``None`` otherwise — CCv2 triggers reset automatically after the rerun
+    that reports them, so callers don't need to dedupe.
     """
     result = _component(
         key=key,
         data={
-            "rooms": rooms,
+            "room_groups": room_groups,
             "rows": rows,
             "helpers": helpers,
             "assignments": assignments,
@@ -93,9 +104,12 @@ def assignment_grid(
         },
         on_drop_change=_noop,
         on_manual_set_change=_noop,
+        on_room_merge_change=_noop,
     )
     if result.drop:
         return {"type": "drop", **result.drop}
     if result.manual_set:
         return {"type": "manual_set", **result.manual_set}
+    if result.room_merge:
+        return {"type": "room_merge", **result.room_merge}
     return None

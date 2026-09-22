@@ -33,9 +33,15 @@ export interface HelperCardData {
   requestedBy: FriendCardEntry[]; // helpers who requested THIS helper (purple)
 }
 
-export interface RoomRef {
+// One grid column. Normally one physical room; when adjacent rooms are
+// merged via the grid's room-merge UI, `rooms` holds all of them and the
+// column shows their combined content under a joined header label (see
+// CLAUDE.md "Out-of-solver roles" and rostering.domain.group_adjacent_rooms).
+// Merging is purely presentational — `Assignment`/`ManualEntry` below still
+// always name an exact, unmerged room.
+export interface RoomGroup {
   building: string;
-  room: string;
+  rooms: string[];
 }
 
 export interface Assignment {
@@ -73,7 +79,7 @@ export interface ManualEntry {
 }
 
 export interface AssignmentGridData {
-  rooms: RoomRef[];
+  room_groups: RoomGroup[];
   rows: GridRow[];
   helpers: Helper[];
   assignments: Assignment[];
@@ -97,12 +103,21 @@ export interface ManualSetEvent {
   names: string[];
 }
 
-// The trigger key(s) this component reports back to Python. Both `drop` and
-// `manual_set` fire once per completed edit and are consumed by Streamlit
-// after the resulting rerun (CCv2 triggers reset automatically — no manual
-// dedup bookkeeping needed on either side).
+// Fired by clicking a column divider (merge) or a merged column's header
+// (unmerge, one event listing every internal pair of that column's group).
+export interface RoomMergeEvent {
+  building: string;
+  pairs: [string, string][];
+  merged: boolean;
+}
+
+// The trigger key(s) this component reports back to Python. All three fire
+// once per completed edit and are consumed by Streamlit after the
+// resulting rerun (CCv2 triggers reset automatically — no manual dedup
+// bookkeeping needed on either side).
 export interface AssignmentGridState {
   [key: string]: unknown;
   drop: DropEvent;
   manual_set: ManualSetEvent;
+  room_merge: RoomMergeEvent;
 }

@@ -5,12 +5,19 @@ manual rows are typed/picked-name only; the overlay roles (UvadeciUcastniku,
 FoceniPredavaniCen: room-scoped; Registrace: building-scoped) additionally
 accept dropping a helper's existing chip onto the cell for their own
 room/building, to duplicate them into that overlay slot without moving
-their solved assignment."""
+their solved assignment.
+
+The grid's columns are room *groups*, not raw rooms: adjacent rooms within a
+building can be merged into one wider column (see CLAUDE.md "Out-of-solver
+roles" and rostering.domain.group_adjacent_rooms) by clicking the divider
+between two columns, and unmerged again by clicking a merged column's
+header — purely a display/export grouping, the underlying per-helper room
+assignment is untouched either way."""
 from __future__ import annotations
 
 import streamlit as st
 
-from rostering.domain import OverlayRole, Preference, Role, StructuralRole, normalize_name
+from rostering.domain import OverlayRole, Preference, Role, StructuralRole, group_adjacent_rooms, normalize_name
 from rostering.streamlit_app import mutations, session
 from rostering_assignment_grid import assignment_grid
 
@@ -58,8 +65,13 @@ def _grid_role_preferences(role_preferences: dict[str, str]) -> dict[str, dict[s
     }
 
 
-def _flatten_rooms(config: list[dict]) -> list[dict]:
-    return [{"building": b["name"], "room": r["name"]} for b in config for r in b["rooms"]]
+def _room_groups(config: list[dict], room_merges: dict) -> list[dict]:
+    groups = []
+    for b in config:
+        names = [r["name"] for r in b["rooms"]]
+        for group in group_adjacent_rooms(names, room_merges.get(b["name"], [])):
+            groups.append({"building": b["name"], "rooms": group})
+    return groups
 
 
 def _helper_options(state: dict) -> dict[int, str]:
@@ -159,9 +171,9 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
 def render() -> None:
     st.header("3. Roster")
     state = session.get_state()
-    rooms = _flatten_rooms(state["config"])
+    room_groups = _room_groups(state["config"], state.get("room_merges", {}))
 
-    if not rooms:
+    if not room_groups:
         st.info("Configure at least one building with a room first.")
         return
 
@@ -210,7 +222,7 @@ def render() -> None:
     ]
 
     event = assignment_grid(
-        rooms=rooms,
+        room_groups=room_groups,
         rows=_grid_rows(),
         helpers=grid_helpers,
         assignments=state["assignments"],
@@ -226,6 +238,12 @@ def render() -> None:
                 session.set_state(
                     mutations.move_helper(
                         session.get_workspace(), event["helper_id"], event["building"], event["room"], event["role"]
+                    )
+                )
+            elif event["type"] == "room_merge":
+                session.set_state(
+                    mutations.set_room_merges(
+                        session.get_workspace(), event["building"], event["pairs"], event["merged"]
                     )
                 )
             else:

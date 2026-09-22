@@ -51,6 +51,26 @@ class OverlayRole(Enum):
     FoceniPredavaniCen = "Focení předávání cen"
 
 
+def group_adjacent_rooms(room_names: list[str], merged_pairs: list[list[str]]) -> list[list[str]]:
+    """Group one building's rooms (in season-config order) into display
+    columns for the roster grid and Excel export, given a set of
+    currently-merged adjacent-room-name pairs (see CLAUDE.md "Out-of-solver
+    roles" — the grid's room-merge UI). Merging is purely presentational:
+    two adjacent rooms collapse into one wider column showing the union of
+    both rooms' content, but the underlying per-helper room assignment is
+    untouched. A pair that no longer names two rooms that are actually
+    adjacent (e.g. after a season-config edit) is silently ignored, so
+    stale merge state never breaks rendering."""
+    merged = {(a, b) for a, b in merged_pairs}
+    groups: list[list[str]] = []
+    for name in room_names:
+        if groups and (groups[-1][-1], name) in merged:
+            groups[-1].append(name)
+        else:
+            groups.append([name])
+    return groups
+
+
 def normalize_name(value: Optional[str]) -> str:
     """Diacritics/whitespace-insensitive normalization used throughout
     ingestion to match Czech free text across seasons."""
