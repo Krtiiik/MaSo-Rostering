@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   organizers) who never registered as a helper. Overlay roles and
   Technická podpora, which layer onto an already-registered, already-
   assigned helper, keep the registered-helper autocomplete.
+- Roster grid: the Vedoucí budovy, Pravá ruka, and Vedoucí místností cells
+  now hold at most one name each, since each is a single-holder role (one
+  building lead, one deputy, one lead per room) — the add-input hides once
+  a name is set, and an existing name must be removed before a new one can
+  be entered.
 - Excel roster export now matches the layout and styling of the historical
   hand-built rosters: a single sheet (previously split across a "Roster"
   sheet and a separate overlay sheet) with the structural roles (Vedoucí
