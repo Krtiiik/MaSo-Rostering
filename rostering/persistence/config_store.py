@@ -37,10 +37,8 @@ def load_default_config(path: Path = DEFAULT_CONFIG_PATH) -> list[dict]:
     return config_to_list(load_buildings(path))
 
 
-def _capacity_to_yaml(cap: dict) -> int | dict:
-    minimum = cap.get("minimum", 0)
-    maximum = cap.get("maximum")
-    return minimum if maximum is None else {"min": minimum, "max": maximum}
+def _capacity_to_yaml(cap: dict) -> int:
+    return cap.get("minimum", 0)
 
 
 def save_default_config(buildings: list[dict], path: Path = DEFAULT_CONFIG_PATH) -> None:

@@ -53,8 +53,8 @@ div[class*="st-key-add_room_col_"] button {
 """
 
 
-def _capacity_cell(min_col, max_col, capacities: dict, role_name: str, key: str) -> None:
-    cap = capacities.get(role_name, {"minimum": 0, "maximum": None})
+def _capacity_cell(min_col, capacities: dict, role_name: str, key: str) -> None:
+    cap = capacities.get(role_name, {"minimum": 0})
     minimum = min_col.number_input(
         "Min",
         value=int(cap.get("minimum") or 0),
@@ -63,26 +63,16 @@ def _capacity_cell(min_col, max_col, capacities: dict, role_name: str, key: str)
         key=f"{key}_min",
         label_visibility="collapsed",
     )
-    existing_max = cap.get("maximum")
-    maximum = max_col.number_input(
-        "Max",
-        value=int(existing_max) if existing_max is not None else None,
-        min_value=0,
-        step=1,
-        key=f"{key}_max",
-        label_visibility="collapsed",
-        placeholder="∞",
-    )
-    capacities[role_name] = {"minimum": int(minimum), "maximum": None if maximum is None else int(maximum)}
+    capacities[role_name] = {"minimum": int(minimum)}
 
 
 def _render_building_table(building: dict, bi: int) -> None:
     rooms: list[dict] = building["rooms"]
     n_units = 1 + len(rooms)  # building-wide unit + one per room
 
-    outer = st.columns([1 + 2 * n_units, 1])
+    outer = st.columns([1 + n_units, 1])
     with outer[0]:
-        header_cols = st.columns([1] + [2] * n_units)
+        header_cols = st.columns([1] + [1] * n_units)
         header_cols[0].write("")
         header_cols[1].markdown(f"**{building['name'] or 'Building'} (overall)**")
         for ri, room in enumerate(rooms):
@@ -91,26 +81,24 @@ def _render_building_table(building: dict, bi: int) -> None:
                     "Room name", value=room["name"], key=f"rname_{bi}_{ri}", label_visibility="collapsed"
                 )
 
-        subheader_cols = st.columns([1] + [1, 1] * n_units)
+        subheader_cols = st.columns([1] + [1] * n_units)
         subheader_cols[0].write("")
         for i in range(n_units):
-            subheader_cols[1 + 2 * i].caption("Min")
-            subheader_cols[2 + 2 * i].caption("Max")
+            subheader_cols[1 + i].caption("Min")
 
         for role_name in _ROLE_ORDER:
-            row_cols = st.columns([1] + [1, 1] * n_units)
+            row_cols = st.columns([1] + [1] * n_units)
             row_cols[0].write(_ROLE_LABELS[role_name])
-            _capacity_cell(row_cols[1], row_cols[2], building["capacities"], role_name, key=f"bcap_{bi}_{role_name}")
+            _capacity_cell(row_cols[1], building["capacities"], role_name, key=f"bcap_{bi}_{role_name}")
             for ri, room in enumerate(rooms):
                 _capacity_cell(
-                    row_cols[3 + 2 * ri],
-                    row_cols[4 + 2 * ri],
+                    row_cols[2 + ri],
                     room["capacities"],
                     role_name,
                     key=f"rcap_{bi}_{ri}_{role_name}",
                 )
 
-        remove_cols = st.columns([1] + [2] * n_units)
+        remove_cols = st.columns([1] + [1] * n_units)
         remove_cols[0].write("")
         remove_cols[1].write("")
         for ri, room in enumerate(rooms):
