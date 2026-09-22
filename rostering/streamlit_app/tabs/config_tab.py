@@ -16,13 +16,17 @@ _ADD_ROOM_COL_CSS = """
 div[data-testid="stHorizontalBlock"]:has(div[class*="st-key-add_room_col_"]) {
     align-items: stretch !important;
 }
-/* Filling the button down to 100% height via plain nested percentage
-   heights makes Chromium's flex layout runaway (each reflow re-measures a
-   stale, ever-growing ancestor height), ballooning the column to roughly
-   the full page height. Anchoring the column with absolute positioning
-   against its (now stretched-to-the-table) stColumn parent sidesteps that
-   feedback loop entirely, since an absolutely positioned box can't feed
-   back into its ancestors' auto-height calculation. !important is needed
+/* The "Remove building" button and the "+ Add room" button live in the
+   same stColumn (so they share its exact width and stay aligned with each
+   other), with "Remove building" in normal flow at the top and "+ Add
+   room" absolutely positioned below it, filling down to the table's
+   bottom. It must be absolutely (not flex-grow) positioned: giving it
+   height via flex-grow instead resolves against an indefinite ancestor
+   height and Chromium falls back to sizing it against the viewport
+   instead of the column. Anchoring it with absolute positioning against
+   its (now stretched-to-the-table) stColumn parent sidesteps that
+   entirely, since an absolutely positioned box's height comes from its
+   inset offsets, not from an ancestor's auto height. !important is needed
    throughout because Streamlit's own emotion-cache rules for these same
    elements are injected into <head> after this markdown's <style> tag and
    would otherwise win the cascade on tied specificity. */
@@ -31,7 +35,10 @@ div[data-testid="stColumn"]:has(div[class*="st-key-add_room_col_"]) {
 }
 div[class*="st-key-add_room_col_"] {
     position: absolute !important;
-    inset: 0 !important;
+    top: 4.5rem !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
     display: flex !important;
     flex-direction: column !important;
 }
@@ -48,6 +55,19 @@ div[class*="st-key-add_room_col_"] button {
     width: 100% !important;
     writing-mode: vertical-rl;
     text-orientation: mixed;
+}
+/* This column is narrow (it's the "1" share of the outer ratio), so
+   "Remove building" needs to wrap instead of overflowing on one line —
+   Streamlit's own button label <p> is styled white-space: nowrap. */
+div[class*="st-key-remove_building_"] button {
+    height: auto !important;
+    min-height: 2.5rem !important;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+}
+div[class*="st-key-remove_building_"] button p {
+    white-space: normal !important;
+    line-height: 1.2 !important;
 }
 </style>
 """
@@ -76,12 +96,15 @@ def _capacity_cell(min_col, max_col, capacities: dict, role_name: str, key: str)
     capacities[role_name] = {"minimum": int(minimum), "maximum": None if maximum is None else int(maximum)}
 
 
-def _render_building_table(building: dict, bi: int) -> None:
+def _render_building_table(buildings: list[dict], bi: int) -> None:
+    building = buildings[bi]
     rooms: list[dict] = building["rooms"]
     n_units = 1 + len(rooms)  # building-wide unit + one per room
 
     outer = st.columns([1 + 2 * n_units, 1])
     with outer[0]:
+        building["name"] = st.text_input("Building name", value=building["name"], key=f"bname_{bi}")
+
         header_cols = st.columns([1] + [2] * n_units)
         header_cols[0].write("")
         header_cols[1].markdown(f"**{building['name'] or 'Building'} (overall)**")
@@ -120,6 +143,9 @@ def _render_building_table(building: dict, bi: int) -> None:
 
     with outer[1]:
         st.markdown(_ADD_ROOM_COL_CSS, unsafe_allow_html=True)
+        if st.button("Remove building", key=f"remove_building_{bi}", width="stretch"):
+            buildings.pop(bi)
+            st.rerun()
         with st.container(key=f"add_room_col_{bi}"):
             if st.button("+ Add room", key=f"add_room_{bi}", width="stretch"):
                 rooms.append({"name": f"Room {len(rooms) + 1}", "capacities": {}})
@@ -147,13 +173,7 @@ def render() -> None:
 
     for bi, building in enumerate(buildings):
         with st.expander(building["name"] or f"Building {bi + 1}", expanded=True):
-            cols = st.columns([4, 1], vertical_alignment="bottom")
-            building["name"] = cols[0].text_input("Building name", value=building["name"], key=f"bname_{bi}")
-            if cols[1].button("Remove building", key=f"remove_building_{bi}"):
-                buildings.pop(bi)
-                st.rerun()
-
-            _render_building_table(building, bi)
+            _render_building_table(buildings, bi)
 
     with st.form(key="add_building_form", clear_on_submit=True):
         new_building_name = st.text_input("New building name")
