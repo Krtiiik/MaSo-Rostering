@@ -135,11 +135,11 @@ def render() -> None:
 
     for bi, building in enumerate(buildings):
         with st.expander(building["name"] or f"Building {bi + 1}", expanded=True):
-            cols = st.columns([1, 4], vertical_alignment="bottom")
-            if cols[0].button("Remove building", key=f"remove_building_{bi}"):
+            cols = st.columns([4, 1], vertical_alignment="bottom")
+            building["name"] = cols[0].text_input("Building name", value=building["name"], key=f"bname_{bi}")
+            if cols[1].button("Remove building", key=f"remove_building_{bi}"):
                 buildings.pop(bi)
                 st.rerun()
-            building["name"] = cols[1].text_input("Building name", value=building["name"], key=f"bname_{bi}")
 
             _render_building_table(building, bi)
 
