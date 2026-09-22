@@ -1,7 +1,10 @@
 """Tab 3: the drag-and-drop assignment grid, including the manual
 structural/overlay roles (see CLAUDE.md "Out-of-solver roles") rendered as
-extra, non-droppable rows in the same grid rather than as a separate
-section below it."""
+extra rows in the same grid rather than as a separate section below it. Most
+manual rows are typed/picked-name only; the room-scoped overlay roles
+(UvadeciUcastniku, FoceniPredavaniCen) additionally accept dropping a
+helper's existing chip onto their own room's cell, to duplicate them into
+that overlay slot without moving their solved assignment."""
 from __future__ import annotations
 
 import streamlit as st
@@ -15,16 +18,21 @@ _ROLE_LABELS = {r.name: r.value for r in Role}
 
 # Manual rows before the solved roles (building leadership, then room leads)
 # and after them (before/after-event overlay duties, then tech support) —
-# ordering follows the season's historical hand-built roster layout.
+# ordering follows the season's historical hand-built roster layout. Each
+# entry is (role, scope, allow_duplicate_drop); allow_duplicate_drop marks
+# room-scoped overlay roles that accept dragging a helper's existing chip
+# onto their own room's cell to duplicate them into that overlay slot
+# (without moving their solved assignment) in addition to typing a name.
 _MANUAL_ROWS_BEFORE = [
-    (StructuralRole.VedouciBudovy, "building"),
-    (StructuralRole.PravaRuka, "building"),
-    (StructuralRole.VedouciMistnosti, "room"),
+    (StructuralRole.VedouciBudovy, "building", False),
+    (StructuralRole.PravaRuka, "building", False),
+    (StructuralRole.VedouciMistnosti, "room", False),
 ]
 _MANUAL_ROWS_AFTER = [
-    (OverlayRole.UvadeciPredavaniCen, "global"),
-    (OverlayRole.Registrace, "global"),
-    (StructuralRole.TechnickaPodpora, "building"),
+    (OverlayRole.UvadeciUcastniku, "room", True),
+    (OverlayRole.FoceniPredavaniCen, "room", True),
+    (OverlayRole.Registrace, "global", False),
+    (StructuralRole.TechnickaPodpora, "building", False),
 ]
 _STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
 
@@ -57,15 +65,18 @@ def _helper_options(state: dict) -> dict[int, str]:
 
 
 def _grid_rows() -> list[dict]:
-    rows = [
-        {"kind": "manual", "key": role.name, "label": role.value, "scope": scope}
-        for role, scope in _MANUAL_ROWS_BEFORE
-    ]
+    def manual_row(role, scope: str, allow_duplicate_drop: bool) -> dict:
+        return {
+            "kind": "manual",
+            "key": role.name,
+            "label": role.value,
+            "scope": scope,
+            "allowDuplicateDrop": allow_duplicate_drop,
+        }
+
+    rows = [manual_row(role, scope, allow_drop) for role, scope, allow_drop in _MANUAL_ROWS_BEFORE]
     rows += [{"kind": "role", "key": name, "label": _ROLE_LABELS[name]} for name in _ROLE_ORDER]
-    rows += [
-        {"kind": "manual", "key": role.name, "label": role.value, "scope": scope}
-        for role, scope in _MANUAL_ROWS_AFTER
-    ]
+    rows += [manual_row(role, scope, allow_drop) for role, scope, allow_drop in _MANUAL_ROWS_AFTER]
     return rows
 
 
@@ -94,8 +105,8 @@ def _manual_entries(state: dict) -> list[dict]:
         entries.append(
             {
                 "key": o["role"],
-                "building": None,
-                "room": None,
+                "building": o.get("building"),
+                "room": o.get("room"),
                 "helper_id": o.get("helper_id"),
                 "name": _manual_display_name(o, helper_names),
             }
@@ -131,8 +142,16 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
         new_entries = [{"role": key, "building": building, "room": room, **r} for r in resolved]
         return {**manual, "structural": filtered + new_entries}
 
-    other = [o for o in manual["overlay"] if o["role"] != key]
-    new_entries = [{"role": key, **r} for r in resolved]
+    # Overlay roles are either global (building/room both None, e.g.
+    # Registrace) or room-scoped (UvadeciUcastniku/FoceniPredavaniCen) — in
+    # both cases filtered/replaced the same way as structural, by
+    # (role, building, room).
+    other = [
+        o
+        for o in manual["overlay"]
+        if not (o["role"] == key and o.get("building") == building and o.get("room") == room)
+    ]
+    new_entries = [{"role": key, "building": building, "room": room, **r} for r in resolved]
     return {**manual, "overlay": other + new_entries}
 
 

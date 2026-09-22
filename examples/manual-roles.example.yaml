@@ -20,5 +20,11 @@ structural:
 overlay:
   - role: Registrace                # registration desk, before the event
     helper_id: 5
-  - role: UvadeciPredavaniCen       # ushering / award-ceremony support, after
-    helper_id: 6
+  - role: UvadeciUcastniku          # ushering participants — room-scoped:
+    helper_id: 6                    # must be a room the helper is already
+    building: Malá Strana           # solved into
+    room: S3
+  - role: FoceniPredavaniCen        # photographing the award ceremony —
+    helper_id: 6                    # also room-scoped
+    building: Malá Strana
+    room: S3

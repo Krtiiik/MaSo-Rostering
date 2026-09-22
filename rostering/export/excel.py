@@ -6,9 +6,9 @@ column per room (grouped under merged building headers) and one row-block
 per role. Row-block order top to bottom: the building-wide structural roles
 (Vedoucí budovy, Pravá ruka), Vedoucí místností (per room), the 6 solved
 roles (Opravovatel/Měnič/.../Fotograf; Záloha is deferred to the bottom to
-match the historical layout), the overlay roles (Uvaděči / Předávání cen,
-Registrace), then Záloha and Technická podpora. See CLAUDE.md for the role
-glossary.
+match the historical layout), the overlay roles (Uvaděči účastníků, Focení
+předávání cen, Registrace), then Záloha and Technická podpora. See
+CLAUDE.md for the role glossary.
 """
 from __future__ import annotations
 
@@ -58,10 +58,11 @@ _STRUCTURAL_COLOR = ("#CCCCCC", "#D9D9D9")
 _EMPTY_SLOT_COLOR = "#F2F2F2"
 
 _OVERLAY_COLORS: dict[OverlayRole, tuple[str, str]] = {
-    OverlayRole.UvadeciPredavaniCen: ("#D5A6BD", "#EAD1DC"),
+    OverlayRole.UvadeciUcastniku: ("#D5A6BD", "#EAD1DC"),
+    OverlayRole.FoceniPredavaniCen: ("#C27BA0", "#D9A6C2"),
     OverlayRole.Registrace: ("#B4A7D6", "#D9D2E9"),
 }
-_OVERLAY_ORDER = [OverlayRole.UvadeciPredavaniCen, OverlayRole.Registrace]
+_OVERLAY_ORDER = [OverlayRole.UvadeciUcastniku, OverlayRole.FoceniPredavaniCen, OverlayRole.Registrace]
 
 _WRAP_ROW_HEIGHT = 30
 
@@ -285,7 +286,7 @@ def write_roster(
         if a.role is Role.Zaloha:
             zaloha_by_building[a.building].append(annotate_id(a.helper_id, a.helper_name))
 
-    # ---- Overlay roles: Uvaděči / Předávání cen, Registrace ----
+    # ---- Overlay roles: Uvaděči účastníků, Focení předávání cen, Registrace ----
     helper_location: dict[int, str] = {}
     for a in result.assignments:
         helper_location.setdefault(a.helper_id, a.building)

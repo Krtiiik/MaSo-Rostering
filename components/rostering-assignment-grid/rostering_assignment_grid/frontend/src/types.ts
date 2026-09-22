@@ -46,16 +46,22 @@ export interface Assignment {
 }
 
 // One row of the table. "role" rows are the drag-and-drop solver roles,
-// matched against `assignments`. "manual" rows are the non-droppable
-// structural/overlay roles (see CLAUDE.md "Out-of-solver roles"), matched
-// against `manual_entries` by key/building/room. `scope` controls how many
-// columns a manual row's cells span: one per building, one per room, or a
-// single cell spanning the whole table.
+// matched against `assignments`. "manual" rows are the structural/overlay
+// roles (see CLAUDE.md "Out-of-solver roles"), matched against
+// `manual_entries` by key/building/room. `scope` controls how many columns
+// a manual row's cells span: one per building, one per room, or a single
+// cell spanning the whole table. `allowDuplicateDrop` (only meaningful for
+// `scope: "room"`) marks a manual row whose cells also accept dropping a
+// helper's existing chip onto the cell for the room they're already solved
+// into — duplicating them into that manual role without moving their
+// solved assignment — in addition to the always-available typed/picked
+// name entry.
 export interface GridRow {
   kind: "role" | "manual";
   key: string;
   label: string;
   scope?: "building" | "room" | "global";
+  allowDuplicateDrop?: boolean;
 }
 
 export interface ManualEntry {

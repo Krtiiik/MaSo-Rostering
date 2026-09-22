@@ -43,8 +43,16 @@ they're layered on by hand after the solver runs:
 - **Overlay roles** (a helper keeps their solved main role *and* can
   additionally be tagged with one of these, since the duties happen
   before/after the event and don't conflict in time): **Registrace**
-  (registration desk), **Uvaděči** / **Předávání cen** (participant
-  ushering / award-ceremony support).
+  (registration desk, building/global-scoped), **Uvaděči účastníků**
+  (participant ushering) and **Focení předávání cen** (photographing the
+  award ceremony) — these last two are **room-scoped**: a helper can only
+  be tagged into the overlay slot for the room they're already solved
+  into, not a different room. In the roster grid these two can be filled
+  either by drag-and-dropping a helper's existing chip onto the overlay
+  cell for their own room (which duplicates them into that slot without
+  moving their solved assignment — shown with a dotted border to mark it
+  as a duplicate) or by typing/picking a name as with any other manual
+  role.
 
 ## Preference scale
 
@@ -169,8 +177,10 @@ pushing the tag, not just creating it locally.
 - Equipment eligibility is a **hard** constraint (see above).
 - The solver's role scope is fixed at the 6 roles listed above; the
   structural/overlay roles are deliberately out of solver scope, entered
-  manually below the drag-and-drop grid (native `st.selectbox`/
-  `st.multiselect` widgets, not drag-and-drop) and merged in at export time.
+  manually as extra rows inside the same drag-and-drop grid component
+  (typed/picked from a name list; the two room-scoped overlay roles also
+  accept dropping a helper's existing chip onto their own room's cell) and
+  merged in at export time.
 - The web app's buildings/rooms layout defaults to a bundled copy of the most
   recent season's config and persists separately in
   `data/buildings-config.yaml` (`rostering/persistence/config_store.py`),

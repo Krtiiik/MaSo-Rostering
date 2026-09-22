@@ -213,6 +213,31 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
+
+    const overData = over.data.current as
+      | { type?: string; key?: string; building?: string | null; room?: string | null }
+      | undefined;
+    if (overData?.type === "duplicate" && overData.key) {
+      const helperId = Number(active.id);
+      const loc = assignmentByHelper.get(helperId);
+      // Should already be unreachable (the cell disables itself for a
+      // mismatched room), but guard against it directly too.
+      if (!loc || loc.building !== overData.building || loc.room !== overData.room) return;
+      const helper = helpersById.get(helperId);
+      if (!helper) return;
+      const existingNames = manualEntriesFor(overData.key, overData.building ?? null, overData.room ?? null).map(
+        (e) => e.name,
+      );
+      if (existingNames.includes(helper.name)) return;
+      setTriggerValue("manual_set", {
+        key: overData.key,
+        building: overData.building ?? null,
+        room: overData.room ?? null,
+        names: [...existingNames, helper.name],
+      });
+      return;
+    }
+
     const overId = String(over.id);
     if (overId === "unassigned") return; // no unassign; move to Zaloha somewhere instead
 
@@ -221,7 +246,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     setTriggerValue("drop", { helper_id: helperId, building, room, role });
   }
 
-  function renderManualRow(key: string, scope: "building" | "room" | "global"): ReactNode {
+  function renderManualRow(key: string, scope: "building" | "room" | "global", allowDuplicateDrop: boolean): ReactNode {
     if (scope === "room") {
       return rooms.map(({ building, room }) => (
         <ManualCell
@@ -230,6 +255,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           colSpan={1}
           datalistId={datalistId}
           onChange={(names) => setTriggerValue("manual_set", { key, building, room, names })}
+          dropId={allowDuplicateDrop ? `duplicate::${key}::${building}::${room}` : undefined}
+          manualKey={key}
+          building={building}
+          room={room}
+          helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
         />
       ));
     }
@@ -301,7 +331,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                         {helpersInCell(building, room, rowDef.key).map((h) => renderChip(h))}
                       </Cell>
                     ))
-                  : renderManualRow(rowDef.key, rowDef.scope ?? "global")}
+                  : renderManualRow(rowDef.key, rowDef.scope ?? "global", rowDef.allowDuplicateDrop ?? false)}
               </tr>
             ))}
           </tbody>
