@@ -63,6 +63,10 @@ export interface GridRow {
   // "manual" rows for a single-holder role (e.g. one building lead) cap
   // their cell at one name instead of allowing a list.
   single_entry?: boolean;
+  // Whether helpers can express a preference for this role on the form —
+  // false for Záloha, which is a solver-only overflow role never offered as
+  // a choice (see CLAUDE.md). Omitted/true for every other role row.
+  preferenceable?: boolean;
 }
 
 export interface ManualEntry {

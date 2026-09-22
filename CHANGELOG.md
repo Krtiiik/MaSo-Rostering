@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   purple = someone else requested to room with them). The card appears after
   a short hover delay (so it doesn't flash while skimming across the grid)
   anchored with one corner near the cursor tip, and follows the cursor while
-  it stays over the chip.
+  it stays over the chip. The role-preference list excludes Záloha, which
+  isn't offered as a choice on the form.
 - `StructuralAssignment`/`OverlayAssignment` (`rostering.domain`) now
   accept a `helper_name` in addition to `helper_id`, for manual-role
   entries referring to someone who isn't a registered helper.
