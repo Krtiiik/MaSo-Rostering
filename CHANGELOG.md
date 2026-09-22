@@ -19,17 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (shown with a dotted chip border to mark it as a duplicate) without
   moving their solved-role assignment. A drop onto a different room/
   building than the helper's own is rejected.
-- Roster grid: adjacent rooms within a building can now be merged into one
-  wider display column — click the thin divider between two room columns
-  to merge them (repeat to merge a third, fourth, ...), click a merged
-  column's header to split it back apart. Merging is purely a display/
-  export grouping (a season config's actual rooms, and each helper's exact
-  room assignment, are untouched); a merged column shows the combined
-  content of all its rooms, and dropping a helper into one assigns them to
-  the group's first room. Unmerged by default, matching every existing
-  season's layout. Reflected in the Excel export too: a merged group
-  becomes one column there as well, with all of its rooms' rows/helpers
-  combined into it.
+- Roster grid: adjacent rooms' *cells* can now be merged within a single
+  row — like merging cells in Excel, not the whole column. Hover a cell to
+  reveal a small edge handle and click it to merge with its neighbor
+  (repeat to merge a third, fourth, ...); click the "⊟" icon on a merged
+  cell to split it back apart. This only affects that one row (a solved
+  role, or a room-scoped manual role) — the room header and every other
+  row for the same rooms stay separate. Purely a display/export grouping
+  (a season config's actual rooms, and each helper's exact room
+  assignment, are untouched); a merged cell shows the combined content of
+  its rooms, and dropping a helper into one assigns them to the group's
+  first room. Unmerged by default, matching every existing season's
+  layout. Reflected in the Excel export too, using the same per-row
+  merged-cell approach (`ws.merge_range`).
 
 - Roster grid: a helper chip with an unsatisfied friend request is marked
   orange; hovering it now highlights every friend they named, wherever

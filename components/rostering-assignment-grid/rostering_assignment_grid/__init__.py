@@ -42,24 +42,29 @@ def _noop() -> None:
 
 def assignment_grid(
     *,
-    room_groups: list[dict[str, Any]],
+    rooms: list[dict[str, str]],
     rows: list[dict[str, Any]],
     helpers: list[dict[str, Any]],
     assignments: list[dict[str, Any]],
     manual_entries: list[dict[str, Any]],
+    cell_merges: dict[str, dict[str, list[list[str]]]],
     helper_names: list[str],
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Render the grid, including any non-droppable manual-role rows.
 
-    ``room_groups`` is the column layout: ``[{"building", "rooms": [...]}]``,
-    one entry per column — normally one room per group, but adjacent rooms
-    within a building can be merged into one wider column via the grid's
-    room-merge UI (click the divider between two columns to merge, click a
-    merged column's header to split it back apart; see CLAUDE.md
-    "Out-of-solver roles" and ``rostering.domain.group_adjacent_rooms``).
-    Merging is purely presentational — every other argument here still
-    refers to exact, unmerged room names.
+    The column layout (``rooms``, header rows) is always one column per
+    physical room — merging never changes it. Instead, any *one row*
+    (``rows`` entry — a solved role or a room-scoped manual role) can merge
+    two or more of its own adjacent cells into one wider cell, like merging
+    cells within a single row in Excel: click the edge between two of that
+    row's cells to merge them, click an already-merged cell to split it
+    back apart. Every other row for the same rooms is unaffected.
+    ``cell_merges`` is ``{row_key: {building: [[room_a, room_b], ...]}}``
+    (see CLAUDE.md "Out-of-solver roles" and
+    ``rostering.domain.group_adjacent_rooms``) — merging is purely
+    presentational, every other argument here still refers to exact,
+    unmerged room names.
 
     ``rows`` describes every row top to bottom: ``{"kind": "role", "key",
     "label"}`` for a solver-role row (drag-and-drop, matched against
@@ -86,30 +91,32 @@ def assignment_grid(
     Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
     a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
     "room", "names"}`` for an edited manual-role cell (``names`` is the
-    cell's full new list of names), ``{"type": "room_merge", "building",
-    "pairs", "merged"}`` for a merge/unmerge click (``pairs`` is one or more
-    ``[room_a, room_b]`` adjacent-name pairs to set to ``merged``), or
-    ``None`` otherwise — CCv2 triggers reset automatically after the rerun
-    that reports them, so callers don't need to dedupe.
+    cell's full new list of names), ``{"type": "cell_merge", "key",
+    "building", "pairs", "merged"}`` for a merge/unmerge click within row
+    ``key`` (``pairs`` is one or more ``[room_a, room_b]`` adjacent-name
+    pairs to set to ``merged``), or ``None`` otherwise — CCv2 triggers
+    reset automatically after the rerun that reports them, so callers
+    don't need to dedupe.
     """
     result = _component(
         key=key,
         data={
-            "room_groups": room_groups,
+            "rooms": rooms,
             "rows": rows,
             "helpers": helpers,
             "assignments": assignments,
             "manual_entries": manual_entries,
+            "cell_merges": cell_merges,
             "helper_names": helper_names,
         },
         on_drop_change=_noop,
         on_manual_set_change=_noop,
-        on_room_merge_change=_noop,
+        on_cell_merge_change=_noop,
     )
     if result.drop:
         return {"type": "drop", **result.drop}
     if result.manual_set:
         return {"type": "manual_set", **result.manual_set}
-    if result.room_merge:
-        return {"type": "room_merge", **result.room_merge}
+    if result.cell_merge:
+        return {"type": "cell_merge", **result.cell_merge}
     return None
