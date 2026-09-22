@@ -7,7 +7,7 @@ Expected YAML shape::
     structural:
       - role: VedouciBudovy        # or VedouciMistnosti / PravaRuka / TechnickaPodpora
         building: Malá Strana
-        room: S3                   # only meaningful for VedouciMistnosti
+        room: S3                   # only meaningful for VedouciMistnosti / PravaRuka
         helper_id: 12               # a registered helper, or...
         helper_name: Some Person    # ...a hand-typed name for someone unregistered
     overlay:

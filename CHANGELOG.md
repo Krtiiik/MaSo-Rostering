@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   building lead, one deputy, one lead per room) — the add-input hides once
   a name is set, and an existing name must be removed before a new one can
   be entered.
+- Pravá ruka (building lead's deputy) is now scoped per room instead of per
+  building, matching Vedoucí místností — each room can have its own deputy.
+  Applies to the roster grid, the Excel export, and the manual-roles YAML
+  loader (`room:` is now meaningful for both roles).
 - Excel roster export now matches the layout and styling of the historical
   hand-built rosters: a single sheet (previously split across a "Roster"
   sheet and a separate overlay sheet) with the structural roles (Vedoucí

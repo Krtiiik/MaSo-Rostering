@@ -3,8 +3,8 @@
 Reproduces the layout and styling of the historical hand-built rosters
 (`data/rosters/Rozdělení pomocníků Praha - *.xlsx`): a single sheet with one
 column per room (grouped under merged building headers) and one row-block
-per role. Row-block order top to bottom: the building-wide structural roles
-(Vedoucí budovy, Pravá ruka), Vedoucí místností (per room), the 6 solved
+per role. Row-block order top to bottom: Vedoucí budovy (building-wide),
+Pravá ruka and Vedoucí místností (per room), the 6 solved
 roles (Opravovatel/Měnič/.../Fotograf; Záloha is deferred to the bottom to
 match the historical layout), the overlay roles (Uvaděči / Předávání cen,
 Registrace), then Záloha and Technická podpora. See CLAUDE.md for the role
@@ -178,45 +178,47 @@ def write_roster(
             ws.write(1, c, room.name, fmt)
     row = 2
 
-    # ---- Structural roles that apply building-wide: Vedoucí budovy, Pravá ruka ----
+    # ---- Structural roles: Vedoucí budovy is building-wide; Pravá ruka and
+    # Vedoucí místností are per room (each room can have its own deputy/lead) ----
+    _ROOM_SCOPED_STRUCTURAL_ROLES = (StructuralRole.PravaRuka, StructuralRole.VedouciMistnosti)
     structural_building: dict[tuple[StructuralRole, str], list[str]] = defaultdict(list)
-    structural_room: dict[tuple[str, str], list[str]] = defaultdict(list)
+    structural_room: dict[tuple[StructuralRole, str, str], list[str]] = defaultdict(list)
     for entry in manual.structural:
         name = annotate_id(entry.helper_id, entry.helper_name or "")
-        if entry.role is StructuralRole.VedouciMistnosti and entry.room:
-            structural_room[(entry.building, entry.room)].append(name)
+        if entry.role in _ROOM_SCOPED_STRUCTURAL_ROLES and entry.room:
+            structural_room[(entry.role, entry.building, entry.room)].append(name)
         else:
             structural_building[(entry.role, entry.building)].append(name)
 
     label_color, data_color = _STRUCTURAL_COLOR
-    for structural_role in (StructuralRole.VedouciBudovy, StructuralRole.PravaRuka):
+    track_width(0, StructuralRole.VedouciBudovy.value)
+    ws.write(row, 0, StructuralRole.VedouciBudovy.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
+    filled_fmt = cell_format(fill=data_color, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
+    empty_fmt = cell_format(fill=_EMPTY_SLOT_COLOR, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
+    ws.set_row(row, _WRAP_ROW_HEIGHT)
+    for b in buildings:
+        names = structural_building.get((StructuralRole.VedouciBudovy, b.name), [])
+        write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
+    row += 1
+
+    # ---- Pravá ruka, Vedoucí místností: per room ----
+    for structural_role in _ROOM_SCOPED_STRUCTURAL_ROLES:
         track_width(0, structural_role.value)
         ws.write(row, 0, structural_role.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
-        filled_fmt = cell_format(fill=data_color, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
-        empty_fmt = cell_format(fill=_EMPTY_SLOT_COLOR, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
-        ws.set_row(row, _WRAP_ROW_HEIGHT)
         for b in buildings:
-            names = structural_building.get((structural_role, b.name), [])
-            write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
+            start, end = building_span[b.name]
+            for i, room in enumerate(b.rooms):
+                c = start + i
+                names = structural_room.get((structural_role, b.name, room.name), [])
+                _, _, left, right = per_room_borders(row, row, row, c)
+                if names:
+                    text = ", ".join(names)
+                    fmt = cell_format(fill=data_color, top="medium", bottom="medium", left=left, right=right)
+                    track_width(c, text)
+                    ws.write(row, c, text, fmt)
+                else:
+                    ws.write_blank(row, c, None, cell_format(fill=_EMPTY_SLOT_COLOR, top="medium", bottom="medium", left=left, right=right))
         row += 1
-
-    # ---- Vedoucí místností: per room ----
-    track_width(0, StructuralRole.VedouciMistnosti.value)
-    ws.write(row, 0, StructuralRole.VedouciMistnosti.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
-    for b in buildings:
-        start, end = building_span[b.name]
-        for i, room in enumerate(b.rooms):
-            c = start + i
-            names = structural_room.get((b.name, room.name), [])
-            _, _, left, right = per_room_borders(row, row, row, c)
-            if names:
-                text = ", ".join(names)
-                fmt = cell_format(fill=data_color, top="medium", bottom="medium", left=left, right=right)
-                track_width(c, text)
-                ws.write(row, c, text, fmt)
-            else:
-                ws.write_blank(row, c, None, cell_format(fill=_EMPTY_SLOT_COLOR, top="medium", bottom="medium", left=left, right=right))
-    row += 1
 
     # ---- Solved roles: Opravovatel, Menic, Skenovac, Kreslic, Fotograf ----
     # Row-block height must fit both the configured minimum headcount *and*

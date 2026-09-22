@@ -15,10 +15,12 @@ _ROLE_LABELS = {r.name: r.value for r in Role}
 
 # Manual rows before the solved roles (building leadership, then room leads)
 # and after them (before/after-event overlay duties, then tech support) —
-# ordering follows the season's historical hand-built roster layout.
+# ordering follows the season's historical hand-built roster layout. Pravá
+# ruka (the building lead's deputy) is scoped per room, not per building —
+# each room can have its own deputy.
 _MANUAL_ROWS_BEFORE = [
     (StructuralRole.VedouciBudovy, "building"),
-    (StructuralRole.PravaRuka, "building"),
+    (StructuralRole.PravaRuka, "room"),
     (StructuralRole.VedouciMistnosti, "room"),
 ]
 _MANUAL_ROWS_AFTER = [
