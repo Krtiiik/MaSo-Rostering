@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Upload tab's "Resolve friend names" now lets an unresolved name be matched
+  to more than one helper (via a multi-select instead of a single-select),
+  for cases where a free-text name actually refers to a group of people
+  rather than one individual.
 - Roster grid: the Vedoucí budovy, Pravá ruka, and Vedoucí místností manual
   role cells are now plain free-text input, with no autocomplete against
   registered helper names and no attempt to resolve a typed name to a

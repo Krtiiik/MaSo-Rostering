@@ -96,6 +96,7 @@ def _render_friend_resolution(state: dict) -> None:
         return
 
     st.subheader("Resolve friend names")
+    st.caption("A name can match more than one helper if it refers to a group of people.")
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
     for helper, names in rows:
         decisions = helper.get("friend_name_decisions", {})
@@ -111,44 +112,59 @@ def _render_friend_resolution(state: dict) -> None:
             _, label_col, select_col = st.columns([0.3, 2, 3])
             label_col.write(f"“{name}”")
             was_decided = name in decisions
-            default_index = None
-            if was_decided:
-                decided_id = decisions[name]
-                if decided_id is None:
-                    default_index = options.index(_DISMISS_LABEL)
-                else:
-                    decided_name = other_helpers.get(decided_id)
-                    if decided_name in options:
-                        default_index = options.index(decided_name)
-            choice = select_col.selectbox(
+            decided_ids = decisions.get(name)
+            if was_decided and decided_ids is None:
+                default = [_DISMISS_LABEL]
+            elif was_decided:
+                default = [other_helpers[hid] for hid in decided_ids if hid in other_helpers]
+            else:
+                default = []
+            choice = select_col.multiselect(
                 name,
                 options=options,
-                index=default_index,
+                default=default,
                 placeholder=_UNRESOLVED_PLACEHOLDER,
                 accept_new_options=True,
                 key=f"match_{helper['id']}_{name}",
                 label_visibility="collapsed",
             )
-            if choice is None or (was_decided and choice == _dismiss_or_name(decisions[name], other_helpers)):
+            if not choice:
                 continue
-            resolved_id = helper_id_by_name.get(choice)
-            if choice != _DISMISS_LABEL and resolved_id is None:
-                select_col.warning(f"“{choice}” doesn't match any known helper.")
-                continue
-            try:
-                if choice == _DISMISS_LABEL:
+
+            if _DISMISS_LABEL in choice:
+                if len(choice) > 1:
+                    select_col.warning(f"“{_DISMISS_LABEL}” can't be combined with other matches.")
+                    continue
+                if was_decided and decided_ids is None:
+                    continue
+                try:
                     session.set_state(
                         mutations.resolve_friend(session.get_workspace(), helper["id"], name, "dismiss")
                     )
-                else:
-                    session.set_state(
-                        mutations.resolve_friend(session.get_workspace(), helper["id"], name, "resolve", resolved_id)
+                except mutations.RosteringError as exc:
+                    st.error(str(exc))
+                    continue
+                st.rerun()
+                continue
+
+            resolved_ids = []
+            unknown = []
+            for picked in choice:
+                hid = helper_id_by_name.get(picked)
+                (resolved_ids if hid is not None else unknown).append(hid if hid is not None else picked)
+            if unknown:
+                names_str = ", ".join(f"“{u}”" for u in unknown)
+                select_col.warning(f"{names_str} doesn't match any known helper.")
+                continue
+            if was_decided and decided_ids == resolved_ids:
+                continue
+            try:
+                session.set_state(
+                    mutations.resolve_friend(
+                        session.get_workspace(), helper["id"], name, "resolve", resolved_ids
                     )
+                )
             except mutations.RosteringError as exc:
                 st.error(str(exc))
                 continue
             st.rerun()
-
-
-def _dismiss_or_name(decided_id: int | None, other_helpers: dict[int, str]) -> str:
-    return _DISMISS_LABEL if decided_id is None else other_helpers.get(decided_id, _DISMISS_LABEL)
