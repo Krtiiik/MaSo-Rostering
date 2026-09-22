@@ -1,10 +1,11 @@
 """Tab 3: the drag-and-drop assignment grid, including the manual
 structural/overlay roles (see CLAUDE.md "Out-of-solver roles") rendered as
 extra rows in the same grid rather than as a separate section below it. Most
-manual rows are typed/picked-name only; the room-scoped overlay roles
-(UvadeciUcastniku, FoceniPredavaniCen) additionally accept dropping a
-helper's existing chip onto their own room's cell, to duplicate them into
-that overlay slot without moving their solved assignment."""
+manual rows are typed/picked-name only; the overlay roles (UvadeciUcastniku,
+FoceniPredavaniCen: room-scoped; Registrace: building-scoped) additionally
+accept dropping a helper's existing chip onto the cell for their own
+room/building, to duplicate them into that overlay slot without moving
+their solved assignment."""
 from __future__ import annotations
 
 import streamlit as st
@@ -21,10 +22,11 @@ _ROLE_LABELS = {r.name: r.value for r in Role}
 # ordering follows the season's historical hand-built roster layout. Pravá
 # ruka (the building lead's deputy) is scoped per room, not per building —
 # each room can have its own deputy. Each entry is (role, scope,
-# allow_duplicate_drop); allow_duplicate_drop marks room-scoped overlay
-# roles that accept dragging a helper's existing chip onto their own room's
-# cell to duplicate them into that overlay slot (without moving their
-# solved assignment) in addition to typing a name.
+# allow_duplicate_drop); allow_duplicate_drop marks overlay roles that
+# accept dragging a helper's existing chip onto the cell for their own room
+# (scope "room") or building (scope "building") to duplicate them into that
+# overlay slot (without moving their solved assignment) in addition to
+# typing a name.
 _MANUAL_ROWS_BEFORE = [
     (StructuralRole.VedouciBudovy, "building", False),
     (StructuralRole.PravaRuka, "room", False),
@@ -33,7 +35,7 @@ _MANUAL_ROWS_BEFORE = [
 _MANUAL_ROWS_AFTER = [
     (OverlayRole.UvadeciUcastniku, "room", True),
     (OverlayRole.FoceniPredavaniCen, "room", True),
-    (OverlayRole.Registrace, "global", False),
+    (OverlayRole.Registrace, "building", True),
     (StructuralRole.TechnickaPodpora, "building", False),
 ]
 _STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
@@ -174,10 +176,9 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
         new_entries = [{"role": key, "building": building, "room": room, **r} for r in resolved]
         return {**manual, "structural": filtered + new_entries}
 
-    # Overlay roles are either global (building/room both None, e.g.
-    # Registrace) or room-scoped (UvadeciUcastniku/FoceniPredavaniCen) — in
-    # both cases filtered/replaced the same way as structural, by
-    # (role, building, room).
+    # Overlay roles are either building-scoped (room None, e.g. Registrace)
+    # or room-scoped (UvadeciUcastniku/FoceniPredavaniCen) — in both cases
+    # filtered/replaced the same way as structural, by (role, building, room).
     other = [
         o
         for o in manual["overlay"]

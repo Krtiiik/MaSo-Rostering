@@ -14,8 +14,9 @@ Expected YAML shape::
       - role: Registrace            # or UvadeciUcastniku / FoceniPredavaniCen
         helper_id: 3
         helper_name: Some Person
-        building: Malá Strana        # only meaningful for room-scoped roles
-        room: S3                     # (UvadeciUcastniku, FoceniPredavaniCen)
+        building: Malá Strana        # building-scoped for Registrace (room
+        room: S3                     # left unset); room also required for
+                                      # UvadeciUcastniku/FoceniPredavaniCen
 """
 from __future__ import annotations
 

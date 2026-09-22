@@ -18,8 +18,9 @@ structural:
     helper_id: 4
 
 overlay:
-  - role: Registrace                # registration desk, before the event
-    helper_id: 5
+  - role: Registrace                # registration desk — building-scoped:
+    helper_id: 5                    # must be a building the helper is
+    building: Malá Strana           # already solved into
   - role: UvadeciUcastniku          # ushering participants — room-scoped:
     helper_id: 6                    # must be a room the helper is already
     building: Malá Strana           # solved into
