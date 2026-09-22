@@ -250,6 +250,23 @@ def test_resolve_friend_can_be_changed_after_first_decision(workspace):
     assert helper["friend_name_decisions"] == {"Terka": [2]}
 
 
+def test_resolve_friend_tolerates_legacy_int_decision(workspace):
+    # State saved before friend_name_decisions became list-valued stored a
+    # single int per name; re-resolving it must not crash.
+    _seed_helper_with_unresolved_friend(workspace)
+    state = workspace.load()
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    helper["friends"] = [2]
+    helper["unresolved_friend_names"] = []
+    helper["friend_name_decisions"] = {"Terka": 2}
+    workspace.save(state)
+
+    state = mutations.resolve_friend(workspace, 1, "Terka", "dismiss")
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    assert helper["friends"] == []
+    assert helper["friend_name_decisions"] == {"Terka": None}
+
+
 def test_resolve_friend_unknown_name_raises(workspace):
     _seed_helper_with_unresolved_friend(workspace)
     with pytest.raises(mutations.RosteringError):

@@ -85,11 +85,28 @@ _DISMISS_LABEL = "✕ Not attending"
 _UNRESOLVED_PLACEHOLDER = "Unresolved / Unmatched / Unknown"
 
 
+def _decision_ids(value: object) -> list[int] | None:
+    """Normalize a friend_name_decisions value to a list of ids (or None for
+    dismissed). Older persisted state stored a single int per name instead
+    of a list."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return [value]
+    return list(value)
+
+
 def _render_friend_resolution(state: dict) -> None:
     rows = []
     for h in state["helpers"]:
         decisions = h.get("friend_name_decisions", {})
-        names = list(h["unresolved_friend_names"]) + [n for n in decisions if n not in h["unresolved_friend_names"]]
+        all_names = list(dict.fromkeys(list(h["unresolved_friend_names"]) + list(decisions)))
+        # friend_name_order is fixed at upload time so names keep their
+        # original position even after being resolved and dropping out of
+        # unresolved_friend_names; fall back to encounter order for state
+        # persisted before that field existed.
+        order_index = {n: i for i, n in enumerate(h.get("friend_name_order") or [])}
+        names = sorted(all_names, key=lambda n: order_index.get(n, len(order_index)))
         if names:
             rows.append((h, names))
     if not rows:
@@ -112,7 +129,7 @@ def _render_friend_resolution(state: dict) -> None:
             _, label_col, select_col = st.columns([0.3, 2, 3])
             label_col.write(f"“{name}”")
             was_decided = name in decisions
-            decided_ids = decisions.get(name)
+            decided_ids = _decision_ids(decisions.get(name))
             if was_decided and decided_ids is None:
                 default = [_DISMISS_LABEL]
             elif was_decided:
