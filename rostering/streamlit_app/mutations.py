@@ -79,8 +79,15 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str) -> 
     finally:
         tmp_path.unlink(missing_ok=True)
 
+    helper_dicts = [helper_to_dict(h) for h in result.helpers]
+    for helper_dict in helper_dicts:
+        # Fixed at upload time so the resolution UI can keep names in their
+        # original order even after some of them are resolved and drop out
+        # of unresolved_friend_names.
+        helper_dict["friend_name_order"] = list(helper_dict["unresolved_friend_names"])
+
     state = workspace.load()
-    state["helpers"] = [helper_to_dict(h) for h in result.helpers]
+    state["helpers"] = helper_dicts
     state["ingestion_warnings"] = result.warnings
     state["assignments"] = []
     state["diagnostics"] = {
@@ -114,7 +121,9 @@ def resolve_friend(
     if name not in helper["unresolved_friend_names"] and name not in decisions:
         raise RosteringError(f"{name!r} is not a known friend name for helper {helper_id}")
 
-    previous_ids = decisions.get(name) or []
+    previous_raw = decisions.get(name)
+    # Older persisted state stored a single int per name instead of a list.
+    previous_ids = [previous_raw] if isinstance(previous_raw, int) else list(previous_raw or [])
     for previous_id in previous_ids:
         if previous_id in helper["friends"]:
             helper["friends"].remove(previous_id)
