@@ -4,15 +4,18 @@ import type { ManualEntry } from "./types";
 interface Props {
   entries: ManualEntry[];
   colSpan: number;
-  datalistId: string;
+  // Omitted for roles rendered as plain free text (see GridRow.plain_text) —
+  // no autocomplete suggestions against registered helper names.
+  datalistId?: string;
   onChange: (names: string[]) => void;
 }
 
 /**
  * A non-droppable cell for a manual structural/overlay role. Holds zero or
  * more names, each either a registered helper (picked from `datalistId`'s
- * suggestions) or a hand-typed name for someone unregistered — manual roles
- * are commonly filled by people who never registered as a helper.
+ * suggestions, when provided) or a hand-typed name for someone unregistered
+ * — manual roles are commonly filled by people who never registered as a
+ * helper.
  */
 export function ManualCell({ entries, colSpan, datalistId, onChange }: Props) {
   const [draft, setDraft] = useState("");

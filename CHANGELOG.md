@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Roster grid: the Vedoucí budovy, Pravá ruka, and Vedoucí místností manual
+  role cells are now plain free-text input, with no autocomplete against
+  registered helper names and no attempt to resolve a typed name to a
+  helper record — these roles are typically filled by people (teachers,
+  organizers) who never registered as a helper. Overlay roles and
+  Technická podpora, which layer onto an already-registered, already-
+  assigned helper, keep the registered-helper autocomplete.
 - Excel roster export now matches the layout and styling of the historical
   hand-built rosters: a single sheet (previously split across a "Roster"
   sheet and a separate overlay sheet) with the structural roles (Vedoucí

@@ -28,6 +28,17 @@ _MANUAL_ROWS_AFTER = [
 ]
 _STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
 
+# These structural roles are typically filled by people who never registered
+# as a helper (teachers, organizers), so their manual-role cells are plain
+# free text rather than an autocomplete/pick against registered helpers —
+# unlike overlay roles and Technická podpora, which layer onto an already
+# registered, already-assigned helper.
+_PLAIN_TEXT_ROLE_NAMES = {
+    StructuralRole.VedouciBudovy.name,
+    StructuralRole.PravaRuka.name,
+    StructuralRole.VedouciMistnosti.name,
+}
+
 # Czech wording as shown on the registration form (see
 # rostering.ingest.preferences), for display in the roster grid's helper
 # hover card — not to be confused with Preference's member names, which are
@@ -58,12 +69,24 @@ def _helper_options(state: dict) -> dict[int, str]:
 
 def _grid_rows() -> list[dict]:
     rows = [
-        {"kind": "manual", "key": role.name, "label": role.value, "scope": scope}
+        {
+            "kind": "manual",
+            "key": role.name,
+            "label": role.value,
+            "scope": scope,
+            "plain_text": role.name in _PLAIN_TEXT_ROLE_NAMES,
+        }
         for role, scope in _MANUAL_ROWS_BEFORE
     ]
     rows += [{"kind": "role", "key": name, "label": _ROLE_LABELS[name]} for name in _ROLE_ORDER]
     rows += [
-        {"kind": "manual", "key": role.name, "label": role.value, "scope": scope}
+        {
+            "kind": "manual",
+            "key": role.name,
+            "label": role.value,
+            "scope": scope,
+            "plain_text": role.name in _PLAIN_TEXT_ROLE_NAMES,
+        }
         for role, scope in _MANUAL_ROWS_AFTER
     ]
     return rows
@@ -120,7 +143,10 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
     room = event.get("room")
     names = [n.strip() for n in event.get("names", []) if n and n.strip()]
     manual = state["manual_roles"]
-    resolved = [_resolve_manual_name(state, n) for n in names]
+    if key in _PLAIN_TEXT_ROLE_NAMES:
+        resolved = [{"helper_id": None, "helper_name": n} for n in names]
+    else:
+        resolved = [_resolve_manual_name(state, n) for n in names]
 
     if key in _STRUCTURAL_ROLE_NAMES:
         filtered = [

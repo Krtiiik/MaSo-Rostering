@@ -56,6 +56,10 @@ export interface GridRow {
   key: string;
   label: string;
   scope?: "building" | "room" | "global";
+  // "manual" rows filled by people who typically never registered as a
+  // helper (e.g. Vedoucí budovy) render as plain free text instead of an
+  // autocomplete against registered helper names.
+  plain_text?: boolean;
 }
 
 export interface ManualEntry {

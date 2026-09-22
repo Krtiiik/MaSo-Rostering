@@ -221,14 +221,14 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     setTriggerValue("drop", { helper_id: helperId, building, room, role });
   }
 
-  function renderManualRow(key: string, scope: "building" | "room" | "global"): ReactNode {
+  function renderManualRow(key: string, scope: "building" | "room" | "global", plainText: boolean): ReactNode {
     if (scope === "room") {
       return rooms.map(({ building, room }) => (
         <ManualCell
           key={`${building}::${room}::${key}`}
           entries={manualEntriesFor(key, building, room)}
           colSpan={1}
-          datalistId={datalistId}
+          datalistId={plainText ? undefined : datalistId}
           onChange={(names) => setTriggerValue("manual_set", { key, building, room, names })}
         />
       ));
@@ -239,7 +239,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           key={`global::${key}`}
           entries={manualEntriesFor(key, null, null)}
           colSpan={rooms.length}
-          datalistId={datalistId}
+          datalistId={plainText ? undefined : datalistId}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
       );
@@ -249,7 +249,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         key={`${g.building}::${key}`}
         entries={manualEntriesFor(key, g.building, null)}
         colSpan={g.count}
-        datalistId={datalistId}
+        datalistId={plainText ? undefined : datalistId}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
       />
     ));
@@ -301,7 +301,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                         {helpersInCell(building, room, rowDef.key).map((h) => renderChip(h))}
                       </Cell>
                     ))
-                  : renderManualRow(rowDef.key, rowDef.scope ?? "global")}
+                  : renderManualRow(rowDef.key, rowDef.scope ?? "global", rowDef.plain_text ?? false)}
               </tr>
             ))}
           </tbody>
