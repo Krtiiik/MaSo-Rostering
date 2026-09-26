@@ -13,6 +13,16 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+## Race-safe edits
+
+`gh issue edit --body-file`/`--add-label`/`--add-assignee` and `gh api` writes all overwrite whole fields — there's no partial patch, so two sessions editing the same issue around the same time can silently clobber each other (this repo expects concurrent sessions, e.g. wayfinder tickets worked in parallel). Before editing an issue's body, labels, or assignees:
+
+1. Read the issue's `updatedAt` right before you compute your change: `gh api repos/<owner>/<repo>/issues/<n> --jq .updated_at`.
+2. Build the edit from the content you just read (e.g. re-fetch the body and splice your change into it, don't work from a stale copy).
+3. Immediately before sending the write, re-read `updated_at` and compare it to the value from step 1. If it changed, someone else edited the issue in between — re-fetch the current state, redo the splice, and check again rather than overwriting their change.
+
+This applies to any edit, not just wayfinding, but matters most for whole-body rewrites (map bodies, ticket bodies) where a clobber is otherwise invisible.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
@@ -42,4 +52,4 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Blocking**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only, the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
-- **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+- **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far — a whole-body rewrite, so follow "Race-safe edits" above.
