@@ -18,6 +18,17 @@ Building/Room configuration, from every other Season.
 A volunteer who registered via the survey and is eligible to receive one of
 the 6 solver-assigned Roles. Czech: pomocník.
 
+**Hand-added Helper**:
+A Helper entered directly into the app rather than parsed from the survey.
+Only name and contact are required; every other field (Preferences, Building
+preference, equipment, Friend preference, T-shirt size) is optional and left
+at its normal empty/no-preference default.
+
+**Can't attend**:
+A per-Helper flag marking them unavailable for the Season: excluded from the
+solver and absent from the roster grid entirely, for as long as it's set.
+Reversible at any time.
+
 **Simulace**:
 A rehearsal for the competition, held before the event day.
 
