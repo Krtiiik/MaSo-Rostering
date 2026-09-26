@@ -133,6 +133,27 @@ Participant ushering. An Additional role, scoped to a Room.
 **Focení předávání cen**:
 Photographing the award ceremony. An Additional role, scoped to a Room.
 
+#### Tags *(planned, not yet implemented)*
+
+**Tag**:
+A named, coloured label with an optional note, attached to any number of
+Helpers. A Tag may imply other Tags (e.g. "8.M" implies "GCHD") and may
+carry hard constraints on the Building or Role its Helpers can be assigned.
+Tags outlive a single Season.
+
+**Returning helper**:
+A Helper who also registered in an earlier Season and is recognized as the
+same person.
+
+**Tag import**:
+Bringing a previous Season's Tags into the current Season and re-applying
+them to Returning helpers who carried them then.
+
+**Class promotion**:
+Renaming school-class Tags one year up (e.g. "8.M" → "9.M") during a Tag
+import that crosses a school year, i.e. from a jaro Season to the following
+podzim Season.
+
 ### Application
 
 **Workspace**:
