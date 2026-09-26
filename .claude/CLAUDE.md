@@ -2,105 +2,45 @@
 
 This project assigns registered helpers ("pomocníci") to buildings, rooms, and
 roles for a Czech math competition ("MaSo"/"MaSe"), based on their preferences,
-using an OR-Tools CP-SAT solver. This file is the shared glossary and domain
-context — read it before making changes so terminology stays consistent.
+using an OR-Tools CP-SAT solver.
 
-## Vocabulary
+See `CONTEXT.md` for the shared glossary (Season, Helper, Organizer, Building,
+Room, Role, Manual roles, etc.) — read it before making changes so terminology
+stays consistent. This file covers everything else: implementation notes,
+the data pipeline, known data quirks, and project status/decisions.
 
-- **Season** — one instance of the competition, e.g. `2026-jaro` (spring 2026)
-  or `2025-podzim` (autumn 2025). `jaro` = spring, `podzim` = autumn.
-- **Helper / pomocník** — a volunteer who registered to help, the entity being
-  scheduled.
-- **Building** — a venue (e.g. Malá Strana, Karlov, Impakt/Troja, Karlín). The
-  set of buildings is **not stable across seasons** — always config-driven.
-- **Room** — a room within a building (e.g. S3, S4 in Malá Strana). Room
-  groupings also change season to season (rooms get merged/split).
-- **Role** — the single functional job a helper is assigned to during the
-  event. The solver's role set is fixed to 6 roles (see below); other
-  functions used in the real event are assigned manually (see "Out-of-solver
-  roles").
-- **Simulace** — a rehearsal held before the competition day.
+## Manual roles (implementation notes)
 
-## Roles modeled by the solver (a helper gets exactly one)
+See `CONTEXT.md` for what Organizer role and Additional role mean and which
+named roles belong to each. Implementation details not in the glossary:
 
-| Role (Czech) | Code identifier | Meaning |
-|---|---|---|
-| Opravovatel | `Opravovatel` | Corrector/grader |
-| Měnič | `Menic` | "Changer" — swaps/exchanges papers or materials between rounds |
-| Skenovač | `Skenovac` | Scans solutions |
-| Kreslič | `Kreslic` | Draws problems/diagrams — **requires the helper can bring a notebook (laptop)** |
-| Fotograf | `Fotograf` | Photographer — **requires the helper can bring a camera** |
-| Záloha | `Zaloha` | Reserve/overflow — not a preference option on the form; absorbs excess helpers, unbounded capacity |
-
-## Out-of-solver roles (manual, post-solve only)
-
-Real events also need these functions, which the solver never assigns —
-they're layered on by hand after the solver runs:
-
-- **Structural roles** (assigned to any helper, independent of their solved
-  role): **Vedoucí budovy** (building lead), **Pravá ruka** (deputy),
-  **Vedoucí místností** (room lead(s)), **Technická podpora** (tech support).
-- **Overlay roles** (a helper keeps their solved main role *and* can
-  additionally be tagged with one of these, since the duties happen
-  before/after the event and don't conflict in time): **Registrace**
-  (registration desk), **Uvaděči účastníků** (participant ushering) and
-  **Focení předávání cen** (photographing the award ceremony). All three
-  are scoped to where the helper is already solved into — Registrace by
-  **building**, the other two by **room** (stricter: same room, not just
-  same building) — so a helper can only be tagged into the overlay slot
-  for their own building/room, not a different one. In the roster grid
-  all three can be filled either by drag-and-dropping a helper's existing
-  chip onto their own building's/room's overlay cell (which duplicates
-  them into that slot without moving their solved assignment — shown with
-  a dotted border to mark it as a duplicate) or by typing/picking a name
-  as with any other manual role.
-
-## Preference scale
-
-Helpers rate each of the 6 roles on a 5-point ordinal scale (free Czech text,
-normalized on ingestion): **Ano / Ano, prosím** (yes) → **Klidně** (sure,
-no problem) → **Nevadí (mi)** (don't mind) → **Spíš ne** (rather not) →
-**Ne / Nechci** (no). Higher = more willing.
+- Of the three Additional roles, Registrace is scoped by **building**; the
+  other two (Uvaděči účastníků, Focení předávání cen) are scoped by **room**
+  (stricter) — so a helper can only be tagged into the slot for their own
+  building/room, not a different one.
+- In the roster grid, all three Additional roles can be filled either by
+  drag-and-dropping a helper's existing chip onto their own building's/room's
+  overlay cell (which duplicates them into that slot without moving their
+  solved assignment — shown with a dotted border to mark it as a duplicate)
+  or by typing/picking a name as with any other manual role.
 
 ## Building preference is a SET, not a single choice
 
-The registration form's place question is a **multi-select checkbox** — a
-helper can mark several buildings as acceptable (e.g. "Malá Strana, Karlov").
-Model this as an **acceptable-building set**: satisfied if the assigned
-building is in the set (or the set is empty, meaning no preference); do not
-treat it as a single ranked preference.
+The registration form's place question is a **multi-select checkbox** — model
+it as the acceptable-building set described in `CONTEXT.md`, never as a
+single ranked preference.
 
-## Equipment eligibility (hard constraint)
+## Friend preference (ingestion)
 
-The form's "what can you bring" question is also multi-select
-(`"Notebook, Fotoaparát"` etc.). It gates two roles:
+See `CONTEXT.md` for the Friend preference concept and its `mode`/`symmetric`
+configuration axes (default: `pairwise` + `symmetric`).
 
-- No notebook checked → the helper **cannot** be assigned Kreslič.
-- No camera ("fotoaparát") checked → the helper **cannot** be assigned
-  Fotograf.
-
-This is a hard constraint, not a soft preference.
-
-## Friend preference (soft constraint, configurable scoring)
-
-A helper may name others (free text, often nicknames/diminutives — "Terka"
-for "Tereza", "Verča" for "Veronika" — and occasionally jokes/non-names) they
-want to share a **room** (not just building) with. This must be:
-
-- **Soft**, i.e. minimized-if-unsatisfied, never a hard "must be in the same
-  room" constraint.
-- **Configurable** along two independent axes:
-  - `mode`: `pairwise` (every named request scores independently — partial
-    credit per satisfied request) vs `mutual` (only requests where both
-    helpers named each other count).
-  - `symmetric`: whether a request from A naming B and a request from B
-    naming A are merged into one undirected pair, vs scored as two
-    independent directed units.
-  - Default: `pairwise` + `symmetric`.
-- Free-text friend names must be resolved to helper IDs during ingestion via
-  normalized/fuzzy matching; **names that can't be confidently resolved must
-  be surfaced as a warning**, not silently dropped (the old
-  `utils/parse_helpers.py` silently dropped unmatched names).
+Helper-named friends are free text (often nicknames/diminutives — "Terka" for
+"Tereza", "Verča" for "Veronika" — and occasionally jokes/non-names). Free-text
+friend names must be resolved to helper IDs during ingestion via
+normalized/fuzzy matching; **names that can't be confidently resolved must
+be surfaced as a warning**, not silently dropped (the old
+`utils/parse_helpers.py` silently dropped unmatched names).
 
 ## Data pipeline stages
 
@@ -115,7 +55,7 @@ want to share a **room** (not just building) with. This must be:
 4. **Solve** (`rostering.solver`) — CP-SAT model producing a room+role
    assignment per helper.
 5. **Manual overlay** (`data/seasons/<season>/manual-roles.yaml`, optional) —
-   hand-entered structural/overlay role assignments, merged in at export time.
+   hand-entered Organizer/Additional role assignments, merged in at export time.
 6. **Export** (`rostering.export.excel`) — the final formatted roster
    spreadsheet.
 
@@ -175,11 +115,11 @@ pushing the tag, not just creating it locally.
   distribution — see README.md "Setup" for the two-package editable-install
   this requires. Its built JS/CSS bundle is checked into git so a normal
   `pip install -e` alone is enough to run the app.
-- Equipment eligibility is a **hard** constraint (see above).
-- The solver's role scope is fixed at the 6 roles listed above; the
-  structural/overlay roles are deliberately out of solver scope, entered
+- Equipment eligibility is a **hard** constraint (see `CONTEXT.md`).
+- The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
+  Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component
-  (typed/picked from a name list; the two room-scoped overlay roles also
+  (typed/picked from a name list; the two room-scoped Additional roles also
   accept dropping a helper's existing chip onto their own room's cell) and
   merged in at export time.
 - The web app's buildings/rooms layout defaults to a bundled copy of the most
@@ -188,3 +128,14 @@ pushing the tag, not just creating it locally.
   distinct from the per-run `data/workspace/state.json` blob — so it
   survives "start over" resets and app restarts instead of needing to be
   re-entered by hand each time.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues in `Krtiiik/MaSo-Rostering`, using the
+`gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` at the repo root. See `docs/agents/domain.md`.
