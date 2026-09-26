@@ -22,11 +22,17 @@ the 6 solver-assigned Roles. Czech: pomocník.
 A rehearsal for the competition, held before the event day.
 
 **Organizer** *(planned, not yet implemented)*:
-A second category of person, distinct from Helper, excluded from the
-solver's Building/Room/Role assignment. People can still name an Organizer
-in their Friend preference, and an Organizer is intended to be manually
-assignable to Buildings/Rooms and to special roles, including before the
-solver runs.
+A second category of tracked person, distinct from Helper. Created either
+by hand (name only) or by promoting an existing Helper; promotion removes
+them from the Helper pool, so a promoted Organizer receives no solved Role
+that Season — one person is never both at once. An Organizer holds exactly
+one placement (Building, or Building+Room) per Season, set implicitly by
+assigning them into an Organizer role slot — there is no separate
+placement step, and no placement without a role slot. A Helper's Friend
+preference can name an Organizer as well as another Helper; it's scored
+against the Organizer's placement (a Room match if placed in a Room, a
+Building match if only placed at Building level), and can't be satisfied
+against an unplaced Organizer. Organizers can carry Tags, same as Helpers.
 
 **Building**:
 A venue hosting part of the competition. The set of Buildings is not stable
@@ -54,11 +60,12 @@ Ano ("yes") → Klidně ("sure") → Nevadí ("don't mind") → Spíš ne ("rath
 not") → Ne ("no").
 
 **Friend preference**:
-A Helper's soft request to share a Room with another named person —
-minimized-if-unsatisfied, never a hard constraint. Configurable as
-`pairwise` (each request scores independently) or `mutual` (only
-reciprocated requests count), and as `symmetric` (a reciprocated pair
-merges into one scored unit) or not (each direction scores separately).
+A Helper's soft request to share a Room with another named person — a
+Helper or an Organizer — minimized-if-unsatisfied, never a hard
+constraint. Configurable as `pairwise` (each request scores
+independently) or `mutual` (only reciprocated requests count), and as
+`symmetric` (a reciprocated pair merges into one scored unit) or not
+(each direction scores separately).
 
 **Assignment**:
 The solver's output for one Helper: the Building, Room, and Role they're
