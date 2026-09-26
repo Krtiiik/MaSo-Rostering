@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Solver: bringing a laptop is no longer a hard constraint on being assigned
+  Kreslič — a helper without a laptop can now be assigned that role. Bringing
+  a camera is still required for Fotograf. Whether a helper can bring a
+  laptop is still tracked and still shown in the roster export (the `(n)`
+  tag).
+
 ## [1.0.0] - 2026-09-22
 
 ### Added

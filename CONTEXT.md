@@ -44,9 +44,10 @@ Helper's assigned Building is in the set, or the set is empty (no
 preference expressed).
 
 **Equipment eligibility**:
-A hard constraint gating two Roles: a Helper who didn't mark that they can
-bring a notebook cannot be assigned Kreslič, and one who didn't mark a
-camera cannot be assigned Fotograf.
+A hard constraint gating Fotograf: a Helper who didn't mark that they can
+bring a camera cannot be assigned Fotograf. Bringing a laptop is no longer
+a hard constraint on Kreslič — it's tracked only for display (the roster
+export's `(n)` tag).
 
 **Preference**:
 A Helper's 5-point ordinal rating of one Role, from most to least willing:
@@ -81,7 +82,8 @@ Corrector/grader.
 Scans solutions.
 
 **Kreslič**:
-Draws problems/diagrams. Requires Equipment eligibility for a notebook.
+Draws problems/diagrams. No longer requires Equipment eligibility — a
+Helper without a laptop can still be assigned Kreslič.
 
 **Fotograf**:
 Photographer. Requires Equipment eligibility for a camera.

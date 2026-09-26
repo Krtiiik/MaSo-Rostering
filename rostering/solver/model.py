@@ -3,8 +3,8 @@
 Hard constraints:
 - each helper gets exactly one room and exactly one role;
 - room/building role headcounts meet their configured minimum;
-- a helper without a notebook can never be Kreslič; without a camera, never
-  Fotograf (see CLAUDE.md "Equipment eligibility").
+- a helper without a camera can never be Fotograf (see CLAUDE.md "Equipment
+  eligibility"). Kreslič has no equipment hard constraint.
 
 Soft (minimized) objective terms:
 - role-preference mismatch (weighted by how far from the helper's top choice);
@@ -99,10 +99,9 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
         model.Add(sum(assign_room[h.id, room_id] for room_id in range(num_rooms)) == 1)
         model.Add(sum(assign_role[h.id, r] for r in roles) == 1)
 
-    # Equipment eligibility (hard).
+    # Equipment eligibility (hard). Camera/Fotograf only — the notebook/
+    # Kreslič constraint was removed; can_bring_notebook is display-only now.
     for h in helpers:
-        if not h.can_bring_notebook:
-            model.Add(assign_role[h.id, Role.Kreslic] == 0)
         if not h.can_bring_camera:
             model.Add(assign_role[h.id, Role.Fotograf] == 0)
 

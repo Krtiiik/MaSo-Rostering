@@ -33,13 +33,21 @@ def test_room_capacity_minimum_is_enforced_even_against_preference():
     assert all(a.role == Role.Skenovac for a in result.assignments)
 
 
-def test_equipment_eligibility_is_hard_even_with_strong_preference():
+def test_kreslic_has_no_equipment_hard_constraint():
+    # The notebook/Kreslič hard constraint was removed: a helper who can't
+    # bring a notebook can still be assigned Kreslič.
     room = _room("R1")
     building = Building(name="B", rooms=[room])
     helper = Helper(
         id=1,
         name="No notebook",
-        role_preferences={Role.Kreslic: Preference.Ano},
+        role_preferences={
+            Role.Opravovatel: Preference.Ne,
+            Role.Menic: Preference.Ne,
+            Role.Skenovac: Preference.Ne,
+            Role.Kreslic: Preference.Ano,
+            Role.Fotograf: Preference.Ne,
+        },
         can_bring_notebook=False,
     )
     comp = Competition(buildings={"B": building}, helpers=[helper])
@@ -47,7 +55,7 @@ def test_equipment_eligibility_is_hard_even_with_strong_preference():
     result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
 
     assert result is not None
-    assert result.assignments[0].role != Role.Kreslic
+    assert result.assignments[0].role == Role.Kreslic
 
 
 def test_fotograf_requires_camera():
