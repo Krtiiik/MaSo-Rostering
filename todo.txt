@@ -1,0 +1,33 @@
+- Tags
+	- Vytváření tagů se jménem, barvou
+	- Každý pomocník bude moct dostat tagy
+	- Tagy jsou hierarchické - například tag "8.M" bude implikovat tag "GCHD"
+	- Tagy budou moct nastavovat hard contraints na přiřazení budovy či role
+		- Bude moct být záporné (nesmí být v budově A ani v B) nebo kladné (musí být v budově C nebo D)
+	- Tagy budou moct mít poznámku
+	- Tagy budou perzistentní
+- Forced Friends
+	- Hard contraint pro pomocníky ve stejných místnostech
+	- Nastavím skupinku lidí, kteří spolu musí sdílet buď budovu, místnost, nebo roli. Bude na výběr.
+- Export do excelu
+	- Velké místnosti s hodně pomocníky mají na jednu roli třeba 2x tolik řádek co jiné místnosti.
+	- Umět exportovat takové místnosti do 2 sloupců, kde pomocníci budou nejdříve v dané roli v prvním sloupci a
+	  počet vyšší než zbytku místností pak přeteče do sloupce druhého u stejné role furt.
+	- To způsobí, že větší místnosti budou muset mít spojené 2 sloupce pro název či vedoucího
+- Umět ručně přidávat pomocníky
+- Umět zaškrtnout, že se daný pomocník nemůže zúčastnit a nebude tak součástí rozdělování.
+- Vytvořit druhou kategorii pomocníků a to organizátor, který se neúčastní rozdělování do místností,
+  ale stále si ho mohou lidé přát jako kamaráda a bude pak k přiřazení do místností či budov na speciální role.
+	- Před samotné rozdělování možnost ručně přiřadit organizátory do místností a na speciální role, než se spustí optimaliační rozdělení pomocníků
+- Upravit počítání preferencí.
+	- Nejspíš nepočítáme s tím, že si někdo nenastaví preference na nějakou roli. To je však standardní a děje se to často.
+	- Pokud někdo nenastaví preference, často tu roli nechce vykonávat. Měli bychom to pravděpodobně vnímat jako neutrální preferenci.
+	- Když třeba vyplní pouze jedinou preferenci 5 hvězdiček pro jednu roli, pak bychom to měli brát jako velmi silnou preferenci.
+	- POkud někdo vyplní u 3 rolí 5 hvězdiček, tak bychom měli preferovat jednu z těchto 3 rolí, ale měl by dostat přednost někdo, kdo si dal preferenci 5 hvězdiček na jednu roli.
+- Export do tabulky list na trička dle míst
+	- Parsovat velikosti triček z odpovědí
+	- Agregace velikostí dle rozdělení do budov
+	- Nový list v exportované tabulce
+- Export do tabulky seznamy pomocníků
+	- Nové list v exportované tabulce
+	- Každý pro jednu budovu, obsahuje seznam abecední pomocníků s jejich velikostí trička
