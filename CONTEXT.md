@@ -48,6 +48,23 @@ A hard constraint gating two Roles: a Helper who didn't mark that they can
 bring a notebook cannot be assigned Kreslič, and one who didn't mark a
 camera cannot be assigned Fotograf.
 
+**Tag**:
+A label a Helper can carry: name (required, unique), colour, and note, plus an
+optional single parent Tag it implies. Implication forms a tree — a Tag has
+at most one parent and cannot imply itself or one of its own descendants. A
+Helper's effective Tags are the ones assigned to them directly plus every
+implied ancestor, computed live off the Tag tree rather than copied onto the
+Helper.
+
+**Tag constraint**:
+A positive (allow-list) or negative (deny-list) restriction a Tag places on
+Building or Role, inherited by every Helper who carries that Tag directly or
+through implication. A Helper's effective allowed set per axis is the
+intersection of every applicable Tag's positive list (a Tag with none doesn't
+narrow it), minus anything any applicable Tag's negative list names — a
+negative always wins. A Tag assignment that would leave a Helper with no
+allowed Building or Role on either axis is invalid.
+
 **Preference**:
 A Helper's 5-point ordinal rating of one Role, from most to least willing:
 Ano ("yes") → Klidně ("sure") → Nevadí ("don't mind") → Spíš ne ("rather
