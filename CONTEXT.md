@@ -96,6 +96,18 @@ independently) or `mutual` (only reciprocated requests count), and as
 `symmetric` (a reciprocated pair merges into one scored unit) or not
 (each direction scores separately).
 
+**Forced friends group** *(planned, not yet implemented)*:
+A named, user-authored hard constraint: a set of Helpers and Organizers who
+must share every axis the group selects — Building, Room, and/or Role (Room
+implies Building). Distinct from Friend preference, which is a soft survey
+request the solver may leave unsatisfied. A person may belong to several
+groups; overlapping groups are never merged. A group never includes an
+Organizer on the Role axis, since an Organizer has no solved Role. A group is
+inactive while it has fewer than two active members; a member who is
+Can't attend, an unplaced Organizer, or not registered this Season is not
+active. A group belongs to the people in it, not to one Season, so it carries
+over to a later Season alongside Tag import.
+
 **Assignment**:
 The solver's output for one Helper: the Building, Room, and Role they're
 placed into.
