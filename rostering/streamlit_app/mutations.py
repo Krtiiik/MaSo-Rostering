@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import functools
 import tempfile
+from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
@@ -25,7 +26,7 @@ from rostering.domain import (
 from rostering.export.excel import write_roster
 from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
 from rostering.persistence import config_store
-from rostering.persistence.season_label import guess_label
+from rostering.persistence.season_label import guess_label, label_sort_key
 from rostering.persistence.serialize import (
     assignment_from_dict,
     assignment_to_dict,
@@ -38,6 +39,7 @@ from rostering.persistence.serialize import (
     solver_config_to_dict,
 )
 from rostering.persistence.workspace import SeasonError, Workspace
+from rostering.persons import build_persons, link_persons
 from rostering.solver.model import solve_competition
 from rostering.solver.scoring import build_friend_pairs
 
@@ -245,7 +247,13 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
                 "(a year plus jaro or podzim, e.g. 2026-jaro)."
             )
 
-    helper_dicts = [helper_to_dict(h) for h in result.helpers]
+    # Recognize Returning helpers: an identical normalized e-mail links a row
+    # to the Person recorded in any stored Season (this Season's previous
+    # upload included), whatever the name; anything else is a new Person.
+    person_ids = link_persons([h.email for h in result.helpers], workspace.person_records())
+    helper_dicts = [
+        helper_to_dict(replace(h, person_id=person_id)) for h, person_id in zip(result.helpers, person_ids)
+    ]
     for helper_dict in helper_dicts:
         # Fixed at upload time so the resolution UI can keep names in their
         # original order even after some of them are resolved and drop out
@@ -268,6 +276,38 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     else:
         workspace.save(state)
     return workspace.load()
+
+
+# -- Persons ------------------------------------------------------------------
+
+
+def list_persons(workspace: Workspace) -> list[dict]:
+    """Every Person the stored Seasons know, derived from their Helper records
+    (there is no separate registry): ``person_id``, ``name`` (as spelled in the
+    most recent appearance), ``emails`` and ``names`` (every normalized e-mail
+    and name seen for them across all stored Seasons, sorted) and ``seasons``
+    (labels of the Seasons that record them, most recent first)."""
+    return [asdict(person) for person in build_persons(workspace.person_records())]
+
+
+def get_returning_helpers(workspace: Workspace) -> dict[int, list[str]]:
+    """The open Season's Returning helpers: Helper id -> labels of the earlier
+    stored Seasons (most recent first) that record the same Person. A Helper
+    with no earlier appearance is absent."""
+    season = workspace.open_season()
+    if season is None:
+        return {}
+    records = workspace.person_records()
+    earlier_by_person: dict[str, set[str]] = {}
+    for record in records:
+        if label_sort_key(record.season_label) < label_sort_key(season["label"]):
+            earlier_by_person.setdefault(record.person_id, set()).add(record.season_label)
+    returning: dict[int, list[str]] = {}
+    for helper in workspace.load()["helpers"]:
+        earlier = earlier_by_person.get(helper.get("person_id") or "")
+        if earlier:
+            returning[helper["id"]] = sorted(earlier, key=label_sort_key, reverse=True)
+    return returning
 
 
 def resolve_friend(

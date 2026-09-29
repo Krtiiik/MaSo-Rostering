@@ -29,6 +29,7 @@ from typing import Any, Iterable, Optional
 
 from rostering.domain import ManualRoles
 from rostering.persistence import config_store
+from rostering.persons import PersonRecord, ensure_person_ids, records_from_state
 from rostering.persistence.season_label import LABEL_FORMAT_HINT, label_sort_key, normalize_label
 from rostering.persistence.serialize import manual_roles_to_dict, solver_config_to_dict
 from rostering.solver.model import SolverConfig
@@ -121,7 +122,27 @@ class Workspace:
         open_season = self._resolve_open()
         if open_season is None:
             return copy.deepcopy(self._draft) if self._draft is not None else self.empty_state()
-        return _read_json(open_season["dir"] / "state.json")
+        return self._read_state(open_season["dir"])
+
+    def _read_state(self, season_dir: Path) -> dict[str, Any]:
+        """A stored Season's saved state. A state saved before Persons existed
+        has Helper records with no ``person_id``: they get one here and it is
+        written back at once, so the ids are stable from then on."""
+        path = season_dir / "state.json"
+        state = _read_json(path)
+        if ensure_person_ids(state):
+            _write_json(path, state)
+        return state
+
+    def person_records(self) -> list[PersonRecord]:
+        """The Helper records of every stored Season that has a saved state
+        (the open one included; a directory without one is ignored), which is
+        all a Person is made of: their e-mails and names are whatever these
+        records carry, so a deleted or emptied Season no longer contributes."""
+        records: list[PersonRecord] = []
+        for season_dir, identity in self._scan():
+            records.extend(records_from_state(identity, self._read_state(season_dir)))
+        return records
 
     def save(self, state: dict[str, Any]) -> None:
         open_season = self._resolve_open()

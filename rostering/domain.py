@@ -80,6 +80,14 @@ def normalize_name(value: Optional[str]) -> str:
     ).replace(" ", "").replace("_", "").replace("-", "")
 
 
+def normalize_email(value: Optional[str]) -> Optional[str]:
+    """The comparison form of an e-mail address: trimmed and lower-cased.
+    ``None`` for a blank or absent value, so "no e-mail" is never a key that
+    two people could share."""
+    text = (value or "").strip().lower()
+    return text or None
+
+
 # The T-shirt sizes the survey answer may resolve to, in the order the
 # "Trička" sheet lists them. Extend this tuple (nothing else) to accept a new
 # size such as "XXXL".
@@ -114,6 +122,14 @@ class Helper:
     # One of TSHIRT_SIZES, or UNKNOWN_TSHIRT_SIZE (the default: hand-added
     # helpers, legacy CSV rows and unparsed survey answers).
     tshirt_size: str = UNKNOWN_TSHIRT_SIZE
+    # The survey's e-mail answer, normalized (trimmed, lower-cased; see
+    # rostering.persons.normalize_email), or None when blank/absent. The first
+    # key for recognizing a Returning helper across Seasons.
+    email: Optional[str] = None
+    # Durable identity of the individual across Seasons (never reused). Not
+    # known to ingestion: it is assigned when the export is loaded into a
+    # Season, by matching against the stored Seasons (rostering.persons).
+    person_id: Optional[str] = None
 
 
 @dataclass

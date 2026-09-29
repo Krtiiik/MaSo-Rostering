@@ -19,6 +19,7 @@ from rostering.domain import (
     Room,
     StructuralAssignment,
     StructuralRole,
+    normalize_email,
     parse_tshirt_size,
 )
 from rostering.ingest.preferences import parse_role_token
@@ -94,6 +95,8 @@ def helper_to_dict(h: Helper) -> dict:
         "can_bring_camera": h.can_bring_camera,
         "unresolved_friend_names": list(h.unresolved_friend_names),
         "tshirt_size": h.tshirt_size,
+        "email": h.email,
+        "person_id": h.person_id,
     }
 
 
@@ -118,6 +121,9 @@ def helper_from_dict(data: dict) -> Helper:
         unresolved_friend_names=list(data.get("unresolved_friend_names", [])),
         # Workspaces saved before T-shirt sizes existed have no such key.
         tshirt_size=parse_tshirt_size(data.get("tshirt_size")) or UNKNOWN_TSHIRT_SIZE,
+        # Likewise absent from workspaces saved before Persons existed.
+        email=normalize_email(data.get("email")),
+        person_id=data.get("person_id") or None,
     )
 
 

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Returning helpers are recognized across Seasons. The survey's e-mail column
+  is now read at upload whatever its header wording (e.g. "E-mailová adresa",
+  "Email Address", "Tvůj e-mail") and compared trimmed and lower-cased; a Helper
+  whose e-mail matches one recorded in any stored Season is linked to the same
+  Person automatically, even if their name changed (the most recent appearance
+  wins if the e-mail is on record for several). Phone numbers are never used.
+  The Upload tab counts Returning helpers and shows the earlier Seasons each
+  was in. A Person exists only through the Seasons that record them, so Start
+  over and deleting a Season forget what only they knew. Same-name rows
+  without a matching e-mail are not linked yet (the confirm-a-proposal review
+  list comes later); an export without an e-mail column warns once.
+- Duplicate rows in one export with the same e-mail now collapse to one Helper,
+  the latest submission winning, with an upload warning naming who was
+  collapsed; rows with different or blank e-mails are never merged.
 - Stored Seasons: every Season is now a stored, labelled unit (a year plus
   `jaro`/`podzim`, e.g. `2026-jaro`; unique among stored Seasons, editable,
   and the key that orders them in time) in its own directory

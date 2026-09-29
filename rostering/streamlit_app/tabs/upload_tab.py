@@ -50,7 +50,10 @@ def render() -> None:
 
     if state["helpers"]:
         unresolved_count = sum(len(h["unresolved_friend_names"]) for h in state["helpers"])
+        returning = mutations.get_returning_helpers(workspace)
         msg = f"**{len(state['helpers'])}** helpers loaded."
+        if returning:
+            msg += f" **{len(returning)}** are Returning helpers (recognized by e-mail from an earlier Season)."
         if unresolved_count:
             msg += f" **{unresolved_count}** friend name(s) still need matching below."
         st.success(msg)
@@ -65,7 +68,7 @@ def render() -> None:
                 session.switch_tab("2. Buildings")
                 st.rerun()
 
-        _render_helpers_overview(state)
+        _render_helpers_overview(state, returning)
         _render_friend_resolution(state)
 
 
@@ -101,7 +104,7 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     st.rerun()
 
 
-def _render_helpers_overview(state: dict) -> None:
+def _render_helpers_overview(state: dict, returning: dict[int, list[str]]) -> None:
     rows = []
     for h in state["helpers"]:
         buildings = ", ".join(h["building_preferences"]) or "any"
@@ -119,6 +122,7 @@ def _render_helpers_overview(state: dict) -> None:
         rows.append(
             {
                 "Name": h["name"],
+                "Earlier Seasons": ", ".join(returning.get(h["id"], [])) or "—",
                 "Buildings": buildings,
                 "Equipment": equipment,
                 _SIZE_COLUMN: h.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
