@@ -177,3 +177,64 @@ def test_legacy_csv_round_trips_tshirt_size_and_defaults_unknown_when_column_abs
         encoding="utf-8",
     )
     assert load_helpers_csv(old).helpers[0].tshirt_size == "Unknown"
+
+
+# -- submission timestamps (Season label prefill) -----------------------------
+
+
+def _write_timestamped_survey(tmp_path, stamps, names=None, header="Časová značka"):
+    names = names or [f"Helper {i}" for i in range(len(stamps))]
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame({header: stamps, _NAME_HEADER: names}).to_excel(path, index=False)
+    return path
+
+
+def test_submission_timestamps_are_read_from_a_datetime_column(tmp_path):
+    from datetime import datetime
+
+    stamps = [datetime(2026, 1, 12, 15, 45), datetime(2026, 2, 3, 9, 0)]
+    result = parse_raw_survey(_write_timestamped_survey(tmp_path, stamps))
+    assert result.submission_timestamps == stamps
+
+
+@pytest.mark.parametrize("header", ["Časová značka", "Časové razítko", "Timestamp", "časova  ZNAČKA "])
+def test_submission_timestamp_header_wording_is_matched_loosely(tmp_path, header):
+    from datetime import datetime
+
+    path = _write_timestamped_survey(tmp_path, [datetime(2025, 9, 20, 8, 0)], header=header)
+    assert parse_raw_survey(path).submission_timestamps == [datetime(2025, 9, 20, 8, 0)]
+
+
+def test_submission_timestamps_in_text_form_are_parsed(tmp_path):
+    from datetime import date
+
+    stamps = ["2026/01/12 3:45:12 PM EET", "2026-02-03 09:00:00", "3. 2. 2026 10:15:00"]
+    result = parse_raw_survey(_write_timestamped_survey(tmp_path, stamps))
+    assert [t.date() for t in result.submission_timestamps] == [date(2026, 1, 12), date(2026, 2, 3), date(2026, 2, 3)]
+
+
+def test_submission_timestamps_skip_unreadable_cells_and_nameless_rows(tmp_path):
+    from datetime import datetime
+
+    stamps = [datetime(2026, 1, 12), "not a date", None, datetime(2026, 1, 20)]
+    names = ["Anna", "Petr", "Klara", None]
+    result = parse_raw_survey(_write_timestamped_survey(tmp_path, stamps, names=names))
+    # Only Anna's row has both a name and a readable timestamp.
+    assert result.submission_timestamps == [datetime(2026, 1, 12)]
+
+
+def test_submission_timestamps_are_empty_without_a_timestamp_column(tmp_path):
+    result = parse_raw_survey(_write_survey(tmp_path, ["Anna", "Petr"]))
+    assert result.submission_timestamps == []
+    # Not a mapped-feature warning: the timestamp only feeds a label prefill.
+    assert not any("'timestamp'" in w for w in result.warnings)
+
+
+def test_read_submission_timestamps_matches_the_full_parse(tmp_path):
+    from datetime import datetime
+
+    from rostering.ingest.raw_survey import read_submission_timestamps
+
+    stamps = [datetime(2026, 1, 12), datetime(2026, 2, 3)]
+    path = _write_timestamped_survey(tmp_path, stamps)
+    assert read_submission_timestamps(path) == stamps

@@ -1,0 +1,68 @@
+"""Sidebar panel listing every stored Season with Open, Rename and Delete, plus
+"New Season". Rendered from ``app.py`` next to the Versions panel."""
+from __future__ import annotations
+
+import streamlit as st
+
+from rostering.streamlit_app import mutations, session
+
+
+@st.dialog("Delete Season")
+def _confirm_delete(season: dict) -> None:
+    workspace = session.get_workspace()
+    st.warning(
+        f"Delete **{season['label']}** ({season['helper_count']} helpers)? This can't be undone. "
+        "You lose that Season as a Tag import source and every Person known only from it, "
+        "and all of its saved Versions are deleted with it."
+    )
+    delete_col, cancel_col = st.columns(2)
+    if delete_col.button("Delete Season", type="primary", key="confirm_delete_season"):
+        try:
+            mutations.delete_season(workspace, season["id"])
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        st.rerun()
+    if cancel_col.button("Cancel", key="cancel_delete_season"):
+        st.rerun()
+
+
+def render() -> None:
+    workspace = session.get_workspace()
+    st.subheader("Seasons")
+    if st.button("New Season", icon=":material/add:", key="new_season"):
+        session.workspace_replaced(mutations.new_season(workspace))
+        st.rerun()
+
+    seasons = mutations.list_seasons(workspace)
+    if not seasons:
+        st.caption("No stored Seasons yet.")
+        return
+
+    for season in seasons:
+        with st.container(border=True):
+            state_label = "open" if season["open"] else "stored"
+            st.markdown(f"**{season['label']}**")
+            st.caption(f"{season['helper_count']} helpers · {state_label}")
+            open_col, rename_col, delete_col = st.columns(3)
+            if not season["open"] and open_col.button("Open", key=f"open_season_{season['id']}"):
+                try:
+                    session.workspace_replaced(mutations.open_season(workspace, season["id"]))
+                except mutations.RosteringError as exc:
+                    st.error(str(exc))
+                else:
+                    st.rerun()
+            with rename_col.popover("Rename", key=f"rename_pop_{season['id']}"):
+                with st.form(key=f"rename_form_{season['id']}"):
+                    label = st.text_input("Season label", value=season["label"], help="A year plus jaro or podzim.")
+                    if st.form_submit_button("Save label"):
+                        try:
+                            mutations.rename_season(workspace, season["id"], label)
+                        except mutations.RosteringError as exc:
+                            st.error(str(exc))
+                        else:
+                            session.set_state(mutations.get_state(workspace))
+                            st.rerun()
+            # Delete is never offered on the open Season.
+            if not season["open"] and delete_col.button("Delete", key=f"delete_season_{season['id']}"):
+                _confirm_delete(season)

@@ -111,7 +111,7 @@ def test_config_persists_across_reset(workspace, tmp_path):
 
 @pytest.mark.skipif(not RAW_2026.exists(), reason="real season data not present on this machine")
 def test_upload_ingests_real_survey(workspace):
-    data = mutations.upload_responses(workspace, RAW_2026.read_bytes(), "raw-response.xlsx")
+    data = mutations.upload_responses(workspace, RAW_2026.read_bytes(), "raw-response.xlsx", label="2026-jaro")
     assert len(data["helpers"]) > 100
     assert isinstance(data["ingestion_warnings"], list)
 
@@ -155,7 +155,7 @@ def test_tshirt_size_survives_upload_reload_solve_and_export(workspace):
     pd.DataFrame(
         {"Tvoje jméno a příjmení": ["Anna", "Petr"], "Tvoje velikost trička": ["xl ", "?"]}
     ).to_excel(survey, index=False)
-    state = mutations.upload_responses(workspace, survey.getvalue(), "survey.xlsx")
+    state = mutations.upload_responses(workspace, survey.getvalue(), "survey.xlsx", label="2026-jaro")
     assert [h["tshirt_size"] for h in state["helpers"]] == ["XL", "Unknown"]
     assert any("Petr" in w and "'?'" in w for w in state["ingestion_warnings"])
 
@@ -318,6 +318,7 @@ def test_put_config_prunes_stale_cell_merges(workspace):
 
 def test_version_lifecycle(workspace):
     _seed_two_helpers(workspace)
+    workspace.create_season("2026-jaro")  # Versions belong to an open Season
     mutations.put_config(workspace, SMALL_CONFIG)
     mutations.solve(workspace)
 

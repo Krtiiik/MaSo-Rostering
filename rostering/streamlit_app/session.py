@@ -1,8 +1,8 @@
 """``st.session_state`` glue around the on-disk :class:`Workspace`.
 
-Single-workspace design, same as the old web app: one ``Workspace`` per
-Streamlit session, backed by the same ``data/workspace/state.json`` (or
-``ROSTERING_WORKSPACE_DIR``) file every session shares on disk.
+Single-workspace design: one ``Workspace`` per Streamlit session — whichever
+Season is open — backed by the Season directories under ``data/seasons/`` (or
+``ROSTERING_SEASONS_DIR``) that every session shares on disk.
 """
 from __future__ import annotations
 
@@ -30,6 +30,25 @@ def get_state() -> dict[str, Any]:
 
 def set_state(new_state: dict[str, Any]) -> None:
     st.session_state[_STATE_KEY] = new_state
+
+
+def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> None:
+    """Make ``new_state`` the session's state after the Workspace changed under
+    the UI (opened another Season, New Season, Start over, restored a Version)
+    and drop every piece of UI state derived from the old one. ``keep_view``
+    leaves the current tab and upload state alone (a Version restore)."""
+    # Imported here: config_tab imports this module.
+    from rostering.streamlit_app.tabs import config_tab
+
+    set_state(new_state)
+    config_tab.clear_drafts()
+    if keep_view:
+        return
+    for key in ("_confirm_reset", "_last_upload_hash", "_active_tab", "_pending_tab"):
+        st.session_state.pop(key, None)
+    # A new key gives the upload tab a fresh, empty file picker, so a file
+    # picked for the previous Season isn't silently loaded into this one.
+    st.session_state["_uploader_nonce"] = st.session_state.get("_uploader_nonce", 0) + 1
 
 
 def switch_tab(tab: str) -> None:

@@ -79,7 +79,7 @@ echo "using port $port"
 ```
 
 Start the app with an isolated workspace dir (so you don't clobber real
-helper data in `data/workspace/`), then poll until healthy. Redirect stdin
+helper data in `data/seasons/`), then poll until healthy. Redirect stdin
 from `/dev/null` explicitly — a backgrounded command that inherits a
 non-`/dev/null` stdin can still hang on the first-run prompt above even with
 the preempt files in place, if this is the very first time `rostering serve`
@@ -147,7 +147,7 @@ rostering serve                # from repo root, with the venv active
 ```
 
 Open `http://127.0.0.1:8501`. Ctrl-C to stop. Uses the real
-`data/workspace/` — don't use this path for throwaway verification; use the
+`data/seasons/` — don't use this path for throwaway verification; use the
 isolated `ROSTERING_WORKSPACE_DIR` agent path instead.
 
 ## Test

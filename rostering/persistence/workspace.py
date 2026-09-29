@@ -1,28 +1,63 @@
-"""On-disk persistence for the web app's single working session.
+"""On-disk persistence for the web app's Seasons and the open Workspace.
 
-There's exactly one "current" workspace (no multi-season juggling in the web
-UI, per design) stored as one JSON blob under ``data/workspace/state.json``.
-Named versions are just timestamped copies of that blob under
-``data/workspace/versions/``. Everything here lives under the gitignored
+Every Season is a stored, labelled unit: a directory ``<seasons root>/<label>/``
+(``data/seasons/2026-jaro/`` by default) holding its saved state
+(``state.json``) and its Versions (``versions/*.json``), next to any
+hand-placed raw export and config. The Workspace is whichever Season a small
+pointer file (``open-season.json`` in the seasons root) names, by Season id;
+with no Season open the Workspace is a blank, unsaved draft that lives only in
+memory until an upload creates a Season for it.
+
+A Season's identity — its label and a random Season id — is stamped into its
+saved state as ``state["season"]`` and owned by this class: callers never set
+it, Versions never snapshot or roll it back, and a rename changes the label
+(and renames the directory) but never the id, so anything that points at a
+Season by id survives renames. Everything here lives under the gitignored
 ``data/`` directory since it contains real helpers' personal data.
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
+import shutil
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from rostering.domain import ManualRoles
-from rostering.solver.model import SolverConfig
 from rostering.persistence import config_store
+from rostering.persistence.season_label import LABEL_FORMAT_HINT, label_sort_key, normalize_label
 from rostering.persistence.serialize import manual_roles_to_dict, solver_config_to_dict
+from rostering.solver.model import SolverConfig
 
-# Overridable so tests (and anyone running multiple workspaces) don't have to
-# touch the real data/workspace directory.
-DEFAULT_ROOT = Path(os.environ.get("ROSTERING_WORKSPACE_DIR", "data/workspace"))
+
+class SeasonError(Exception):
+    """A Season operation that can't be carried out (unknown id, duplicate or
+    invalid label, deleting the open Season, ...). The message is meant to be
+    shown to the user."""
+
+
+def default_legacy_root() -> Path:
+    """Where the pre-Seasons single saved state lived (``state.json`` plus a
+    ``versions/`` folder). Overridable with ``ROSTERING_WORKSPACE_DIR``."""
+    return Path(os.environ.get("ROSTERING_WORKSPACE_DIR", "data/workspace"))
+
+
+def default_seasons_root() -> Path:
+    """Directory holding one sub-directory per Season. Overridable with
+    ``ROSTERING_SEASONS_DIR``; when only ``ROSTERING_WORKSPACE_DIR`` is set
+    (an isolated run) the Seasons live under it too, so such a run never
+    touches the real ``data/`` directory."""
+    explicit = os.environ.get("ROSTERING_SEASONS_DIR")
+    if explicit:
+        return Path(explicit)
+    isolated = os.environ.get("ROSTERING_WORKSPACE_DIR")
+    if isolated:
+        return Path(isolated) / "seasons"
+    return Path("data/seasons")
 
 
 def _slugify(name: str) -> str:
@@ -30,13 +65,32 @@ def _slugify(name: str) -> str:
     return slug or "version"
 
 
+def _read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 class Workspace:
-    def __init__(self, root: Path | str = DEFAULT_ROOT):
-        self.root = Path(root)
-        self.versions_dir = self.root / "versions"
+    def __init__(self, root: Path | str | None = None, legacy_root: Path | str | None = None):
+        """``root`` is the seasons directory. With no ``root`` the defaults
+        (env-overridable, see above) are used, including the legacy location
+        the first-launch migration reads; an explicitly given ``root`` has no
+        legacy location unless ``legacy_root`` names one."""
+        if root is None:
+            self.root = default_seasons_root()
+            self.legacy_root: Optional[Path] = Path(legacy_root) if legacy_root else default_legacy_root()
+        else:
+            self.root = Path(root)
+            self.legacy_root = Path(legacy_root) if legacy_root else None
         self.root.mkdir(parents=True, exist_ok=True)
-        self.versions_dir.mkdir(parents=True, exist_ok=True)
-        self.state_path = self.root / "state.json"
+        self.pointer_path = self.root / "open-season.json"
+        # Blank Workspace with no Season open: never persisted (see module doc).
+        self._draft: Optional[dict[str, Any]] = None
+
+    # -- the state itself -------------------------------------------------
 
     def empty_state(self) -> dict[str, Any]:
         return {
@@ -64,54 +118,283 @@ class Workspace:
         }
 
     def load(self) -> dict[str, Any]:
-        if not self.state_path.exists():
-            return self.empty_state()
-        return json.loads(self.state_path.read_text(encoding="utf-8"))
+        open_season = self._resolve_open()
+        if open_season is None:
+            return copy.deepcopy(self._draft) if self._draft is not None else self.empty_state()
+        return _read_json(open_season["dir"] / "state.json")
 
     def save(self, state: dict[str, Any]) -> None:
-        self.state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        open_season = self._resolve_open()
+        if open_season is None:
+            self._draft = copy.deepcopy({k: v for k, v in state.items() if k != "season"})
+            return
+        state["season"] = {"id": open_season["id"], "label": open_season["label"]}
+        _write_json(open_season["dir"] / "state.json", state)
 
     def reset(self) -> dict[str, Any]:
+        """Empty the open Season's state ("Start over"): everything but its
+        label, Season id and Versions. With no Season open, just blanks the
+        draft."""
         state = self.empty_state()
         self.save(state)
-        return state
+        return self.load()
 
-    # -- versions ---------------------------------------------------------
+    # -- Seasons ----------------------------------------------------------
+
+    def _read_pointer(self) -> Optional[dict[str, str]]:
+        if not self.pointer_path.exists():
+            return None
+        try:
+            data = _read_json(self.pointer_path)
+        except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict) or not data.get("season_id"):
+            return None
+        return data
+
+    def _write_pointer(self, season_id: str, label: str) -> None:
+        _write_json(self.pointer_path, {"season_id": season_id, "label": label, "dir": label})
+
+    def _identity_of(self, season_dir: Path) -> Optional[dict[str, str]]:
+        """``{"id", "label"}`` of the Season stored in ``season_dir``, or None
+        if it holds no saved state (or one without an identity) — such a
+        directory is not a stored Season and is ignored."""
+        state_path = season_dir / "state.json"
+        if not season_dir.is_dir() or not state_path.is_file():
+            return None
+        try:
+            identity = _read_json(state_path).get("season")
+        except (OSError, ValueError, AttributeError):
+            return None
+        if not isinstance(identity, dict) or not identity.get("id") or not normalize_label(identity.get("label")):
+            return None
+        return {"id": identity["id"], "label": normalize_label(identity["label"])}
+
+    def _scan(self) -> Iterable[tuple[Path, dict[str, str]]]:
+        for season_dir in sorted(self.root.iterdir()):
+            identity = self._identity_of(season_dir)
+            if identity is not None:
+                yield season_dir, identity
+
+    def _find_dir(self, season_id: str) -> Optional[tuple[Path, dict[str, str]]]:
+        return next(((d, i) for d, i in self._scan() if i["id"] == season_id), None)
+
+    def _resolve_open(self) -> Optional[dict[str, Any]]:
+        """The open Season as ``{"id", "label", "dir"}``, or None when no
+        Season is open (no pointer, or it names a Season that no longer
+        exists)."""
+        pointer = self._read_pointer()
+        if pointer is None:
+            return None
+        hinted = self.root / pointer.get("dir", "")
+        if pointer.get("dir") and (hinted / "state.json").is_file():
+            # Trust the hint we maintain ourselves (a full parse of the state
+            # on every load/save would be wasteful); the state's own identity
+            # is verified only on the slow path below.
+            return {"id": pointer["season_id"], "label": pointer.get("label", pointer["dir"]), "dir": hinted}
+        found = self._find_dir(pointer["season_id"])
+        if found is None:
+            return None
+        season_dir, identity = found
+        return {"id": identity["id"], "label": identity["label"], "dir": season_dir}
+
+    def open_season(self) -> Optional[dict[str, str]]:
+        """Identity (``{"id", "label"}``) of the open Season, or None."""
+        resolved = self._resolve_open()
+        return None if resolved is None else {"id": resolved["id"], "label": resolved["label"]}
+
+    def _validated_label(self, label: Optional[str], ignore_id: Optional[str] = None) -> str:
+        normalized = normalize_label(label)
+        if normalized is None:
+            raise SeasonError(f"A Season label is {LABEL_FORMAT_HINT}.")
+        for _, identity in self._scan():
+            if identity["label"] == normalized and identity["id"] != ignore_id:
+                raise SeasonError(f"A Season labelled {normalized} already exists.")
+        return normalized
+
+    def list_seasons(self) -> list[dict[str, Any]]:
+        """Every stored Season, most recent first (the label orders them in
+        time): ``id``, ``label``, ``helper_count`` and ``open``."""
+        open_id = (self.open_season() or {}).get("id")
+        seasons = []
+        for season_dir, identity in self._scan():
+            try:
+                helper_count = len(_read_json(season_dir / "state.json").get("helpers", []))
+            except (OSError, ValueError):
+                helper_count = 0
+            seasons.append(
+                {**identity, "helper_count": helper_count, "open": identity["id"] == open_id}
+            )
+        return sorted(seasons, key=lambda s: label_sort_key(s["label"]), reverse=True)
+
+    def create_season(self, label: str, state: Optional[dict[str, Any]] = None) -> dict[str, str]:
+        """Store ``state`` (default: the current Workspace contents) as a new
+        Season named ``label`` and open it."""
+        label = self._validated_label(label)
+        state = copy.deepcopy(state if state is not None else self.load())
+        identity = {"id": uuid.uuid4().hex, "label": label}
+        season_dir = self.root / label
+        # A directory holding only hand-placed files (raw export, config) is
+        # adopted as is; it just gains a saved state.
+        (season_dir / "versions").mkdir(parents=True, exist_ok=True)
+        state["season"] = identity
+        _write_json(season_dir / "state.json", state)
+        self._write_pointer(identity["id"], label)
+        self._draft = None
+        return identity
+
+    def switch_to(self, season_id: str) -> dict[str, Any]:
+        """Open a stored Season into the Workspace and return its state."""
+        found = self._find_dir(season_id)
+        if found is None:
+            raise SeasonError("No such Season.")
+        _, identity = found
+        self._write_pointer(identity["id"], identity["label"])
+        self._draft = None
+        return self.load()
+
+    def close(self) -> dict[str, Any]:
+        """Leave no Season open ("New Season"): the Workspace becomes a blank,
+        unsaved draft; every stored Season stays stored. Returns that state."""
+        self.pointer_path.unlink(missing_ok=True)
+        self._draft = None
+        return self.load()
+
+    def rename_season(self, season_id: str, label: str) -> dict[str, str]:
+        """Change a Season's label and rename its directory to match. The
+        Season id and everything inside the directory (state, Versions,
+        hand-placed files) are untouched."""
+        found = self._find_dir(season_id)
+        if found is None:
+            raise SeasonError("No such Season.")
+        old_dir, identity = found
+        label = self._validated_label(label, ignore_id=season_id)
+        if label == identity["label"]:
+            return identity
+        new_dir = self.root / label
+        if new_dir.exists():
+            raise SeasonError(
+                f"Can't rename to {label}: a folder with that name already exists in the Seasons directory."
+            )
+        old_dir.rename(new_dir)
+        state = _read_json(new_dir / "state.json")
+        state["season"] = {"id": season_id, "label": label}
+        _write_json(new_dir / "state.json", state)
+        pointer = self._read_pointer()
+        if pointer is not None and pointer["season_id"] == season_id:
+            self._write_pointer(season_id, label)
+        return {"id": season_id, "label": label}
+
+    def delete_season(self, season_id: str) -> None:
+        """Delete a stored Season and its Versions. Refused for the open
+        Season. Only what the app owns (saved state and Versions) is removed:
+        hand-placed files in the directory (a raw export, a config) stay, and
+        the directory itself goes only if that leaves it empty."""
+        found = self._find_dir(season_id)
+        if found is None:
+            raise SeasonError("No such Season.")
+        if (self.open_season() or {}).get("id") == season_id:
+            raise SeasonError("The open Season can't be deleted — open another Season or start a new one first.")
+        season_dir, _ = found
+        (season_dir / "state.json").unlink()
+        shutil.rmtree(season_dir / "versions", ignore_errors=True)
+        try:
+            season_dir.rmdir()  # only succeeds if nothing hand-placed is left
+        except OSError:
+            pass
+
+    # -- first-launch migration of the pre-Seasons single saved state -----
+
+    def legacy_state_path(self) -> Optional[Path]:
+        """Path of a pre-Seasons saved state still waiting to be migrated
+        into a Season, or None. A saved state with no Helpers and no Versions
+        holds nothing worth keeping and is left alone."""
+        if self.legacy_root is None:
+            return None
+        path = self.legacy_root / "state.json"
+        if not path.is_file():
+            return None
+        try:
+            has_helpers = bool(_read_json(path).get("helpers"))
+        except (OSError, ValueError, AttributeError):
+            return None
+        versions_dir = self.legacy_root / "versions"
+        has_versions = versions_dir.is_dir() and any(versions_dir.glob("*.json"))
+        return path if has_helpers or has_versions else None
+
+    def legacy_state(self) -> Optional[dict[str, Any]]:
+        path = self.legacy_state_path()
+        return None if path is None else _read_json(path)
+
+    def migrate_legacy(self, label: str) -> dict[str, str]:
+        """Move the pre-Seasons saved state and its Versions into a new Season
+        named ``label`` and open it."""
+        state_path = self.legacy_state_path()
+        if state_path is None:
+            raise SeasonError("There is no earlier saved state to migrate.")
+        label = self._validated_label(label)
+        identity = {"id": uuid.uuid4().hex, "label": label}
+        season_dir = self.root / label
+        (season_dir / "versions").mkdir(parents=True, exist_ok=True)
+        for version_path in (self.legacy_root / "versions").glob("*.json"):
+            shutil.move(str(version_path), str(season_dir / "versions" / version_path.name))
+        state = _read_json(state_path)
+        state["season"] = identity
+        _write_json(season_dir / "state.json", state)
+        state_path.unlink()
+        self._write_pointer(identity["id"], label)
+        self._draft = None
+        return identity
+
+    # -- versions (each one belongs to the open Season) --------------------
+
+    def _versions_dir(self) -> Path:
+        open_season = self._resolve_open()
+        if open_season is None:
+            raise SeasonError("No Season is open — upload responses to create one first.")
+        path = open_season["dir"] / "versions"
+        path.mkdir(exist_ok=True)
+        return path
 
     def _version_path(self, slug: str) -> Path:
-        return self.versions_dir / f"{slug}.json"
+        return self._versions_dir() / f"{slug}.json"
 
     def list_versions(self) -> list[dict[str, Any]]:
+        if self._resolve_open() is None:
+            return []
         versions = []
-        for path in self.versions_dir.glob("*.json"):
-            data = json.loads(path.read_text(encoding="utf-8"))
-            meta = data.get("_meta", {})
+        for path in self._versions_dir().glob("*.json"):
+            meta = _read_json(path).get("_meta", {})
             versions.append(
                 {"slug": path.stem, "name": meta.get("name", path.stem), "created_at": meta.get("created_at")}
             )
         return sorted(versions, key=lambda v: v["created_at"] or "", reverse=True)
 
     def save_version(self, name: str) -> dict[str, Any]:
-        state = self.load()
+        """Snapshot the open Season's whole state, minus its identity."""
+        versions_dir = self._versions_dir()
+        state = {k: v for k, v in self.load().items() if k != "season"}
         created_at = datetime.now(timezone.utc).isoformat()
         state["_meta"] = {"name": name, "created_at": created_at}
         slug = f"{created_at.replace(':', '').replace('.', '')}-{_slugify(name)}"
-        self._version_path(slug).write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        _write_json(versions_dir / f"{slug}.json", state)
         return {"slug": slug, "name": name, "created_at": created_at}
 
     def load_version(self, slug: str) -> Optional[dict[str, Any]]:
         path = self._version_path(slug)
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        return _read_json(path)
 
     def restore_version(self, slug: str) -> Optional[dict[str, Any]]:
+        """Roll the open Season's state back to a Version. Everything the
+        Season holds is rolled back except its identity (label and Season id),
+        which is always kept as it is now."""
         state = self.load_version(slug)
         if state is None:
             return None
-        restored = {k: v for k, v in state.items() if k != "_meta"}
-        self.save(restored)
-        return restored
+        self.save({k: v for k, v in state.items() if k not in ("_meta", "season")})
+        return self.load()
 
     def delete_version(self, slug: str) -> bool:
         path = self._version_path(slug)

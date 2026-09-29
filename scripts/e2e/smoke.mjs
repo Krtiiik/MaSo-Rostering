@@ -52,6 +52,15 @@ if (xlsxPath) {
   }
 
   await page.setInputFiles('input[type="file"]', xlsxPath);
+  // With no Season open the upload first asks to confirm the Season's label
+  // (prefilled from the export's timestamps; typed in if they can't be read).
+  const createSeason = page.getByRole("button", { name: "Create Season and load responses" });
+  await createSeason.waitFor({ timeout: 30000 });
+  const labelInput = page.getByLabel("Season label");
+  if (!(await labelInput.inputValue())) {
+    await labelInput.fill("2026-jaro");
+  }
+  await createSeason.click();
   await page.waitForSelector('[data-testid="stDataFrame"]', { timeout: 30000 });
   await page.screenshot({ path: path.join(SHOT_DIR, "02-helpers-loaded.png"), fullPage: true });
   console.log("helpers dataframe rendered");
