@@ -113,7 +113,8 @@ allowed Building or Role on either axis is invalid.
 **Preference**:
 A Helper's 5-point ordinal rating of one Role, from most to least willing:
 Ano ("yes") → Klidně ("sure") → Nevadí ("don't mind") → Spíš ne ("rather
-not") → Ne ("no").
+not") → Ne ("no"). A blank answer counts as Nevadí, so a Helper who left all
+five blank has no preference between Roles.
 
 **Friend preference**:
 A Helper's soft request to share a Room with another named person — a
