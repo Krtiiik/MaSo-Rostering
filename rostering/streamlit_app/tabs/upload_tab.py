@@ -16,20 +16,32 @@ _SIZE_OPTIONS = [*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE]
 
 def render() -> None:
     st.header("1. Upload responses")
-    st.write(
-        "Upload the raw Google Forms export (.xlsx) for the current helper "
-        "responses. This replaces any previously uploaded helpers."
-    )
+    workspace = session.get_workspace()
+    season = mutations.get_open_season(workspace)
+    if season is None:
+        st.write(
+            "Upload the raw Google Forms export (.xlsx) of helper responses. This creates a new Season: "
+            "you'll confirm its label first."
+        )
+    else:
+        st.write(
+            f"Upload the raw Google Forms export (.xlsx) to load helper responses into Season "
+            f"**{season['label']}**. This replaces the helpers previously uploaded to it."
+        )
 
     state = session.get_state()
-    uploaded = st.file_uploader("Responses file", type=["xlsx"])
+    uploaded = st.file_uploader(
+        "Responses file", type=["xlsx"], key=f"responses_file_{st.session_state.get('_uploader_nonce', 0)}"
+    )
     if uploaded is not None:
         content = uploaded.getvalue()
         content_hash = hashlib.md5(content).hexdigest()
-        if st.session_state.get("_last_upload_hash") != content_hash:
+        if season is None:
+            _render_create_season(workspace, uploaded.name, content, content_hash)
+        elif st.session_state.get("_last_upload_hash") != content_hash:
             with st.spinner("Uploading and parsing…"):
                 try:
-                    state = mutations.upload_responses(session.get_workspace(), content, uploaded.name)
+                    state = mutations.upload_responses(workspace, content, uploaded.name)
                     session.set_state(state)
                     st.session_state["_last_upload_hash"] = content_hash
                 except mutations.RosteringError as exc:
@@ -55,6 +67,38 @@ def render() -> None:
 
         _render_helpers_overview(state)
         _render_friend_resolution(state)
+
+
+def _render_create_season(workspace, filename: str, content: bytes, content_hash: str) -> None:
+    """No Season is open: uploading creates one. Its label is prefilled from
+    the export's submission dates, editable, and required."""
+    try:
+        suggested = mutations.suggest_season_label(content, filename)
+    except mutations.RosteringError as exc:
+        st.error(str(exc))
+        return
+    if suggested is None:
+        st.warning("The submission dates in this export couldn't be read, so enter the Season label yourself.")
+    with st.form(key=f"create_season_form_{content_hash}"):
+        label = st.text_input(
+            "Season label",
+            value=suggested or "",
+            placeholder="e.g. 2026-jaro",
+            help="A year plus jaro (January to June) or podzim (July to December); unique among stored Seasons.",
+        )
+        submitted = st.form_submit_button("Create Season and load responses", type="primary")
+    if not submitted:
+        return
+    try:
+        with st.spinner("Uploading and parsing…"):
+            state = mutations.upload_responses(workspace, content, filename, label=label)
+    except mutations.RosteringError as exc:
+        hint = " Choose another label, or open that Season in the sidebar to re-upload into it."
+        st.error(str(exc) + (hint if "already exists" in str(exc) else ""))
+        return
+    session.set_state(state)
+    st.session_state["_last_upload_hash"] = content_hash
+    st.rerun()
 
 
 def _render_helpers_overview(state: dict) -> None:

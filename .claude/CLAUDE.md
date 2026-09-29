@@ -99,11 +99,32 @@ pushing the tag, not just creating it locally.
   Streamlit-free state-mutation functions (upload, solve, move a helper,
   friend resolution, ...) that the three tabs (`tabs/upload_tab.py`,
   `tabs/config_tab.py`, `tabs/grid_tab.py`) call into and that tests exercise
-  directly. Single-workspace design: no season picker in the UI — upload a
-  raw survey export, configure buildings/rooms directly in the browser,
-  solve, drag helpers between cells, save/restore named versions, export to
-  Excel. State persists as JSON under `data/workspace/` (gitignored). Run via
-  `rostering serve` (see README.md).
+  directly. Single-workspace design: the Workspace is the one open Season —
+  upload a raw survey export (which creates the Season when none is open),
+  configure buildings/rooms directly in the browser, solve, drag helpers
+  between cells, save/restore named versions, export to Excel. Every Season
+  stays stored and is managed from the sidebar's Seasons panel (open, rename,
+  delete, New Season); the open Season's label shows in a header above the
+  tabs. Run via `rostering serve` (see README.md).
+- Season storage (`rostering/persistence/workspace.py`, label rules in
+  `season_label.py`): each Season is a directory `data/seasons/<label>/`
+  holding `state.json` and `versions/*.json`, next to any hand-placed
+  `raw-response.xlsx`/`config.yaml`; a directory without a `state.json` is
+  not a stored Season and is ignored. `data/seasons/open-season.json` points
+  at the open Season by id. The state carries its identity as
+  `state["season"] = {"id", "label"}`, owned by `Workspace` (stamped on every
+  save, never snapshotted into or rolled back from a Version); a rename
+  renames the directory but never the id. With no Season open, the Workspace
+  is an in-memory blank draft (New Season, or a fresh install) that an upload
+  turns into a Season. Deleting a Season removes only its `state.json` and
+  `versions/` (hand-placed files stay). `ROSTERING_SEASONS_DIR` overrides the
+  seasons directory; `ROSTERING_WORKSPACE_DIR` is the pre-Seasons location
+  (`state.json` + `versions/`), read once for the first-launch migration
+  (`mutations.migrate_legacy_workspace`), and when set on its own it also
+  isolates the seasons under `<dir>/seasons`. Uploads store their
+  submission timestamps (`export_timestamps`), which the label prefill and the
+  migration use; a legacy state has none, so its migration asks for the label
+  (prefilled from the file's last-modified date).
 - The one piece of UI Streamlit can't do natively — drag-and-drop — is a
   custom Streamlit component (CCv2) at `components/rostering-assignment-grid/`
   (React + dnd-kit, generated from Streamlit's official CCv2
@@ -125,7 +146,8 @@ pushing the tag, not just creating it locally.
 - The web app's buildings/rooms layout defaults to a bundled copy of the most
   recent season's config and persists separately in
   `data/buildings-config.yaml` (`rostering/persistence/config_store.py`),
-  distinct from the per-run `data/workspace/state.json` blob — so it
+  distinct from each Season's saved state (which carries its own snapshot
+  of the layout it used) — so it
   survives "start over" resets and app restarts instead of needing to be
   re-entered by hand each time.
 

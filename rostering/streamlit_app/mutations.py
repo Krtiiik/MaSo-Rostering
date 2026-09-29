@@ -8,9 +8,11 @@ can be unit-tested directly and reused unchanged by any future caller.
 """
 from __future__ import annotations
 
+import functools
 import tempfile
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional, TypeVar
 
 from rostering.domain import (
     TSHIRT_SIZES,
@@ -21,8 +23,9 @@ from rostering.domain import (
     parse_tshirt_size,
 )
 from rostering.export.excel import write_roster
-from rostering.ingest.raw_survey import parse_raw_survey
+from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
 from rostering.persistence import config_store
+from rostering.persistence.season_label import guess_label
 from rostering.persistence.serialize import (
     assignment_from_dict,
     assignment_to_dict,
@@ -34,7 +37,7 @@ from rostering.persistence.serialize import (
     solver_config_from_dict,
     solver_config_to_dict,
 )
-from rostering.persistence.workspace import Workspace
+from rostering.persistence.workspace import SeasonError, Workspace
 from rostering.solver.model import solve_competition
 from rostering.solver.scoring import build_friend_pairs
 
@@ -43,6 +46,33 @@ class RosteringError(Exception):
     """Raised for any user-facing error a mutation function hits (bad input,
     unknown id, infeasible precondition, ...). Tabs catch this and show
     ``st.error(str(exc))``."""
+
+
+class SeasonLabelRequired(RosteringError):
+    """No Season label could be settled automatically, so the user must
+    supply one. ``suggested_label`` is a best-effort prefill (or None when
+    there is nothing to go on)."""
+
+    def __init__(self, message: str, suggested_label: Optional[str] = None):
+        super().__init__(message)
+        self.suggested_label = suggested_label
+
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _season_errors(func: _F) -> _F:
+    """Surface the workspace's Season errors as :class:`RosteringError` so
+    tabs only ever have to catch one exception type."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except SeasonError as exc:
+            raise RosteringError(str(exc)) from exc
+
+    return wrapper  # type: ignore[return-value]
 
 
 def _prune_cell_merges(config: list[dict], cell_merges: dict) -> dict:
@@ -93,20 +123,127 @@ def get_state(workspace: Workspace) -> dict:
 
 
 def reset_workspace(workspace: Workspace) -> dict:
+    """"Start over": empty the open Season's state, keeping its label, Season
+    id and Versions."""
     return workspace.reset()
 
 
-def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str) -> dict:
+# -- Seasons -----------------------------------------------------------------
+
+
+def list_seasons(workspace: Workspace) -> list[dict]:
+    """Every stored Season, most recent first: ``id``, ``label``,
+    ``helper_count`` and ``open``."""
+    return workspace.list_seasons()
+
+
+def get_open_season(workspace: Workspace) -> Optional[dict]:
+    """``{"id", "label"}`` of the open Season, or None if none is open."""
+    return workspace.open_season()
+
+
+@_season_errors
+def open_season(workspace: Workspace, season_id: str) -> dict:
+    """Open a stored Season into the Workspace (replacing its contents; there
+    is no read-only mode) and return its state."""
+    return workspace.switch_to(season_id)
+
+
+def new_season(workspace: Workspace) -> dict:
+    """"New Season": leave no Season open, so the Workspace is blank and the
+    next upload creates a Season. Nothing needs archiving first — every stored
+    Season stays stored. Returns the blank state."""
+    return workspace.close()
+
+
+@_season_errors
+def rename_season(workspace: Workspace, season_id: str, label: str) -> dict:
+    """Relabel a Season (open or stored) and rename its directory; the Season
+    id never changes. Returns its ``{"id", "label"}``."""
+    return workspace.rename_season(season_id, label)
+
+
+@_season_errors
+def delete_season(workspace: Workspace, season_id: str) -> None:
+    """Delete a stored Season together with its Versions. Refused for the open
+    Season."""
+    workspace.delete_season(season_id)
+
+
+def migrate_legacy_workspace(workspace: Workspace, label: Optional[str] = None) -> Optional[dict]:
+    """First-launch migration of the pre-Seasons single saved state (and its
+    Versions) into a labelled Season, which is then opened.
+
+    Returns the new Season's ``{"id", "label"}``, or None when there is nothing
+    to migrate. The label comes from ``label`` if given, else from the
+    submission timestamps stored with the old state; when neither yields a
+    usable label :class:`SeasonLabelRequired` is raised (nothing is moved) with
+    the old state file's last-modified date as the suggestion, and the caller
+    asks once and calls again with the answer."""
+    legacy = workspace.legacy_state()
+    if legacy is None:
+        return None
+    derived = guess_label([datetime.fromisoformat(t) for t in legacy.get("export_timestamps", [])])
+    candidate = (label or "").strip() or derived
+    if not candidate:
+        modified = datetime.fromtimestamp(workspace.legacy_state_path().stat().st_mtime)
+        raise SeasonLabelRequired(
+            "Your existing saved state needs a Season label (a year plus jaro or podzim, e.g. 2026-jaro).",
+            suggested_label=guess_label([modified]),
+        )
+    try:
+        return workspace.migrate_legacy(candidate)
+    except SeasonError as exc:
+        # The derived or typed label is unusable (duplicate, malformed): ask.
+        raise SeasonLabelRequired(str(exc), suggested_label=candidate) from exc
+
+
+def _write_temp(file_bytes: bytes, filename: str) -> Path:
     suffix = Path(filename or "upload.xlsx").suffix or ".xlsx"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(file_bytes)
-        tmp_path = Path(tmp.name)
+    return Path(tmp.name)
+
+
+def suggest_season_label(file_bytes: bytes, filename: str) -> Optional[str]:
+    """Best-guess Season label (e.g. ``2026-jaro``) for a survey export, from
+    the median of its submission timestamps — January to June is jaro, July to
+    December is podzim. ``None`` when the timestamps can't be read; the
+    caller must then ask for the label. Only ever a prefill."""
+    tmp_path = _write_temp(file_bytes, filename)
+    try:
+        return guess_label(read_submission_timestamps(tmp_path))
+    except ValueError as exc:
+        raise RosteringError(str(exc)) from exc
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@_season_errors
+def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, label: Optional[str] = None) -> dict:
+    """Load a raw survey export into the Workspace.
+
+    With a Season open this is always a re-upload into that Season (``label``
+    is ignored). With none open it creates a Season: ``label`` (required,
+    unique among stored Seasons) names it, defaulting to the guess from the
+    export's submission timestamps; if neither is available,
+    :class:`SeasonLabelRequired` is raised and nothing is changed."""
+    tmp_path = _write_temp(file_bytes, filename)
     try:
         result = parse_raw_survey(tmp_path)
     except ValueError as exc:
         raise RosteringError(str(exc)) from exc
     finally:
         tmp_path.unlink(missing_ok=True)
+
+    creating = workspace.open_season() is None
+    if creating:
+        label = (label or "").strip() or guess_label(result.submission_timestamps)
+        if not label:
+            raise SeasonLabelRequired(
+                "The submission dates in this export couldn't be read — enter the Season label "
+                "(a year plus jaro or podzim, e.g. 2026-jaro)."
+            )
 
     helper_dicts = [helper_to_dict(h) for h in result.helpers]
     for helper_dict in helper_dicts:
@@ -118,6 +255,7 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str) -> 
     state = workspace.load()
     state["helpers"] = helper_dicts
     state["ingestion_warnings"] = result.warnings
+    state["export_timestamps"] = [t.date().isoformat() for t in result.submission_timestamps]
     state["assignments"] = []
     state["diagnostics"] = {
         "status": None,
@@ -125,8 +263,11 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str) -> 
         "unsatisfied_friend_pairs": [],
         "satisfied_friend_pairs": [],
     }
-    workspace.save(state)
-    return state
+    if creating:
+        workspace.create_season(label, state)
+    else:
+        workspace.save(state)
+    return workspace.load()
 
 
 def resolve_friend(
@@ -320,20 +461,28 @@ def set_cell_merges(workspace: Workspace, row_key: str, building: str, pairs: li
 
 
 def list_versions(workspace: Workspace) -> list[dict]:
+    """The open Season's Versions, newest first (none with no Season open)."""
     return workspace.list_versions()
 
 
+@_season_errors
 def save_version(workspace: Workspace, name: str) -> dict:
+    """Snapshot the open Season's whole state, minus its identity."""
     return workspace.save_version(name)
 
 
+@_season_errors
 def restore_version(workspace: Workspace, slug: str) -> dict:
+    """Roll the open Season back to a Version. Rolls back everything the
+    Season holds (helpers, Person links and rejections, Tags, Forced-friend
+    groups, Assignments, ...) except its label and Season id."""
     data = workspace.restore_version(slug)
     if data is None:
         raise RosteringError("No such version")
     return data
 
 
+@_season_errors
 def delete_version(workspace: Workspace, slug: str) -> None:
     if not workspace.delete_version(slug):
         raise RosteringError("No such version")

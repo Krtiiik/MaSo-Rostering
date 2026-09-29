@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import difflib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -43,6 +44,9 @@ _ROLE_PREF_FIELD_ROLES: dict[str, Role] = {
 class RawSurveyResult:
     helpers: list[Helper]
     warnings: list[str]
+    # Submission timestamp of every registrant row whose timestamp could be
+    # read (empty if the export has no readable timestamp column).
+    submission_timestamps: list[datetime] = field(default_factory=list)
 
 
 def _find_columns(headers: list[str]) -> dict[str, str]:
@@ -66,6 +70,56 @@ def _cell_str(raw: object) -> Optional[str]:
         return None
     text = str(raw).strip()
     return text or None
+
+
+_ISO_DATE = re.compile(r"(\d{4})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{1,2})")
+_CZECH_DATE = re.compile(r"(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})")
+
+
+def _parse_timestamp(raw: object) -> Optional[datetime]:
+    """One timestamp cell -> naive datetime, or None if unreadable. Google
+    Forms exports real datetimes to .xlsx, but a re-saved file can turn them
+    into text like ``2026/01/12 3:45:12 PM EET`` or ``12. 1. 2026 15:45``."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)) or raw is pd.NaT:
+        return None
+    if isinstance(raw, datetime):  # includes pandas.Timestamp
+        return raw.replace(tzinfo=None) if raw.tzinfo else raw
+    text = str(raw).strip()
+    try:
+        match = _ISO_DATE.match(text)
+        if match:
+            return datetime(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        match = _CZECH_DATE.match(text)
+        if match:
+            return datetime(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+    except ValueError:
+        return None
+    return None
+
+
+def _submission_timestamps(df: pd.DataFrame, columns: dict[str, str]) -> list[datetime]:
+    column = columns.get("timestamp")
+    if column is None and len(df.columns):
+        # No recognizable header: Google Forms always puts the timestamp
+        # first, so accept the first column if it is genuinely full of dates.
+        first = df.iloc[:, 0].dropna()
+        if len(first) and all(isinstance(v, datetime) for v in first):
+            column = df.columns[0]
+    if column is None:
+        return []
+    stamps = (_parse_timestamp(v) for v in df[column].tolist())
+    return [t for t in stamps if t is not None]
+
+
+def read_submission_timestamps(path: str | Path) -> list[datetime]:
+    """Just the submission timestamps of an export (rows with a name only),
+    for prefilling a Season label without a full parse."""
+    df = pd.read_excel(path)
+    columns = _find_columns(list(df.columns))
+    name_col = columns.get("name")
+    if name_col is not None:
+        df = df[df[name_col].notna() & (df[name_col].astype(str).str.strip() != "")]
+    return _submission_timestamps(df, columns)
 
 
 def _split_multiselect(raw: object) -> list[str]:
@@ -209,6 +263,7 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
 
     df = df[df[name_col].notna() & (df[name_col].astype(str).str.strip() != "")]
     df = df.reset_index(drop=True)
+    submission_timestamps = _submission_timestamps(df, columns)
 
     # Pass 1: assign ids and build name-resolution indexes.
     names = [str(v).strip() for v in df[name_col].tolist()]
@@ -266,4 +321,4 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
     for field in missing_important:
         warnings.append(f"Column for {field!r} not found in {path} — feature left empty for all helpers")
 
-    return RawSurveyResult(helpers=helpers, warnings=warnings)
+    return RawSurveyResult(helpers=helpers, warnings=warnings, submission_timestamps=submission_timestamps)

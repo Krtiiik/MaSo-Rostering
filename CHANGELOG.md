@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Stored Seasons: every Season is now a stored, labelled unit (a year plus
+  `jaro`/`podzim`, e.g. `2026-jaro`; unique among stored Seasons, editable,
+  and the key that orders them in time) in its own directory
+  `data/seasons/<label>/` with its saved state and its Versions, and the
+  Workspace is the open Season. Uploading with no Season open creates one,
+  with the label prefilled from the export's submission timestamps (January to
+  June is jaro, July to December is podzim) and editable; when the timestamps
+  can't be read the label is asked for. Uploading while a Season is open is
+  always a re-upload into it. The open Season's label shows in a header above
+  every tab and can be renamed there (a rename renames the directory; a stable
+  Season id survives it).
+- A Seasons panel in the sidebar lists every stored Season (label, Helper
+  count, open or stored) with Open, Rename and Delete (not offered on the open
+  Season; the confirmation names what is lost, and the Season's Versions are
+  deleted with it), and a "New Season" button that opens a blank Season.
+- The first launch after this change moves an existing saved state and its
+  Versions from `data/workspace/` into a Season (asking once for the label,
+  prefilled from the file's date, since the old state kept no export
+  timestamps). A Season directory with no saved state (e.g. a hand-placed raw
+  export) is ignored.
 - The exported roster draws a Large room across two columns in every Role
   band, automatically (no setting): a Room whose Room-band Helpers
   (Opravovatel to Fotograf; Záloha and Manual roles excluded) number at least
@@ -59,6 +79,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without `/ \ ? * [ ] :`, cut to Excel's 31 characters and made unique (a
   " (2)" suffix) if that makes two collide or clash with the roster or
   "Trička" sheet.
+
+### Changed
+
+- "Start over" now empties the open Season's state but keeps its label, Season
+  id and Versions (and, as before, the saved buildings layout).
+- A Version snapshots the whole Season except its identity, and restoring one
+  asks for confirmation, saying that Person links, rejections, Tags,
+  Forced-friend groups and Assignments are rolled back; the Season's label and
+  id are never rolled back.
+- `ROSTERING_SEASONS_DIR` sets the Seasons directory; `ROSTERING_WORKSPACE_DIR`
+  (the old saved-state location) still isolates a throwaway run, with Seasons
+  under `<dir>/seasons`.
 
 ### Fixed
 

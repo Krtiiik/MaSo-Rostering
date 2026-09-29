@@ -49,8 +49,20 @@ Open http://127.0.0.1:8501 (Streamlit's default port; override with
 & rooms →" button to configure buildings/rooms, solve, then drag helpers
 between cells on the Roster tab to adjust. Save named versions, restore/
 delete them, and export the current roster to Excel from the sidebar/Roster
-tab. All working state lives under `data/workspace/` (gitignored, since it
-holds real helper data).
+tab.
+
+Every Season is stored and labelled (a year plus `jaro`/`podzim`, e.g.
+`2026-jaro`). Uploading with no Season open creates one, with the label
+prefilled from the export's submission timestamps (editable); the sidebar's
+Seasons panel opens, renames and deletes stored Seasons, and "New Season"
+starts a blank one. Each Season lives in its own directory
+`data/seasons/<label>/` (saved state in `state.json`, its Versions in
+`versions/`), next to any hand-placed `raw-response.xlsx`/`config.yaml`; the
+open Season is recorded in `data/seasons/open-season.json`. Everything is
+under `data/` (gitignored, since it holds real helper data). A state saved by
+an earlier version (`data/workspace/`) is moved into a Season on first
+launch. For a throwaway run, set `ROSTERING_WORKSPACE_DIR` (Seasons then live
+under `<dir>/seasons`) or `ROSTERING_SEASONS_DIR`.
 
 The buildings/rooms layout is pre-filled with a default (seeded from the most
 recent season's roster) and persists separately in `data/buildings-config.yaml`

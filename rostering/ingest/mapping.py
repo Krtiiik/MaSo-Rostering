@@ -14,6 +14,14 @@ from typing import Optional
 from rostering.domain import normalize_name
 
 FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
+    # Google Forms' automatic first column. Only feeds the Season label
+    # prefill (see rostering.persistence.season_label), so its absence is
+    # not a warning.
+    "timestamp": [
+        "Časová značka",
+        "Časové razítko",
+        "Timestamp",
+    ],
     "name": [
         "Tvé jméno a příjme,ní",  # historical typo, seen verbatim in 2026 export
         "Tvé jméno a příjmení",
