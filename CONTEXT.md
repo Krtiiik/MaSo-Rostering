@@ -12,7 +12,10 @@ solver.
 One occurrence of the competition, held twice a year — spring ("jaro") and
 autumn ("podzim") — named like `2026-jaro`. Each Season is solved as an
 independent rostering problem: new helper responses, and often a different
-Building/Room configuration, from every other Season.
+Building/Room configuration, from every other Season. A Season is identified
+by a required label — a year plus jaro/podzim — that is unique among stored
+Seasons, editable, and what orders Seasons in time. Every Season the app has
+worked on stays stored, not only the current one.
 
 **Helper**:
 A volunteer who registered via the survey and is eligible to receive one of
@@ -226,15 +229,19 @@ Photographing the award ceremony. An Additional role, scoped to a Room.
 A named, coloured label with an optional note, attached to any number of
 Helpers. A Tag may imply other Tags (e.g. "8.M" implies "GCHD") and may
 carry hard constraints on the Building or Role its Helpers can be assigned.
-Tags outlive a single Season.
+Each Season keeps its own Tags; they reach a later Season through Tag import.
 
 **Person**:
 The durable identity of one individual across Seasons, distinct from the
 per-Season record that represents them in a given Season — a Helper or an
-Organizer. Tags outlive a Season by attaching to the Person rather than to
-one Season's record. A Person is recognized by e-mail first, normalized
-name second (see Returning helper); a Person accumulates every e-mail and
-normalized name seen for them, and a new row is matched against all of them.
+Organizer. A Person carries identity only: it is what links a Season's
+Helpers and Organizers to their earlier records, and so lets Tag import
+re-apply a Season's Tags to the same people. A Person is recognized by
+e-mail first, normalized name second (see Returning helper); a Person
+accumulates every e-mail and normalized name seen for them across every
+stored Season, and a new row is matched against all of them. A Person exists
+only through the Seasons that record them: forgetting a Season forgets
+whatever only it knew.
 A promoted Helper keeps their Person; a
 hand-created Organizer has no e-mail, so every match for them is uncertain
 unless an e-mail is entered. Someone already known as an Organizer who shows
@@ -268,10 +275,13 @@ counting up, since former students keep helping as "the same class" ("10.M").
 ### Application
 
 **Workspace**:
-The web app's single current session: whatever Season's data is currently
-loaded, plus every edit made since. There is exactly one Workspace — no
-picking between multiple in-progress Seasons at once.
+The web app's single current session: the one Season currently open, plus
+every edit made since. There is exactly one Workspace — no working on
+several Seasons at once. Earlier Seasons stay stored and can be reopened
+into the Workspace, which is the only way to correct them.
 
 **Version**:
-A named, timestamped snapshot of the Workspace's state, saved and
-restorable on demand.
+A named, timestamped snapshot of the open Season's whole state, saved and
+restorable on demand. Restoring rolls back everything the Season holds
+(Person links, Tags, Forced friends groups, Assignments) except its label,
+and belongs to that Season — deleting the Season deletes its Versions.
