@@ -9,6 +9,7 @@ data/
 # are project tooling meant to be shared and discovered by future agents.
 /.claude/*
 !/.claude/skills/
+!/.claude/agents/
 # ...except symlinks a package (e.g. streamlit) installs into the venv and
 # the harness auto-links in — not project content, and the link target
 # (inside .venv/) wouldn't exist on another checkout anyway.
