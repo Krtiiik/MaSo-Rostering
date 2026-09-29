@@ -71,6 +71,12 @@ and this becomes a Broken rule. Bringing a laptop is no longer
 a hard constraint on Kreslič — it's tracked only for display (the roster
 export's `(n)` tag).
 
+**T-shirt size**:
+A Helper's shirt size, one of XS, S, M, L, XL, XXL, or **Unknown** when the
+survey answer is blank or unrecognizable (or a Hand-added Helper has none).
+Editable by hand on the Helper. Counted per Building, by the Building the
+person is placed in, for the shirt order.
+
 **Tag**:
 A label a Helper can carry: name (required, unique), colour, and note, plus an
 optional single parent Tag it implies. Implication forms a tree — a Tag has
