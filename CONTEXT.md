@@ -24,6 +24,10 @@ Only name and contact are required; every other field (Preferences, Building
 preference, equipment, Friend preference, T-shirt size) is optional and left
 at its normal empty/no-preference default.
 
+**Locked Assignment** *(planned, not yet implemented)*:
+An Assignment the user has fixed by hand for a chosen Helper so that a full
+Solve keeps it; a Solve discards every Assignment that isn't locked.
+
 **Can't attend**:
 A per-Helper flag marking them unavailable for the Season: excluded from the
 solver and absent from the roster grid entirely, for as long as it's set.
