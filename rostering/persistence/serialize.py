@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from rostering.domain import (
+    UNKNOWN_TSHIRT_SIZE,
     Assignment,
     Building,
     Helper,
@@ -18,6 +19,7 @@ from rostering.domain import (
     Room,
     StructuralAssignment,
     StructuralRole,
+    parse_tshirt_size,
 )
 from rostering.ingest.preferences import parse_role_token
 from rostering.solver.model import SolverConfig, SolverWeights
@@ -91,6 +93,7 @@ def helper_to_dict(h: Helper) -> dict:
         "can_bring_notebook": h.can_bring_notebook,
         "can_bring_camera": h.can_bring_camera,
         "unresolved_friend_names": list(h.unresolved_friend_names),
+        "tshirt_size": h.tshirt_size,
     }
 
 
@@ -113,6 +116,8 @@ def helper_from_dict(data: dict) -> Helper:
         can_bring_notebook=bool(data.get("can_bring_notebook", False)),
         can_bring_camera=bool(data.get("can_bring_camera", False)),
         unresolved_friend_names=list(data.get("unresolved_friend_names", [])),
+        # Workspaces saved before T-shirt sizes existed have no such key.
+        tshirt_size=parse_tshirt_size(data.get("tshirt_size")) or UNKNOWN_TSHIRT_SIZE,
     )
 
 

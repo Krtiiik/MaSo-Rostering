@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- T-shirt size: each Helper now has a size (XS, S, M, L, XL, XXL, or
+  Unknown), read from the survey question "Tvoje velikost trička" (matched
+  ignoring case and surrounding whitespace). A blank, "?" or free-text
+  answer becomes Unknown and adds an upload warning naming the Helper and the
+  raw text; an export without the column warns once and leaves every Helper
+  Unknown. The size is saved with the workspace (workspaces saved earlier
+  load as Unknown) and in the helpers CSV written by `rostering ingest`
+  (older CSVs without the column load as Unknown).
+- The exported workbook has a new "Trička" sheet right after the roster:
+  T-shirt counts per size (XS to XXL, plus an Unknown row only when someone
+  counted is Unknown) for each Building with Rooms, with a Celkem column and
+  a total row, for the shirt order. It counts every solved Helper in their
+  solved Building plus everyone holding an Organizer role in the Building
+  that role names, each person once; a hand-typed-name Organizer-role holder
+  counts as Unknown and an Organizer-role entry with no Building is not
+  counted.
+
 ### Fixed
 
 - Solver: a Helper's Building preference is now matched against the Season
