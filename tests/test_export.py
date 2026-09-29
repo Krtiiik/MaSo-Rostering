@@ -48,7 +48,7 @@ def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
 
     assert out_path.exists()
     wb = openpyxl.load_workbook(out_path)
-    assert wb.sheetnames == ["Pomocníci v místnostech"]
+    assert wb.sheetnames == ["Pomocníci v místnostech", "Trička"]
 
     ws = wb["Pomocníci v místnostech"]
     values = {cell.value for row in ws.iter_rows() for cell in row if cell.value}
@@ -151,3 +151,153 @@ def test_write_roster_with_no_manual_roles(tmp_path):
 
     assert out_path.exists()
     openpyxl.load_workbook(out_path)  # does not raise
+
+
+# ---- "Trička" sheet ----
+
+_TSHIRT_SHEET = "Trička"
+
+
+def _tshirt_fixture(helpers, placements, manual=None, extra_buildings=()):
+    """Buildings A and B (one Room each, plus any ``extra_buildings``) with
+    ``placements`` = [(helper_id, building, role)] solved into them."""
+    buildings = {
+        "A": Building(name="A", rooms=[Room(name="A1")]),
+        "B": Building(name="B", rooms=[Room(name="B1")]),
+    }
+    for extra in extra_buildings:
+        buildings[extra.name] = extra
+    comp = Competition(buildings=buildings, helpers=helpers)
+    names = {h.id: h.name for h in helpers}
+    result = SolveResult(
+        assignments=[
+            Assignment(helper_id=hid, helper_name=names[hid], building=b, room=f"{b}1", role=role)
+            for hid, b, role in placements
+        ],
+        status="OPTIMAL",
+        objective_value=0.0,
+    )
+    return comp, result, manual or ManualRoles()
+
+
+def _read_tshirt_sheet(tmp_path, comp, result, manual):
+    out_path = tmp_path / "roster.xlsx"
+    write_roster(comp, result, manual, out_path)
+    wb = openpyxl.load_workbook(out_path)
+    assert wb.sheetnames == ["Pomocníci v místnostech", _TSHIRT_SHEET]
+    return [[c.value for c in row] for row in wb[_TSHIRT_SHEET].iter_rows()]
+
+
+def test_tshirt_sheet_counts_sizes_per_building_with_celkem_and_total(tmp_path):
+    helpers = [
+        Helper(id=1, name="Anna", tshirt_size="XL"),
+        Helper(id=2, name="Petr", tshirt_size="XL"),
+        Helper(id=3, name="Klara", tshirt_size="S"),
+        Helper(id=4, name="David", tshirt_size="XXL"),
+    ]
+    comp, result, manual = _tshirt_fixture(
+        helpers,
+        [(1, "A", Role.Opravovatel), (2, "A", Role.Zaloha), (3, "B", Role.Menic), (4, "B", Role.Menic)],
+    )
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+
+    assert rows == [
+        ["Velikost", "A", "B", "Celkem"],
+        ["XS", 0, 0, 0],
+        ["S", 0, 1, 1],
+        ["M", 0, 0, 0],
+        ["L", 0, 0, 0],
+        ["XL", 2, 0, 2],
+        ["XXL", 0, 1, 1],
+        ["Celkem", 2, 2, 4],
+    ]
+
+
+def test_tshirt_sheet_unknown_row_appears_only_when_someone_counted_is_unknown(tmp_path):
+    known = [Helper(id=1, name="Anna", tshirt_size="M")]
+    comp, result, manual = _tshirt_fixture(known, [(1, "A", Role.Opravovatel)])
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    assert "Unknown" not in [r[0] for r in rows]
+
+    with_unknown = [Helper(id=1, name="Anna", tshirt_size="M"), Helper(id=2, name="Petr")]
+    comp, result, manual = _tshirt_fixture(
+        with_unknown, [(1, "A", Role.Opravovatel), (2, "B", Role.Opravovatel)]
+    )
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    labels = [r[0] for r in rows]
+    assert labels == ["Velikost", "XS", "S", "M", "L", "XL", "XXL", "Unknown", "Celkem"]
+    assert rows[labels.index("Unknown")] == ["Unknown", 0, 1, 1]
+    assert rows[-1] == ["Celkem", 1, 1, 2]
+
+
+def test_tshirt_sheet_only_lists_buildings_that_have_rooms(tmp_path):
+    helpers = [Helper(id=1, name="Anna", tshirt_size="M")]
+    comp, result, manual = _tshirt_fixture(
+        helpers, [(1, "A", Role.Opravovatel)], extra_buildings=[Building(name="Empty", rooms=[])]
+    )
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    assert rows[0] == ["Velikost", "A", "B", "Celkem"]
+
+
+def test_tshirt_sheet_counts_a_helper_with_an_additional_role_once(tmp_path):
+    helpers = [Helper(id=1, name="Anna", tshirt_size="M")]
+    manual = ManualRoles(
+        overlay=[
+            OverlayAssignment(role=OverlayRole.Registrace, helper_id=1, building="A"),
+            OverlayAssignment(role=OverlayRole.UvadeciUcastniku, helper_id=1, building="A", room="A1"),
+        ]
+    )
+    comp, result, manual = _tshirt_fixture(helpers, [(1, "A", Role.Opravovatel)], manual)
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    assert {r[0]: r for r in rows}["M"] == ["M", 1, 0, 1]
+    assert rows[-1] == ["Celkem", 1, 0, 1]
+
+
+def test_tshirt_sheet_counts_a_solved_helper_who_also_holds_an_organizer_role_once(tmp_path):
+    helpers = [Helper(id=1, name="Anna", tshirt_size="L")]
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="A", helper_id=1),
+            StructuralAssignment(role=StructuralRole.TechnickaPodpora, building="A", helper_id=1),
+        ]
+    )
+    comp, result, manual = _tshirt_fixture(helpers, [(1, "A", Role.Opravovatel)], manual)
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    assert {r[0]: r for r in rows}["L"] == ["L", 1, 0, 1]
+    assert rows[-1] == ["Celkem", 1, 0, 1]
+
+
+def test_tshirt_sheet_counts_organizer_role_holders_in_the_building_the_role_names(tmp_path):
+    helpers = [
+        Helper(id=1, name="Anna", tshirt_size="M"),
+        Helper(id=2, name="Petr", tshirt_size="XS"),  # registered but not solved: only an organizer
+    ]
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.PravaRuka, building="B", room="B1", helper_id=2),
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="B", helper_name="Jiří"),
+            # Same typed name again: still one person.
+            StructuralAssignment(role=StructuralRole.TechnickaPodpora, building="B", helper_name="Jiří"),
+        ]
+    )
+    comp, result, manual = _tshirt_fixture(helpers, [(1, "A", Role.Opravovatel)], manual)
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    by_label = {r[0]: r for r in rows}
+    assert by_label["M"] == ["M", 1, 0, 1]
+    assert by_label["XS"] == ["XS", 0, 1, 1]  # keeps the Helper's size
+    assert by_label["Unknown"] == ["Unknown", 0, 1, 1]  # typed name
+    assert rows[-1] == ["Celkem", 1, 2, 3]
+
+
+def test_tshirt_sheet_does_not_count_organizer_role_entries_without_a_building(tmp_path):
+    helpers = [Helper(id=1, name="Anna", tshirt_size="M"), Helper(id=2, name="Petr", tshirt_size="S")]
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="", helper_id=2),
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="", helper_name="Jiří"),
+        ]
+    )
+    comp, result, manual = _tshirt_fixture(helpers, [(1, "A", Role.Opravovatel)], manual)
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    assert rows[-1] == ["Celkem", 1, 0, 1]
+    assert "Unknown" not in [r[0] for r in rows]

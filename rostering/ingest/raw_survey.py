@@ -20,7 +20,7 @@ from typing import Optional
 
 import pandas as pd
 
-from rostering.domain import Helper, Role, normalize_name
+from rostering.domain import UNKNOWN_TSHIRT_SIZE, Helper, Role, normalize_name, parse_tshirt_size
 from rostering.ingest.mapping import (
     EQUIPMENT_ALIASES,
     FIELD_HEADER_CANDIDATES,
@@ -113,6 +113,15 @@ def _resolve_equipment(raw: object) -> tuple[bool, bool]:
                 elif flag == "camera":
                     camera = True
     return notebook, camera
+
+
+def _resolve_tshirt_size(raw: object, warnings: list[str], row_label: str) -> str:
+    text = _cell_str(raw)
+    size = parse_tshirt_size(text)
+    if size is None:
+        warnings.append(f"{row_label}: unrecognized T-shirt size {text or ''!r}")
+        return UNKNOWN_TSHIRT_SIZE
+    return size
 
 
 def _role_preferences_for_row(
@@ -215,6 +224,7 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
     friends_col = columns.get("friends")
     building_col = columns.get("building_preference")
     equipment_col = columns.get("equipment")
+    tshirt_col = columns.get("tshirt_size")
 
     for idx, (_, row) in enumerate(df.iterrows(), start=1):
         name = names[idx - 1]
@@ -224,6 +234,9 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
         )
         can_bring_notebook, can_bring_camera = (
             _resolve_equipment(row.get(equipment_col)) if equipment_col else (False, False)
+        )
+        tshirt_size = (
+            _resolve_tshirt_size(row.get(tshirt_col), warnings, name) if tshirt_col else UNKNOWN_TSHIRT_SIZE
         )
         friend_ids: list[int] = []
         unresolved_friends: list[str] = []
@@ -243,10 +256,13 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
                 can_bring_notebook=can_bring_notebook,
                 can_bring_camera=can_bring_camera,
                 unresolved_friend_names=unresolved_friends,
+                tshirt_size=tshirt_size,
             )
         )
 
-    missing_important = [f for f in ("building_preference", "friends", "equipment") if f not in columns]
+    missing_important = [
+        f for f in ("building_preference", "friends", "equipment", "tshirt_size") if f not in columns
+    ]
     for field in missing_important:
         warnings.append(f"Column for {field!r} not found in {path} — feature left empty for all helpers")
 

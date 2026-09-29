@@ -31,6 +31,9 @@ FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
     "equipment": [
         "Můžeš něco z níže uvedených přinést na soutěž?",
     ],
+    "tshirt_size": [
+        "Tvoje velikost trička",  # worded identically in every season so far
+    ],
     "role_pref_Opravovatel": ["Výběr role [Opravovatel]"],
     "role_pref_Menic": ["Výběr role [Měnič]"],
     "role_pref_Skenovac": ["Výběr role [Skenovač]"],

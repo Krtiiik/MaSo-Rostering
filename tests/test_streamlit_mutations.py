@@ -1,6 +1,9 @@
 import importlib
+import io
 from pathlib import Path
 
+import openpyxl
+import pandas as pd
 import pytest
 
 from rostering.persistence.workspace import Workspace
@@ -140,6 +143,43 @@ def test_solve_end_to_end_and_export(workspace):
 
     export_bytes = mutations.export_xlsx_bytes(workspace)
     assert export_bytes[:2] == b"PK"  # xlsx zip magic
+
+
+def _tshirt_sheet(export_bytes: bytes):
+    wb = openpyxl.load_workbook(io.BytesIO(export_bytes))
+    return [[c.value for c in row] for row in wb["Trička"].iter_rows()]
+
+
+def test_tshirt_size_survives_upload_reload_solve_and_export(workspace):
+    survey = io.BytesIO()
+    pd.DataFrame(
+        {"Tvoje jméno a příjmení": ["Anna", "Petr"], "Tvoje velikost trička": ["xl ", "?"]}
+    ).to_excel(survey, index=False)
+    state = mutations.upload_responses(workspace, survey.getvalue(), "survey.xlsx")
+    assert [h["tshirt_size"] for h in state["helpers"]] == ["XL", "Unknown"]
+    assert any("Petr" in w and "'?'" in w for w in state["ingestion_warnings"])
+
+    # Persisted, not just returned.
+    assert [h["tshirt_size"] for h in mutations.get_state(workspace)["helpers"]] == ["XL", "Unknown"]
+
+    mutations.put_config(workspace, SMALL_CONFIG)
+    mutations.solve(workspace)
+    rows = _tshirt_sheet(mutations.export_xlsx_bytes(workspace))
+    by_label = {r[0]: r for r in rows}
+    assert by_label["XL"][1] == 1
+    assert by_label["Unknown"][1] == 1
+
+
+def test_workspace_saved_before_tshirt_sizes_loads_as_unknown(workspace):
+    # _seed_two_helpers writes helper dicts exactly as older versions did:
+    # with no "tshirt_size" key at all.
+    _seed_two_helpers(workspace)
+    mutations.put_config(workspace, SMALL_CONFIG)
+    mutations.solve(workspace)
+    rows = _tshirt_sheet(mutations.export_xlsx_bytes(workspace))
+    by_label = {r[0]: r for r in rows}
+    assert by_label["Unknown"][1] == 2
+    assert by_label["XS"][1] == 0
 
 
 def test_manual_move_updates_assignment_and_recomputes_friend_pairs(workspace):

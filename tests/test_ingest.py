@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from rostering.domain import Helper, Preference, Role
@@ -92,3 +93,87 @@ def test_legacy_single_building_csv_warns_and_defaults_ineligible(tmp_path):
     assert helper.building_preferences == frozenset({"Karlov"})
     assert helper.can_bring_notebook is False
     assert helper.can_bring_camera is False
+
+
+# ---- T-shirt size (synthetic surveys; never the real Season exports) ----
+
+_NAME_HEADER = "Tvoje jméno a příjmení"
+_SIZE_HEADER = "Tvoje velikost trička"
+
+
+def _write_survey(tmp_path, names, sizes=None):
+    """A minimal synthetic survey export: a name column and, unless ``sizes``
+    is None, a T-shirt size column."""
+    data = {_NAME_HEADER: names}
+    if sizes is not None:
+        data[_SIZE_HEADER] = sizes
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame(data).to_excel(path, index=False)
+    return path
+
+
+def test_tshirt_size_recognized_sizes_are_stored_ignoring_case_and_whitespace(tmp_path):
+    path = _write_survey(
+        tmp_path,
+        ["A", "B", "C", "D", "E", "F", "G"],
+        ["XS", "s", " M", "L ", "xl ", " Xxl ", "XL"],
+    )
+    result = parse_raw_survey(path)
+    assert [h.tshirt_size for h in result.helpers] == ["XS", "S", "M", "L", "XL", "XXL", "XL"]
+    assert not any("T-shirt" in w for w in result.warnings)
+
+
+def test_tshirt_size_unrecognized_value_is_unknown_with_warning_naming_helper_and_raw_text(tmp_path):
+    path = _write_survey(tmp_path, ["Anna Nováková", "Petr"], ["?", "M"])
+    result = parse_raw_survey(path)
+    by_name = {h.name: h for h in result.helpers}
+    assert by_name["Anna Nováková"].tshirt_size == "Unknown"
+    assert by_name["Petr"].tshirt_size == "M"
+    size_warnings = [w for w in result.warnings if "T-shirt" in w]
+    assert len(size_warnings) == 1
+    assert "Anna Nováková" in size_warnings[0]
+    assert "'?'" in size_warnings[0]
+
+
+def test_tshirt_size_free_text_and_blank_are_unknown_with_warning(tmp_path):
+    path = _write_survey(tmp_path, ["Anna", "Petr", "Klara"], ["dámské M", None, "XXXL"])
+    result = parse_raw_survey(path)
+    assert [h.tshirt_size for h in result.helpers] == ["Unknown", "Unknown", "Unknown"]
+    size_warnings = [w for w in result.warnings if "T-shirt" in w]
+    assert len(size_warnings) == 3
+    assert "Anna" in size_warnings[0] and "dámské M" in size_warnings[0]
+    assert "Petr" in size_warnings[1]
+    assert "Klara" in size_warnings[2] and "XXXL" in size_warnings[2]
+
+
+def test_tshirt_size_missing_column_warns_once_and_leaves_every_helper_unknown(tmp_path):
+    path = _write_survey(tmp_path, ["Anna", "Petr"], sizes=None)
+    result = parse_raw_survey(path)
+    assert [h.tshirt_size for h in result.helpers] == ["Unknown", "Unknown"]
+    size_warnings = [w for w in result.warnings if "'tshirt_size'" in w]
+    assert len(size_warnings) == 1
+    # No per-helper spam when the whole column is absent.
+    assert not any("unrecognized T-shirt size" in w for w in result.warnings)
+
+
+def test_tshirt_size_header_wording_is_matched_loosely(tmp_path):
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame({_NAME_HEADER: ["Anna"], "tvoje  VELIKOST tricka": ["L"]}).to_excel(path, index=False)
+    assert parse_raw_survey(path).helpers[0].tshirt_size == "L"
+
+
+def test_legacy_csv_round_trips_tshirt_size_and_defaults_unknown_when_column_absent(tmp_path):
+    helpers = [Helper(id=1, name="Anna", tshirt_size="XL"), Helper(id=2, name="Petr")]
+    csv_path = tmp_path / "helpers.csv"
+    write_helpers_csv(helpers, csv_path)
+    loaded = {h.id: h for h in load_helpers_csv(csv_path).helpers}
+    assert loaded[1].tshirt_size == "XL"
+    assert loaded[2].tshirt_size == "Unknown"
+
+    old = tmp_path / "old.csv"
+    old.write_text(
+        "id,name,role_preferences,building_preferences,friends,can_bring_notebook,can_bring_camera\n"
+        "1,Anna,,,,false,false\n",
+        encoding="utf-8",
+    )
+    assert load_helpers_csv(old).helpers[0].tshirt_size == "Unknown"

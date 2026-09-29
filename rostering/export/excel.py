@@ -14,6 +14,10 @@ each with its own merges), the 6 solved roles (Opravovatel/Měnič/.../
 Fotograf; Záloha is deferred to the bottom to match the historical layout),
 the overlay roles (Uvaděči účastníků, Focení předávání cen, Registrace),
 then Záloha and Technická podpora. See CLAUDE.md for the role glossary.
+
+A second sheet, "Trička", follows the roster sheet: T-shirt counts per size
+and Building for the shirt order (who is counted lives in
+`rostering.export.people`).
 """
 from __future__ import annotations
 
@@ -24,6 +28,8 @@ from typing import Optional
 import xlsxwriter
 
 from rostering.domain import (
+    TSHIRT_SIZES,
+    UNKNOWN_TSHIRT_SIZE,
     Competition,
     Helper,
     ManualRoles,
@@ -33,8 +39,10 @@ from rostering.domain import (
     StructuralRole,
     group_adjacent_rooms,
 )
+from rostering.export.people import CountedPerson, counted_people
 
 _SHEET_NAME = "Pomocníci v místnostech"
+_TSHIRT_SHEET_NAME = "Trička"
 
 # (label-column color, data-cell color) per solved role.
 _ROLE_COLORS: dict[Role, tuple[str, str]] = {
@@ -85,6 +93,52 @@ def _annotate(helper: Helper | None, fallback_name: str = "") -> str:
         tags.append("f")
     suffix = f" ({', '.join(tags)})" if tags else ""
     return f"{helper.name}{suffix}"
+
+
+def _write_tshirt_sheet(workbook: xlsxwriter.Workbook, building_names: list[str], people: list[CountedPerson]) -> None:
+    """The "Trička" sheet: T-shirt sizes as rows, Buildings (config order) as
+    columns, then a Celkem column and a total row. Counted per Building only;
+    the Unknown row is shown only when someone counted is Unknown."""
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+    for person in people:
+        if person.building in building_names:
+            counts[(person.tshirt_size, person.building)] += 1
+
+    sizes = list(TSHIRT_SIZES)
+    if any(size == UNKNOWN_TSHIRT_SIZE for size, _ in counts):
+        sizes.append(UNKNOWN_TSHIRT_SIZE)
+
+    ws = workbook.add_worksheet(_TSHIRT_SHEET_NAME)
+    base = {"font_name": "Arial", "align": "center", "border": 1}
+    header_fmt = workbook.add_format({**base, "bold": True})
+    body_fmt = workbook.add_format(base)
+    total_fmt = workbook.add_format({**base, "bold": True})
+
+    ws.write(0, 0, "Velikost", header_fmt)
+    for c, name in enumerate(building_names, start=1):
+        ws.write(0, c, name, header_fmt)
+    celkem_col = len(building_names) + 1
+    ws.write(0, celkem_col, "Celkem", header_fmt)
+
+    column_totals = [0] * len(building_names)
+    for r, size in enumerate(sizes, start=1):
+        ws.write(r, 0, size, header_fmt)
+        row_total = 0
+        for c, name in enumerate(building_names):
+            n = counts.get((size, name), 0)
+            ws.write_number(r, c + 1, n, body_fmt)
+            row_total += n
+            column_totals[c] += n
+        ws.write_number(r, celkem_col, row_total, total_fmt)
+
+    total_row = len(sizes) + 1
+    ws.write(total_row, 0, "Celkem", header_fmt)
+    for c, n in enumerate(column_totals, start=1):
+        ws.write_number(total_row, c, n, total_fmt)
+    ws.write_number(total_row, celkem_col, sum(column_totals), total_fmt)
+
+    ws.set_column(0, 0, 10)
+    ws.set_column(1, celkem_col, max([len(n) for n in building_names] + [8]) + 2)
 
 
 def write_roster(
@@ -387,5 +441,7 @@ def write_roster(
     for c in range(0, num_cols + 1):
         chars = col_width_chars.get(c, 8)
         ws.set_column(c, c, min(max(chars + 2, 8), 40))
+
+    _write_tshirt_sheet(workbook, [b.name for b in buildings], counted_people(comp, result, manual))
 
     workbook.close()

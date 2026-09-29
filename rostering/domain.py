@@ -80,6 +80,20 @@ def normalize_name(value: Optional[str]) -> str:
     ).replace(" ", "").replace("_", "").replace("-", "")
 
 
+# The T-shirt sizes the survey answer may resolve to, in the order the
+# "Trička" sheet lists them. Extend this tuple (nothing else) to accept a new
+# size such as "XXXL".
+TSHIRT_SIZES: tuple[str, ...] = ("XS", "S", "M", "L", "XL", "XXL")
+UNKNOWN_TSHIRT_SIZE = "Unknown"
+
+
+def parse_tshirt_size(value: Optional[str]) -> Optional[str]:
+    """The canonical size in ``TSHIRT_SIZES`` that ``value`` names, ignoring
+    case and surrounding whitespace, or None if it names none of them."""
+    text = (value or "").strip().upper()
+    return text if text in TSHIRT_SIZES else None
+
+
 @dataclass
 class Helper:
     id: int
@@ -97,6 +111,9 @@ class Helper:
     # during ingestion — surfaced so the season's data can be fixed by hand
     # rather than silently losing the preference.
     unresolved_friend_names: list[str] = field(default_factory=list)
+    # One of TSHIRT_SIZES, or UNKNOWN_TSHIRT_SIZE (the default: hand-added
+    # helpers, legacy CSV rows and unparsed survey answers).
+    tshirt_size: str = UNKNOWN_TSHIRT_SIZE
 
 
 @dataclass

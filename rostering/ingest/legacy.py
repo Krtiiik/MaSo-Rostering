@@ -5,7 +5,8 @@ Two shapes are accepted:
 - **Canonical** (written by ``rostering.cli ingest``): columns
   ``id,name,role_preferences,building_preferences,friends,can_bring_notebook,
   can_bring_camera``, where ``building_preferences`` is a semicolon-separated
-  list (the place question is multi-select, see CLAUDE.md).
+  list (the place question is multi-select, see CLAUDE.md), plus an optional
+  ``tshirt_size`` column (a file without it loads every size as Unknown).
 - **Legacy** (hand-written or produced by the old ``utils/parse_helpers.py``):
   columns ``id,name,role_preferences,building_preference,friends`` — a single
   building and no equipment columns. Since eligibility can't be inferred from
@@ -19,7 +20,7 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
-from rostering.domain import Helper
+from rostering.domain import UNKNOWN_TSHIRT_SIZE, Helper, parse_tshirt_size
 from rostering.ingest.preferences import parse_preference, parse_role_token
 
 
@@ -84,6 +85,8 @@ def load_helpers_csv(csv_path: str | Path) -> LegacyCsvResult:
 
             friends_raw = (row.get("friends") or "").strip()
             friends = [int(x.strip()) for x in friends_raw.split(",") if x.strip()]
+            # Optional column: absent (older files) or unrecognized -> Unknown.
+            tshirt_size = parse_tshirt_size(row.get("tshirt_size")) or UNKNOWN_TSHIRT_SIZE
 
             helpers.append(
                 Helper(
@@ -94,6 +97,7 @@ def load_helpers_csv(csv_path: str | Path) -> LegacyCsvResult:
                     friends=friends,
                     can_bring_notebook=can_bring_notebook,
                     can_bring_camera=can_bring_camera,
+                    tshirt_size=tshirt_size,
                 )
             )
 
@@ -111,6 +115,7 @@ def write_helpers_csv(helpers: list[Helper], csv_path: str | Path) -> None:
         "can_bring_notebook",
         "can_bring_camera",
         "unresolved_friends",
+        "tshirt_size",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -128,5 +133,6 @@ def write_helpers_csv(helpers: list[Helper], csv_path: str | Path) -> None:
                     "can_bring_notebook": str(h.can_bring_notebook).lower(),
                     "can_bring_camera": str(h.can_bring_camera).lower(),
                     "unresolved_friends": ";".join(h.unresolved_friend_names),
+                    "tshirt_size": h.tshirt_size,
                 }
             )
