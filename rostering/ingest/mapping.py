@@ -9,6 +9,10 @@ ingestion logic — when a new season introduces new wording.
 """
 from __future__ import annotations
 
+from typing import Optional
+
+from rostering.domain import normalize_name
+
 FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
     "name": [
         "Tvé jméno a příjme,ní",  # historical typo, seen verbatim in 2026 export
@@ -56,6 +60,26 @@ BUILDING_ALIASES: dict[str, str] = {
     "krizikova": "Karlín",
     "karlin": "Karlín",
 }
+
+
+def resolve_building_aliases(text: Optional[str]) -> set[str]:
+    """Canonical building names whose alias appears in ``text`` (any
+    diacritics/case/spacing)."""
+    norm_text = normalize_name(text)
+    return {name for alias, name in BUILDING_ALIASES.items() if alias in norm_text}
+
+
+def building_keys(name: Optional[str]) -> frozenset[str]:
+    """Comparison keys for a building name, so a Helper's Building preference
+    (as ingestion spells it, e.g. "Malá Strana", "Impakt + Troja") can be
+    matched against a Season config's own spelling ("Mala Strana", "Troja").
+    Two names denote the same Building iff their key sets intersect. A name no
+    alias recognizes falls back to its normalized text."""
+    canonical = resolve_building_aliases(name)
+    if canonical:
+        return frozenset(normalize_name(c) for c in canonical)
+    return frozenset({normalize_name(name)})
+
 
 # Substring (normalized) -> equipment flag. The equipment question is a
 # multi-select checkbox, e.g. "Notebook, Fotoaparát".

@@ -22,9 +22,9 @@ import pandas as pd
 
 from rostering.domain import Helper, Role, normalize_name
 from rostering.ingest.mapping import (
-    BUILDING_ALIASES,
     EQUIPMENT_ALIASES,
     FIELD_HEADER_CANDIDATES,
+    resolve_building_aliases,
 )
 from rostering.ingest.preferences import parse_preference, parse_role_token
 
@@ -95,8 +95,7 @@ def _resolve_buildings(raw: object, warnings: list[str], row_label: str) -> froz
     text = _cell_str(raw)
     if not text:
         return frozenset()
-    norm_text = normalize_name(text)
-    resolved = {name for alias, name in BUILDING_ALIASES.items() if alias in norm_text}
+    resolved = resolve_building_aliases(text)
     if not resolved:
         warnings.append(f"{row_label}: unrecognized building preference {text!r}")
     return frozenset(resolved)

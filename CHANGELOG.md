@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Solver: a Helper's Building preference is now matched against the Season
+  config's buildings ignoring diacritics, case and spacing, and recognizing
+  the survey's building aliases. Previously the comparison was an exact
+  string match, so a config naming a building "Mala Strana", "Karlin" or
+  "Troja" never matched the survey's "Malá Strana", "Karlín" or
+  "Impakt + Troja" — every stated Building preference was then treated as
+  unmet for those buildings, silently skewing the solved rosters.
+
 ### Removed
 
 - Solver: bringing a laptop is no longer a hard constraint on being assigned

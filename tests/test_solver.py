@@ -120,3 +120,53 @@ def test_no_rooms_configured_falls_back_to_synthetic_room():
 
     assert result is not None
     assert len(result.assignments) == 1
+
+
+def _zero_cap_building(name):
+    return Building(name=name, rooms=[Room(name=f"{name}-R", capacities={Role.Zaloha: RoleCapacity(0)})])
+
+
+def test_building_preference_matches_config_name_without_diacritics():
+    # Ingestion yields "Malá Strana"; the season config may spell it
+    # "Mala Strana" (real 2026-jaro config does). It's the same Building.
+    buildings = {
+        "Mala Strana": _zero_cap_building("Mala Strana"),
+        "Karlov": _zero_cap_building("Karlov"),
+    }
+    helper = Helper(id=1, name="H", building_preferences=frozenset({"Malá Strana"}))
+    comp = Competition(buildings=buildings, helpers=[helper])
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
+
+    assert result is not None
+    assert result.objective_value == 0
+    assert result.assignments[0].building == "Mala Strana"
+
+
+def test_building_preference_matches_config_alias_of_impakt_troja():
+    # Ingestion maps both "Impakt" and "Troja" answers to "Impakt + Troja";
+    # a season config naming that building just "Troja" must still match.
+    buildings = {
+        "Troja": _zero_cap_building("Troja"),
+        "Karlin": _zero_cap_building("Karlin"),
+    }
+    helper = Helper(id=1, name="H", building_preferences=frozenset({"Impakt + Troja"}))
+    comp = Competition(buildings=buildings, helpers=[helper])
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
+
+    assert result is not None
+    assert result.objective_value == 0
+    assert result.assignments[0].building == "Troja"
+
+
+def test_building_preference_still_penalizes_a_genuinely_different_building():
+    buildings = {"Karlov": _zero_cap_building("Karlov")}
+    helper = Helper(id=1, name="H", building_preferences=frozenset({"Malá Strana"}))
+    comp = Competition(buildings=buildings, helpers=[helper])
+    config = SolverConfig(time_limit_seconds=5)
+
+    result = solve_competition(comp, config)
+
+    assert result is not None
+    assert result.objective_value == config.weights.building_mismatch
