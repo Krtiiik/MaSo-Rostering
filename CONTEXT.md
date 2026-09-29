@@ -178,9 +178,28 @@ Helpers. A Tag may imply other Tags (e.g. "8.M" implies "GCHD") and may
 carry hard constraints on the Building or Role its Helpers can be assigned.
 Tags outlive a single Season.
 
+**Person**:
+The durable identity of one individual across Seasons, distinct from the
+per-Season record that represents them in a given Season — a Helper or an
+Organizer. Tags outlive a Season by attaching to the Person rather than to
+one Season's record. A Person is recognized by e-mail first, normalized
+name second (see Returning helper); a Person accumulates every e-mail and
+normalized name seen for them, and a new row is matched against all of them.
+A promoted Helper keeps their Person; a
+hand-created Organizer has no e-mail, so every match for them is uncertain
+unless an e-mail is entered. Someone already known as an Organizer who shows
+up in a new survey is offered a link to that Person, never auto-promoted.
+
 **Returning helper**:
 A Helper who also registered in an earlier Season and is recognized as the
-same person.
+same Person. Recognition looks at every earlier Season the app has stored,
+not just the previous one, and applies the same way to a re-upload within
+one Season (duplicate rows in one export collapse to the latest submission;
+someone missing from a newer export is kept, not removed). A **confident match** is an identical normalized
+e-mail — linked automatically even if the name differs. An **uncertain
+match** is an identical normalized name with no e-mail match — proposed, not
+linked until the user confirms it. Phone number is never a key. Anything
+else is treated as a new Person.
 
 **Tag import**:
 Bringing a previous Season's Tags into the current Season and re-applying
