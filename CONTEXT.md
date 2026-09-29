@@ -58,6 +58,15 @@ hardcoded.
 A room within a Building. Room groupings also change Season to Season —
 rooms get merged or split.
 
+**Large room** *(planned, not yet implemented)*:
+A Room noticeably bigger than the others, shown across two columns in the
+exported roster. Judged automatically, never marked by hand: its size — the
+Helpers placed in it across the five Roles other than Záloha, which is
+building-wide — is at least 1.5 times the median size of the Rooms on the
+roster that have Helpers. Judged against the roster as it currently stands,
+so a hand edit or re-solve can change it. A Room the user has merged with a
+neighbour is never Large.
+
 **Building preference**:
 The set of Buildings a Helper marked as acceptable on the survey (a
 multi-select question, not a single ranked choice). Satisfied if the
