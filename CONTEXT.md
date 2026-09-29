@@ -68,7 +68,7 @@ hardcoded.
 A room within a Building. Room groupings also change Season to Season —
 rooms get merged or split.
 
-**Large room** *(planned, not yet implemented)*:
+**Large room**:
 A Room noticeably bigger than the others, shown across two columns in the
 exported roster. Judged automatically, never marked by hand: its size — the
 Helpers placed in it across the five Roles other than Záloha, which is

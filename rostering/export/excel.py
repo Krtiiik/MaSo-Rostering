@@ -15,13 +15,20 @@ Fotograf; Záloha is deferred to the bottom to match the historical layout),
 the overlay roles (Uvaděči účastníků, Focení předávání cen, Registrace),
 then Záloha and Technická podpora. See CLAUDE.md for the role glossary.
 
+A Large room (see `_large_rooms` and CONTEXT.md) is drawn across two adjacent
+columns in every Role band, chosen automatically at each export: the band's
+first column fills to a sheet-wide height and the second takes the rest.
+Export only; the in-app grid keeps one column per Room.
+
 A second sheet, "Trička", follows the roster sheet: T-shirt counts per size
 and Building for the shirt order (who is counted lives in
 `rostering.export.people`).
 """
 from __future__ import annotations
 
+import math
 from collections import defaultdict
+from fractions import Fraction
 from pathlib import Path
 from typing import Optional
 
@@ -80,6 +87,56 @@ _OVERLAY_COLORS: dict[OverlayRole, tuple[str, str]] = {
 _OVERLAY_ORDER = [OverlayRole.UvadeciUcastniku, OverlayRole.FoceniPredavaniCen, OverlayRole.Registrace]
 
 _WRAP_ROW_HEIGHT = 30
+
+# Structural roles whose row is per room (each Room has its own cell, with the
+# row's own adjacent-room merges); the other structural roles are building-wide.
+_ROOM_SCOPED_STRUCTURAL_ROLES = (StructuralRole.PravaRuka, StructuralRole.VedouciMistnosti)
+
+# A Room is a candidate for two-column overflow ("Large room" in CONTEXT.md)
+# when its size is at least this multiple of the sheet-wide median Room size.
+_LARGE_ROOM_THRESHOLD = Fraction(3, 2)
+# With fewer Rooms than this holding Helpers, a median means nothing: no Room
+# overflows.
+_LARGE_ROOM_MIN_ROOMS = 3
+# Suffix of the solver's synthetic fallback Rooms, ignored by the detection.
+_UNCONFIGURED_SUFFIX = "(unconfigured)"
+
+RoomKey = tuple[str, str]  # (building name, room name)
+
+
+def _large_rooms(
+    room_role_counts: dict[RoomKey, dict[Role, int]],
+    merged_rooms: set[RoomKey],
+) -> set[RoomKey]:
+    """The Rooms drawn across two columns in the export: Large rooms that
+    actually need the second column.
+
+    ``room_role_counts`` holds, for every configured Room, how many Helpers it
+    has in each of the five Room-band Roles (Záloha and Manual roles are not
+    part of a Room's size). ``merged_rooms`` are Rooms the user merged with a
+    neighbour in any row; they never overflow. See CONTEXT.md, "Large room"."""
+    rooms = {k: v for k, v in room_role_counts.items() if not k[1].endswith(_UNCONFIGURED_SUFFIX)}
+    size = {k: sum(v.values()) for k, v in rooms.items()}
+    sizes = sorted(s for s in size.values() if s > 0)
+    if len(sizes) < _LARGE_ROOM_MIN_ROOMS:
+        return set()
+
+    mid = len(sizes) // 2
+    twice_median = sizes[mid] * 2 if len(sizes) % 2 else sizes[mid - 1] + sizes[mid]
+    threshold = _LARGE_ROOM_THRESHOLD * Fraction(twice_median, 2)
+    candidates = {k for k, s in size.items() if s > 0 and s >= threshold}
+
+    # K per band = the tallest non-candidate Room in it. A candidate needs a
+    # second column only where it stands taller than that.
+    first_column = {
+        role: max((rooms[k].get(role, 0) for k in rooms if k not in candidates), default=0)
+        for role in _ROLE_ORDER
+    }
+    return {
+        k
+        for k in candidates
+        if k not in merged_rooms and any(rooms[k].get(role, 0) > first_column[role] for role in _ROLE_ORDER)
+    }
 
 
 def _annotate(helper: Helper | None, fallback_name: str = "") -> str:
@@ -158,16 +215,34 @@ def write_roster(
 
     room_obj = {(b.name, r.name): r for b in buildings for r in b.rooms}
 
-    # Column layout: always one column per physical room — merging only
-    # ever collapses *cells within one row*, never the column layout itself.
-    room_col: dict[tuple[str, str], int] = {}
+    # Which Rooms are drawn across two columns (a Large room that needs it),
+    # judged from the roster as it stands. A Room the user merged with a
+    # neighbour in any of its room-scoped rows never overflows.
+    room_role_counts: dict[RoomKey, dict[Role, int]] = {key: defaultdict(int) for key in room_obj}
+    for a in result.assignments:
+        if a.role in _ROLE_ORDER and (a.building, a.room) in room_role_counts:
+            room_role_counts[(a.building, a.room)][a.role] += 1
+    room_scoped_row_keys = [role.name for role in _ROLE_ORDER] + [role.name for role in _ROOM_SCOPED_STRUCTURAL_ROLES]
+    merged_rooms: set[RoomKey] = set()
+    for b in buildings:
+        for row_key in room_scoped_row_keys:
+            for group in row_groups(row_key, b.name, [r.name for r in b.rooms]):
+                if len(group) > 1:
+                    merged_rooms.update((b.name, n) for n in group)
+    overflow_rooms = _large_rooms(room_role_counts, merged_rooms)
+
+    # Column layout: one column per physical room — merging only ever
+    # collapses *cells within one row*, never the column layout itself — except
+    # that an overflow Room owns two adjacent columns.
+    room_cols: dict[RoomKey, tuple[int, int]] = {}
     building_span: dict[str, tuple[int, int]] = {}
     col = 1
     for b in buildings:
         start = col
         for room in b.rooms:
-            room_col[(b.name, room.name)] = col
-            col += 1
+            width = 2 if (b.name, room.name) in overflow_rooms else 1
+            room_cols[(b.name, room.name)] = (col, col + width - 1)
+            col += width
         building_span[b.name] = (start, col - 1)
     num_cols = max(col - 1, 1)
 
@@ -177,8 +252,7 @@ def write_roster(
             col_group_of[c] = (start, end)
 
     def group_col_range(group: list[str], building_name: str) -> tuple[int, int]:
-        cols = sorted(room_col[(building_name, n)] for n in group)
-        return cols[0], cols[-1]
+        return room_cols[(building_name, group[0])][0], room_cols[(building_name, group[-1])][1]
 
     workbook = xlsxwriter.Workbook(str(out_path))
     ws = workbook.add_worksheet(_SHEET_NAME)
@@ -259,19 +333,16 @@ def write_roster(
     for b in buildings:
         write_building_row(0, b.name, b.name, header_fmt_merged)
     for b in buildings:
-        start, end = building_span[b.name]
-        for i, room in enumerate(b.rooms):
-            c = start + i
-            _, _, left, right = borders(1, 1, 1, c, c)
+        for room in b.rooms:
+            c_start, c_end = room_cols[(b.name, room.name)]
+            _, _, left, right = borders(1, 1, 1, c_start, c_end)
             fmt = cell_format(bold=True, top="thin", bottom="medium", left=left, right=right)
-            track_width(c, room.name)
-            ws.write(1, c, room.name, fmt)
+            write_cell(1, c_start, c_end, room.name, fmt)
     row = 2
 
     # ---- Structural roles: Vedoucí budovy is building-wide; Pravá ruka and
     # Vedoucí místností are per room (each room can have its own deputy/lead,
     # with any of that row's own cell merges) ----
-    _ROOM_SCOPED_STRUCTURAL_ROLES = (StructuralRole.PravaRuka, StructuralRole.VedouciMistnosti)
     structural_building: dict[tuple[StructuralRole, str], list[str]] = defaultdict(list)
     structural_room: dict[tuple[StructuralRole, str, str], list[str]] = defaultdict(list)
     for entry in manual.structural:
@@ -347,6 +418,11 @@ def write_roster(
     for solved_role in _ROLE_ORDER:
         groups_by_building = role_groups_by_building[solved_role]
 
+        # An overflow Room stacks its Helpers over two columns instead, so it
+        # only asks for half its need (rounded up) in rows; `max_min` is then
+        # K, the height the first column fills to. A Room needing more than
+        # twice the height of the others raises K rather than getting a third
+        # column.
         max_min = 1
         for b in buildings:
             for group in groups_by_building[b.name]:
@@ -359,7 +435,10 @@ def write_roster(
                     if cap:
                         group_min += cap.minimum
                 group_count = len(group_placements.get((solved_role, b.name, tuple(group)), []))
-                max_min = max(max_min, group_min, group_count)
+                need = max(group_min, group_count)
+                if (b.name, group[0]) in overflow_rooms:
+                    need = math.ceil(need / 2)
+                max_min = max(max_min, need)
 
         role_row_start[solved_role] = row
         role_label_color, role_data_color = _ROLE_COLORS[solved_role]
@@ -375,13 +454,20 @@ def write_roster(
                 names = group_placements.get((solved_role, b.name, tuple(group)), [])
                 for r_offset in range(max_min):
                     data_row = row + r_offset
-                    top, bottom, left, right = borders(row, row + max_min - 1, data_row, col_start, col_end)
-                    if r_offset < len(names):
-                        fmt = cell_format(fill=role_data_color, top=top, bottom=bottom, left=left, right=right)
-                        write_cell(data_row, col_start, col_end, names[r_offset], fmt)
+                    if (b.name, group[0]) in overflow_rooms:
+                        # One cell per column: the first column takes the
+                        # first K names, the second the rest.
+                        slots = [(col_start, col_start, r_offset), (col_end, col_end, max_min + r_offset)]
                     else:
-                        fmt = cell_format(fill=_EMPTY_SLOT_COLOR, top=top, bottom=bottom, left=left, right=right)
-                        write_cell(data_row, col_start, col_end, None, fmt)
+                        slots = [(col_start, col_end, r_offset)]
+                    for slot_start, slot_end, name_idx in slots:
+                        top, bottom, left, right = borders(row, row + max_min - 1, data_row, slot_start, slot_end)
+                        if name_idx < len(names):
+                            fmt = cell_format(fill=role_data_color, top=top, bottom=bottom, left=left, right=right)
+                            write_cell(data_row, slot_start, slot_end, names[name_idx], fmt)
+                        else:
+                            fmt = cell_format(fill=_EMPTY_SLOT_COLOR, top=top, bottom=bottom, left=left, right=right)
+                            write_cell(data_row, slot_start, slot_end, None, fmt)
         role_row_end[solved_role] = row + max_min - 1
         row += max_min
 
