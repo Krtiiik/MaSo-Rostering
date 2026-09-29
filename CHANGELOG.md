@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The exported roster draws a Large room across two columns in every Role
+  band, automatically (no setting): a Room whose Room-band Helpers
+  (Opravovatel to Fotograf; Záloha and Manual roles excluded) number at least
+  1.5 times the median Room on the sheet, provided it is taller than the
+  other Rooms in at least one band. The first column of each band fills to
+  the tallest ordinary Room's height (raised if the Large room would need
+  more than two columns), the second takes the rest, unused slots stay grey;
+  the Room header and the Vedoucí místností / Pravá ruka cells merge across
+  both columns and Building headers and Building-wide rows span the extra
+  column. Fewer than three Rooms with Helpers, or a Room merged with a
+  neighbour, never overflow. The in-app grid is unchanged.
 - T-shirt size: each Helper now has a size (XS, S, M, L, XL, XXL, or
   Unknown), read from the survey question "Tvoje velikost trička" (matched
   ignoring case and surrounding whitespace). A blank, "?" or free-text
