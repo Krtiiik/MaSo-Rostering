@@ -22,7 +22,9 @@ Export only; the in-app grid keeps one column per Room.
 
 A second sheet, "Trička", follows the roster sheet: T-shirt counts per size
 and Building for the shirt order (who is counted lives in
-`rostering.export.people`).
+`rostering.export.people`). One helper-list sheet per Building follows it, in
+config order, for the Building lead to print (sorted by
+`rostering.export.collation`).
 """
 from __future__ import annotations
 
@@ -46,10 +48,17 @@ from rostering.domain import (
     StructuralRole,
     group_adjacent_rooms,
 )
+from rostering.export.collation import czech_sort_key
 from rostering.export.people import CountedPerson, counted_people
 
 _SHEET_NAME = "Pomocníci v místnostech"
 _TSHIRT_SHEET_NAME = "Trička"
+
+# Per-Building helper-list sheets: column titles and Excel's worksheet-name rules.
+_LIST_HEADER = ("Jméno", "Velikost trička", "Místnost", "Role")
+_FORBIDDEN_SHEET_CHARS = frozenset("/\\?*[]:")
+_MAX_SHEET_NAME = 31
+_FALLBACK_SHEET_NAME = "Budova"  # for a Building whose name is nothing but forbidden characters
 
 # (label-column color, data-cell color) per solved role.
 _ROLE_COLORS: dict[Role, tuple[str, str]] = {
@@ -196,6 +205,71 @@ def _write_tshirt_sheet(workbook: xlsxwriter.Workbook, building_names: list[str]
 
     ws.set_column(0, 0, 10)
     ws.set_column(1, celkem_col, max([len(n) for n in building_names] + [8]) + 2)
+
+
+def _list_sheet_names(building_names: list[str], taken: list[str]) -> list[str]:
+    """One valid, unique worksheet name per Building, in the given order.
+
+    Forbidden characters (``/ \\ ? * [ ] :``) are removed and the name cut to
+    Excel's 31 characters; a name that comes out blank, or starting/ending with
+    an apostrophe (also invalid), is repaired. Names are compared ignoring case,
+    as Excel does, and a clash — with an earlier list sheet or with the
+    ``taken`` sheets (the roster and "Trička") — gets a " (2)", " (3)", ...
+    suffix, the name cut so the suffix still fits."""
+    used = {name.lower() for name in taken}
+    names = []
+    for building in building_names:
+        base = "".join(ch for ch in building if ch not in _FORBIDDEN_SHEET_CHARS)
+        base = base[:_MAX_SHEET_NAME].strip("'")
+        if not base.strip():
+            base = _FALLBACK_SHEET_NAME
+        name, n = base, 1
+        while name.lower() in used:
+            n += 1
+            suffix = f" ({n})"
+            name = base[: _MAX_SHEET_NAME - len(suffix)].rstrip("'") + suffix
+        used.add(name.lower())
+        names.append(name)
+    return names
+
+
+def _write_building_list_sheets(
+    workbook: xlsxwriter.Workbook, building_names: list[str], people: list[CountedPerson]
+) -> None:
+    """One helper-list sheet per Building (config order), for the Building
+    lead to print: Jméno, Velikost trička, Místnost, Role, sorted by Czech
+    collation on the name exactly as entered. No phone numbers, no equipment
+    tags. Who is listed is the same set as the "Trička" counts."""
+    sheet_names = _list_sheet_names(building_names, [_SHEET_NAME, _TSHIRT_SHEET_NAME])
+    base = {"font_name": "Arial", "border": 1}
+    header_fmt = workbook.add_format({**base, "bold": True, "align": "center"})
+    body_fmt = workbook.add_format(base)
+    centered_fmt = workbook.add_format({**base, "align": "center"})
+
+    for building, sheet_name in zip(building_names, sheet_names):
+        listed = sorted(
+            (p for p in people if p.building == building),
+            key=lambda p: czech_sort_key(p.name),
+        )
+        ws = workbook.add_worksheet(sheet_name)
+        for c, title in enumerate(_LIST_HEADER):
+            ws.write(0, c, title, header_fmt)
+        for r, person in enumerate(listed, start=1):
+            ws.write_string(r, 0, person.name, body_fmt)
+            ws.write_string(r, 1, person.tshirt_size, centered_fmt)
+            if person.room:
+                ws.write_string(r, 2, person.room, body_fmt)
+            else:
+                ws.write_blank(r, 2, None, body_fmt)
+            ws.write_string(r, 3, person.role, body_fmt)
+
+        rows = [[p.name, p.tshirt_size, p.room, p.role] for p in listed]
+        for c, title in enumerate(_LIST_HEADER):
+            longest = max([len(title)] + [len(row[c]) for row in rows])
+            ws.set_column(c, c, min(longest + 2, 50))
+        ws.freeze_panes(1, 0)
+        ws.repeat_rows(0)
+        ws.fit_to_pages(1, 0)
 
 
 def write_roster(
@@ -528,6 +602,8 @@ def write_roster(
         chars = col_width_chars.get(c, 8)
         ws.set_column(c, c, min(max(chars + 2, 8), 40))
 
-    _write_tshirt_sheet(workbook, [b.name for b in buildings], counted_people(comp, result, manual))
+    people = counted_people(comp, result, manual)
+    _write_tshirt_sheet(workbook, [b.name for b in buildings], people)
+    _write_building_list_sheets(workbook, [b.name for b in buildings], people)
 
     workbook.close()

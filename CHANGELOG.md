@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that role names, each person once; a hand-typed-name Organizer-role holder
   counts as Unknown and an Organizer-role entry with no Building is not
   counted.
+- The exported workbook now also has one helper-list sheet per Building with
+  Rooms, after "Trička", in config order, for a Building lead to print:
+  columns Jméno, Velikost trička, Místnost and Role (no phone numbers, no
+  (n)/(f) tags). It lists the same people as "Trička", each once, sorted by
+  Czech collation on the full name as entered ("ch" after "h", diacritics as
+  tie-breaks; implemented in code, independent of the machine's locale). A
+  Helper shows their solved Room and Role; an Organizer-role holder shows
+  their Organizer role(s) instead (e.g. "Vedoucí budovy"), with the Room left
+  empty when placed only at Building level. Sheet names are the Building name
+  without `/ \ ? * [ ] :`, cut to Excel's 31 characters and made unique (a
+  " (2)" suffix) if that makes two collide or clash with the roster or
+  "Trička" sheet.
 
 ### Fixed
 

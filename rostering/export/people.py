@@ -14,12 +14,18 @@ role, which names a Building (see CONTEXT.md "Organizer role"). The rules:
   role's. Additional roles never add anyone: they only duplicate a Helper who
   is already solved.
 
+Each person also carries the Room and Role to show for them (the per-Building
+helper lists): a Helper's solved Room and Role; whoever holds Organizer roles
+in their counted Building is shown by those Organizer role(s) instead (joined
+with ", " when several), in their solved Room, or — for someone only an
+Organizer — in the first Room an entry names, empty at Building level.
+
 Can't attend and the Organizer entity aren't implemented yet; when they land,
 the same rules apply to them here and nowhere else.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from rostering.domain import (
     TSHIRT_SIZES,
@@ -27,6 +33,7 @@ from rostering.domain import (
     Competition,
     ManualRoles,
     SolveResult,
+    StructuralAssignment,
     manual_assignment_name,
     normalize_name,
 )
@@ -37,6 +44,8 @@ class CountedPerson:
     name: str
     building: str
     tshirt_size: str
+    room: str = ""  # empty: placed at Building level only
+    role: str = ""  # display text: a solved Role, or the Organizer role(s)
 
 
 def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) -> list[CountedPerson]:
@@ -61,22 +70,44 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
     for a in result.assignments:
         people.setdefault(
             ("id", a.helper_id),
-            CountedPerson(name=a.helper_name, building=a.building, tshirt_size=size_of(a.helper_id)),
+            CountedPerson(
+                name=a.helper_name,
+                building=a.building,
+                tshirt_size=size_of(a.helper_id),
+                room=a.room,
+                role=a.role.value,
+            ),
         )
 
+    # Organizer-role entries per person, in entry order. An entry with no
+    # Building places nobody.
+    entries_by_person: dict[tuple, list[StructuralAssignment]] = {}
+    first_entry_name: dict[tuple, str] = {}
     for entry in manual.structural:
         if not entry.building:
             continue
         if entry.helper_id is not None:
             key = ("id", entry.helper_id)
-            size = size_of(entry.helper_id)
         else:
             typed_name = (entry.helper_name or "").strip()
             if not typed_name:
                 continue
             key = ("name", normalize_name(typed_name))
-            size = UNKNOWN_TSHIRT_SIZE
-        name = manual_assignment_name(entry.helper_id, entry.helper_name, name_by_id)
-        people.setdefault(key, CountedPerson(name=name, building=entry.building, tshirt_size=size))
+        entries_by_person.setdefault(key, []).append(entry)
+        first_entry_name.setdefault(key, manual_assignment_name(entry.helper_id, entry.helper_name, name_by_id))
+
+    for key, entries in entries_by_person.items():
+        person = people.get(key)
+        if person is None:
+            # Only an Organizer: placed where their first entry says.
+            building = entries[0].building
+            size = size_of(key[1]) if key[0] == "id" else UNKNOWN_TSHIRT_SIZE
+            person = CountedPerson(name=first_entry_name[key], building=building, tshirt_size=size)
+        here = [e for e in entries if e.building == person.building]
+        if not here:
+            continue  # their solved Building wins; these roles are elsewhere
+        roles = list(dict.fromkeys(e.role.value for e in here))
+        room = person.room or next((e.room for e in here if e.room), "")
+        people[key] = replace(person, room=room, role=", ".join(roles))
 
     return list(people.values())
