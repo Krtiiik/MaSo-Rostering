@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Unknown. The size is saved with the workspace (workspaces saved earlier
   load as Unknown) and in the helpers CSV written by `rostering ingest`
   (older CSVs without the column load as Unknown).
+- A Helper's T-shirt size can be fixed by hand: the Helper list on the Upload
+  tab shows a "T-shirt size" column with a dropdown (XS to XXL, or Unknown) to
+  resolve the Unknowns flagged by the upload warnings. The edit is saved with
+  the workspace and shows in the "Trička" sheet and per-Building lists of the
+  next export. A size outside that set is rejected. (A hand-set size is not
+  yet kept when a newer survey export is re-uploaded; re-upload still replaces
+  all Helpers.)
 - The exported workbook has a new "Trička" sheet right after the roster:
   T-shirt counts per size (XS to XXL, plus an Unknown row only when someone
   counted is Unknown) for each Building with Rooms, with a Celkem column and

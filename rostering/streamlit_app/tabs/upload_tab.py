@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import hashlib
 
+import pandas as pd
 import streamlit as st
 
-from rostering.domain import Role
+from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Role
 from rostering.streamlit_app import mutations, session
 
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
+_SIZE_COLUMN = "T-shirt size"
+_SIZE_OPTIONS = [*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE]
 
 
 def render() -> None:
@@ -74,11 +77,39 @@ def _render_helpers_overview(state: dict) -> None:
                 "Name": h["name"],
                 "Buildings": buildings,
                 "Equipment": equipment,
+                _SIZE_COLUMN: h.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
                 "Role preferences": prefs,
                 "Resolved friends": friends,
             }
         )
-    st.dataframe(rows, width="stretch", hide_index=True)
+    st.caption("Pick a size in the T-shirt size column to fix an Unknown.")
+    shown = pd.DataFrame(rows)
+    edited = st.data_editor(
+        shown,
+        width="stretch",
+        hide_index=True,
+        num_rows="fixed",
+        disabled=[c for c in shown.columns if c != _SIZE_COLUMN],
+        column_config={
+            _SIZE_COLUMN: st.column_config.SelectboxColumn(_SIZE_COLUMN, options=_SIZE_OPTIONS, required=True),
+        },
+        key="helpers_overview_editor",
+    )
+    # Rows keep their original position in the returned frame (even when the
+    # user sorts the view), so position i is state["helpers"][i].
+    changed = False
+    for i, size in edited[_SIZE_COLUMN].items():
+        helper = state["helpers"][i]
+        if size == shown[_SIZE_COLUMN][i]:
+            continue
+        try:
+            session.set_state(mutations.set_tshirt_size(session.get_workspace(), helper["id"], size))
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        changed = True
+    if changed:
+        st.rerun()
 
 
 _DISMISS_LABEL = "✕ Not attending"

@@ -12,7 +12,14 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
-from rostering.domain import Competition, ManualRoles, SolveResult
+from rostering.domain import (
+    TSHIRT_SIZES,
+    UNKNOWN_TSHIRT_SIZE,
+    Competition,
+    ManualRoles,
+    SolveResult,
+    parse_tshirt_size,
+)
 from rostering.export.excel import write_roster
 from rostering.ingest.raw_survey import parse_raw_survey
 from rostering.persistence import config_store
@@ -168,6 +175,28 @@ def resolve_friend(
         raise RosteringError(f"Unknown action: {action}")
 
     helper["unresolved_friend_names"] = [n for n in helper["unresolved_friend_names"] if n != name]
+    workspace.save(state)
+    return state
+
+
+def set_tshirt_size(workspace: Workspace, helper_id: int, size: str) -> dict:
+    """Set one helper's T-shirt size by hand (chiefly to resolve an Unknown
+    flagged by the upload warnings). ``size`` must be one of
+    ``TSHIRT_SIZES`` or ``UNKNOWN_TSHIRT_SIZE``, matched ignoring case and
+    surrounding whitespace like the survey answer; anything else is rejected
+    and nothing is changed."""
+    state = workspace.load()
+    helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
+    if helper is None:
+        raise RosteringError(f"No such helper: {helper_id}")
+    if (size or "").strip().lower() == UNKNOWN_TSHIRT_SIZE.lower():
+        parsed: Optional[str] = UNKNOWN_TSHIRT_SIZE
+    else:
+        parsed = parse_tshirt_size(size)
+    if parsed is None:
+        allowed = ", ".join([*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE])
+        raise RosteringError(f"Invalid T-shirt size {size!r}; expected one of: {allowed}")
+    helper["tshirt_size"] = parsed
     workspace.save(state)
     return state
 
