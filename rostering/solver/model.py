@@ -28,6 +28,7 @@ from rostering.domain import (
     Room,
     SolveResult,
 )
+from rostering.ingest.mapping import building_keys
 from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs
 
 
@@ -123,6 +124,10 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
     penalty_terms: list[cp_model.LinearExprT] = []
     max_pref = max(p.value for p in Preference)
 
+    # Season configs and the survey spell buildings differently (diacritics,
+    # "Troja" vs "Impakt + Troja"), so preferences are matched by key.
+    room_building_keys = [building_keys(bname) for bname, _room in rooms]
+
     for h in helpers:
         for role, pref in h.role_preferences.items():
             weight = (max_pref - int(pref)) * config.weights.role_preference
@@ -130,8 +135,9 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
                 penalty_terms.append(weight * assign_role[h.id, role])
 
         if h.building_preferences:
-            for room_id, (bname, _room) in enumerate(rooms):
-                if bname not in h.building_preferences:
+            preferred_keys = frozenset().union(*(building_keys(p) for p in h.building_preferences))
+            for room_id, keys in enumerate(room_building_keys):
+                if keys.isdisjoint(preferred_keys):
                     penalty_terms.append(config.weights.building_mismatch * assign_room[h.id, room_id])
 
     # Friends: soft, scored per rostering.solver.scoring's configured mode.
