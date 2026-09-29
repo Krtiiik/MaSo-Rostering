@@ -48,7 +48,7 @@ def test_write_roster_produces_readable_workbook_with_manual_roles(tmp_path):
 
     assert out_path.exists()
     wb = openpyxl.load_workbook(out_path)
-    assert wb.sheetnames == ["Pomocníci v místnostech", "Trička"]
+    assert wb.sheetnames == ["Pomocníci v místnostech", "Trička", "Malá Strana"]
 
     ws = wb["Pomocníci v místnostech"]
     values = {cell.value for row in ws.iter_rows() for cell in row if cell.value}
@@ -184,7 +184,7 @@ def _read_tshirt_sheet(tmp_path, comp, result, manual):
     out_path = tmp_path / "roster.xlsx"
     write_roster(comp, result, manual, out_path)
     wb = openpyxl.load_workbook(out_path)
-    assert wb.sheetnames == ["Pomocníci v místnostech", _TSHIRT_SHEET]
+    assert wb.sheetnames[:2] == ["Pomocníci v místnostech", _TSHIRT_SHEET]
     return [[c.value for c in row] for row in wb[_TSHIRT_SHEET].iter_rows()]
 
 
@@ -674,3 +674,205 @@ def test_a_building_mixing_a_large_room_and_ordinary_rooms_widens_only_by_one_co
     assert sheet.room_cols("BIG") == (a0, a0 + 1)
     assert sheet.room_cols("S1") == (a0 + 2, a0 + 2)
     assert sheet.building_cols("B")[0] == a1 + 1
+
+
+# ---- Per-Building helper-list sheets ----
+
+_LIST_HEADER = ["Jméno", "Velikost trička", "Místnost", "Role"]
+
+
+def _lists_fixture(buildings, helpers, placements, manual=None):
+    """``buildings`` = {building name: [room names]} (config order);
+    ``placements`` = [(helper_id, building, room, role)] solved."""
+    comp = Competition(
+        buildings={b: Building(name=b, rooms=[Room(name=r) for r in rooms]) for b, rooms in buildings.items()},
+        helpers=helpers,
+    )
+    names = {h.id: h.name for h in helpers}
+    result = SolveResult(
+        assignments=[
+            Assignment(helper_id=hid, helper_name=names[hid], building=b, room=r, role=role)
+            for hid, b, r, role in placements
+        ],
+        status="OPTIMAL",
+        objective_value=0.0,
+    )
+    return comp, result, manual or ManualRoles()
+
+
+def _read_lists(tmp_path, comp, result, manual):
+    """The written workbook's sheet names and, per list sheet, its rows."""
+    out_path = tmp_path / "roster.xlsx"
+    write_roster(comp, result, manual, out_path)
+    wb = openpyxl.load_workbook(out_path)
+    rows = {
+        name: [[c.value for c in row] for row in wb[name].iter_rows()]
+        for name in wb.sheetnames[2:]
+    }
+    return wb.sheetnames, rows
+
+
+def test_a_list_sheet_per_building_with_rooms_follows_the_tshirt_sheet_in_config_order(tmp_path):
+    comp, result, manual = _lists_fixture(
+        {"Zeta": ["Z1"], "Empty": [], "Alfa": ["A1"]},
+        [Helper(id=1, name="Anna", tshirt_size="M")],
+        [(1, "Alfa", "A1", Role.Opravovatel)],
+    )
+    sheetnames, rows = _read_lists(tmp_path, comp, result, manual)
+
+    assert sheetnames == ["Pomocníci v místnostech", "Trička", "Zeta", "Alfa"]
+    assert rows["Zeta"] == [_LIST_HEADER]  # nobody there: just the header
+    assert rows["Alfa"] == [_LIST_HEADER, ["Anna", "M", "A1", "Opravovatel"]]
+
+
+def test_a_list_row_shows_name_size_room_and_role_without_phone_or_equipment_tags(tmp_path):
+    helpers = [
+        Helper(id=1, name="Anna Nováková", tshirt_size="XL", can_bring_notebook=True, can_bring_camera=True),
+        Helper(id=2, name="Petr"),  # size Unknown
+    ]
+    comp, result, manual = _lists_fixture(
+        {"A": ["A1", "A2"]},
+        helpers,
+        [(1, "A", "A2", Role.Menic), (2, "A", "A1", Role.Zaloha)],
+    )
+    _, rows = _read_lists(tmp_path, comp, result, manual)
+
+    assert rows["A"] == [
+        _LIST_HEADER,
+        ["Anna Nováková", "XL", "A2", "Měnič"],  # no "(n, f)" tag
+        ["Petr", "Unknown", "A1", "Záloha"],
+    ]
+
+
+def test_list_names_sort_by_czech_collation_regardless_of_locale(tmp_path):
+    names = [
+        "Zdeněk", "Šárka", "Sára", "Řehoř", "Rosa", "Ivo", "Chytrý", "Hana", "Čáp", "Cyril",
+        "Álex", "Alex", "Adam", "Ábel", "beata", "Milan", "Mika", "Michal", "Mihal",
+    ]
+    helpers = [Helper(id=i, name=n, tshirt_size="M") for i, n in enumerate(names, start=1)]
+    comp, result, manual = _lists_fixture(
+        {"A": ["A1"]}, helpers, [(h.id, "A", "A1", Role.Zaloha) for h in helpers]
+    )
+    _, rows = _read_lists(tmp_path, comp, result, manual)
+
+    # Diacritics only break ties (Ábel < Adam because b < d); "ch" is its own
+    # letter between h and i; č, ř, š, ž are letters of their own; case is
+    # ignored (beata between Alex and Cyril).
+    assert [r[0] for r in rows["A"][1:]] == [
+        "Ábel", "Adam", "Alex", "Álex", "beata", "Cyril", "Čáp", "Hana", "Chytrý",
+        "Ivo", "Mihal", "Michal", "Mika", "Milan", "Rosa", "Řehoř", "Sára", "Šárka", "Zdeněk",
+    ]
+
+
+def test_list_sorting_uses_the_full_name_as_entered(tmp_path):
+    names = ["Petr Adamec", "Anna Zelená", "Anna  Bílá", " Zoe", "Anna"]
+    helpers = [Helper(id=i, name=n, tshirt_size="S") for i, n in enumerate(names, start=1)]
+    comp, result, manual = _lists_fixture(
+        {"A": ["A1"]}, helpers, [(h.id, "A", "A1", Role.Zaloha) for h in helpers]
+    )
+    _, rows = _read_lists(tmp_path, comp, result, manual)
+
+    # No surname heuristic: plain left-to-right on the whole string, spaces
+    # ahead of letters. The name is written exactly as entered.
+    assert [r[0] for r in rows["A"][1:]] == [" Zoe", "Anna", "Anna  Bílá", "Anna Zelená", "Petr Adamec"]
+
+
+def test_list_shows_organizer_roles_and_leaves_room_empty_at_building_level(tmp_path):
+    helpers = [
+        Helper(id=1, name="Anna", tshirt_size="M"),
+        Helper(id=2, name="Petr", tshirt_size="XS"),  # registered, not solved: only an organizer
+    ]
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="B", helper_id=2),
+            StructuralAssignment(role=StructuralRole.PravaRuka, building="B", room="B2", helper_name="Jiří"),
+            StructuralAssignment(role=StructuralRole.TechnickaPodpora, building="", helper_name="Nikdo"),
+        ]
+    )
+    comp, result, manual = _lists_fixture(
+        {"A": ["A1"], "B": ["B1", "B2"]}, helpers, [(1, "A", "A1", Role.Opravovatel)], manual
+    )
+    _, rows = _read_lists(tmp_path, comp, result, manual)
+
+    assert rows["A"] == [_LIST_HEADER, ["Anna", "M", "A1", "Opravovatel"]]
+    assert rows["B"] == [
+        _LIST_HEADER,
+        ["Jiří", "Unknown", "B2", "Pravá ruka"],  # typed name: size Unknown
+        ["Petr", "XS", None, "Vedoucí budovy"],  # Building level only: no Room
+    ]
+
+
+def test_a_person_is_listed_once_whatever_roles_they_hold(tmp_path):
+    helpers = [Helper(id=1, name="Anna", tshirt_size="L")]
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="A", helper_id=1),
+            StructuralAssignment(role=StructuralRole.TechnickaPodpora, building="A", helper_id=1),
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="A", helper_name="Jiří"),
+            StructuralAssignment(role=StructuralRole.TechnickaPodpora, building="A", helper_name="  jiri "),
+        ],
+        overlay=[
+            OverlayAssignment(role=OverlayRole.Registrace, helper_id=1, building="A"),
+            OverlayAssignment(role=OverlayRole.UvadeciUcastniku, helper_id=1, building="A", room="A1"),
+        ],
+    )
+    comp, result, manual = _lists_fixture({"A": ["A1"], "B": ["B1"]}, helpers, [(1, "A", "A1", Role.Skenovac)], manual)
+    _, rows = _read_lists(tmp_path, comp, result, manual)
+
+    assert rows["B"] == [_LIST_HEADER]
+    # A solved Helper who is also an Organizer-role holder is shown by their
+    # Organizer role(s), in the Room they are solved into.
+    assert rows["A"] == [
+        _LIST_HEADER,
+        ["Anna", "L", "A1", "Vedoucí budovy, Technická podpora"],
+        ["Jiří", "Unknown", None, "Vedoucí budovy, Technická podpora"],
+    ]
+
+
+def test_list_sheet_names_drop_forbidden_characters_and_fit_excels_limit(tmp_path):
+    long_name = "Budova s velmi dlouhým názvem, který se nevejde"
+    comp, result, manual = _lists_fixture(
+        {"A/B\\C?D*E[F]G:H": ["R1"], long_name: ["R2"]},
+        [Helper(id=1, name="Anna", tshirt_size="M")],
+        [(1, long_name, "R2", Role.Opravovatel)],
+    )
+    sheetnames, rows = _read_lists(tmp_path, comp, result, manual)
+
+    assert sheetnames[2:] == ["ABCDEFGH", long_name[:31]]
+    assert len(sheetnames[3]) == 31
+    assert rows[long_name[:31]][1][0] == "Anna"
+
+
+def test_colliding_list_sheet_names_are_made_unique_within_the_limit(tmp_path):
+    shared = "Velmi dlouhá budova číslo"  # 25 chars
+    buildings = {
+        shared + " jedna": ["R1"],  # cut to 31 chars ...
+        shared + " jedna a další": ["R2"],  # ... the same 31 chars
+        "X:Y": ["R3"],  # ... "XY"
+        "X/Y": ["R4"],  # ... "XY" again
+        "xy": ["R5"],  # Excel names ignore case: collides with "XY"
+    }
+    comp, result, manual = _lists_fixture(buildings, [], [])
+    sheetnames, _ = _read_lists(tmp_path, comp, result, manual)
+
+    listed = sheetnames[2:]
+    assert len(listed) == 5
+    assert len({n.lower() for n in sheetnames}) == len(sheetnames)
+    assert all(len(n) <= 31 for n in listed)
+    assert listed[0] == (shared + " jedna a další")[:31]  # first keeps its plain cut name
+    assert listed[2] == "XY"
+    assert listed[3].startswith("XY") and listed[3] != "XY"
+
+
+def test_list_sheet_names_never_collide_with_the_roster_or_tshirt_sheets(tmp_path):
+    comp, result, manual = _lists_fixture(
+        {"Trička": ["R1"], "trička": ["R2"], "Pomocníci v místnostech": ["R3"], "'": ["R4"], "???": ["R5"]},
+        [],
+        [],
+    )
+    sheetnames, _ = _read_lists(tmp_path, comp, result, manual)
+
+    assert sheetnames[:2] == ["Pomocníci v místnostech", "Trička"]
+    assert len(sheetnames) == 7
+    assert len({n.lower() for n in sheetnames}) == 7
+    assert all(n and len(n) <= 31 and not n.startswith("'") and not n.endswith("'") for n in sheetnames)
