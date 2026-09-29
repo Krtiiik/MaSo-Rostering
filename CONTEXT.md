@@ -26,7 +26,14 @@ at its normal empty/no-preference default.
 
 **Locked Assignment** *(planned, not yet implemented)*:
 An Assignment the user has fixed by hand for a chosen Helper so that a full
-Solve keeps it; a Solve discards every Assignment that isn't locked.
+Solve keeps it; a Solve discards every Assignment that isn't locked. A lock
+pins the whole Assignment (Building, Room, and Role together), never just
+part of it. It belongs to one Season's roster, not to the Person, so it does
+not carry over to a later Season. A lock never validates: a locked Assignment
+may break a rule, and it is the rule that bends, never the lock. Moving a
+locked Helper by hand moves the lock with them. A lock ends only when the user
+clears it, or the Helper is marked Can't attend, or becomes an Organizer, or
+their Room or Building no longer exists at the next Solve.
 
 **Can't attend**:
 A per-Helper flag marking them unavailable for the Season: excluded from the
