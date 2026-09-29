@@ -368,11 +368,24 @@ class _Sheet:
     def is_grey(self, row, col):
         return self.ws.cell(row + 1, col + 1).fill.fgColor.rgb.endswith(_EMPTY_SLOT_RGB)
 
+    def border(self, row, col):
+        """(top, left, bottom, right) border styles of the cell at (row, col)."""
+        b = self.ws.cell(row + 1, col + 1).border
+        return b.top.style, b.left.style, b.bottom.style, b.right.style
 
-def _overflow_sheet(tmp_path, spec, *, cell_merges=None, manual=None, extra_assignments=()):
+    def col_width(self, col):
+        """Width of column ``col`` (0-based); openpyxl groups equal adjacent columns."""
+        for dim in self.ws.column_dimensions.values():
+            if dim.min is not None and dim.min <= col + 1 <= dim.max:
+                return dim.width
+        return None
+
+
+def _overflow_sheet(tmp_path, spec, *, cell_merges=None, manual=None, extra_assignments=(), minimums=None):
     """Write a roster for ``spec`` = {building: {room: {Role: count}}} (each
     count placing that many synthetic Helpers there) and read it back.
-    ``extra_assignments`` = [(building, room, Role, count)]."""
+    ``extra_assignments`` = [(building, room, Role, count)]; ``minimums`` =
+    {(building, room): {Role: configured minimum headcount}}."""
     buildings = {}
     helpers = []
     assignments = []
@@ -385,7 +398,13 @@ def _overflow_sheet(tmp_path, spec, *, cell_merges=None, manual=None, extra_assi
             assignments.append(Assignment(helper_id=hid, helper_name=name, building=building, room=room, role=role))
 
     for bname, rooms in spec.items():
-        buildings[bname] = Building(name=bname, rooms=[Room(name=r) for r in rooms])
+        buildings[bname] = Building(
+            name=bname,
+            rooms=[
+                Room(name=r, capacities={k: RoleCapacity(n) for k, n in (minimums or {}).get((bname, r), {}).items()})
+                for r in rooms
+            ],
+        )
         for rname, counts in rooms.items():
             for role, count in counts.items():
                 place(bname, rname, role, count)
@@ -674,6 +693,180 @@ def test_a_building_mixing_a_large_room_and_ordinary_rooms_widens_only_by_one_co
     assert sheet.room_cols("BIG") == (a0, a0 + 1)
     assert sheet.room_cols("S1") == (a0 + 2, a0 + 2)
     assert sheet.building_cols("B")[0] == a1 + 1
+
+
+# ---- Two-column overflow next to merged Room groups ----
+
+
+def _merged_group_spec(big_opravovatel):
+    """Building A: BIG (``big_opravovatel`` Opravovatelé, 4 of every other
+    Role), M2 and M3 (3 Opravovatelé, 2 of every other Role) and S1 (2 of
+    each). Merging M2 and M3 for Opravovatel makes a 6-tall group."""
+    m = {**_per_role(2), Role.Opravovatel: 3}
+    big = {**_per_role(4), Role.Opravovatel: big_opravovatel}
+    return {"A": {"BIG": big, "M2": m, "M3": m, "S1": _per_role(2)}}
+
+
+_MERGE_M2_M3_OPRAVOVATEL = {"Opravovatel": {"A": [["M2", "M3"]]}}
+
+
+def test_a_taller_merged_group_stays_one_wide_cell_with_one_name_per_row(tmp_path):
+    sheet = _overflow_sheet(tmp_path, _merged_group_spec(8), cell_merges=_MERGE_M2_M3_OPRAVOVATEL)
+
+    r0, r1 = sheet.band_rows(_ROLE_LABEL[Role.Opravovatel])
+    m2, m3 = sheet.room_cols("M2")[0], sheet.room_cols("M3")[0]
+    assert (r1 - r0 + 1, m3 - m2) == (6, 1)
+    for r in range(r0, r1 + 1):
+        assert sheet.span(r, m2) == (m2, m3)
+        assert sheet.values[r][m2]
+    assert sheet.values[r0][m2].startswith("M2-")
+    assert sheet.values[r0 + 3][m2].startswith("M3-")
+
+
+def test_a_large_room_fills_its_first_column_to_a_taller_merged_groups_height(tmp_path):
+    sheet = _overflow_sheet(tmp_path, _merged_group_spec(8), cell_merges=_MERGE_M2_M3_OPRAVOVATEL)
+
+    assert sheet.room_width("BIG") == 2
+    # The merged group makes the band 6 tall (BIG alone would need only
+    # ceil(8 / 2) = 4): BIG's first column takes six names, the second the
+    # remaining two, and the unused second-column slots stay grey.
+    opr = sheet.band(Role.Opravovatel, "BIG")
+    assert len(opr) == 6
+    assert all(row[0] for row in opr)
+    assert [row[1] is not None for row in opr] == [True, True, False, False, False, False]
+    r0, _ = sheet.band_rows(_ROLE_LABEL[Role.Opravovatel])
+    c0, c1 = sheet.room_cols("BIG")
+    assert [sheet.is_grey(r0 + i, c1) for i in range(6)] == [False, False, True, True, True, True]
+    assert not any(sheet.is_grey(r0 + i, c0) for i in range(6))
+
+
+def test_a_merged_group_only_stretches_its_own_band(tmp_path):
+    sheet = _overflow_sheet(tmp_path, _merged_group_spec(8), cell_merges=_MERGE_M2_M3_OPRAVOVATEL)
+
+    assert sheet.band_height(Role.Opravovatel) == 6
+    for role in (Role.Menic, Role.Skenovac, Role.Kreslic, Role.Fotograf):
+        assert sheet.band_height(role) == 2, role
+    # BIG still splits those bands over its two columns.
+    assert all(cell for row in sheet.band(Role.Menic, "BIG") for cell in row)
+
+
+def test_a_room_merged_in_one_band_stays_one_column_in_every_band(tmp_path):
+    # BIG and M2 would both be Large; M2 is merged with S1 for Menič only.
+    spec = {"A": {"BIG": _per_role(4), "M2": _per_role(4), "S1": _per_role(2), "S2": _per_role(2), "S3": _per_role(2)}}
+    sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Menic": {"A": [["M2", "S1"]]}})
+
+    assert sheet.room_width("M2") == 1
+    assert sheet.room_width("S1") == 1
+    assert sheet.room_width("BIG") == 2  # the unmerged neighbour is unaffected
+    for role in _ROLE_LABEL:  # M2 is one column in every band, not just Menič
+        assert len(sheet.band(role, "M2")[0]) == 1
+
+
+def test_merges_elsewhere_neither_stop_a_large_room_overflowing_nor_stretch_other_bands(tmp_path):
+    spec = _merged_group_spec(8)
+    spec["B"] = {"T1": _per_role(2), "T2": _per_role(2)}
+    merges = {"Opravovatel": {"B": [["T1", "T2"]]}, "Menic": {"A": [["M2", "M3"]]}}
+    sheet = _overflow_sheet(tmp_path, spec, cell_merges=merges)
+
+    assert sheet.room_width("BIG") == 2
+    assert sheet.band_height(Role.Menic) == 4  # M2 + M3: 2 + 2
+    assert sheet.band_height(Role.Opravovatel) == 4  # T1 + T2 and BIG's ceil(8 / 2); M2 and M3 stay apart here
+    assert sheet.band_height(Role.Skenovac) == 2
+
+
+def test_a_large_room_that_only_looks_tall_beside_a_merged_group_stays_one_column(tmp_path):
+    one = {Role.Opravovatel: 1, Role.Menic: 1, Role.Skenovac: 1, Role.Kreslic: 1}
+    big = {Role.Opravovatel: 3, Role.Menic: 1, Role.Skenovac: 1, Role.Kreslic: 1}
+    spec = {"A": {"BIG": big, "M1": one, "M2": one, "M3": one}}
+    sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Opravovatel": {"A": [["M1", "M2"], ["M2", "M3"]]}})
+
+    # M1 + M2 + M3 stand 3 tall in Opravovatel, so BIG's three Opravovatelé
+    # already fit its first column: no second column is needed.
+    assert sheet.band_height(Role.Opravovatel) == 3
+    assert sheet.room_width("BIG") == 1
+
+
+def test_a_merged_groups_configured_minimums_stretch_the_band_a_large_room_fills(tmp_path):
+    one = {Role.Opravovatel: 1, Role.Menic: 1, Role.Skenovac: 1, Role.Kreslic: 1}
+    big = {Role.Opravovatel: 3, Role.Menic: 1, Role.Skenovac: 1, Role.Kreslic: 1}
+    spec = {"A": {"BIG": big, "M1": one, "M2": one, "M3": one}}
+    minimums = {("A", "M1"): {Role.Opravovatel: 2}, ("A", "M2"): {Role.Opravovatel: 2}}
+    sheet = _overflow_sheet(
+        tmp_path, spec, cell_merges={"Opravovatel": {"A": [["M1", "M2"]]}}, minimums=minimums
+    )
+
+    assert sheet.band_height(Role.Opravovatel) == 4  # 2 + 2 minimums in the merged cell
+    assert sheet.room_width("BIG") == 1
+
+
+def _assert_borders(sheet, bands):
+    """Every visual cell in each (first row, last row) block has a medium
+    border on the block's outer rows and on its Building's outer columns, and
+    thin borders everywhere else."""
+    spans = [sheet.building_cols(b) for b in sheet.values[0][1:] if b]
+    for r0, r1 in bands:
+        for r in range(r0, r1 + 1):
+            for b0, b1 in spans:
+                c = b0
+                while c <= b1:
+                    c0, c1 = sheet.span(r, c)
+                    top, left, bottom, _ = sheet.border(r, c0)
+                    right = sheet.border(r, c1)[3]
+                    assert top == ("medium" if r == r0 else "thin"), (r, c0)
+                    assert bottom == ("medium" if r == r1 else "thin"), (r, c0)
+                    assert left == ("medium" if c0 == b0 else "thin"), (r, c0)
+                    assert right == ("medium" if c1 == b1 else "thin"), (r, c1)
+                    c = c1 + 1
+
+
+def test_borders_stay_medium_around_buildings_and_bands_and_thin_inside_with_overflow_and_merges(tmp_path):
+    spec = _merged_group_spec(8)
+    spec["B"] = {"T1": _per_role(2), "T2": _per_role(2), "T3": _per_role(2)}
+    merges = {"Opravovatel": {"A": [["M2", "M3"]]}, "Menic": {"B": [["T1", "T2"]]}}
+    manual = ManualRoles(
+        structural=[StructuralAssignment(role=StructuralRole.VedouciMistnosti, building="A", room="BIG", helper_name="Vedoucí")]
+    )
+    sheet = _overflow_sheet(tmp_path, spec, cell_merges=merges, manual=manual)
+
+    bands = [sheet.band_rows(_ROLE_LABEL[role]) for role in _ROLE_LABEL]
+    leader = sheet.label_row("Vedoucí místností")
+    _assert_borders(sheet, bands + [(leader, leader)])
+    # The Room header keeps its medium bottom border across both columns.
+    c0, c1 = sheet.room_cols("BIG")
+    assert sheet.border(1, c0)[2] == "medium" and sheet.border(1, c1)[2] == "medium"
+    assert sheet.border(1, c0)[1] == "medium"  # left edge of Building A
+    assert sheet.border(1, c1)[3] == "thin"  # BIG is not the last Room of A
+
+
+def test_a_large_room_ending_a_building_closes_it_with_a_medium_right_border(tmp_path):
+    spec = {"A": {"S1": _per_role(2), "S2": _per_role(2)}, "B": {"S3": _per_role(2), "BIG": _per_role(4)}}
+    sheet = _overflow_sheet(tmp_path, spec)
+
+    b0, b1 = sheet.building_cols("B")
+    c0, c1 = sheet.room_cols("BIG")
+    assert c1 == b1 and c1 == c0 + 1
+    r0, r1 = sheet.band_rows(_ROLE_LABEL[Role.Opravovatel])
+    for r in range(r0, r1 + 1):
+        assert sheet.border(r, c0)[3] == "thin"  # between BIG's two columns
+        assert sheet.border(r, c1)[3] == "medium"
+        assert sheet.border(r, c0)[1] == "thin"  # after S3
+    _assert_borders(sheet, [(r0, r1)])
+
+
+def test_column_widths_fit_the_names_in_both_columns_of_a_large_room(tmp_path):
+    long_name = "Vedoucí s velmi dlouhým jménem"
+    manual = ManualRoles(
+        structural=[StructuralAssignment(role=StructuralRole.PravaRuka, building="A", room="S1", helper_name=long_name)]
+    )
+    sheet = _overflow_sheet(tmp_path, _merged_group_spec(8), cell_merges=_MERGE_M2_M3_OPRAVOVATEL, manual=manual)
+
+    r0, r1 = sheet.band_rows(_ROLE_LABEL[Role.Opravovatel])
+    c0, c1 = sheet.room_cols("BIG")
+    for c in range(c0, c1 + 1):
+        longest = max(len(sheet.values[r][c]) for r in range(r0, r1 + 1) if sheet.values[r][c])
+        assert sheet.col_width(c) >= longest, c
+    assert sheet.col_width(sheet.room_cols("S1")[0]) >= len(long_name)
+    assert sheet.col_width(0) >= len("Focení předávání cen")
 
 
 # ---- Per-Building helper-list sheets ----
