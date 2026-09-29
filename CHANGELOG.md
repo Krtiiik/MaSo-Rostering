@@ -19,7 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Room header and the Vedoucí místností / Pravá ruka cells merge across
   both columns and Building headers and Building-wide rows span the extra
   column. Fewer than three Rooms with Helpers, or a Room merged with a
-  neighbour, never overflow. The in-app grid is unchanged.
+  neighbour, never overflow. The in-app grid is unchanged. A Room merged for
+  a Role stays one wide cell (one name per row) and may stretch that band
+  only; a Large room in the same band fills its first column down to the
+  stretched height, and needs a second column only if it is still taller
+  than that height (the merged group's configured minimums count too).
 - T-shirt size: each Helper now has a size (XS, S, M, L, XL, XXL, or
   Unknown), read from the survey question "Tvoje velikost trička" (matched
   ignoring case and surrounding whitespace). A blank, "?" or free-text
