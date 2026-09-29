@@ -125,6 +125,19 @@ pushing the tag, not just creating it locally.
   submission timestamps (`export_timestamps`), which the label prefill and the
   migration use; a legacy state has none, so its migration asks for the label
   (prefilled from the file's last-modified date).
+- Persons (`rostering/persons.py`): there is no Person registry. Every Helper
+  record in a saved state carries `email` (normalized: trimmed, lower-cased;
+  read through the `email` column mapping) and a never-reused random
+  `person_id`, distinct from the per-Season Helper `id`. `upload_responses`
+  links each row by identical normalized e-mail to the newest matching record
+  across every stored Season (`Workspace.person_records()`, the open Season's
+  previous upload included) and otherwise mints a fresh `person_id`; a Person's
+  e-mails and normalized names (`mutations.list_persons`) are derived from
+  those records, so Start over and Season deletion forget what only they held.
+  A state saved before Persons existed gets `person_id`s written back on first
+  load. Duplicate rows with one e-mail collapse inside `parse_raw_survey`
+  (latest submission wins) before ids are assigned. Name-based (uncertain)
+  matching, the review list and manual link/unlink are not built yet.
 - The one piece of UI Streamlit can't do natively — drag-and-drop — is a
   custom Streamlit component (CCv2) at `components/rostering-assignment-grid/`
   (React + dnd-kit, generated from Streamlit's official CCv2

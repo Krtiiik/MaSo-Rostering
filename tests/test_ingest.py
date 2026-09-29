@@ -238,3 +238,143 @@ def test_read_submission_timestamps_matches_the_full_parse(tmp_path):
     stamps = [datetime(2026, 1, 12), datetime(2026, 2, 3)]
     path = _write_timestamped_survey(tmp_path, stamps)
     assert read_submission_timestamps(path) == stamps
+
+
+# -- e-mail capture and duplicate submissions (synthetic surveys) ---------------
+
+_EMAIL_HEADER = "E-mailová adresa"
+
+
+def _write_email_survey(tmp_path, rows, email_header=_EMAIL_HEADER, stamp_header="Časová značka"):
+    """A synthetic export from ``rows`` of ``(name, email, submitted_at)``;
+    ``email_header``/``stamp_header`` of None leave that column out."""
+    data = {}
+    if stamp_header is not None:
+        data[stamp_header] = [r[2] for r in rows]
+    data[_NAME_HEADER] = [r[0] for r in rows]
+    if email_header is not None:
+        data[email_header] = [r[1] for r in rows]
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame(data).to_excel(path, index=False)
+    return path
+
+
+def test_email_is_read_and_normalized_by_trimming_and_lowercasing(tmp_path):
+    from datetime import datetime
+
+    when = datetime(2026, 1, 12)
+    path = _write_email_survey(
+        tmp_path,
+        [("Anna", "  Anna.Novakova@Example.TEST ", when), ("Petr", "petr@example.test", when)],
+    )
+    result = parse_raw_survey(path)
+    assert [h.email for h in result.helpers] == ["anna.novakova@example.test", "petr@example.test"]
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "E-mailová adresa",  # Google Forms' own collected-address column
+        "Email Address",
+        "Tvůj e-mail",
+        "Tvůj email (pro zaslání informací)",
+        "e-mail",
+        "  E-MAIL  ",
+    ],
+)
+def test_email_header_wording_is_matched_loosely(tmp_path, header):
+    from datetime import datetime
+
+    path = _write_email_survey(tmp_path, [("Anna", "a@example.test", datetime(2026, 1, 12))], email_header=header)
+    result = parse_raw_survey(path)
+    assert result.helpers[0].email == "a@example.test"
+    assert not any("'email'" in w for w in result.warnings)
+
+
+def test_blank_email_is_none_and_a_missing_column_warns_once(tmp_path):
+    from datetime import datetime
+
+    when = datetime(2026, 1, 12)
+    blank = parse_raw_survey(_write_email_survey(tmp_path, [("Anna", None, when), ("Petr", "  ", when)]))
+    assert [h.email for h in blank.helpers] == [None, None]
+
+    missing = parse_raw_survey(_write_email_survey(tmp_path, [("Anna", None, when)], email_header=None))
+    assert [h.email for h in missing.helpers] == [None]
+    assert len([w for w in missing.warnings if "'email'" in w]) == 1
+
+
+def test_duplicate_rows_with_the_same_email_collapse_to_the_latest_submission(tmp_path):
+    from datetime import datetime
+
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame(
+        {
+            "Časová značka": [datetime(2026, 1, 12), datetime(2026, 1, 13), datetime(2026, 1, 14), datetime(2026, 1, 11)],
+            _NAME_HEADER: ["Anna Nováková", "Petr", "Anna Nováková (oprava)", "Klára"],
+            _EMAIL_HEADER: ["anna@example.test", "petr@example.test", " ANNA@example.test", "klara@example.test"],
+            _SIZE_HEADER: ["S", "M", "L", "XL"],
+        }
+    ).to_excel(path, index=False)
+
+    result = parse_raw_survey(path)
+    assert [h.name for h in result.helpers] == ["Petr", "Anna Nováková (oprava)", "Klára"]
+    assert [h.tshirt_size for h in result.helpers] == ["M", "L", "XL"]
+    # Ids are sequential over the Helpers that remain.
+    assert [h.id for h in result.helpers] == [1, 2, 3]
+    assert any("anna@example.test" in w for w in result.warnings)
+
+
+def test_the_latest_submission_wins_by_timestamp_even_if_it_is_not_the_last_row(tmp_path):
+    from datetime import datetime
+
+    path = _write_email_survey(
+        tmp_path,
+        [
+            ("Anna (new)", "anna@example.test", datetime(2026, 2, 1)),
+            ("Anna (old)", "anna@example.test", datetime(2026, 1, 1)),
+        ],
+    )
+    assert [h.name for h in parse_raw_survey(path).helpers] == ["Anna (new)"]
+
+
+def test_duplicate_emails_without_readable_timestamps_keep_the_last_row(tmp_path):
+    path = _write_email_survey(
+        tmp_path,
+        [("Anna (first)", "anna@example.test", None), ("Anna (last)", "anna@example.test", None)],
+    )
+    assert [h.name for h in parse_raw_survey(path).helpers] == ["Anna (last)"]
+
+
+def test_same_name_with_different_emails_and_blank_emails_are_never_collapsed(tmp_path):
+    from datetime import datetime
+
+    when = datetime(2026, 1, 12)
+    path = _write_email_survey(
+        tmp_path,
+        [
+            ("Anna Nováková", "anna1@example.test", when),
+            ("Anna Nováková", "anna2@example.test", when),
+            ("Petr", None, when),
+            ("Petr", None, when),
+        ],
+    )
+    assert [h.name for h in parse_raw_survey(path).helpers] == ["Anna Nováková", "Anna Nováková", "Petr", "Petr"]
+
+
+def test_friend_names_resolve_against_the_collapsed_helpers(tmp_path):
+    from datetime import datetime
+
+    friends_header = "Chtěl/a bys být v místnosti s někým konkrétním?"
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame(
+        {
+            "Časová značka": [datetime(2026, 1, 1), datetime(2026, 1, 2), datetime(2026, 1, 3)],
+            _NAME_HEADER: ["Anna Nováková", "Petr Svoboda", "Anna Nováková"],
+            _EMAIL_HEADER: ["anna@example.test", "petr@example.test", "anna@example.test"],
+            friends_header: [None, "Anna Nováková", None],
+        }
+    ).to_excel(path, index=False)
+
+    result = parse_raw_survey(path)
+    assert [h.name for h in result.helpers] == ["Petr Svoboda", "Anna Nováková"]
+    assert result.helpers[0].friends == [2]  # Anna's surviving id, not her dropped first row's

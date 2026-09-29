@@ -21,7 +21,7 @@ from typing import Optional
 
 import pandas as pd
 
-from rostering.domain import UNKNOWN_TSHIRT_SIZE, Helper, Role, normalize_name, parse_tshirt_size
+from rostering.domain import UNKNOWN_TSHIRT_SIZE, Helper, Role, normalize_email, normalize_name, parse_tshirt_size
 from rostering.ingest.mapping import (
     EQUIPMENT_ALIASES,
     FIELD_HEADER_CANDIDATES,
@@ -97,7 +97,9 @@ def _parse_timestamp(raw: object) -> Optional[datetime]:
     return None
 
 
-def _submission_timestamps(df: pd.DataFrame, columns: dict[str, str]) -> list[datetime]:
+def _row_timestamps(df: pd.DataFrame, columns: dict[str, str]) -> list[Optional[datetime]]:
+    """One entry per row of ``df``: its submission timestamp, or None where
+    unreadable (all None when the export has no timestamp column)."""
     column = columns.get("timestamp")
     if column is None and len(df.columns):
         # No recognizable header: Google Forms always puts the timestamp
@@ -106,9 +108,57 @@ def _submission_timestamps(df: pd.DataFrame, columns: dict[str, str]) -> list[da
         if len(first) and all(isinstance(v, datetime) for v in first):
             column = df.columns[0]
     if column is None:
-        return []
-    stamps = (_parse_timestamp(v) for v in df[column].tolist())
-    return [t for t in stamps if t is not None]
+        return [None] * len(df)
+    return [_parse_timestamp(v) for v in df[column].tolist()]
+
+
+def _submission_timestamps(df: pd.DataFrame, columns: dict[str, str]) -> list[datetime]:
+    return [t for t in _row_timestamps(df, columns) if t is not None]
+
+
+def _collapse_duplicate_emails(
+    df: pd.DataFrame, columns: dict[str, str], name_col: str, warnings: list[str]
+) -> pd.DataFrame:
+    """Keep one row per normalized e-mail: the latest submission (by
+    timestamp; the later row when timestamps tie or can't be read, since
+    exports list submissions chronologically). Rows with no e-mail are never
+    merged, and neither are rows that merely share a name — those are for the
+    user to judge. Row order is otherwise preserved."""
+    email_col = columns.get("email")
+    if email_col is None:
+        return df
+    emails = [normalize_email(_cell_str(v)) for v in df[email_col].tolist()]
+    timestamps = _row_timestamps(df, columns)
+
+    def submitted(position: int) -> tuple[datetime, int]:
+        # An unreadable timestamp sorts before any readable one; ties (and
+        # all-unreadable exports) fall back to row order.
+        return timestamps[position] or datetime.min, position
+
+    winner_by_email: dict[str, int] = {}
+    count_by_email: dict[str, int] = {}
+    for position, email in enumerate(emails):
+        if email is None:
+            continue
+        count_by_email[email] = count_by_email.get(email, 0) + 1
+        current = winner_by_email.get(email)
+        if current is None or submitted(position) > submitted(current):
+            winner_by_email[email] = position
+
+    keep = [
+        position
+        for position, email in enumerate(emails)
+        if email is None or winner_by_email[email] == position
+    ]
+    for email, count in count_by_email.items():
+        if count > 1:
+            kept_name = str(df[name_col].iloc[winner_by_email[email]]).strip()
+            warnings.append(
+                f"{kept_name}: {count} submissions with e-mail {email} — kept only the latest"
+            )
+    if len(keep) == len(df):
+        return df
+    return df.iloc[keep].reset_index(drop=True)
 
 
 def read_submission_timestamps(path: str | Path) -> list[datetime]:
@@ -264,6 +314,9 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
     df = df[df[name_col].notna() & (df[name_col].astype(str).str.strip() != "")]
     df = df.reset_index(drop=True)
     submission_timestamps = _submission_timestamps(df, columns)
+    # Same-person resubmissions become one Helper, before ids are assigned and
+    # friend names are resolved against them.
+    df = _collapse_duplicate_emails(df, columns, name_col, warnings)
 
     # Pass 1: assign ids and build name-resolution indexes.
     names = [str(v).strip() for v in df[name_col].tolist()]
@@ -280,6 +333,7 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
     building_col = columns.get("building_preference")
     equipment_col = columns.get("equipment")
     tshirt_col = columns.get("tshirt_size")
+    email_col = columns.get("email")
 
     for idx, (_, row) in enumerate(df.iterrows(), start=1):
         name = names[idx - 1]
@@ -312,11 +366,12 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
                 can_bring_camera=can_bring_camera,
                 unresolved_friend_names=unresolved_friends,
                 tshirt_size=tshirt_size,
+                email=normalize_email(_cell_str(row.get(email_col))) if email_col else None,
             )
         )
 
     missing_important = [
-        f for f in ("building_preference", "friends", "equipment", "tshirt_size") if f not in columns
+        f for f in ("email", "building_preference", "friends", "equipment", "tshirt_size") if f not in columns
     ]
     for field in missing_important:
         warnings.append(f"Column for {field!r} not found in {path} — feature left empty for all helpers")

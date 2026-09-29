@@ -27,6 +27,16 @@ FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
         "Tvé jméno a příjmení",
         "Tvoje jméno a příjmení",
     ],
+    # The contact e-mail: Google Forms' own "collect e-mail addresses" column
+    # or a form question. Only the wording varies, never the meaning; matching
+    # ignores case, accents, spaces and hyphens, so "e-mail" also covers
+    # "Email" and "E-mailová adresa" etc.
+    "email": [
+        "E-mailová adresa",
+        "Email Address",
+        "Tvůj e-mail",
+        "E-mail",
+    ],
     "building_preference": [
         "Na jakém místě bys chtěl/a pomáhat?",
         "Na jakém místě chceš pomáhat?",
