@@ -183,13 +183,18 @@ A Helper who also registered in an earlier Season and is recognized as the
 same person.
 
 **Tag import**:
-Bringing a previous Season's Tags into the current Season and re-applying
-them to Returning helpers who carried them then.
+Bringing an earlier Season's Tags into the current Season and re-applying
+them to Returning helpers who carried them then. Each Season keeps its own
+Tags, so an import copies the source Season's whole Tag tree (with its
+constraints) rather than sharing it, and an imported Tag remembers which
+earlier Tag it came from.
 
 **Class promotion**:
-Renaming school-class Tags one year up (e.g. "8.M" → "9.M") during a Tag
-import that crosses a school year, i.e. from a jaro Season to the following
-podzim Season.
+Renaming school-class Tags — names of the form number, dot, optional space,
+letters, e.g. "8.M" or "8. M" — to the number one school year up per school
+year crossed since the imported Season (e.g. "8.M" → "9.M"). The school year
+turns at the jaro → podzim boundary. There is no top year: a class keeps
+counting up, since former students keep helping as "the same class" ("10.M").
 
 ### Application
 
