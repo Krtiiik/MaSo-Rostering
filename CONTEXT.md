@@ -65,8 +65,9 @@ Helper's assigned Building is in the set, or the set is empty (no
 preference expressed).
 
 **Equipment eligibility**:
-A hard constraint gating Fotograf: a Helper who didn't mark that they can
-bring a camera cannot be assigned Fotograf. Bringing a laptop is no longer
+A hard rule gating Fotograf: a Helper who didn't mark that they can
+bring a camera cannot be assigned Fotograf, unless the rules can't all hold
+and this becomes a Broken rule. Bringing a laptop is no longer
 a hard constraint on Kreslič — it's tracked only for display (the roster
 export's `(n)` tag).
 
@@ -115,6 +116,17 @@ over to a later Season alongside Tag import.
 **Assignment**:
 The solver's output for one Helper: the Building, Room, and Role they're
 placed into.
+
+**Broken rule**:
+A hard rule the current roster fails to satisfy: a Room or Building minimum,
+a Tag constraint, a Forced-friend group, or Equipment eligibility. A solve
+never fails outright because of one — it returns a full roster with as few
+Broken rules as it can manage and lists what it had to bend. Rules bend in a
+fixed order (minimums first, then Tag constraints, Forced-friend groups, and
+Equipment eligibility last); a pre-placed Organizer never bends. Whether a
+rule is broken is judged against the roster as it currently stands, so a
+hand edit that fixes it clears it immediately.
+_Avoid_: Infeasible solve
 
 #### Solver roles
 
@@ -218,13 +230,18 @@ linked until the user confirms it. Phone number is never a key. Anything
 else is treated as a new Person.
 
 **Tag import**:
-Bringing a previous Season's Tags into the current Season and re-applying
-them to Returning helpers who carried them then.
+Bringing an earlier Season's Tags into the current Season and re-applying
+them to Returning helpers who carried them then. Each Season keeps its own
+Tags, so an import copies the source Season's whole Tag tree (with its
+constraints) rather than sharing it, and an imported Tag remembers which
+earlier Tag it came from.
 
 **Class promotion**:
-Renaming school-class Tags one year up (e.g. "8.M" → "9.M") during a Tag
-import that crosses a school year, i.e. from a jaro Season to the following
-podzim Season.
+Renaming school-class Tags — names of the form number, dot, optional space,
+letters, e.g. "8.M" or "8. M" — to the number one school year up per school
+year crossed since the imported Season (e.g. "8.M" → "9.M"). The school year
+turns at the jaro → podzim boundary. There is no top year: a class keeps
+counting up, since former students keep helping as "the same class" ("10.M").
 
 ### Application
 
