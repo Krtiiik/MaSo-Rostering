@@ -148,7 +148,10 @@ Broken rules as it can manage and lists what it had to bend. Rules bend in a
 fixed order (minimums first, then Tag constraints, Forced-friend groups, and
 Equipment eligibility last); a pre-placed Organizer never bends. Whether a
 rule is broken is judged against the roster as it currently stands, so a
-hand edit that fixes it clears it immediately.
+hand edit that fixes it clears it immediately. A hand edit is never refused
+for breaking a rule — a placement that breaks one stands and simply shows as
+a Broken rule, including an Organizer's hand placement; only minimums, which
+routinely dip mid-edit, are exempt from warning at the moment of the edit.
 _Avoid_: Infeasible solve
 
 #### Solver roles
