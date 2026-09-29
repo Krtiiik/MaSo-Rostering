@@ -182,6 +182,67 @@ def test_workspace_saved_before_tshirt_sizes_loads_as_unknown(workspace):
     assert by_label["XS"][1] == 0
 
 
+def test_set_tshirt_size_persists_and_shows_in_next_export(workspace):
+    _seed_two_helpers(workspace)
+    mutations.put_config(workspace, SMALL_CONFIG)
+    mutations.solve(workspace)
+
+    state = mutations.set_tshirt_size(workspace, 1, "L")
+    assert state["helpers"][0]["tshirt_size"] == "L"
+
+    # Persisted, not just returned.
+    assert mutations.get_state(workspace)["helpers"][0]["tshirt_size"] == "L"
+
+    export_bytes = mutations.export_xlsx_bytes(workspace)
+    by_label = {r[0]: r for r in _tshirt_sheet(export_bytes)}
+    assert by_label["L"][1] == 1
+    assert by_label["Unknown"][1] == 1
+    wb = openpyxl.load_workbook(io.BytesIO(export_bytes))
+    building_list = [[c.value for c in row] for row in wb["B"].iter_rows()]
+    assert ["Anna", "L"] == building_list[1][:2]
+
+
+def test_set_tshirt_size_can_change_and_clear_a_size(workspace):
+    _seed_two_helpers(workspace)
+    mutations.set_tshirt_size(workspace, 1, "S")
+    state = mutations.set_tshirt_size(workspace, 1, "XXL")
+    assert state["helpers"][0]["tshirt_size"] == "XXL"
+    state = mutations.set_tshirt_size(workspace, 1, "Unknown")
+    assert state["helpers"][0]["tshirt_size"] == "Unknown"
+
+
+def test_set_tshirt_size_normalizes_case_and_whitespace(workspace):
+    _seed_two_helpers(workspace)
+    state = mutations.set_tshirt_size(workspace, 2, " xl ")
+    assert state["helpers"][1]["tshirt_size"] == "XL"
+
+
+@pytest.mark.parametrize("bad", ["", "XXXL", "medium", "?", "42"])
+def test_set_tshirt_size_rejects_an_invalid_size(workspace, bad):
+    _seed_two_helpers(workspace)
+    mutations.set_tshirt_size(workspace, 1, "M")
+    with pytest.raises(mutations.RosteringError):
+        mutations.set_tshirt_size(workspace, 1, bad)
+    # The rejected edit changed nothing.
+    assert mutations.get_state(workspace)["helpers"][0]["tshirt_size"] == "M"
+
+
+def test_set_tshirt_size_unknown_helper_raises(workspace):
+    _seed_two_helpers(workspace)
+    with pytest.raises(mutations.RosteringError):
+        mutations.set_tshirt_size(workspace, 999, "M")
+
+
+def test_set_tshirt_size_only_touches_the_named_helper(workspace):
+    _seed_two_helpers(workspace)
+    before = mutations.get_state(workspace)
+    state = mutations.set_tshirt_size(workspace, 1, "S")
+    assert state["helpers"][1] == before["helpers"][1]
+    assert {k: v for k, v in state["helpers"][0].items() if k != "tshirt_size"} == {
+        k: v for k, v in before["helpers"][0].items() if k != "tshirt_size"
+    }
+
+
 def test_manual_move_updates_assignment_and_recomputes_friend_pairs(workspace):
     _seed_two_helpers(workspace)
     mutations.put_config(workspace, SMALL_CONFIG)
