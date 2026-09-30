@@ -168,11 +168,28 @@ pushing the tag, not just creating it locally.
   one-Role shape and `fixed_assignments` never bend. A new rule family (Tags,
   Forced friends) registers a `RuleFamily` via `register_rule_family`; each
   `Relaxation` it returns carries the `RuleInstance` identity (rule kind +
-  entity) the live checker must emit too. The one remaining failure is the
-  time limit expiring with no roster (`NoRosterFound`, surfaced as "No roster
-  found within N seconds"). `diagnostics["broken_rules"]` in the saved state
-  is the solver's report as of the last solve, shown in the grid tab; the
-  live checker/banner (later ticket) supersedes it.
+  entity), and the family must also give a `check` (a `RuleFamily` without
+  one cannot be registered) that the live checker runs. The one remaining
+  failure is the time limit expiring with no roster (`NoRosterFound`,
+  surfaced as "No roster found within N seconds").
+- Live Broken-rule check (`rostering/solver/checker.py`: `check_roster`,
+  `newly_broken`; per-family checks live next to the relaxations in
+  `rules.py`): a pure function of the config, Helpers and current
+  Assignments, run on every render and never stored, returning
+  `BrokenRule`s with the same identity/family/amount/line the solver reports
+  plus `cells` (grid cells; a `None` role marks a whole Room), `helper_ids`
+  (chips) and a `FixTarget`. `tests/test_live_broken_rules.py` asserts the
+  checker equals the solver's own bent rules. Through the mutation layer:
+  `mutations.broken_rules(state)` (empty before the first solve),
+  `newly_broken_rules(before, after)`, `move_toast_lines(before, after)`
+  (every family except minimums) and `broken_rule_marks(...)`. The grid tab
+  renders the banner (family sections collapse above 10 instances), passes the
+  marks to the grid component (`broken_marks`) and stores the drop's toast
+  lines in session state to emit after the rerun; `fix_focus.py` carries a
+  "Go fix" target to the Buildings/Upload tab and drops it once the rule
+  holds. `move_helper` has no validation gate. `diagnostics["broken_rules"]`
+  in the saved state is only the solver's report as of the last solve and is
+  not shown anywhere.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

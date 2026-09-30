@@ -18,6 +18,7 @@ from typing import Any, Callable, Optional, TypeVar
 from rostering.domain import (
     TSHIRT_SIZES,
     UNKNOWN_TSHIRT_SIZE,
+    BrokenRule,
     Competition,
     ManualRoles,
     SolveResult,
@@ -40,6 +41,7 @@ from rostering.persistence.serialize import (
 )
 from rostering.persistence.workspace import SeasonError, Workspace
 from rostering.persons import build_persons, link_persons, new_person_id, uncertain_candidates
+from rostering.solver.checker import check_roster, newly_broken, toasts
 from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
 
@@ -600,13 +602,51 @@ def solve(workspace: Workspace) -> dict:
         "unsatisfied_friend_pairs": [list(p) for p in result.unsatisfied_friend_pairs],
         "satisfied_friend_pairs": [list(p) for p in result.satisfied_friend_pairs],
         # What the solver had to bend, as of this solve — later hand edits do
-        # not update it (the live checker of the Broken-rule banner will).
+        # not update it. Not shown: the banner judges the roster live
+        # (``broken_rules``).
         "broken_rules": [
             {"family": b.family, "amount": b.amount, "line": b.line} for b in result.broken_rules
         ],
     }
     workspace.save(state)
     return state
+
+
+def broken_rules(state: dict[str, Any]) -> list[BrokenRule]:
+    """The Broken rules of the roster in ``state`` as it stands right now
+    (see CONTEXT.md "Broken rule"): judged live on every call from the current
+    Assignments and configuration, never stored. Nothing is judged before the
+    first solve — an empty roster is not a roster that breaks its minimums."""
+    if not state["assignments"]:
+        return []
+    assignments = [assignment_from_dict(a) for a in state["assignments"]]
+    return check_roster(_build_competition(state), assignments)
+
+
+def newly_broken_rules(before: dict[str, Any], after: dict[str, Any]) -> list[BrokenRule]:
+    """The rule instances broken in state ``after`` that were not in ``before``."""
+    return newly_broken(broken_rules(before), broken_rules(after))
+
+
+def move_toast_lines(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """What the transient toast after a hand move says: the banner's own line
+    for each rule instance the move newly broke, except minimums, which dip
+    routinely mid-edit and show only in the banner and the grid marks."""
+    return [b.line for b in newly_broken_rules(before, after) if toasts(b)]
+
+
+def broken_rule_marks(broken: list[BrokenRule]) -> dict[str, list[dict]]:
+    """What the grid marks for these Broken rules: ``cells`` are ``{building,
+    room, role, line}`` (a ``None`` role marks the whole Room), ``helpers`` are
+    ``{helper_id, line}`` chips."""
+    return {
+        "cells": [
+            {"building": b, "room": r, "role": role, "line": rule.line}
+            for rule in broken
+            for b, r, role in rule.cells
+        ],
+        "helpers": [{"helper_id": hid, "line": rule.line} for rule in broken for hid in rule.helper_ids],
+    }
 
 
 def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, role: str) -> dict:

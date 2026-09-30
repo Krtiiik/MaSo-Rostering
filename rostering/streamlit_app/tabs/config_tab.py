@@ -6,7 +6,7 @@ import copy
 import streamlit as st
 
 from rostering.domain import Role
-from rostering.streamlit_app import mutations, session
+from rostering.streamlit_app import fix_focus, mutations, session
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
 _ROLE_ORDER = [r.name for r in Role]
@@ -159,8 +159,13 @@ def render() -> None:
     buildings: list[dict] = st.session_state["config_draft"]
     solver_config: dict = st.session_state["solver_config_draft"]
 
+    fix = fix_focus.render_callout(state, "buildings")
+
     for bi, building in enumerate(buildings):
-        with st.expander(building["name"] or f"Building {bi + 1}", expanded=True):
+        title = building["name"] or f"Building {bi + 1}"
+        if fix is not None and fix.building == building["name"]:
+            title = f"▶ {title}"  # the "Go fix" target
+        with st.expander(title, expanded=True):
             _render_building_table(buildings, bi)
 
     with st.form(key="add_building_form", clear_on_submit=True):

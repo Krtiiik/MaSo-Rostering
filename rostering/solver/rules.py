@@ -30,20 +30,37 @@ building a ``RuleFamily`` and passing it through ``register_rule_family``
 - ``RuleFamily.relax(ctx)`` adds the family's constraints to ``ctx.model``,
   each guarded by a slack, and returns one ``Relaxation`` per rule instance;
 - each ``Relaxation`` carries the ``RuleInstance`` identity (rule kind plus
-  entity) that the family's live checker must emit for the same violation —
-  a relaxation cannot be registered without one, so the two cannot drift
-  apart half-way;
-- ``RuleFamily.tier`` picks the priority among the four tiers above.
+  entity) that the family's live checker must emit for the same violation;
+- ``RuleFamily.check(ctx)`` is the family's live checker: given the current
+  Assignments (``CheckContext``) it returns one ``BrokenRule`` per violated
+  instance — with the same identity, family, amount and line the relaxation
+  reports, plus the grid cells/chips it affects and its "Go fix" target
+  (``rostering.solver.checker`` runs every registered family's check). A
+  family without a ``check`` cannot be registered, so a rule cannot be added
+  to only one of the two; the agreement tests keep the copies from drifting;
+- ``RuleFamily.tier`` picks the priority among the four tiers above; every
+  tier except ``MINIMUMS`` is also announced by the transient toast after a
+  hand move (minimums routinely dip mid-edit).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable
+from typing import Callable, Optional
 
 from ortools.sat.python import cp_model
 
-from rostering.domain import Building, BrokenRule, Helper, Role, Room, RuleInstance
+from rostering.domain import (
+    Assignment,
+    Building,
+    BrokenRule,
+    Competition,
+    FixTarget,
+    Helper,
+    Role,
+    Room,
+    RuleInstance,
+)
 
 
 class Tier(IntEnum):
@@ -85,11 +102,24 @@ class Relaxation:
     describe: Callable[[int], str]
 
 
+@dataclass
+class CheckContext:
+    """What a rule family's live check judges: the Season's configuration and
+    Helpers plus the roster as it currently stands."""
+
+    competition: Competition
+    assignments: list[Assignment]
+
+
 @dataclass(frozen=True)
 class RuleFamily:
     name: str
     tier: Tier
     relax: Callable[[ModelContext], list[Relaxation]]
+    # The live checker; required to register the family (see
+    # ``register_rule_family``), optional here so a family can still be handed
+    # to the solver alone.
+    check: Optional[Callable[[CheckContext], list[BrokenRule]]] = None
 
 
 def _minimums(ctx: ModelContext) -> list[Relaxation]:
@@ -137,6 +167,10 @@ def _minimum_line(where: str, role: Role, minimum: int) -> Callable[[int], str]:
     return lambda short: f"{where} · {role.value}: {minimum - short} of {minimum} required (needs {short} more)"
 
 
+def _equipment_line(helper_name: str) -> str:
+    return f"Helper {helper_name} has no camera but is Fotograf"
+
+
 def _equipment(ctx: ModelContext) -> list[Relaxation]:
     # Camera/Fotograf only — the notebook/Kreslič rule was removed;
     # can_bring_notebook is display-only now.
@@ -145,21 +179,88 @@ def _equipment(ctx: ModelContext) -> list[Relaxation]:
             instance=RuleInstance("equipment", (h.id,)),
             slack=ctx.assign_role[h.id, Role.Fotograf],
             max_units=1,
-            describe=lambda _short, name=h.name: f"Helper {name} has no camera but is Fotograf",
+            describe=lambda _short, name=h.name: _equipment_line(name),
         )
         for h in ctx.helpers
         if not h.can_bring_camera
     ]
 
 
-MINIMUMS_FAMILY = RuleFamily("minimums", Tier.MINIMUMS, _minimums)
-EQUIPMENT_FAMILY = RuleFamily("equipment", Tier.EQUIPMENT, _equipment)
+def _check_minimums(ctx: CheckContext) -> list[BrokenRule]:
+    # Counted over the Rooms the configuration still has, like the solver's
+    # own counts: an Assignment to a removed Room contributes to nothing.
+    counts: dict[tuple[str, str, Role], int] = {}
+    known_rooms = {(b.name, r.name) for b in ctx.competition.buildings.values() for r in b.rooms}
+    for a in ctx.assignments:
+        if (a.building, a.room) in known_rooms:
+            counts[a.building, a.room, a.role] = counts.get((a.building, a.room, a.role), 0) + 1
+
+    broken: list[BrokenRule] = []
+    for building in ctx.competition.buildings.values():
+        for room in building.rooms:
+            for role, cap in room.capacities.items():
+                short = cap.minimum - counts.get((building.name, room.name, role), 0)
+                if cap.minimum and short > 0:
+                    broken.append(
+                        BrokenRule(
+                            instance=RuleInstance("room_minimum", (building.name, room.name, role.name)),
+                            family="minimums",
+                            amount=short,
+                            line=_minimum_line(f"Room {room.name}", role, cap.minimum)(short),
+                            cells=((building.name, room.name, role.name),),
+                            fix=FixTarget("buildings", building=building.name, room=room.name, role=role.name),
+                        )
+                    )
+    for building in ctx.competition.buildings.values():
+        for role, cap in building.capacities.items():
+            have = sum(counts.get((building.name, room.name, role), 0) for room in building.rooms)
+            short = cap.minimum - have
+            if cap.minimum and short > 0:
+                broken.append(
+                    BrokenRule(
+                        instance=RuleInstance("building_minimum", (building.name, role.name)),
+                        family="minimums",
+                        amount=short,
+                        line=_minimum_line(f"Building {building.name}", role, cap.minimum)(short),
+                        cells=tuple((building.name, room.name, role.name) for room in building.rooms),
+                        fix=FixTarget("buildings", building=building.name, role=role.name),
+                    )
+                )
+    return broken
+
+
+def _check_equipment(ctx: CheckContext) -> list[BrokenRule]:
+    helpers = {h.id: h for h in ctx.competition.helpers}
+    broken: list[BrokenRule] = []
+    for a in ctx.assignments:
+        helper = helpers.get(a.helper_id)
+        if helper is None or helper.can_bring_camera or a.role != Role.Fotograf:
+            continue
+        broken.append(
+            BrokenRule(
+                instance=RuleInstance("equipment", (helper.id,)),
+                family="equipment",
+                amount=1,
+                line=_equipment_line(helper.name),
+                cells=((a.building, a.room, None),),
+                helper_ids=(helper.id,),
+                fix=FixTarget("helpers", helper_id=helper.id),
+            )
+        )
+    return broken
+
+
+MINIMUMS_FAMILY = RuleFamily("minimums", Tier.MINIMUMS, _minimums, check=_check_minimums)
+EQUIPMENT_FAMILY = RuleFamily("equipment", Tier.EQUIPMENT, _equipment, check=_check_equipment)
 
 _registry: list[RuleFamily] = [MINIMUMS_FAMILY, EQUIPMENT_FAMILY]
 
 
 def register_rule_family(family: RuleFamily) -> None:
-    """Add a rule family to every later solve (see the module docstring)."""
+    """Add a rule family to every later solve and live check (see the module
+    docstring). Refuses a family with no live ``check``."""
+    if family.check is None:
+        raise ValueError(f"Rule family {family.name} has no live check; a rule must be stated for both")
     if any(existing.name == family.name for existing in _registry):
         raise ValueError(f"Rule family already registered: {family.name}")
     _registry.append(family)

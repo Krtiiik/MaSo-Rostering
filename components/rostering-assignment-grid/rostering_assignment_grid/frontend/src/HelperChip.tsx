@@ -10,6 +10,8 @@ interface Props {
   unsatisfiedFriend?: boolean;
   friendHighlight?: "satisfied" | "unsatisfied" | "requester";
   onHoverChange?: (hovering: boolean) => void;
+  // The Broken-rule lines this chip is part of, if any — marks it lightly.
+  broken?: string[];
 }
 
 const HOVER_DELAY_MS = 400;
@@ -40,7 +42,7 @@ function computeCardPosition(clientX: number, clientY: number): { top: number; l
   return { top, left };
 }
 
-export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, onHoverChange }: Props) {
+export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, onHoverChange, broken }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(helper.id),
   });
@@ -58,6 +60,9 @@ export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, o
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 }
     : undefined;
+
+  const titleText =
+    [...(broken ?? []), ...(unsatisfiedFriend ? ["Has an unsatisfied friend request"] : [])].join("\n") || undefined;
 
   const highlightClass = friendHighlight ? ` friend-highlight-${friendHighlight}` : "";
 
@@ -98,8 +103,8 @@ export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, o
       style={style}
       {...listeners}
       {...attributes}
-      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${highlightClass}`}
-      title={unsatisfiedFriend ? "Has an unsatisfied friend request" : undefined}
+      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${highlightClass}`}
+      title={titleText}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
