@@ -378,3 +378,34 @@ def test_friend_names_resolve_against_the_collapsed_helpers(tmp_path):
     result = parse_raw_survey(path)
     assert [h.name for h in result.helpers] == ["Petr Svoboda", "Anna Nováková"]
     assert result.helpers[0].friends == [2]  # Anna's surviving id, not her dropped first row's
+
+
+# -- phone capture (display-only hint for uncertain matches) ---------------------
+
+
+def _write_phone_survey(tmp_path, phones, phone_header):
+    data = {_NAME_HEADER: [f"Helper {i}" for i in range(len(phones))]}
+    if phone_header is not None:
+        data[phone_header] = phones
+    path = tmp_path / "survey.xlsx"
+    pd.DataFrame(data).to_excel(path, index=False)
+    return path
+
+
+@pytest.mark.parametrize("header", ["Telefonní číslo", "Tvoje telefonní číslo", "Telefon", "Phone number"])
+def test_phone_is_read_whatever_the_header_wording(tmp_path, header):
+    path = _write_phone_survey(tmp_path, ["+420 111 222 333", "  777888999 ", None], header)
+    result = parse_raw_survey(path)
+    assert [h.phone for h in result.helpers] == ["+420 111 222 333", "777888999", None]
+    assert not any("'phone'" in w for w in result.warnings)
+
+
+def test_a_missing_phone_column_leaves_phones_empty_without_a_warning(tmp_path):
+    result = parse_raw_survey(_write_phone_survey(tmp_path, [None], None))
+    assert [h.phone for h in result.helpers] == [None]
+    assert not any("'phone'" in w for w in result.warnings)
+
+
+def test_a_numeric_phone_cell_is_kept_as_text(tmp_path):
+    path = _write_phone_survey(tmp_path, [777888999], "Telefonní číslo")
+    assert parse_raw_survey(path).helpers[0].phone == "777888999"

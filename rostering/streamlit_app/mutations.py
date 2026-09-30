@@ -39,7 +39,7 @@ from rostering.persistence.serialize import (
     solver_config_to_dict,
 )
 from rostering.persistence.workspace import SeasonError, Workspace
-from rostering.persons import build_persons, link_persons
+from rostering.persons import build_persons, link_persons, new_person_id, uncertain_candidates
 from rostering.solver.model import solve_competition
 from rostering.solver.scoring import build_friend_pairs
 
@@ -261,6 +261,7 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
         helper_dict["friend_name_order"] = list(helper_dict["unresolved_friend_names"])
 
     state = workspace.load()
+    _carry_over_link_decisions(state["helpers"], helper_dicts)
     state["helpers"] = helper_dicts
     state["ingestion_warnings"] = result.warnings
     state["export_timestamps"] = [t.date().isoformat() for t in result.submission_timestamps]
@@ -276,6 +277,28 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     else:
         workspace.save(state)
     return workspace.load()
+
+
+def _carry_over_link_decisions(old_helpers: list[dict], new_helpers: list[dict]) -> None:
+    """A re-upload replaces the Season's Helper records, so what the user
+    decided about a Person — rejected pairings and a confirmed link — moves
+    onto the new record that is the same Person (the same ``person_id``, which
+    an identical e-mail keeps)."""
+    rejected: dict[str, list[str]] = {}
+    confirmed: set[str] = set()
+    for old in old_helpers:
+        person_id = old.get("person_id")
+        if not person_id:
+            continue
+        rejected.setdefault(person_id, []).extend(old.get("rejected_person_ids") or [])
+        if old.get("link_confirmed"):
+            confirmed.add(person_id)
+    for new in new_helpers:
+        kept = list(dict.fromkeys(rejected.get(new["person_id"], [])))
+        if kept:
+            new["rejected_person_ids"] = kept
+        if new["person_id"] in confirmed:
+            new["link_confirmed"] = True
 
 
 # -- Persons ------------------------------------------------------------------
@@ -308,6 +331,152 @@ def get_returning_helpers(workspace: Workspace) -> dict[int, list[str]]:
         if earlier:
             returning[helper["id"]] = sorted(earlier, key=label_sort_key, reverse=True)
     return returning
+
+
+def get_uncertain_matches(workspace: Workspace) -> list[dict]:
+    """The review list of the open Season: its uncertain matches, one entry
+    per Helper that has any (by Helper id), each with the Persons proposed for
+    them — an identical normalized name and no e-mail match, so nothing here is
+    linked until :func:`link_helper` confirms it, and an unreviewed candidate
+    counts as not linked.
+
+    An entry is ``helper_id``, ``helper_name``, ``helper_email``,
+    ``helper_phone`` and ``candidates``: each ``person_id`` plus the details of
+    the Person's most recent same-name record (``name``, ``season`` label,
+    ``email``, ``phone`` — the phone only a hint), most recent first. Empty
+    with no Season open."""
+    season = workspace.open_season()
+    if season is None:
+        return []
+    proposals = uncertain_candidates(workspace.person_records(), season["id"])
+    entries = []
+    for helper in workspace.load()["helpers"]:
+        candidates = proposals.get(helper["id"])
+        if not candidates:
+            continue
+        entries.append(
+            {
+                "helper_id": helper["id"],
+                "helper_name": helper["name"],
+                "helper_email": helper.get("email"),
+                "helper_phone": helper.get("phone"),
+                "candidates": [
+                    {
+                        "person_id": c.person_id,
+                        "name": c.record.name,
+                        "season": c.record.season_label,
+                        "email": c.record.email,
+                        "phone": c.record.phone,
+                    }
+                    for c in candidates
+                ],
+            }
+        )
+    return sorted(entries, key=lambda e: e["helper_id"])
+
+
+def get_person_links(workspace: Workspace) -> dict[int, dict]:
+    """The open Season's linked Helpers: Helper id -> ``person_id`` and
+    ``records`` (``season``, ``name``, ``email``, ``phone`` of every *other*
+    record of that Person, most recent first — another Helper of this Season
+    included). A Helper linked to no other record is absent."""
+    season = workspace.open_season()
+    if season is None:
+        return {}
+    by_person: dict[str, list] = {}
+    for record in workspace.person_records():
+        by_person.setdefault(record.person_id, []).append(record)
+    links: dict[int, dict] = {}
+    for helper in workspace.load()["helpers"]:
+        others = [
+            r
+            for r in by_person.get(helper.get("person_id") or "", [])
+            if (r.season_id, r.helper_id) != (season["id"], helper["id"])
+        ]
+        if others:
+            links[helper["id"]] = {
+                "person_id": helper["person_id"],
+                "records": [
+                    {"season": r.season_label, "name": r.name, "email": r.email, "phone": r.phone}
+                    for r in sorted(others, key=lambda r: r.recency, reverse=True)
+                ],
+            }
+    return links
+
+
+def _helper_record(state: dict[str, Any], helper_id: int) -> dict:
+    helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
+    if helper is None:
+        raise RosteringError(f"No such helper: {helper_id}")
+    return helper
+
+
+def _known_person(workspace: Workspace, person_id: str) -> None:
+    if person_id not in {r.person_id for r in workspace.person_records()}:
+        raise RosteringError("No such Person.")
+
+
+def link_helper(workspace: Workspace, helper_id: int, person_id: str) -> dict:
+    """Link a Helper of the open Season to a Person the stored Seasons know:
+    confirms a proposed candidate, or links by hand to any Person (a returner
+    who changed both e-mail and name form). Changes only this Helper's Person
+    link — never a Helper id — and settles the Helper, so their other
+    candidates are no longer proposed. Remembered on the Helper record
+    independently of e-mail."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    _known_person(workspace, person_id)
+    if helper.get("person_id") == person_id:
+        raise RosteringError(f"{helper['name']} is already linked to that Person.")
+    helper["person_id"] = person_id
+    helper["link_confirmed"] = True
+    remaining = [p for p in helper.get("rejected_person_ids", []) if p != person_id]
+    if remaining:
+        helper["rejected_person_ids"] = remaining
+    else:
+        helper.pop("rejected_person_ids", None)
+    workspace.save(state)
+    return state
+
+
+def reject_person_match(workspace: Workspace, helper_id: int, person_id: str) -> dict:
+    """"Not the same person": remember that this Helper is not that Person, so
+    the pairing is never proposed again (from either Season's side). Leaves the
+    Helper's other candidates, and their Person link, untouched."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    _known_person(workspace, person_id)
+    if helper.get("person_id") == person_id:
+        raise RosteringError(f"{helper['name']} is linked to that Person — unlink them instead.")
+    rejected = helper.setdefault("rejected_person_ids", [])
+    if person_id not in rejected:
+        rejected.append(person_id)
+    workspace.save(state)
+    return state
+
+
+def unlink_helper(workspace: Workspace, helper_id: int) -> dict:
+    """Undo a Helper's Person link, automatic or confirmed: they become a Person
+    of their own again (a fresh id; the Helper id and every other record are
+    untouched). The Person they were unlinked from is remembered as rejected,
+    so they are not proposed straight back to it."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    season = workspace.open_season()
+    old_person = helper.get("person_id")
+    shared = any(
+        r.person_id == old_person and (r.season_id, r.helper_id) != (season["id"], helper_id)
+        for r in workspace.person_records()
+    )
+    if not shared and not helper.get("link_confirmed"):
+        raise RosteringError(f"{helper['name']} is not linked to any other record.")
+    helper["person_id"] = new_person_id()
+    helper.pop("link_confirmed", None)
+    rejected = helper.setdefault("rejected_person_ids", [])
+    if old_person and old_person not in rejected:
+        rejected.append(old_person)
+    workspace.save(state)
+    return state
 
 
 def resolve_friend(

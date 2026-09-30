@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Uncertain-match review list: after an export is loaded, the Upload tab lists
+  every Helper who has the same name as someone from an earlier Season (or
+  another row of the same export) but no matching e-mail, with that Person's
+  name, Season and e-mail and the phone as a hint (the survey's phone column is
+  now read, for display only). Each candidate offers "Link" or "Not the same
+  person"; a Helper with several candidates picks one or none. Unreviewed
+  candidates stay unlinked, a rejected pairing is never proposed again, and a
+  confirmed link is remembered independently of e-mail. A "Person links"
+  expander on the Upload tab unlinks any Helper's link or links them by hand to
+  any past Person; link edits never change a Helper id. Links and rejections
+  are rolled back by Versions.
 - Returning helpers are recognized across Seasons. The survey's e-mail column
   is now read at upload whatever its header wording (e.g. "E-mailová adresa",
   "Email Address", "Tvůj e-mail") and compared trimmed and lower-cased; a Helper
@@ -18,8 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The Upload tab counts Returning helpers and shows the earlier Seasons each
   was in. A Person exists only through the Seasons that record them, so Start
   over and deleting a Season forget what only they knew. Same-name rows
-  without a matching e-mail are not linked yet (the confirm-a-proposal review
-  list comes later); an export without an e-mail column warns once.
+  without a matching e-mail are not linked automatically (see the review list
+  above); an export without an e-mail column warns once.
 - Duplicate rows in one export with the same e-mail now collapse to one Helper,
   the latest submission winning, with an upload warning naming who was
   collapsed; rows with different or blank e-mails are never merged.

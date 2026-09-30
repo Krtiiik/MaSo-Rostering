@@ -68,7 +68,9 @@ def render() -> None:
                 session.switch_tab("2. Buildings")
                 st.rerun()
 
+        _render_uncertain_matches(workspace)
         _render_helpers_overview(state, returning)
+        _render_person_links(workspace, state)
         _render_friend_resolution(state)
 
 
@@ -102,6 +104,113 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     session.set_state(state)
     st.session_state["_last_upload_hash"] = content_hash
     st.rerun()
+
+
+def _apply_link_edit(action, *args) -> None:
+    """Run one link mutation, refresh the session state and rerun; show the
+    error instead if it is refused."""
+    try:
+        session.set_state(action(session.get_workspace(), *args))
+    except mutations.RosteringError as exc:
+        st.error(str(exc))
+        return
+    st.rerun()
+
+
+def _describe(email: str | None, phone: str | None) -> str:
+    return f"{email or 'no e-mail'} · phone {phone}" if phone else (email or "no e-mail")
+
+
+def _render_uncertain_matches(workspace) -> None:
+    """The review list: same-name Persons proposed for a new Helper, to be
+    confirmed or rejected one by one. Unreviewed candidates stay unlinked."""
+    entries = mutations.get_uncertain_matches(workspace)
+    if not entries:
+        return
+    st.subheader(f"Possible returning helpers ({len(entries)})")
+    st.caption(
+        "These Helpers have the same name as someone from an earlier Season but a different (or no) e-mail, "
+        "so they are **not linked** until you confirm. The phone is only a hint. Anything you leave "
+        "unreviewed stays unlinked."
+    )
+    for entry in entries:
+        with st.container(border=True):
+            st.markdown(
+                f"**{entry['helper_name']}** — {_describe(entry['helper_email'], entry['helper_phone'])}"
+            )
+            for candidate in entry["candidates"]:
+                info_col, link_col, reject_col = st.columns([5, 1.2, 2.2], vertical_alignment="center")
+                info_col.write(
+                    f"{candidate['name']} · Season {candidate['season']} · "
+                    f"{_describe(candidate['email'], candidate['phone'])}"
+                )
+                key = f"{entry['helper_id']}_{candidate['person_id']}"
+                if link_col.button("Link", key=f"review_link_{key}", type="primary"):
+                    _apply_link_edit(mutations.link_helper, entry["helper_id"], candidate["person_id"])
+                if reject_col.button("Not the same person", key=f"review_reject_{key}"):
+                    _apply_link_edit(
+                        mutations.reject_person_match, entry["helper_id"], candidate["person_id"]
+                    )
+            if len(entry["candidates"]) > 1 and st.button(
+                "None of these", key=f"review_none_{entry['helper_id']}"
+            ):
+                try:
+                    for candidate in entry["candidates"]:
+                        session.set_state(
+                            mutations.reject_person_match(
+                                workspace, entry["helper_id"], candidate["person_id"]
+                            )
+                        )
+                except mutations.RosteringError as exc:
+                    st.error(str(exc))
+                else:
+                    st.rerun()
+
+
+def _render_person_links(workspace, state: dict) -> None:
+    """Undo a Helper's link, or link them by hand to any Person the stored
+    Seasons know (link edits never change a Helper id)."""
+    with st.expander("Person links (unlink, or link a Helper by hand)"):
+        links = mutations.get_person_links(workspace)
+        helpers = {h["id"]: h for h in state["helpers"]}
+        helper_id = st.selectbox(
+            "Helper",
+            options=sorted(helpers, key=lambda hid: helpers[hid]["name"].lower()),
+            format_func=lambda hid: helpers[hid]["name"] + (" (linked)" if hid in links else ""),
+            key="person_links_helper",
+        )
+        if helper_id is None:
+            return
+        link = links.get(helper_id)
+        if link is not None:
+            st.write(
+                "Linked to: "
+                + "; ".join(
+                    f"{r['name']} ({r['season']}, {r['email'] or 'no e-mail'})" for r in link["records"]
+                )
+            )
+            if st.button("Unlink", key=f"unlink_{helper_id}"):
+                _apply_link_edit(mutations.unlink_helper, helper_id)
+        else:
+            st.write("Not linked to any earlier record.")
+
+        own_person = helpers[helper_id].get("person_id")
+        persons = {p["person_id"]: p for p in mutations.list_persons(workspace) if p["person_id"] != own_person}
+        if not persons:
+            return
+        person_id = st.selectbox(
+            "Link to a past Person",
+            options=sorted(persons, key=lambda pid: persons[pid]["name"].lower()),
+            format_func=lambda pid: (
+                f"{persons[pid]['name']} — {', '.join(persons[pid]['seasons'])} — "
+                f"{', '.join(persons[pid]['emails']) or 'no e-mail'}"
+            ),
+            index=None,
+            placeholder="Pick a Person",
+            key=f"person_links_target_{helper_id}",
+        )
+        if person_id is not None and st.button("Link to this Person", key=f"manual_link_{helper_id}"):
+            _apply_link_edit(mutations.link_helper, helper_id, person_id)
 
 
 def _render_helpers_overview(state: dict, returning: dict[int, list[str]]) -> None:

@@ -126,6 +126,9 @@ class Helper:
     # rostering.persons.normalize_email), or None when blank/absent. The first
     # key for recognizing a Returning helper across Seasons.
     email: Optional[str] = None
+    # The survey's phone answer as typed (trimmed), or None. Display-only: a
+    # hint shown next to an uncertain Person match, never a key.
+    phone: Optional[str] = None
     # Durable identity of the individual across Seasons (never reused). Not
     # known to ingestion: it is assigned when the export is loaded into a
     # Season, by matching against the stored Seasons (rostering.persons).

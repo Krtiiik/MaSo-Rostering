@@ -15,9 +15,11 @@ Matching rules implemented here:
   against *every* e-mail accumulated for a Person in any stored Season, and
   when several Persons have recorded that e-mail the one from the most recent
   Season wins.
+- **Uncertain match**: an identical normalized name with no e-mail match is
+  only *proposed* (``uncertain_candidates``); nothing is linked until the user
+  confirms it, and a rejected pairing is never proposed again.
 - Anything else is a new Person. Phone numbers are never a key, and there is no
-  fuzzy or nickname matching; proposing same-name candidates for the user to
-  confirm belongs to the review list, not to this module.
+  fuzzy or nickname matching.
 
 Everything here works on plain data (no I/O), so it is shared by whatever
 loads the stored Seasons and whatever loads an export against them.
@@ -49,6 +51,13 @@ class PersonRecord:
     helper_id: int
     name: str
     email: Optional[str]  # normalized
+    phone: Optional[str] = None  # as typed; a display hint, never a key
+    # Person ids the user said this record is *not* (remembered so the pairing
+    # is never proposed again), and whether the user picked this record's
+    # Person themselves (Link on the review list, or a manual link), which
+    # settles the record for good.
+    rejected: frozenset[str] = frozenset()
+    link_confirmed: bool = False
 
     @property
     def name_key(self) -> str:
@@ -89,6 +98,9 @@ def records_from_state(season: dict[str, str], state: dict[str, Any]) -> list[Pe
                 helper_id=int(helper["id"]),
                 name=helper.get("name", ""),
                 email=normalize_email(helper.get("email")),
+                phone=(helper.get("phone") or "").strip() or None,
+                rejected=frozenset(helper.get("rejected_person_ids") or ()),
+                link_confirmed=bool(helper.get("link_confirmed")),
             )
         )
     return records
@@ -120,6 +132,57 @@ def link_persons(emails: Iterable[Optional[str]], known: Iterable[PersonRecord])
         else:
             person_ids.append(new_person_id())
     return person_ids
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """One proposal for a Helper: a Person whose record with the same
+    normalized name is ``record`` (the most recent such record)."""
+
+    person_id: str
+    record: PersonRecord
+
+
+def uncertain_candidates(records: Iterable[PersonRecord], season_id: str) -> dict[int, list[Candidate]]:
+    """The uncertain matches of one stored Season's Helpers (``season_id``):
+    Helper id -> the Persons proposed for them, most recent appearance first;
+    Helpers with nothing to review are absent.
+
+    A Helper is proposed a Person when a record of that Person has the same
+    normalized name, unless the Helper is already *settled*: linked (it shares
+    its Person with another record, e.g. by e-mail) or linked by the user's own
+    choice — "pick one or none". A pairing the user rejected, from either side,
+    is never proposed. Two unsettled Helpers of one Season that match each
+    other are listed once, on the later one."""
+    records = list(records)
+    by_person: dict[str, list[PersonRecord]] = {}
+    for record in records:
+        by_person.setdefault(record.person_id, []).append(record)
+    rejected_pairs = {frozenset((r.person_id, other)) for r in records for other in r.rejected}
+
+    proposals: dict[int, list[Candidate]] = {}
+    for helper in records:
+        if helper.season_id != season_id or helper.link_confirmed or not helper.name_key:
+            continue
+        if len(by_person[helper.person_id]) > 1:
+            continue
+        found: list[Candidate] = []
+        for person_id, group in by_person.items():
+            if person_id == helper.person_id or frozenset((helper.person_id, person_id)) in rejected_pairs:
+                continue
+            same_name = [r for r in group if r.name_key == helper.name_key]
+            if not same_name:
+                continue
+            best = max(same_name, key=lambda r: r.recency)
+            pending_in_season = (
+                best.season_id == season_id and len(group) == 1 and not best.link_confirmed
+            )
+            if pending_in_season and best.helper_id > helper.helper_id:
+                continue  # listed once, on the later of the two
+            found.append(Candidate(person_id, best))
+        if found:
+            proposals[helper.helper_id] = sorted(found, key=lambda c: c.record.recency, reverse=True)
+    return proposals
 
 
 @dataclass

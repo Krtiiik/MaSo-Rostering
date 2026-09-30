@@ -229,7 +229,7 @@ Photographing the award ceremony. An Additional role, scoped to a Room.
 
 #### People
 
-**Person** *(Helpers only so far; Organizers and name-based proposals are planned)*:
+**Person** *(Helpers only so far; Organizers are planned)*:
 The durable identity of one individual across Seasons, distinct from the
 per-Season record that represents them in a given Season — a Helper or an
 Organizer. A Person carries identity only: it is what links a Season's
@@ -252,10 +252,17 @@ not just the previous one, and applies the same way to a re-upload within
 one Season (duplicate rows in one export collapse to the latest submission;
 someone missing from a newer export is kept, not removed). A **confident match** is an identical normalized
 e-mail — linked automatically even if the name differs. An **uncertain
-match** *(planned, not yet implemented — today such a row is simply a new
-Person)* is an identical normalized name with no e-mail match — proposed, not
-linked until the user confirms it. Phone number is never a key. Anything
-else is treated as a new Person.
+match** is an identical normalized name with no e-mail match — proposed on a
+review list right after an export is loaded, never linked until the user
+confirms it (link, or "not the same person"; several same-name candidates
+for one Helper are listed together and the user picks one or none; two rows
+of one export with the same name but different e-mails go to the list too).
+An unreviewed candidate counts as not linked, a rejected pairing is never
+proposed again, and a confirmed link is remembered independently of e-mail.
+Any Helper's link can also be undone (unlink) or pointed by hand at any past
+Person; link edits change only the Person link, never a Helper id. Phone
+number is never a key — shown on a candidate as a hint only. Anything else
+is treated as a new Person.
 
 #### Tags *(planned, not yet implemented)*
 
