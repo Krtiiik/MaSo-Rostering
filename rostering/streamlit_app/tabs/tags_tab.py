@@ -6,7 +6,8 @@ from __future__ import annotations
 import streamlit as st
 
 from rostering import tags as tag_tree
-from rostering.streamlit_app import mutations, session, tag_pills
+from rostering.domain import Role
+from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
 
 # Session-state keys: the Tag being edited (a Tag id, or _NEW for the create
 # form), the Tag whose delete awaits confirmation, and a counter that gives the
@@ -41,6 +42,10 @@ def render() -> None:
         "parent (and its parents), computed live. Tags belong to this Season."
     )
 
+    # A "Go fix" from a Broken rule: says what to fix here, for as long as it is
+    # still broken (the Tag itself was preselected by the hand-off).
+    fix = fix_focus.render_callout(state, "tags")
+
     tree_col, edit_col = st.columns([5, 6], gap="large")
     with tree_col:
         _render_tree(state)
@@ -52,7 +57,7 @@ def render() -> None:
             tag = next(t for t in state["tags"] if t["id"] == selected)
             _render_form(state, tag)
             _render_delete_panel(state, tag)
-            _render_carriers(state, tag)
+            _render_carriers(state, tag, fix.helper_id if fix else None)
             _render_others(state, tag)
         else:
             st.session_state.pop(_SELECTED, None)
@@ -129,17 +134,62 @@ def _render_form(state: dict, tag: dict | None) -> None:
             help="Everyone with this Tag also carries the parent Tag and its parents.",
         )
         note = st.text_area("Note", value=tag["note"] if tag else "", key=f"{prefix}_note")
+        constraints = _constraint_pickers(state, tag, prefix)
         submitted = st.form_submit_button("Create tag" if tag is None else "Save changes", type="primary")
     if not submitted:
         return
     if tag is None:
-        if _apply(mutations.add_tag, name, colour=colour, note=note, parent_id=parent_id):
+        if _apply(mutations.add_tag, name, colour=colour, note=note, parent_id=parent_id, **constraints):
             st.session_state[_SELECTED] = session.get_state()["tags"][-1]["id"]
             st.session_state[_FLASH] = f"Created {name.strip()}."
             st.rerun()
-    elif _apply(mutations.update_tag, tag["id"], name=name, colour=colour, note=note, parent_id=parent_id):
+    elif _apply(mutations.update_tag, tag["id"], name=name, colour=colour, note=note, parent_id=parent_id, **constraints):
         st.session_state[_FLASH] = f"Saved changes to {name.strip()}."
         st.rerun()
+
+
+_NOT_IN_SEASON = " — not in this Season"
+
+
+def _constraint_pickers(state: dict, tag: dict | None, prefix: str) -> dict[str, list[str]]:
+    """The four Building/Role allow- and deny-list pickers of the form, chosen
+    from the Season's configuration. An entry the Season no longer has stays
+    listed, marked "not in this Season" (it is inert: the solver and the checker
+    ignore it), so saving the form does not silently drop it."""
+    entries = mutations.tag_constraint_entries(state, tag["id"]) if tag else {}
+    buildings = [b["name"] for b in state["config"]]
+    roles = [role.name for role in Role]
+    st.caption(
+        "Where this Tag's Helpers may go. An allow-list limits them to it (a Tag with none does not narrow); "
+        "a deny-list always wins. Leaving a Helper with no allowed Building or Role is refused."
+    )
+    picked: dict[str, list[str]] = {}
+    for column, (field, label, axis_options) in zip(
+        st.columns(2) + st.columns(2),
+        [
+            ("building_allow", "Allow only Buildings", buildings),
+            ("building_deny", "Deny Buildings", buildings),
+            ("role_allow", "Allow only Roles", roles),
+            ("role_deny", "Deny Roles", roles),
+        ],
+    ):
+        current = entries.get(field, [])
+        inert = {e["name"] for e in current if not e["in_season"]}
+        options = [*axis_options, *(e["name"] for e in current if e["name"] not in axis_options)]
+
+        def show(value: str, field=field, inert=inert) -> str:
+            text = Role[value].value if field.startswith("role") else value
+            return text + (_NOT_IN_SEASON if value in inert else "")
+
+        picked[field] = column.multiselect(
+            label,
+            options=options,
+            default=[e["name"] for e in current],
+            format_func=show,
+            key=f"{prefix}_{field}",
+            placeholder="None" if options else "Configure a Building first",
+        )
+    return picked
 
 
 def _delete_lines(state: dict, tag: dict) -> list[str]:
@@ -187,7 +237,7 @@ def _render_delete_panel(state: dict, tag: dict) -> None:
             st.rerun()
 
 
-def _render_carriers(state: dict, tag: dict) -> None:
+def _render_carriers(state: dict, tag: dict, fixing_helper_id: int | None = None) -> None:
     carriers = mutations.tag_carriers(state, tag["id"])
     names = {t["id"]: t["name"] for t in state["tags"]}
     st.subheader(f"Has this tag ({len(carriers)})")
@@ -195,7 +245,7 @@ def _render_carriers(state: dict, tag: dict) -> None:
         st.caption("Nobody carries this Tag yet.")
     for carrier in carriers:
         name_col, action_col = st.columns([5, 3], vertical_alignment="center")
-        name_col.write(carrier["name"])
+        name_col.write(("⚠ " if carrier["helper_id"] == fixing_helper_id else "") + carrier["name"])
         if carrier["via"] is None:
             if action_col.button(
                 "Remove", icon=":material/close:", type="tertiary", key=f"tag_remove_{tag['id']}_{carrier['helper_id']}"

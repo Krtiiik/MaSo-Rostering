@@ -6,12 +6,17 @@ A Tag has at most one parent it implies, so the Tags form a forest. A Helper's
 those, computed here on demand and never stored on the Helper — editing the tree
 therefore updates everyone at once. Nothing in this module touches state or
 storage: callers hand it the Tag definitions and the direct assignments.
+
+Tag constraints (see CONTEXT.md "Tag constraint") live here too, as one shared
+pure function of the Tag tree and a Helper's direct Tags: the solver, the live
+Broken-rule checker and the edit-time validation all judge through
+``restrictions`` / ``blocking`` / ``allowed_values``, so they cannot drift.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Mapping, Optional, Sequence
 
 # Distinct, readable-on-white defaults handed to new Tags in turn.
 PALETTE: tuple[str, ...] = (
@@ -37,6 +42,13 @@ class Tag:
     note: str = ""
     # The one Tag this Tag implies, or None for a root.
     parent_id: Optional[int] = None
+    # Tag constraints: names of Buildings / Roles (``Role.name``) the Tag's
+    # Helpers may go to only (allow) or may not go to (deny). Room is not an
+    # axis. An empty list states nothing.
+    building_allow: tuple[str, ...] = ()
+    building_deny: tuple[str, ...] = ()
+    role_allow: tuple[str, ...] = ()
+    role_deny: tuple[str, ...] = ()
 
 
 def tag_from_dict(data: dict) -> Tag:
@@ -46,6 +58,11 @@ def tag_from_dict(data: dict) -> Tag:
         colour=data.get("colour") or PALETTE[0],
         note=data.get("note") or "",
         parent_id=data.get("parent_id"),
+        # Absent from Tags saved before Tag constraints existed.
+        building_allow=tuple(data.get("building_allow") or ()),
+        building_deny=tuple(data.get("building_deny") or ()),
+        role_allow=tuple(data.get("role_allow") or ()),
+        role_deny=tuple(data.get("role_deny") or ()),
     )
 
 
@@ -147,3 +164,99 @@ def tree_order(tags: Iterable[Tag]) -> list[tuple[Tag, int]]:
 
     walk(None, 0)
     return ordered
+
+
+# -- Tag constraints -------------------------------------------------------------
+
+BUILDING = "building"
+ROLE = "role"
+AXES = (BUILDING, ROLE)
+_NOUNS = {BUILDING: "Building", ROLE: "Role"}
+
+
+@dataclass(frozen=True)
+class Restriction:
+    """One applicable Tag's live list on one axis. ``kind`` is ``"allow"`` (the
+    Helper may go only to ``values``) or ``"deny"`` (never to ``values``);
+    ``values`` are the universe's own spellings of the entries that name
+    something in it, so an entry naming nothing (a Building the Season no
+    longer has) is left out -- inert."""
+
+    tag: Tag
+    kind: str
+    values: tuple[str, ...]
+
+
+def same_value(axis: str, entry: str, value: str) -> bool:
+    """Whether a constraint entry names ``value``. Buildings are matched the
+    way Building preferences are (the survey and the Season configs spell them
+    differently); Roles by name."""
+    if axis == BUILDING:
+        from rostering.ingest.mapping import building_keys  # deferred: mapping imports domain
+
+        return not building_keys(entry).isdisjoint(building_keys(value))
+    return entry == value
+
+
+def entry_in_universe(axis: str, entry: str, universe: Iterable[str]) -> bool:
+    return any(same_value(axis, entry, value) for value in universe)
+
+
+def restrictions(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[str]) -> list[Restriction]:
+    """The live restrictions on ``axis`` from every Tag that applies to a Helper
+    carrying ``direct`` (their own Tags plus every ancestor), in effective-Tag
+    order. A list with no entry naming anything in ``universe`` states nothing,
+    so an allow-list of absent entries never narrows."""
+    tags = list(tags)
+    by_id = {t.id: t for t in tags}
+    found: list[Restriction] = []
+    for tag_id in effective_tag_ids(tags, direct):
+        tag = by_id[tag_id]
+        for kind in ("allow", "deny"):
+            entries = getattr(tag, f"{axis}_{kind}")
+            live = tuple(v for v in universe if any(same_value(axis, e, v) for e in entries))
+            if live:
+                found.append(Restriction(tag, kind, live))
+    return found
+
+
+def blocking(found: Iterable[Restriction], value: str) -> list[Restriction]:
+    """The restrictions that keep ``value`` out: an allow-list not naming it or
+    a deny-list naming it. Any single one is enough, which is what makes
+    allow-lists intersect and a deny always win."""
+    return [r for r in found if (r.kind == "allow") != (value in r.values)]
+
+
+def allowed_values(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[str]) -> list[str]:
+    """A Helper's allowed set on one axis: the intersection of every applicable
+    Tag's allow-list (a Tag with none does not narrow) minus every applicable
+    deny-list, in ``universe`` order."""
+    found = restrictions(tags, direct, axis, universe)
+    return [v for v in universe if not blocking(found, v)]
+
+
+def describe_restriction(r: Restriction, axis: str, display: Callable[[str], str] = str) -> str:
+    """``Tag 8.M, allows only Building Karlín`` / ``Tag GCHD, denies Roles A, B``."""
+    noun = _NOUNS[axis] + ("s" if len(r.values) > 1 else "")
+    verb = "allows only" if r.kind == "allow" else "denies"
+    return f"Tag {r.tag.name}, {verb} {noun} {', '.join(display(v) for v in r.values)}"
+
+
+def dead_ends(
+    tags: Iterable[Tag],
+    direct_by_helper: Mapping[int, Iterable[int]],
+    universes: Mapping[str, Sequence[str]],
+) -> set[tuple[int, str]]:
+    """The ``(helper id, axis)`` pairs whose allowed set is empty: a Helper with
+    nowhere to go. An axis with an empty universe (no Building configured) has
+    nothing to strand anyone from and is skipped."""
+    tags = list(tags)
+    stranded: set[tuple[int, str]] = set()
+    for helper_id, direct in direct_by_helper.items():
+        direct = list(direct)
+        if not direct:
+            continue
+        for axis, universe in universes.items():
+            if universe and not allowed_values(tags, direct, axis, universe):
+                stranded.add((helper_id, axis))
+    return stranded

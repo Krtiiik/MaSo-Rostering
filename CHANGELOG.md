@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tag constraints: a Tag can restrict where its Helpers go with allow-lists and
+  deny-lists on Building and Role (not Room), chosen in the Tags tab's edit form
+  from the Season's configuration; an entry naming a Building the configuration
+  no longer has is inert and shown as "not in this Season". A Helper's allowed
+  set per axis is the intersection of the allow-lists of all their Tags (own plus
+  implied; a Tag with none does not narrow) minus every deny-list, so a deny
+  always wins. A Tag assignment (the Tags tab, the Helper list's inline
+  multiselect or the bulk apply) or a Tag edit that would leave any Helper with
+  no allowed Building or no allowed Role is refused with the reason. The solver
+  treats the allowed sets as a hard rule that bends after the minimums and before
+  Forced-friend groups and Equipment, so a solve still returns a roster; the live
+  Broken-rule check and banner report a Helper placed outside their allowed set
+  ("Helper Anna (Tag 8.M, allows only Building Karlín) is placed in Impakt") with
+  a "Go fix" that opens the Tags tab on that Tag, and a drop that newly breaks one
+  toasts and still applies.
 - Tags: a new "3. Tags" tab (the Roster tab is now "4. Roster") builds the
   Season's tree of named, coloured Tags. A Tag has a required name (unique in the
   Season, ignoring case), a colour, a note and an optional single parent Tag it
