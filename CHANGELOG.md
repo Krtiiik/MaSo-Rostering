@@ -237,7 +237,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Ano" (the survey upload and preview still show it as blank), and Záloha is
   no longer a free landing spot: a Helper who does not mind a real Role gets it
   rather than Záloha, while one who rated every open Role Spíš ne or Ne is
-  still placed in Záloha. Every objective term is scaled internally and the
+  still placed in Záloha. A Helper with `k` explicit "Ano" ratings (a blank
+  never counts) has every other Role's cost multiplied by 1 + 1/k (x2 for one
+  "Ano", x1.5 for two, x1.33 for three), so when two Helpers compete for a Role
+  the one with a single "Ano" is kept on it ahead of one who has several to
+  fall back on. Every objective term is scaled internally and the
   reported objective stays in the old scale. The cost table is a solver
   setting with these defaults; editing and saving it comes separately.
 - A solve that finds no roster before the time limit now says "No roster found

@@ -303,3 +303,112 @@ def test_the_role_preference_weight_is_the_unit_of_the_role_cost():
 
     assert _solve(comp).objective_value == RoleCosts().ne
     assert _solve(comp, doubled).objective_value == 2 * RoleCosts().ne
+
+
+# --- Concentration of "Ano" ------------------------------------------------
+
+
+def _forced_into(role_name, *helpers):
+    building = Building(name="B", rooms=[_room("R1", **{role_name: 1})])
+    return Competition(buildings={"B": building}, helpers=list(helpers))
+
+
+def _role_of(result, helper_id):
+    return next(a.role for a in result.assignments if a.helper_id == helper_id)
+
+
+def test_the_helper_with_a_single_ano_keeps_it_over_one_with_three():
+    # Both are Nevadí on Kreslic, so a plain sum of costs would tie.
+    many = Helper(
+        id=1,
+        name="Many",
+        role_preferences={
+            Role.Opravovatel: Preference.Ano,
+            Role.Menic: Preference.Ano,
+            Role.Skenovac: Preference.Ano,
+            Role.Kreslic: Preference.Nevadi,
+        },
+    )
+    one = Helper(
+        id=2,
+        name="One",
+        role_preferences={Role.Opravovatel: Preference.Ano, Role.Kreslic: Preference.Nevadi},
+    )
+
+    result = _solve(_forced_into("Kreslic", many, one))
+
+    assert _role_of(result, 1) == Role.Kreslic
+    assert _role_of(result, 2) == Role.Opravovatel
+
+
+def test_the_concentration_factor_is_one_plus_one_over_k():
+    def forced_cost(anos):
+        prefs = {role: Preference.Ano for role in REAL_ROLES[:anos]}
+        prefs[Role.Kreslic] = Preference.Nevadi
+        comp = _forced_into("Kreslic", Helper(id=1, name="H", role_preferences=prefs))
+        return _solve(comp).objective_value
+
+    nevadi = RoleCosts().nevadi
+    assert forced_cost(1) == nevadi * 2
+    assert forced_cost(2) == nevadi * 1.5
+    assert forced_cost(3) == nevadi * (1 + 1 / 3)
+
+
+def test_a_blank_never_counts_towards_the_number_of_anos():
+    # One "Ano" and four blanks is k = 1, so the forced blank costs Nevadí x 2.
+    helper = Helper(id=1, name="H", role_preferences={Role.Opravovatel: Preference.Ano})
+
+    result = _solve(_forced_into("Kreslic", helper))
+
+    assert result.objective_value == RoleCosts().nevadi * 2
+
+
+def test_a_helper_without_an_ano_is_scored_with_factor_one():
+    helper = Helper(id=1, name="H", role_preferences=_all_roles(Preference.Klidne))
+
+    result = _solve(_forced_into("Kreslic", helper))
+
+    assert result.objective_value == RoleCosts().klidne
+
+
+def test_concentration_scales_ne_by_the_shared_factor_only():
+    many = Helper(
+        id=1,
+        name="Many",
+        role_preferences={
+            Role.Opravovatel: Preference.Ano,
+            Role.Menic: Preference.Ano,
+            Role.Skenovac: Preference.Ano,
+            Role.Kreslic: Preference.Ne,
+        },
+    )
+    one = Helper(id=2, name="One", role_preferences={Role.Opravovatel: Preference.Ano, Role.Kreslic: Preference.Ne})
+
+    result = _solve(_forced_into("Kreslic", many, one))
+
+    assert _role_of(result, 1) == Role.Kreslic
+    assert result.objective_value == RoleCosts().ne * (1 + 1 / 3)
+
+
+def test_ne_is_never_chosen_over_spise_ne_or_zaloha_when_cheaper_exists():
+    building = Building(name="B", rooms=[_room("R1")])
+    no_ano = {
+        Role.Opravovatel: Preference.Ne,
+        Role.Menic: Preference.Ne,
+        Role.Skenovac: Preference.Ne,
+        Role.Kreslic: Preference.Ne,
+        Role.Fotograf: Preference.Spise_ne,
+    }
+    with_ano = {**no_ano, Role.Opravovatel: Preference.Ano}
+    comp = Competition(
+        buildings={"B": building},
+        helpers=[
+            Helper(id=1, name="NoAno", role_preferences=no_ano),
+            Helper(id=2, name="Ano", role_preferences=with_ano),
+        ],
+    )
+
+    result = _solve(comp)
+
+    assert _role_of(result, 1) == Role.Zaloha
+    assert _role_of(result, 2) == Role.Opravovatel

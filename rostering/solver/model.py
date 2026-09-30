@@ -13,7 +13,10 @@ Soft (minimized) objective terms, dominated by any rule penalty:
 - role Preference cost: each Role (Záloha included) costs what the helper's
   rating of it costs in ``RoleCosts`` (Ano 0, Klidně 1, Nevadí 2, Záloha 4,
   Spíš ne 6, Ne 12 by default; a blank rating counts as Nevadí), times the
-  ``role_preference`` weight as the unit;
+  ``role_preference`` weight as the unit. A helper with ``k >= 1`` explicit
+  "Ano" ratings (a blank never counts) has every non-Ano Role's cost
+  multiplied by ``1 + 1/k``, so a single "Ano" is guarded more fiercely than
+  one of several;
 - being placed in a building outside the helper's acceptable set (see
   CLAUDE.md "Building preference is a SET, not a single choice");
 - unsatisfied friend requests, scored via ``rostering.solver.scoring``.
@@ -219,13 +222,21 @@ def solve_competition(
 
     for h in helpers:
         # A Role the Helper left blank counts as Nevadí; Záloha is scored like
-        # a Role, from its own table entry.
+        # a Role, from its own table entry. Only an explicit "Ano" counts
+        # towards ``k``, and it makes every non-Ano Role cost (1 + 1/k) times
+        # as much. A Helper has at most five rateable Roles, so ``k <= 5`` and
+        # scale * (k + 1) / k is an exact integer.
+        k = sum(1 for pref in h.role_preferences.values() if pref is Preference.Ano)
         for role in roles:
             if role is Role.Zaloha:
+                pref = None
                 cost = config.role_costs.zaloha
             else:
-                cost = config.role_costs.for_preference(h.role_preferences.get(role, Preference.Nevadi))
+                pref = h.role_preferences.get(role, Preference.Nevadi)
+                cost = config.role_costs.for_preference(pref)
             weight = cost * config.weights.role_preference * scale
+            if k and pref is not Preference.Ano:
+                weight = weight * (k + 1) // k
             if weight:
                 penalty_terms.append(weight * assign_role[h.id, role])
                 ordinary_max += weight
