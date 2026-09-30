@@ -16,7 +16,7 @@ _PREFERENCE_COST_FIELDS = [
     ("spise_ne", "Spíš ne", "w_cost_spise_ne"),
     ("ne", "Ne", "w_cost_ne"),
 ]
-# Záloha is not a Preference option, so its cost sits outside the stack and the chart.
+# Záloha is not a Preference option, so its cost sits outside the slider rows.
 _ZALOHA_COST_FIELD = ("zaloha", "Záloha", "w_cost_zaloha")
 _ROLE_COST_FIELDS = [*_PREFERENCE_COST_FIELDS, _ZALOHA_COST_FIELD]
 _ROLE_COST_UNIT_KEY = "w_role_cost_unit"
@@ -43,14 +43,21 @@ def _restore_role_cost_defaults() -> None:
     draft = st.session_state["solver_config_draft"]
     draft["weights"]["role_cost_unit"] = defaults["weights"]["role_cost_unit"]
     draft["role_costs"] = dict(defaults["role_costs"])
-    # Dropping the widgets' own state makes them re-read the draft's values.
+    # Dropping a number input's own state makes it re-read the draft's value. A
+    # slider keeps the value the browser holds for it instead, so its state is
+    # set outright (this runs before the script, so that is allowed).
     st.session_state.pop(_ROLE_COST_UNIT_KEY, None)
-    for _field, _label, key in _ROLE_COST_FIELDS:
-        st.session_state.pop(key, None)
+    st.session_state.pop(_ZALOHA_COST_FIELD[2], None)
+    for field, _label, key in _PREFERENCE_COST_FIELDS:
+        st.session_state[key] = defaults["role_costs"][field]
 
 
 def clear_drafts() -> None:
     st.session_state.pop("solver_config_draft", None)
+    # The sliders are driven by their state, so another Season's draft must not
+    # meet the previous one's values.
+    for _field, _label, key in _PREFERENCE_COST_FIELDS:
+        st.session_state.pop(key, None)
 
 
 def render() -> None:
@@ -96,12 +103,12 @@ def render() -> None:
         label_col, slider_col = st.columns([1, 4], vertical_alignment="center")
         label_col.markdown(f"**{label}** {_stars(len(_PREFERENCE_COST_FIELDS) - position)}")
         # A cost saved above the slider's range is shown (and saved again) at the top.
+        st.session_state.setdefault(key, min(int(role_costs[field]), MAX_PREFERENCE_COST))
         role_costs[field] = slider_col.slider(
             label,
             min_value=0,
             max_value=MAX_PREFERENCE_COST,
             step=1,
-            value=min(int(role_costs[field]), MAX_PREFERENCE_COST),
             key=key,
             label_visibility="collapsed",
         )
