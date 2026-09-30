@@ -1,6 +1,7 @@
 """Tab 5: solver settings (weights, role costs, time limit, friend scoring)."""
 from __future__ import annotations
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -21,6 +22,32 @@ _PREFERENCE_COST_FIELDS = [
 _ZALOHA_COST_FIELD = ("zaloha", "Záloha", "w_cost_zaloha")
 _ROLE_COST_FIELDS = [*_PREFERENCE_COST_FIELDS, _ZALOHA_COST_FIELD]
 _ROLE_COST_UNIT_KEY = "w_role_cost_unit"
+
+
+def _stars(count: int) -> str:
+    """``count`` of the five stars filled, the rest outlined (Streamlit markdown
+    colours, so it works inside a widget label)."""
+    return f":orange[{'★' * count}]:gray[{'☆' * (len(_PREFERENCE_COST_FIELDS) - count)}]"
+
+
+def _label_colour() -> str:
+    """Text colour readable on the active theme (a mark's text does not pick it
+    up from the theme the way the axes do)."""
+    return "#fafafa" if st.context.theme.type == "dark" else "#31333f"
+
+
+def _cost_chart(costs: list[tuple[str, int]]) -> alt.Chart:
+    """Horizontal bars of the Preference costs, top to bottom in the given
+    order, with the value printed at each bar's end. Static: no tooltip, no
+    selection, so hovering or dragging does nothing."""
+    data = pd.DataFrame(costs, columns=["Preference", "Cena"])
+    base = alt.Chart(data).encode(
+        y=alt.Y("Preference:N", sort=[label for label, _cost in costs], title=None, axis=alt.Axis(labelLimit=200)),
+        x=alt.X("Cena:Q", title="Cena", axis=alt.Axis(tickMinStep=1)),
+    )
+    bars = base.mark_bar()
+    values = base.mark_text(align="left", dx=4, color=_label_colour()).encode(text="Cena:Q")
+    return (bars + values).properties(height=400)
 
 
 def _ensure_draft(state: dict) -> None:
@@ -88,21 +115,17 @@ def render() -> None:
 
     input_col, chart_col = st.columns([1, 2])
     with input_col:
-        for field, label, key in _PREFERENCE_COST_FIELDS:
+        for position, (field, label, key) in enumerate(_PREFERENCE_COST_FIELDS):
             role_costs[field] = st.number_input(
-                label, min_value=0, step=1, value=int(role_costs[field]), key=key
+                f"{label} {_stars(len(_PREFERENCE_COST_FIELDS) - position)}",
+                min_value=0,
+                step=1,
+                value=int(role_costs[field]),
+                key=key,
             )
     with chart_col:
         st.caption("Rozložení cen podle preferencí")
-        st.bar_chart(
-            pd.DataFrame(
-                {"Cena": [role_costs[field] for field, _label, _key in _PREFERENCE_COST_FIELDS]},
-                index=pd.Index([label for _field, label, _key in _PREFERENCE_COST_FIELDS], name="Preference"),
-            ),
-            sort=False,
-            y_label="Cena",
-            height=320,
-        )
+        st.altair_chart(_cost_chart([(label, role_costs[field]) for field, label, _key in _PREFERENCE_COST_FIELDS]))
     st.button("Obnovit výchozí ceny rolí", on_click=_restore_role_cost_defaults, key="w_restore_role_costs")
 
     solver_config["time_limit_seconds"] = st.number_input(
