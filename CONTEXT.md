@@ -203,7 +203,9 @@ Photographer. Requires Equipment eligibility for a camera.
 
 **Záloha**:
 Reserve/overflow. Not a Preference option on the survey; absorbs excess
-Helpers with no capacity limit.
+Helpers with no capacity limit. Not free to fill: the solver scores it like
+any other Role, at a cost worse than Nevadí but better than Spíš ne or Ne, so
+a Helper who is fine with a real Role gets that rather than Záloha.
 
 #### Manual roles
 
