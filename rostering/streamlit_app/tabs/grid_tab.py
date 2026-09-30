@@ -254,6 +254,40 @@ def _apply_overlay_set(state: dict, event: dict) -> dict:
 _TOAST_KEY = "_move_toast"
 _PLACED_KEY = "_placed_new_note"
 
+
+def _apply_drop(event: dict, confirmed: bool) -> None:
+    """Place the dropped Helper. Never refused, whatever it breaks; the toast
+    only names what this drop newly broke (minimums excepted). Raises
+    ``ConfirmationRequired`` (nothing changed) while ``confirmed`` is off and
+    the move would take the Helper out of an Additional role."""
+    before = session.get_state()
+    moved = mutations.move_helper(
+        session.get_workspace(), event["helper_id"], event["building"], event["room"], event["role"], confirmed=confirmed
+    )
+    session.set_state(moved)
+    toast_lines = mutations.move_toast_lines(before, moved)
+    if toast_lines:
+        st.session_state[_TOAST_KEY] = toast_lines
+
+
+@st.dialog("Odebrat pomocníka z manuální role?")
+def _confirm_drop(event: dict, state: dict, lines: list[str]) -> None:
+    name = next((h["name"] for h in state["helpers"] if h["id"] == event["helper_id"]), "pomocník")
+    st.write(f"Přesunutím pomocníka **{name}** do jiné místnosti se odebere z:")
+    for line in lines:
+        st.markdown(f"- {line}")
+    st.caption("Nelze vrátit zpět; do role je třeba ho případně znovu zapsat.")
+    cols = st.columns(2)
+    if cols[0].button("Přesunout a odebrat", type="primary", key="drop_confirm_go"):
+        try:
+            _apply_drop(event, confirmed=True)
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        st.rerun()
+    if cols[1].button("Zrušit", key="drop_confirm_cancel"):
+        st.rerun()
+
 # How the Broken-rule banner names each rule family, in tier order. A family
 # not listed (added later through rostering.solver.rules.register_rule_family)
 # falls back to its own name.
@@ -548,15 +582,15 @@ def render() -> None:
         # them, so no dedup bookkeeping is needed here.
         try:
             if event["type"] == "drop":
-                # Never refused, whatever it breaks; the toast only names what
-                # this drop newly broke (minimums excepted).
-                moved = mutations.move_helper(
-                    session.get_workspace(), event["helper_id"], event["building"], event["room"], event["role"]
-                )
-                session.set_state(moved)
-                toast_lines = mutations.move_toast_lines(state, moved)
-                if toast_lines:
-                    st.session_state[_TOAST_KEY] = toast_lines
+                try:
+                    _apply_drop(event, confirmed=False)
+                except mutations.ConfirmationRequired as exc:
+                    # Leaving a Room takes the Helper out of the Additional roles
+                    # held there: ask first. The dialog does the move on
+                    # confirming; dismissing it leaves everything as it was, and
+                    # the page must not rerun, which would close it.
+                    _confirm_drop(event, state, exc.lines)
+                    return
             elif event["type"] == "lock":
                 # Never blocks and never touches the Broken-rule check.
                 session.set_state(
