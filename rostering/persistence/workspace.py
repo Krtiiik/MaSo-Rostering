@@ -110,6 +110,10 @@ class Workspace:
             # same rooms are unaffected. Empty by default: the unmerged,
             # one-column-per-room layout for every row.
             "cell_merges": {},
+            # Why the roster is stale (see mutations.stale_reasons): set by an
+            # edit that invalidates it without moving anyone, cleared by a full
+            # Solve, and blocks Export while non-empty. Part of every Version.
+            "stale_reasons": [],
             "diagnostics": {
                 "status": None,
                 "objective_value": None,

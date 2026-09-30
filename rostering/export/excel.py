@@ -52,7 +52,7 @@ from rostering.domain import (
     group_adjacent_rooms,
 )
 from rostering.export.collation import czech_sort_key
-from rostering.export.people import CountedPerson, counted_people
+from rostering.export.people import CountedPerson, counted_people, without_absent
 
 _SHEET_NAME = "Pomocníci v místnostech"
 _TSHIRT_SHEET_NAME = "Trička"
@@ -289,6 +289,7 @@ def write_roster(
     out_path: str | Path,
     cell_merges: Optional[dict[str, dict[str, list[list[str]]]]] = None,
 ) -> None:
+    comp, result, manual = without_absent(comp, result, manual)
     helper_by_id = {h.id: h for h in comp.helpers}
     buildings = [b for b in comp.buildings.values() if b.rooms]
     cell_merges = cell_merges or {}

@@ -23,7 +23,11 @@ def check_roster(
     """The rule instances the current ``assignments`` break, the tier that
     bends first (minimums) at the top. ``families`` defaults to every
     registered rule family."""
-    ctx = CheckContext(competition=competition, assignments=list(assignments))
+    absent = {h.id for h in competition.helpers if h.cant_attend}
+    ctx = CheckContext(
+        competition=competition.attending(),
+        assignments=[a for a in assignments if a.helper_id not in absent],
+    )
     broken: list[BrokenRule] = []
     for family in sorted(families if families is not None else rule_families(), key=lambda f: f.tier):
         if family.check is None:

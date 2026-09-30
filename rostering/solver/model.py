@@ -91,6 +91,7 @@ def solve_competition(
     families = list(rule_families() if families is None else families)
     model = cp_model.CpModel()
 
+    comp = comp.attending()
     helpers = comp.helpers
     buildings = list(comp.buildings.values())
     roles = list(Role)

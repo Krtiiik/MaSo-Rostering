@@ -20,12 +20,16 @@ in their counted Building is shown by those Organizer role(s) instead (joined
 with ", " when several), in their solved Room, or — for someone only an
 Organizer — in the first Room an entry names, empty at Building level.
 
-Can't attend and the Organizer entity aren't implemented yet; when they land,
-the same rules apply to them here and nowhere else.
+A Helper flagged Can't attend is never counted, however they are still placed
+(``without_absent`` drops their Assignment and Manual role entries).
+
+The Organizer entity isn't implemented yet; when it lands, the same rules
+apply to it here and nowhere else.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from typing import Tuple
 
 from rostering.domain import (
     TSHIRT_SIZES,
@@ -48,10 +52,30 @@ class CountedPerson:
     role: str = ""  # display text: a solved Role, or the Organizer role(s)
 
 
+def without_absent(
+    comp: Competition, result: SolveResult, manual: ManualRoles
+) -> Tuple[Competition, SolveResult, ManualRoles]:
+    """The roster as it counts for the export: the Helpers flagged Can't attend
+    left out of the Competition, the Assignments and the Manual role entries,
+    so an absent person never appears in a sheet or a total."""
+    absent = {h.id for h in comp.helpers if h.cant_attend}
+    if not absent:
+        return comp, result, manual
+    return (
+        comp.attending(),
+        replace(result, assignments=[a for a in result.assignments if a.helper_id not in absent]),
+        ManualRoles(
+            structural=[e for e in manual.structural if e.helper_id not in absent],
+            overlay=[e for e in manual.overlay if e.helper_id not in absent],
+        ),
+    )
+
+
 def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) -> list[CountedPerson]:
     """Every person to count, each exactly once, in the Building they are
     placed in. Buildings are not filtered here: callers keep only the
     Buildings they show."""
+    comp, result, manual = without_absent(comp, result, manual)
     helper_by_id = {h.id: h for h in comp.helpers}
     name_by_id = {h.id: h.name for h in comp.helpers}
 

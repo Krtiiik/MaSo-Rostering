@@ -12,6 +12,11 @@ from rostering.streamlit_app import fix_focus, mutations, session
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
 _SIZE_COLUMN = "T-shirt size"
 _SIZE_OPTIONS = [*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE]
+_CANT_ATTEND_COLUMN = "Can't attend"
+# Session-state keys: the Helper whose Can't attend flag awaits confirmation,
+# and a counter that gives the helper table a fresh (unedited) widget state.
+_PENDING_CANT_ATTEND = "_pending_cant_attend"
+_EDITOR_NONCE = "_helpers_editor_nonce"
 
 
 def render() -> None:
@@ -52,6 +57,9 @@ def render() -> None:
         unresolved_count = sum(len(h["unresolved_friend_names"]) for h in state["helpers"])
         returning = mutations.get_returning_helpers(workspace)
         msg = f"**{len(state['helpers'])}** helpers loaded."
+        absent_count = sum(1 for h in state["helpers"] if h.get("cant_attend"))
+        if absent_count:
+            msg += f" **{absent_count}** can't attend."
         if returning:
             msg += f" **{len(returning)}** are Returning helpers (recognized by e-mail from an earlier Season)."
         if unresolved_count:
@@ -68,6 +76,14 @@ def render() -> None:
                 session.switch_tab("2. Buildings")
                 st.rerun()
 
+        _show_pending_cant_attend_confirmation(state)
+        if mutations.stale_reasons(state):
+            st.warning(
+                "The roster is out of date: "
+                + "; ".join(mutations.stale_reasons(state))
+                + ". Solve again in the Roster tab; Export is blocked until then.",
+                icon="⚠️",
+            )
         _render_uncertain_matches(workspace)
         fix = fix_focus.render_callout(state, "helpers")
         _render_helpers_overview(state, returning, focus_helper_id=fix.helper_id if fix else None)
@@ -240,22 +256,27 @@ def _render_helpers_overview(
                 "Buildings": buildings,
                 "Equipment": equipment,
                 _SIZE_COLUMN: h.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
+                _CANT_ATTEND_COLUMN: bool(h.get("cant_attend")),
                 "Role preferences": prefs,
                 "Resolved friends": friends,
             }
         )
-    st.caption("Pick a size in the T-shirt size column to fix an Unknown.")
+    st.caption(
+        "Pick a size in the T-shirt size column to fix an Unknown. Tick Can't attend to leave a Helper out of "
+        "the solve and the roster; untick it to bring them back at the next Solve."
+    )
     shown = pd.DataFrame(rows)
     edited = st.data_editor(
         shown,
         width="stretch",
         hide_index=True,
         num_rows="fixed",
-        disabled=[c for c in shown.columns if c != _SIZE_COLUMN],
+        disabled=[c for c in shown.columns if c not in (_SIZE_COLUMN, _CANT_ATTEND_COLUMN)],
         column_config={
             _SIZE_COLUMN: st.column_config.SelectboxColumn(_SIZE_COLUMN, options=_SIZE_OPTIONS, required=True),
+            _CANT_ATTEND_COLUMN: st.column_config.CheckboxColumn(_CANT_ATTEND_COLUMN),
         },
-        key="helpers_overview_editor",
+        key=f"helpers_overview_editor_{st.session_state.get(_EDITOR_NONCE, 0)}",
     )
     # Rows keep their original position in the returned frame (even when the
     # user sorts the view), so position i is state["helpers"][i].
@@ -270,8 +291,57 @@ def _render_helpers_overview(
             st.error(str(exc))
             return
         changed = True
+    for i, cant_attend in edited[_CANT_ATTEND_COLUMN].items():
+        helper = state["helpers"][i]
+        if bool(cant_attend) == bool(shown[_CANT_ATTEND_COLUMN][i]):
+            continue
+        try:
+            session.set_state(mutations.set_cant_attend(session.get_workspace(), helper["id"], bool(cant_attend)))
+        except mutations.ConfirmationRequired:
+            # Flagging would clear hand work: reset the table to what is saved
+            # (unticked) and ask first, on the next run.
+            st.session_state[_PENDING_CANT_ATTEND] = helper["id"]
+            st.session_state[_EDITOR_NONCE] = st.session_state.get(_EDITOR_NONCE, 0) + 1
+            st.rerun()
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        changed = True
     if changed:
         st.rerun()
+
+
+@st.dialog("Mark as Can't attend?")
+def _confirm_cant_attend(helper_id: int, name: str, lines: list[str]) -> None:
+    st.write(f"Marking **{name}** as Can't attend clears:")
+    for line in lines:
+        st.write(f"- {line}")
+    st.caption(
+        "Un-ticking Can't attend later does not restore these. The roster is out of date until the next Solve, "
+        "and Export is blocked until then."
+    )
+    confirm_col, cancel_col = st.columns(2)
+    if confirm_col.button("Mark as Can't attend", type="primary", key="cant_attend_confirm"):
+        try:
+            session.set_state(mutations.set_cant_attend(session.get_workspace(), helper_id, True, confirmed=True))
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        st.rerun()
+    if cancel_col.button("Cancel", key="cant_attend_cancel"):
+        st.rerun()
+
+
+def _show_pending_cant_attend_confirmation(state: dict) -> None:
+    """Open the confirmation for the Helper whose flag was just requested (once:
+    dismissing the dialog drops the request, changing nothing)."""
+    helper_id = st.session_state.pop(_PENDING_CANT_ATTEND, None)
+    if helper_id is None:
+        return
+    helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
+    lines = mutations.cant_attend_impact(state, helper_id) if helper else []
+    if helper is not None and lines:
+        _confirm_cant_attend(helper_id, helper["name"], lines)
 
 
 _DISMISS_LABEL = "✕ Not attending"

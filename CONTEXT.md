@@ -41,7 +41,16 @@ their Room or Building no longer exists at the next Solve.
 **Can't attend**:
 A per-Helper flag marking them unavailable for the Season: excluded from the
 solver and absent from the roster grid entirely, for as long as it's set.
-Reversible at any time.
+Reversible at any time. Flagging a Helper who already has an Assignment or
+Manual role entries asks for confirmation, then clears the Assignment (and its
+lock) and every Manual role entry holding them and makes the roster stale;
+un-flagging restores none of it and never re-solves.
+
+**Stale roster**:
+A roster that no longer matches the Helpers and rules it was solved for, though
+nobody was moved (e.g. after clearing a Can't attend Helper's placement). A
+banner near Solve gives the reason, Export is blocked until the next full
+Solve, which clears it. Saved with Versions.
 
 **Simulace**:
 A rehearsal for the competition, held before the event day.
