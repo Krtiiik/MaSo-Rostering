@@ -26,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The role preferences in a Helper's edit (and add) form are stacked one role per row:
   the role name, a star rating (five stars = Ano … one star = Ne, none = no answer,
   counted as Nevadí) and, to the right, the Preference the stars map to.
-
 - "Vynutit přání být s kamarádem" moved from the Forced friends tab into a
   Helper's popup. Its tab is now "Kamarádi": the friend names still to match on
   top (when there are any), then every matched friend with a "Vynutit" button
