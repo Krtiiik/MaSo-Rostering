@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An "Obnovit výchozí budovy" button in the Buildings tab's bottom bar replaces the
+  layout being edited with the default bundled with the app. Nothing is saved until
+  "Uložit konfiguraci" is clicked, so it can still be dropped by reloading the page.
 - The People tab's Organizers and Helpers tables now have a "Can't attend"
   checkbox per row (replacing the read-only "Status" text), so a person can be
   flagged or brought back without opening their popup. Flagging someone with an

@@ -6,6 +6,7 @@ import copy
 import streamlit as st
 
 from rostering.domain import Role
+from rostering.persistence import config_store
 from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
@@ -179,6 +180,18 @@ def _save_draft(buildings: list[dict]) -> dict:
     return saved
 
 
+_WIDGET_KEY_PREFIXES = ("bname_", "rname_", "bcap_", "rcap_")
+
+
+def reset_draft_to_bundled() -> None:
+    """Replace the layout draft with the bundled default. Nothing is saved: the
+    user still saves (or drops) the result like any other edit. The fields'
+    widget state is cleared too, or they would keep showing the old values."""
+    st.session_state["config_draft"] = config_store.load_bundled_config()
+    for key in [k for k in st.session_state if str(k).startswith(_WIDGET_KEY_PREFIXES)]:
+        del st.session_state[key]
+
+
 def clear_drafts() -> None:
     st.session_state.pop("config_draft", None)
 
@@ -222,7 +235,14 @@ def render() -> None:
     with st.bottom:
         # Filled in after the buttons ran, so it reflects a save just made.
         unsaved_note = st.empty()
-        action_cols = st.columns(2)
+        action_cols = st.columns(3)
+        if action_cols[2].button(
+            "Obnovit výchozí budovy",
+            key="reset_config",
+            help="Nahradí rozložení zde výchozím, které je součástí aplikace. Uloží se až kliknutím na Uložit konfiguraci.",
+        ):
+            reset_draft_to_bundled()
+            st.rerun()
         if action_cols[0].button("Uložit konfiguraci", key="save_config"):
             try:
                 _save_draft(buildings)
