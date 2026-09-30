@@ -85,7 +85,7 @@ def config_from_list(data: list[dict]) -> dict[str, Building]:
 
 
 def helper_to_dict(h: Helper) -> dict:
-    return {
+    data = {
         "id": h.id,
         "name": h.name,
         "role_preferences": {role.name: pref.name for role, pref in h.role_preferences.items()},
@@ -100,6 +100,9 @@ def helper_to_dict(h: Helper) -> dict:
         "person_id": h.person_id,
         "cant_attend": h.cant_attend,
     }
+    if h.tags:  # a missing key means no direct Tags
+        data["tags"] = list(h.tags)
+    return data
 
 
 def helper_from_dict(data: dict) -> Helper:
@@ -129,6 +132,8 @@ def helper_from_dict(data: dict) -> Helper:
         person_id=data.get("person_id") or None,
         # Absent from workspaces saved before Can't attend existed.
         cant_attend=bool(data.get("cant_attend", False)),
+        # The Tags assigned directly; absent from Helpers never tagged.
+        tags=[int(t) for t in data.get("tags") or []],
     )
 
 

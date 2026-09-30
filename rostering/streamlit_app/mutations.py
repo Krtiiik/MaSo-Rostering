@@ -14,7 +14,7 @@ import tempfile
 from dataclasses import asdict, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Optional, Sequence, TypeVar
 
 from rostering.domain import (
     TSHIRT_SIZES,
@@ -128,7 +128,7 @@ def _build_competition(state: dict[str, Any]) -> Competition:
     them."""
     buildings = config_from_list(state["config"])
     helpers = [helper_from_dict(h) for h in state["helpers"] if not h.get("cant_attend")]
-    return Competition(buildings=buildings, helpers=helpers)
+    return Competition(buildings=buildings, helpers=helpers, tags=_tag_definitions(state))
 
 
 def _recompute_friend_pairs(state: dict[str, Any]) -> tuple[list[list[int]], list[list[int]]]:
@@ -1036,6 +1036,101 @@ def _validated_tag_parent(state: dict[str, Any], tag_id: Optional[int], parent_i
     return parent_id
 
 
+_CONSTRAINT_FIELDS = ("building_allow", "building_deny", "role_allow", "role_deny")
+
+
+def _validated_constraint(field: str, entries: Sequence[str]) -> list[str]:
+    """One constraint list as stored: blanks and repeats dropped, a Role
+    entry (its name or its display name) stored as ``Role.name``. A Building
+    entry is kept as given -- it may name a Building the Season no longer has,
+    which is inert, not wrong."""
+    names: list[str] = []
+    for entry in entries or []:
+        text = (entry or "").strip()
+        if not text:
+            continue
+        if field.startswith("role"):
+            role = parse_role_token(text)
+            if role is None:
+                raise RosteringError(f"No such role: {text}. A tag constraint names one of the six roles.")
+            text = role.name
+        names.append(text)
+    return list(dict.fromkeys(names))
+
+
+def _tag_universes(state: dict[str, Any]) -> dict[str, list[str]]:
+    """What a Tag constraint can name this Season: its configured Buildings and
+    the fixed Roles (by ``Role.name``)."""
+    return {
+        tag_tree.BUILDING: [b["name"] for b in state.get("config") or []],
+        tag_tree.ROLE: [role.name for role in Role],
+    }
+
+
+def _stranded(state: dict[str, Any]) -> set[tuple[int, str]]:
+    """Every ``(helper id, axis)`` that currently has no allowed Building or no
+    allowed Role."""
+    direct = {h["id"]: _direct_tag_ids(h) for h in state["helpers"]}
+    return tag_tree.dead_ends(_tag_definitions(state), direct, _tag_universes(state))
+
+
+def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[int, str]]) -> None:
+    """The one validation behind every Tag entry point (the Tags tab and the
+    Helper list's inline multiselect alike): refuse an edit, already applied to
+    the in-memory ``state`` but not yet saved, that leaves a Helper with no
+    allowed Building or no allowed Role. Only Helpers the edit newly strands
+    count, so one already stranded (say, by a later configuration change) never
+    blocks an unrelated edit."""
+    fresh = sorted(_stranded(state) - before)
+    if not fresh:
+        return
+    tags = _tag_definitions(state)
+    universes = _tag_universes(state)
+    names = {h["id"]: h["name"] for h in state["helpers"]}
+    problems = []
+    for helper_id, axis in fresh:
+        record = next(h for h in state["helpers"] if h["id"] == helper_id)
+        found = tag_tree.restrictions(tags, _direct_tag_ids(record), axis, universes[axis])
+        display = (lambda v: Role[v].value) if axis == tag_tree.ROLE else str
+        why = "; ".join(tag_tree.describe_restriction(r, axis, display) for r in found)
+        noun = "Role" if axis == tag_tree.ROLE else "Building"
+        problems.append(f"{names[helper_id]} would be left with no allowed {noun} ({why})")
+    shown, hidden = problems[:3], len(problems) - 3
+    raise RosteringError("Refused: " + "; ".join(shown) + (f"; and {hidden} more" if hidden > 0 else "") + ".")
+
+
+def tag_constraint_entries(state: dict[str, Any], tag_id: int) -> dict[str, list[dict]]:
+    """A Tag's four constraint lists as ``{"name", "in_season"}`` entries. An
+    entry naming a Building the Season's configuration no longer has is
+    ``in_season: False``: inert, ignored by the solver and the checker, and
+    shown as "not in this Season"."""
+    record = _tag_record(state, tag_id)
+    universes = _tag_universes(state)
+    entries: dict[str, list[dict]] = {}
+    for field in _CONSTRAINT_FIELDS:
+        axis = field.split("_")[0]
+        entries[field] = [
+            {"name": entry, "in_season": tag_tree.entry_in_universe(axis, entry, universes[axis])}
+            for entry in record.get(field) or []
+        ]
+    return entries
+
+
+def helper_allowed(state: dict[str, Any], helper_id: int) -> dict[str, list[str]]:
+    """A Helper's allowed sets from their effective Tag constraints (see
+    CONTEXT.md "Tag constraint"), computed live: ``buildings`` (the Season's
+    configured Building names) and ``roles`` (``Role.name``), each in
+    configuration order. The solver and the live checker judge through the same
+    function."""
+    direct = _direct_tag_ids(_helper_record(state, helper_id))
+    tags = _tag_definitions(state)
+    universes = _tag_universes(state)
+    return {
+        "buildings": tag_tree.allowed_values(tags, direct, tag_tree.BUILDING, universes[tag_tree.BUILDING]),
+        "roles": tag_tree.allowed_values(tags, direct, tag_tree.ROLE, universes[tag_tree.ROLE]),
+    }
+
+
 def add_tag(
     workspace: Workspace,
     name: str,
@@ -1043,20 +1138,28 @@ def add_tag(
     colour: Optional[str] = None,
     note: str = "",
     parent_id: Optional[int] = None,
+    building_allow: Sequence[str] = (),
+    building_deny: Sequence[str] = (),
+    role_allow: Sequence[str] = (),
+    role_deny: Sequence[str] = (),
 ) -> dict:
     """Create a Tag in the open Season (see CONTEXT.md "Tag"): a required name,
     unique among the Season's Tags ignoring case, a hex colour (each new Tag
-    otherwise gets the next colour of a fixed palette), a free note and an
-    optional single parent Tag it implies. The new Tag is the last of
-    ``state["tags"]``."""
+    otherwise gets the next colour of a fixed palette), a free note, an
+    optional single parent Tag it implies and its Tag constraints -- allow- and
+    deny-lists of Building and Role names. The new Tag is the last of
+    ``state["tags"]``. Nobody carries a new Tag, so no constraint can strand
+    anyone yet."""
     state = workspace.load()
     tags = state.setdefault("tags", [])
+    given = dict(zip(_CONSTRAINT_FIELDS, (building_allow, building_deny, role_allow, role_deny)))
     record = {
         "id": _next_tag_id(state),
         "name": _validated_tag_name(state, name),
         "colour": _validated_tag_colour(colour or tag_tree.PALETTE[len(tags) % len(tag_tree.PALETTE)]),
         "note": (note or "").strip(),
         "parent_id": _validated_tag_parent(state, None, parent_id),
+        **{field: _validated_constraint(field, entries) for field, entries in given.items()},
     }
     tags.append(record)
     workspace.save(state)
@@ -1071,13 +1174,20 @@ def update_tag(
     colour: Optional[str] = None,
     note: Optional[str] = None,
     parent_id: Optional[int] | _Unchanged = _UNCHANGED,
+    building_allow: Optional[Sequence[str]] = None,
+    building_deny: Optional[Sequence[str]] = None,
+    role_allow: Optional[Sequence[str]] = None,
+    role_deny: Optional[Sequence[str]] = None,
 ) -> dict:
     """Edit a Tag; fields left out stay as they are, and ``parent_id=None``
     makes it a root. The same rules as :func:`add_tag` apply, and a Tag can
     never be given itself or one of its own descendants as parent, which would
-    make it its own ancestor. Nothing changes if any field is refused."""
+    make it its own ancestor. An edit of its constraints or parent that would
+    leave any Helper with no allowed Building or no allowed Role is refused
+    with the reason. Nothing changes if any field is refused."""
     state = workspace.load()
     record = _tag_record(state, tag_id)
+    before = _stranded(state)
     changes: dict[str, Any] = {}
     if name is not None:
         changes["name"] = _validated_tag_name(state, name, own_id=tag_id)
@@ -1087,7 +1197,12 @@ def update_tag(
         changes["note"] = note.strip()
     if not isinstance(parent_id, _Unchanged):
         changes["parent_id"] = _validated_tag_parent(state, tag_id, parent_id)
+    given = dict(zip(_CONSTRAINT_FIELDS, (building_allow, building_deny, role_allow, role_deny)))
+    for field, entries in given.items():
+        if entries is not None:
+            changes[field] = _validated_constraint(field, entries)
     record.update(changes)
+    _refuse_new_dead_ends(state, before)
     workspace.save(state)
     return state
 
@@ -1118,9 +1233,12 @@ def _assign_tags(state: dict[str, Any], helper: dict, tag_ids: list[int]) -> Non
 
 def set_helper_tags(workspace: Workspace, helper_id: int, tag_ids: list[int]) -> dict:
     """Replace the Tags assigned directly to one Helper (the Helper list's
-    inline multiselect). Implied Tags follow by themselves."""
+    inline multiselect). Implied Tags follow by themselves. Refused, with the
+    reason, if it would leave them no allowed Building or no allowed Role."""
     state = workspace.load()
+    before = _stranded(state)
     _assign_tags(state, _helper_record(state, helper_id), list(tag_ids))
+    _refuse_new_dead_ends(state, before)
     workspace.save(state)
     return state
 
@@ -1128,12 +1246,15 @@ def set_helper_tags(workspace: Workspace, helper_id: int, tag_ids: list[int]) ->
 def add_tag_to_helpers(workspace: Workspace, tag_id: int, helper_ids: list[int]) -> dict:
     """Give one Tag directly to each of these Helpers, keeping whatever else
     they carry (the Tags tab's "Add N to <tag>" and the Helper list's bulk
-    apply). All or nothing: an unknown Helper or Tag changes nobody."""
+    apply). All or nothing: an unknown Helper or Tag, or one Helper the Tag
+    would leave with no allowed Building or Role, changes nobody."""
     state = workspace.load()
     _tag_record(state, tag_id)
     helpers = [_helper_record(state, helper_id) for helper_id in helper_ids]
+    before = _stranded(state)
     for helper in helpers:
         _assign_tags(state, helper, [*_direct_tag_ids(helper), tag_id])
+    _refuse_new_dead_ends(state, before)
     workspace.save(state)
     return state
 

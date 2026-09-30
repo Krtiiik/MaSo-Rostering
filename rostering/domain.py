@@ -9,7 +9,10 @@ from __future__ import annotations
 import unicodedata
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:  # rostering.tags needs nothing from here at runtime
+    from rostering.tags import Tag
 
 
 class Role(Enum):
@@ -137,6 +140,9 @@ class Helper:
     # and is left out of the solver, the grid and the export counts. Set by
     # hand, never by survey data, and reversible.
     cant_attend: bool = False
+    # Ids of the Tags assigned to this Helper directly (see rostering.tags);
+    # the implied ones are computed from the Tag tree, never stored here.
+    tags: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -163,6 +169,9 @@ class Building:
 class Competition:
     buildings: dict[str, Building]
     helpers: list[Helper]
+    # The Season's Tag definitions (with their constraints); the Helpers carry
+    # only their direct Tag ids.
+    tags: list["Tag"] = field(default_factory=list)
 
     def attending(self) -> "Competition":
         """This Competition without the Helpers flagged Can't attend: the one
@@ -170,7 +179,9 @@ class Competition:
         and the export."""
         if not any(h.cant_attend for h in self.helpers):
             return self
-        return Competition(buildings=self.buildings, helpers=[h for h in self.helpers if not h.cant_attend])
+        return Competition(
+            buildings=self.buildings, helpers=[h for h in self.helpers if not h.cant_attend], tags=self.tags
+        )
 
 
 @dataclass
@@ -209,6 +220,7 @@ class FixTarget:
     room: Optional[str] = None
     role: Optional[str] = None
     helper_id: Optional[int] = None
+    tag_id: Optional[int] = None
 
 
 @dataclass(frozen=True)

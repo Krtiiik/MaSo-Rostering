@@ -23,7 +23,7 @@ one Role per Helper, and fixed Assignments (see ``solve_competition``'s
 
 Extension point
 ---------------
-A later rule family (Tag constraints, Forced-friend groups) plugs in by
+A later rule family (Forced-friend groups, as Tag constraints already do) plugs in by
 building a ``RuleFamily`` and passing it through ``register_rule_family``
 (or to ``solve_competition(families=...)``), with no change to the model:
 
@@ -44,12 +44,13 @@ building a ``RuleFamily`` and passing it through ``register_rule_family``
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Callable, Optional
 
 from ortools.sat.python import cp_model
 
+from rostering import tags as tags_module
 from rostering.domain import (
     Assignment,
     Building,
@@ -88,6 +89,8 @@ class ModelContext:
     assign_role: dict[tuple[int, Role], cp_model.IntVar]
     # role_room_var[helper_id, role, room_id]: helper has that role in that room.
     role_room_var: dict[tuple[int, Role, int], cp_model.IntVar]
+    # The Season's Tag definitions; each Helper carries its direct Tag ids.
+    tags: list[tags_module.Tag] = field(default_factory=list)
 
 
 @dataclass
@@ -250,10 +253,98 @@ def _check_equipment(ctx: CheckContext) -> list[BrokenRule]:
     return broken
 
 
+def _role_display(name: str) -> str:
+    return Role[name].value
+
+
+def _tag_line(helper_name: str, blockers: list[tags_module.Restriction], axis: str, value: str) -> str:
+    """``Helper Anna (Tag 8.M, allows only Building Karlín) is placed in
+    Impakt`` -- the restrictions that keep the value out, the value itself."""
+    display = _role_display if axis == tags_module.ROLE else str
+    why = "; ".join(tags_module.describe_restriction(r, axis, display) for r in blockers)
+    placed = f"as {display(value)}" if axis == tags_module.ROLE else f"in {value}"
+    return f"Helper {helper_name} ({why}) is placed {placed}"
+
+
+def _tag_universes(buildings: list[str], roles: list[Role]) -> dict[str, list[str]]:
+    return {tags_module.BUILDING: list(buildings), tags_module.ROLE: [r.name for r in roles]}
+
+
+_TAG_KINDS = {tags_module.BUILDING: "tag_building", tags_module.ROLE: "tag_role"}
+
+
+def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
+    """Each Helper's allowed Buildings and Roles from their effective Tag
+    constraints (see ``rostering.tags``): one relaxation per Building/Role the
+    Helper may not be in, whose slack is 1 exactly when they are placed there."""
+    relaxations: list[Relaxation] = []
+    universes = _tag_universes([b.name for b in ctx.buildings], ctx.roles)
+    for helper in ctx.helpers:
+        if not helper.tags:
+            continue
+        for axis, universe in universes.items():
+            found = tags_module.restrictions(ctx.tags, helper.tags, axis, universe)
+            for value in universe:
+                blockers = tags_module.blocking(found, value)
+                if not blockers:
+                    continue
+                if axis == tags_module.BUILDING:
+                    room_ids = ctx.building_rooms.get(value, [])
+                    if not room_ids:
+                        continue
+                    slack = sum(ctx.assign_room[helper.id, room_id] for room_id in room_ids)
+                else:
+                    slack = ctx.assign_role[helper.id, Role[value]]
+                relaxations.append(
+                    Relaxation(
+                        instance=RuleInstance(_TAG_KINDS[axis], (helper.id, value)),
+                        slack=slack,
+                        max_units=1,
+                        describe=lambda _short, line=_tag_line(helper.name, blockers, axis, value): line,
+                    )
+                )
+    return relaxations
+
+
+def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
+    comp = ctx.competition
+    if not comp.tags:
+        return []
+    helpers = {h.id: h for h in comp.helpers}
+    universes = _tag_universes([b.name for b in comp.buildings.values()], list(Role))
+    broken: list[BrokenRule] = []
+    for a in ctx.assignments:
+        helper = helpers.get(a.helper_id)
+        if helper is None or not helper.tags:
+            continue
+        for axis, value in ((tags_module.BUILDING, a.building), (tags_module.ROLE, a.role.name)):
+            # A Building the configuration no longer has is judged by nothing.
+            if value not in universes[axis]:
+                continue
+            blockers = tags_module.blocking(tags_module.restrictions(comp.tags, helper.tags, axis, universes[axis]), value)
+            if not blockers:
+                continue
+            broken.append(
+                BrokenRule(
+                    instance=RuleInstance(_TAG_KINDS[axis], (helper.id, value)),
+                    family="tag_restrictions",
+                    amount=1,
+                    line=_tag_line(helper.name, blockers, axis, value),
+                    cells=((a.building, a.room, None),),
+                    helper_ids=(helper.id,),
+                    fix=FixTarget("tags", helper_id=helper.id, tag_id=blockers[0].tag.id),
+                )
+            )
+    return broken
+
+
 MINIMUMS_FAMILY = RuleFamily("minimums", Tier.MINIMUMS, _minimums, check=_check_minimums)
+TAG_RESTRICTIONS_FAMILY = RuleFamily(
+    "tag_restrictions", Tier.TAG_RESTRICTIONS, _tag_restrictions, check=_check_tag_restrictions
+)
 EQUIPMENT_FAMILY = RuleFamily("equipment", Tier.EQUIPMENT, _equipment, check=_check_equipment)
 
-_registry: list[RuleFamily] = [MINIMUMS_FAMILY, EQUIPMENT_FAMILY]
+_registry: list[RuleFamily] = [MINIMUMS_FAMILY, TAG_RESTRICTIONS_FAMILY, EQUIPMENT_FAMILY]
 
 
 def register_rule_family(family: RuleFamily) -> None:

@@ -8,6 +8,11 @@ import streamlit as st
 
 from rostering.streamlit_app import mutations, session, tag_pills
 
+# A refused pick's reason, shown once after the rerun, and a counter that gives
+# the pickers fresh widgets so they show what is saved again.
+_ERROR = "_helper_tags_error"
+_NONCE = "_helper_tags_nonce"
+
 
 def _matches(state: dict, helper: dict, needle: str, filter_tags: list[int]) -> bool:
     if needle and needle not in helper["name"].casefold():
@@ -24,6 +29,10 @@ def render() -> None:
     if not state["helpers"]:
         return
     with st.expander("Tag helpers", expanded=bool(state["tags"])):
+        nonce = st.session_state.get(_NONCE, 0)
+        refused = st.session_state.pop(_ERROR, None)
+        if refused:
+            st.error(refused)
         if not state["tags"]:
             st.caption("No Tags in this Season yet. Create some in the Tags tab, then tag Helpers here or there.")
             return
@@ -79,8 +88,9 @@ def render() -> None:
                     format_func=lambda tid: tags[tid]["name"],
                     # The saved Tags are part of the key, so the picker starts
                     # afresh from them after any other edit (bulk apply, a
-                    # deleted Tag) instead of keeping a stale selection.
-                    key=f"helper_tags_{helper['id']}_{'-'.join(map(str, direct))}",
+                    # deleted Tag) instead of keeping a stale selection; the
+                    # nonce does the same after a refused pick.
+                    key=f"helper_tags_{helper['id']}_{'-'.join(map(str, direct))}_{nonce}",
                     label_visibility="collapsed",
                     placeholder="No tags",
                 )
@@ -89,7 +99,11 @@ def render() -> None:
                     try:
                         current = mutations.set_helper_tags(session.get_workspace(), helper["id"], picked)
                     except mutations.RosteringError as exc:
-                        st.error(str(exc))
+                        # Refused (say, it would leave them no allowed Building):
+                        # show why and put the picker back to what is saved.
+                        st.session_state[_ERROR] = str(exc)
+                        st.session_state[_NONCE] = nonce + 1
+                        st.rerun(scope="fragment")
                     else:
                         session.set_state(current)
                         state = current

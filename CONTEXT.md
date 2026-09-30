@@ -127,7 +127,12 @@ through implication. A Helper's effective allowed set per axis is the
 intersection of every applicable Tag's positive list (a Tag with none doesn't
 narrow it), minus anything any applicable Tag's negative list names — a
 negative always wins. A Tag assignment that would leave a Helper with no
-allowed Building or Role on either axis is invalid.
+allowed Building or Role on either axis is invalid, and a Tag edit (its
+constraints or its parent) that would is refused too. Never Room. An entry
+naming a Building the Season's configuration no longer has is inert — ignored
+by the solver and the check, shown as "not in this Season" — and Buildings are
+matched by name the way Building preference is. A Helper placed outside their
+allowed set is a Broken rule; the solver bends it after the minimums.
 
 **Preference**:
 A Helper's 5-point ordinal rating of one Role, from most to least willing:

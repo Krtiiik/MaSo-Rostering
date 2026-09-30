@@ -265,9 +265,33 @@ pushing the tag, not just creating it locally.
   re-upload (`_carry_over_tags`, matched by `person_id`); `Workspace` gives a
   state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
   (the "3. Tags" tab) and `tabs/helper_tags.py` (a fragment above the Upload
-  tab's Helper table), both drawing pills through `tag_pills.py`. Tag
-  constraints, the grid's Tag pills and filter, and Tag import are separate
-  tickets and not built yet.
+  tab's Helper table), both drawing pills through `tag_pills.py`. The grid's
+  Tag pills and filter, and Tag import are separate tickets and not built yet.
+- Tag constraints: a Tag record also carries `building_allow`, `building_deny`,
+  `role_allow`, `role_deny` (lists of Building names / `Role.name`s, absent =
+  empty; `Tag` in `rostering/tags.py` holds them as tuples). The single source
+  of truth for what a Helper may do is `tags.restrictions` / `blocking` /
+  `allowed_values` (a pure function of the Tag tree, the Helper's direct Tag
+  ids and the axis universe: the Season's configured Buildings, or the six
+  Roles), used by the solver's `tag_restrictions` `RuleFamily`
+  (`solver/rules.py`, tier between minimums and Forced friends), the live
+  checker and the edit-time validation. `Competition.tags` and `Helper.tags`
+  (direct ids, read from the record's `tags`) carry them to the solver.
+  Entries naming nothing in the universe are inert (an allow-list of only
+  such entries does not narrow); Buildings are matched with `building_keys`,
+  as Building preferences are. The relaxation has one instance per Helper and
+  disallowed Building/Role (`tag_building` / `tag_role`, entity `(helper id,
+  value)`), so the solver's line and the checker's are identical, and its
+  `FixTarget` is `("tags", helper_id, tag_id)` (the first Tag that excludes
+  the placement), which `fix_focus.go_fix` turns into `tags_tab.focus_tag`.
+  Validation is one shared step in `mutations` (`_stranded` /
+  `_refuse_new_dead_ends`), run by `set_helper_tags`, `add_tag_to_helpers` and
+  `update_tag`: it refuses an edit that leaves a Helper with an empty allowed
+  set that they did not already have, so a Helper stranded by a later
+  configuration change never blocks unrelated edits; deleting a Tag or
+  removing one from a Helper only widens, so is not checked. Read-side
+  helpers: `mutations.helper_allowed` and `tag_constraint_entries` (which
+  flags `in_season`).
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

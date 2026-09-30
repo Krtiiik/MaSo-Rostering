@@ -21,6 +21,7 @@ _KEY = "_fix_focus"
 TAB_LABELS = {
     "buildings": "2. Buildings",
     "helpers": "1. Upload",
+    "tags": "3. Tags",
 }
 
 
@@ -38,6 +39,11 @@ def go_fix(broken: BrokenRule) -> None:
         "line": broken.line,
         "fix": broken.fix,
     }
+    if broken.fix.tab == "tags" and broken.fix.tag_id is not None:
+        # Imported here: the Tags tab itself imports this module.
+        from rostering.streamlit_app.tabs import tags_tab
+
+        tags_tab.focus_tag(broken.fix.tag_id)
     session.switch_tab(TAB_LABELS[broken.fix.tab])
 
 
