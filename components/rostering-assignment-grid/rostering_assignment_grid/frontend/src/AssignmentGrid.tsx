@@ -1,8 +1,9 @@
 import { FrontendRendererArgs } from "@streamlit/component-v2-lib";
-import { FC, ReactElement, ReactNode, useId, useMemo, useState } from "react";
+import { FC, ReactElement, ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { Cell } from "./Cell";
+import { HelperCard, computeCardPosition } from "./HelperCard";
 import { HelperChip } from "./HelperChip";
 import { ManualCell } from "./ManualCell";
 import type {
@@ -70,6 +71,9 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   setTriggerValue,
 }): ReactElement => {
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
+  // The Helper whose details card is open (opened by clicking a chip, never by
+  // hovering, so it can't get in the way of a drag) and where it sits.
+  const [openCard, setOpenCard] = useState<{ helperId: number; top: number; left: number } | null>(null);
   // A drag only starts after the pointer has moved a few pixels, so a plain
   // (or ctrl/cmd-) click on a chip stays a click.
   const sensors = useSensors(
@@ -77,6 +81,29 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     useSensor(KeyboardSensor),
   );
   const datalistId = useId();
+
+  // The card closes on a press anywhere but on it or on a chip (a chip's own
+  // click switches the card to that Helper, or closes it on the same one), and
+  // on Escape.
+  const cardOpen = openCard !== null;
+  useEffect(() => {
+    if (!cardOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const onCardOrChip = event
+        .composedPath()
+        .some((n) => n instanceof Element && (n.classList.contains("helper-card") || n.classList.contains("helper-chip")));
+      if (!onCardOrChip) setOpenCard(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenCard(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [cardOpen]);
   const organizerDatalistId = useId();
 
   const helpersById = useMemo(() => {
@@ -267,11 +294,15 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         dimmed={dimmedIds.has(h.id)}
         locked={placed?.locked === true}
         onToggleLock={placed ? () => setTriggerValue("lock", { helper_id: h.id, locked: !placed.locked }) : undefined}
-        card={cardDataFor(h)}
         unsatisfiedFriend={unsatisfiedHelperIds.has(h.id)}
         broken={brokenByHelper.get(h.id)}
         friendHighlight={friendHighlight}
         onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
+        onSelect={(x, y) =>
+          setOpenCard((current) =>
+            current?.helperId === h.id ? null : { helperId: h.id, ...computeCardPosition(x, y) },
+          )
+        }
       />
     );
   }
@@ -477,7 +508,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           <option key={name} value={name} />
         ))}
       </datalist>
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} onDragStart={() => setOpenCard(null)} onDragEnd={handleDragEnd}>
         {unassignedHelpers.length > 0 && (
           <div className="unassigned-pool">
             <strong>Unassigned:</strong>{" "}
@@ -548,6 +579,22 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           </tbody>
         </table>
       </DndContext>
+      {openCard && helpersById.get(openCard.helperId) && (
+        <HelperCard
+          data={cardDataFor(helpersById.get(openCard.helperId)!)}
+          top={openCard.top}
+          left={openCard.left}
+          locked={assignmentByHelper.get(openCard.helperId)?.locked === true}
+          onToggleLock={
+            assignmentByHelper.get(openCard.helperId)
+              ? () => {
+                  const placed = assignmentByHelper.get(openCard.helperId)!;
+                  setTriggerValue("lock", { helper_id: openCard.helperId, locked: !placed.locked });
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 };

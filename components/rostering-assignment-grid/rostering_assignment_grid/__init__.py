@@ -122,7 +122,7 @@ def assignment_grid(
     "building", "pairs", "merged"}`` for a merge/unmerge click within row
     ``key`` (``pairs`` is one or more ``[room_a, room_b]`` adjacent-name
     pairs to set to ``merged``), ``{"type": "lock", "helper_id", "locked"}``
-    for a lock toggle (ctrl/cmd-click on a placed chip or the hover card's
+    for a lock toggle (ctrl/cmd-click on a placed chip or the details card's
     Lock/Unlock button; ``locked`` is the new value), or ``None`` otherwise — CCv2 triggers
     reset automatically after the rerun that reports them, so callers
     don't need to dedupe.

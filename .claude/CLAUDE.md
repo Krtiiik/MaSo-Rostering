@@ -198,10 +198,13 @@ pushing the tag, not just creating it locally.
   Assignments as `fixed_assignments`, re-flags them in the result, and drops a
   lock whose Helper or Room no longer exists) are the only code that reads or
   writes it. The grid component reports a toggle as the `lock` trigger
-  (`{helper_id, locked}`, from ctrl/cmd-click on a placed chip or the hover
+  (`{helper_id, locked}`, from ctrl/cmd-click on a placed chip or the details
   card's Lock/Unlock button); its drag needs a 6px activation distance so a
-  click stays a click. The hover card is interactive (`pointer-events: auto`)
-  and closes after a short grace period so the cursor can reach its button.
+  click stays a click. The details card opens on a plain click on a chip (never
+  on hover, so it can't block a drag), is owned by `AssignmentGrid` (one open
+  at a time; clicking the same chip again, Escape, a press anywhere outside a
+  chip or the card, or starting a drag closes it) and is interactive
+  (`pointer-events: auto`).
   Bulk control lives in the Roster tab's bottom bar: `lock_all_placed`,
   `clear_all_locks`, `locked_count`, and `unlocked_assignments_replaced` (what
   a full Solve would throw away, a to-be-dropped lock included; zero means no
@@ -596,7 +599,7 @@ pushing the tag, not just creating it locally.
   dropped when another Season opens). The component takes each helper's `tags`,
   `show_tags` and `dimmed_helper_ids`: pills render inside `HelperChip` (Roster
   cells and the Unassigned pool, not the typed Manual role chips), dimming is a
-  `dimmed` class (opacity, restored on hover so the hover card stays readable).
+  `dimmed` class (opacity, restored on hover so the details card stays readable).
   The controls are always shown, the filter merely disabled while the Season has
   no Tags. Covered by `tests/test_grid_tags.py` and the smoke script
   (`scripts/e2e/smoke.mjs`).

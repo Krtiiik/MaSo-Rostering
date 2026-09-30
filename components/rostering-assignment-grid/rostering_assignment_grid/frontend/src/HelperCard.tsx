@@ -9,6 +9,33 @@ interface Props {
   onToggleLock?: () => void;
 }
 
+const CARD_WIDTH = 260;
+// The card's real height varies with content (role/friend list length); this
+// is just an estimate used to decide whether to flip above/left of the
+// cursor so the card doesn't render off-screen.
+const CARD_HEIGHT_ESTIMATE = 260;
+const CURSOR_OFFSET = 14;
+const VIEWPORT_MARGIN = 8;
+
+// Anchors one corner of the card to the click position, flipping to the
+// opposite side on either axis if the card would otherwise overflow the
+// viewport.
+export function computeCardPosition(clientX: number, clientY: number): { top: number; left: number } {
+  let left = clientX + CURSOR_OFFSET;
+  if (left + CARD_WIDTH + VIEWPORT_MARGIN > window.innerWidth) {
+    left = clientX - CURSOR_OFFSET - CARD_WIDTH;
+  }
+  left = Math.max(VIEWPORT_MARGIN, left);
+
+  let top = clientY + CURSOR_OFFSET;
+  if (top + CARD_HEIGHT_ESTIMATE + VIEWPORT_MARGIN > window.innerHeight) {
+    top = clientY - CURSOR_OFFSET - CARD_HEIGHT_ESTIMATE;
+  }
+  top = Math.max(VIEWPORT_MARGIN, top);
+
+  return { top, left };
+}
+
 const STAR_FILLED = "★";
 const STAR_EMPTY = "☆";
 
@@ -17,11 +44,11 @@ function stars(level: number): string {
 }
 
 /**
- * Floating hover card showing a helper's preferences: preferred building(s),
+ * Floating details card, opened by clicking a chip, showing a helper's preferences: preferred building(s),
  * per-role star ratings, and friend requests color-coded to match the grid's
  * existing highlighting (green = co-located, red = not, purple = someone
  * else requested this helper). Positioned with `position: fixed` (computed
- * by HelperChip from the chip's bounding rect) so it escapes the grid's
+ * by computeCardPosition from the click) so it escapes the grid's
  * scroll-container clipping regardless of where the chip sits in the table.
  */
 export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
@@ -29,8 +56,7 @@ export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
   const hasFriendInfo = sharedFriends.length > 0 || differentFriends.length > 0 || requestedBy.length > 0;
 
   return (
-    // The card sits inside the draggable chip: a press on it must not start a drag.
-    <div className="helper-card" style={{ top, left }} onPointerDown={(e) => e.stopPropagation()}>
+    <div className="helper-card" style={{ top, left }}>
       <div className="helper-card-name">{helper.name}</div>
 
       {onToggleLock && (
@@ -38,9 +64,6 @@ export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
           type="button"
           className="helper-card-lock"
           title="A full Solve keeps a locked Assignment (ctrl/cmd-click on the chip toggles it too)"
-          // The card sits inside the draggable chip: keep a press on the
-          // button from starting a drag.
-          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onToggleLock();

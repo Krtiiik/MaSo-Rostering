@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   An Organizer can now be added, renamed, given an e-mail and deleted there.
 - Matching friend names moved from one long list on the tab into each helper's
   popup (Friend names); a helper with names still to match is marked ⚠ in the table.
+- On the Roster tab, a helper's details card opens when you click their chip
+  instead of on hover, so it no longer gets in the way of dragging. Clicking the
+  chip again, pressing Escape, clicking elsewhere or starting a drag closes it.
 
 ### Removed
 
