@@ -172,6 +172,10 @@ class Competition:
     # The Season's Tag definitions (with their constraints); the Helpers carry
     # only their direct Tag ids.
     tags: list["Tag"] = field(default_factory=list)
+    # The Season's Organizers (see CONTEXT.md "Organizer"). They are not
+    # Helpers: the solver never sees them and they use no Role or Role
+    # capacity; the export names them in their Organizer role slots.
+    organizers: list["Organizer"] = field(default_factory=list)
 
     def attending(self) -> "Competition":
         """This Competition without the Helpers flagged Can't attend: the one
@@ -180,7 +184,10 @@ class Competition:
         if not any(h.cant_attend for h in self.helpers):
             return self
         return Competition(
-            buildings=self.buildings, helpers=[h for h in self.helpers if not h.cant_attend], tags=self.tags
+            buildings=self.buildings,
+            helpers=[h for h in self.helpers if not h.cant_attend],
+            tags=self.tags,
+            organizers=self.organizers,
         )
 
 
@@ -262,15 +269,35 @@ class SolveResult:
 
 
 @dataclass
+class Organizer:
+    """A tracked person who is not a Helper (see CONTEXT.md "Organizer").
+    ``building``/``room`` are their single placement, derived from the Organizer
+    role slot(s) they hold: both unset while they hold none, ``room`` unset for
+    a Building-level placement."""
+
+    id: int
+    name: str
+    person_id: Optional[str] = None
+    email: Optional[str] = None  # normalized; optional
+    building: Optional[str] = None
+    room: Optional[str] = None
+
+
+@dataclass
 class StructuralAssignment:
     role: StructuralRole
     building: str
-    # Exactly one of helper_id/helper_name is meaningful: helper_id for a
-    # registered helper, helper_name for someone typed in by hand (manual
-    # roles are often filled by people who never registered as a helper).
+    # A slot entry saved before Organizers existed holds a Helper (helper_id)
+    # or hand-typed text (helper_name) — a *legacy* entry, still displayed and
+    # exported until it is replaced. Exactly one of the two is meaningful:
+    # helper_id for a registered helper, helper_name for someone typed in by
+    # hand.
     helper_id: Optional[int] = None
     helper_name: Optional[str] = None
     room: Optional[str] = None  # only meaningful for VedouciMistnosti / PravaRuka
+    # The tracked Organizer holding the slot (see Organizer); set instead of
+    # helper_id/helper_name on every entry made since Organizers exist.
+    organizer_id: Optional[int] = None
 
 
 @dataclass
@@ -291,9 +318,18 @@ class ManualRoles:
     overlay: list[OverlayAssignment] = field(default_factory=list)
 
 
-def manual_assignment_name(helper_id: Optional[int], helper_name: Optional[str], helper_name_by_id: dict[int, str]) -> str:
-    """Resolve a manual-role entry's display name: the registered helper's
-    name if ``helper_id`` is set, otherwise the hand-typed ``helper_name``."""
+def manual_assignment_name(
+    helper_id: Optional[int],
+    helper_name: Optional[str],
+    helper_name_by_id: dict[int, str],
+    organizer_id: Optional[int] = None,
+    organizer_name_by_id: Optional[dict[int, str]] = None,
+) -> str:
+    """Resolve a manual-role entry's display name: the tracked Organizer's name
+    if ``organizer_id`` is set, else the registered helper's name if
+    ``helper_id`` is set, otherwise the hand-typed ``helper_name``."""
+    if organizer_id is not None:
+        return (organizer_name_by_id or {}).get(organizer_id, f"#{organizer_id}")
     if helper_id is not None:
         return helper_name_by_id.get(helper_id, f"#{helper_id}")
     return helper_name or ""

@@ -119,6 +119,12 @@ class Workspace:
             # ids in its record's "tags"; effective Tags are computed, never
             # stored. Part of every Version and cleared by Start over.
             "tags": [],
+            # The Season's Organizers (see rostering.organizers): tracked people
+            # who are not Helpers, each with a single placement derived from the
+            # Organizer role slot they hold. Part of every Version and cleared
+            # by Start over; ids come from the high-water mark
+            # "next_organizer_id" and are never reused.
+            "organizers": [],
             "diagnostics": {
                 "status": None,
                 "objective_value": None,
@@ -141,6 +147,8 @@ class Workspace:
         state = _read_json(path)
         # A state saved before Tags existed has none.
         state.setdefault("tags", [])
+        # ... and one saved before Organizers existed has none.
+        state.setdefault("organizers", [])
         if ensure_person_ids(state):
             _write_json(path, state)
         return state

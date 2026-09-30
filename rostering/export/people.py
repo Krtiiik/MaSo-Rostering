@@ -23,8 +23,10 @@ Organizer — in the first Room an entry names, empty at Building level.
 A Helper flagged Can't attend is never counted, however they are still placed
 (``without_absent`` drops their Assignment and Manual role entries).
 
-The Organizer entity isn't implemented yet; when it lands, the same rules
-apply to it here and nowhere else.
+A tracked Organizer (see CONTEXT.md) is counted by the same rules, in the
+Building their slot places them in, with an Unknown T-shirt size; a slot entry
+saved before Organizers existed (a Helper id or typed text) is counted as
+described above.
 """
 from __future__ import annotations
 
@@ -78,6 +80,7 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
     comp, result, manual = without_absent(comp, result, manual)
     helper_by_id = {h.id: h for h in comp.helpers}
     name_by_id = {h.id: h.name for h in comp.helpers}
+    organizer_name_by_id = {o.id: o.name for o in comp.organizers}
 
     def size_of(helper_id: int) -> str:
         helper = helper_by_id.get(helper_id)
@@ -87,8 +90,10 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
             return helper.tshirt_size
         return UNKNOWN_TSHIRT_SIZE
 
-    # Person key -> person. A registered Helper is keyed by id, a hand-typed
-    # name by its normalized text (the only identity such a person has).
+    # Person key -> person. A registered Helper is keyed by id, a tracked
+    # Organizer by their Organizer id, a hand-typed name by its normalized text
+    # (the only identity such a person has). An Organizer has no T-shirt size on
+    # record, so counts as Unknown.
     people: dict[tuple, CountedPerson] = {}
 
     for a in result.assignments:
@@ -110,7 +115,9 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
     for entry in manual.structural:
         if not entry.building:
             continue
-        if entry.helper_id is not None:
+        if entry.organizer_id is not None:
+            key = ("organizer", entry.organizer_id)
+        elif entry.helper_id is not None:
             key = ("id", entry.helper_id)
         else:
             typed_name = (entry.helper_name or "").strip()
@@ -118,7 +125,12 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
                 continue
             key = ("name", normalize_name(typed_name))
         entries_by_person.setdefault(key, []).append(entry)
-        first_entry_name.setdefault(key, manual_assignment_name(entry.helper_id, entry.helper_name, name_by_id))
+        first_entry_name.setdefault(
+            key,
+            manual_assignment_name(
+                entry.helper_id, entry.helper_name, name_by_id, entry.organizer_id, organizer_name_by_id
+            ),
+        )
 
     for key, entries in entries_by_person.items():
         person = people.get(key)
