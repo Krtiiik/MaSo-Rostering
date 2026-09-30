@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The People tab's tables now size each column to its widest cell in the browser
+  instead of from a character count worked out beforehand.
 - Adding a Building on the Buildings tab is now a single full-width "+ Add
   building" button instead of a name form; the new Building starts as
   "Building N" and is renamed in its own "Building name" field.
