@@ -90,7 +90,7 @@ div[class*="st-key-remove_building_"] button p {
 def _capacity_cell(min_col, capacities: dict, role_name: str, key: str) -> None:
     cap = capacities.get(role_name, {"minimum": 0})
     minimum = min_col.number_input(
-        "Min",
+        "Count",
         value=int(cap.get("minimum") or 0),
         min_value=0,
         step=1,
@@ -109,6 +109,12 @@ def _render_building_table(buildings: list[dict], bi: int) -> None:
     with outer[0]:
         building["name"] = st.text_input("Building name", value=building["name"], key=f"bname_{bi}")
 
+        counts_cols = st.columns([1, n_units])
+        counts_cols[1].markdown(
+            '<div style="text-align:center;font-weight:600;border-bottom:1px solid currentColor">Counts</div>',
+            unsafe_allow_html=True,
+        )
+
         header_cols = st.columns([1] + [1] * n_units)
         header_cols[0].write("")
         header_cols[1].markdown(f"**{building['name'] or 'Building'} (overall)**")
@@ -117,12 +123,6 @@ def _render_building_table(buildings: list[dict], bi: int) -> None:
                 room["name"] = st.text_input(
                     "Room name", value=room["name"], key=f"rname_{bi}_{id(room)}", label_visibility="collapsed"
                 )
-
-        subheader_cols = st.columns([1] + [1] * n_units)
-        subheader_cols[0].write("")
-        subheader_cols[1].caption("Exactly (0 = no limit)")
-        for i in range(1, n_units):
-            subheader_cols[1 + i].caption("Min")
 
         for role_name in _ROLE_ORDER:
             row_cols = st.columns([1] + [1] * n_units)
@@ -184,10 +184,7 @@ def clear_drafts() -> None:
 
 def render() -> None:
     st.header("2. Buildings & rooms")
-    st.write(
-        "Define the buildings, their rooms, and how many of each role each can hold this season. "
-        "A room's number is a minimum; a building's overall number is an exact count."
-    )
+    st.write("Define the buildings, their rooms, and how many of each role each can hold this season.")
 
     state = session.get_state()
     _ensure_drafts(state)

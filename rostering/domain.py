@@ -224,7 +224,8 @@ class Assignment:
 @dataclass(frozen=True)
 class RuleInstance:
     """The identity of one hard-rule instance: rule kind plus the entity it
-    binds, e.g. ``("room_minimum", ("Karlín", "N4", "Fotograf"))`` or ``("building_exact", ("Karlín", "Fotograf"))`` or
+    binds, e.g. ``("room_exact", ("Karlín", "N4", "Fotograf"))``,
+    ``("building_exact", ("Karlín", "Fotograf"))`` or
     ``("equipment", (helper_id,))``. The solver's relaxation reports its
     Broken rules under these identities, and the live checker must emit the
     same ones so the two can be compared."""
