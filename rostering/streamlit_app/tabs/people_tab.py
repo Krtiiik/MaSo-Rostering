@@ -13,6 +13,9 @@ from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
 # Height in px of one table row; see ``_row_cells``.
 _ROW_HEIGHT = 44
+# Bumped on every Can't attend tick so the checkboxes start afresh from the saved
+# state (a flag that was refused or is still awaiting confirmation must not stay ticked).
+_CANT_ATTEND_NONCE = "_people_cant_attend_nonce"
 
 
 def render() -> None:
@@ -162,6 +165,21 @@ def _pills_text(pills: dict | None) -> str:
     return " ".join(tag["name"] for tag in [*pills["direct"], *pills["implied"]]) if pills else "—"
 
 
+def _cant_attend_cell(cell, kind: str, person: dict) -> None:
+    """The row's Can't attend checkbox; a change is saved (flagging may first ask
+    for confirmation, see ``person_actions``) and reruns the page."""
+    saved = bool(person.get("cant_attend"))
+    flag = cell.checkbox(
+        f"Can't attend: {person['name']}",
+        value=saved,
+        key=f"cant_attend_{kind}_{person['id']}_{st.session_state.get(_CANT_ATTEND_NONCE, 0)}",
+        label_visibility="collapsed",
+    )
+    if flag != saved:
+        st.session_state[_CANT_ATTEND_NONCE] = st.session_state.get(_CANT_ATTEND_NONCE, 0) + 1
+        person_actions.set_cant_attend(kind, person["id"], flag)
+
+
 def _render_organizers(state: dict) -> None:
     organizers = sorted(state["organizers"], key=lambda o: o["name"].lower())
     st.subheader(f"Organizers ({len(organizers)})")
@@ -170,19 +188,19 @@ def _render_organizers(state: dict) -> None:
         [
             organizer["name"],
             " · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—",
-            "Can't attend" if organizer.get("cant_attend") else "",
+            "",  # the Can't attend checkbox column (sized by its header)
             _pills_text(pills.get(organizer["id"])),
         ]
         for organizer in organizers
     ]
     with st.container(border=True):
-        columns = _table_columns(["Name", "Placement", "Status", "Tags"], texts)
-        for organizer, (name, placement, status, _) in zip(organizers, texts):
-            name_cell, placement_cell, status_cell, tags_cell = _row_cells(columns)
+        columns = _table_columns(["Name", "Placement", "Can't attend", "Tags"], texts)
+        for organizer, (name, placement, _, _) in zip(organizers, texts):
+            name_cell, placement_cell, absent_cell, tags_cell = _row_cells(columns)
             if name_cell.button(name, key=f"open_organizer_{organizer['id']}", type="tertiary"):
                 person_dialog.open_person("organizer", organizer["id"])
             placement_cell.write(placement)
-            status_cell.write(f":red[{status}]" if status else "")
+            _cant_attend_cell(absent_cell, "organizer", organizer)
             tags_cell.html(_pills(pills.get(organizer["id"])))
         if st.button("＋ Add organizer", key="add_organizer_open"):
             person_dialog.open_add_organizer()
@@ -207,16 +225,16 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
                 or "—",
                 helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
                 f"{unresolved} to match" if unresolved else str(len(helper["friends"])),
-                "Can't attend" if helper.get("cant_attend") else "",
+                "",  # the Can't attend checkbox column (sized by its header)
                 _pills_text(pills.get(helper["id"])),
             ]
         )
     with st.container(border=True):
         columns = _table_columns(
-            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Status", "Tags"], texts
+            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Can't attend", "Tags"], texts
         )
-        for helper, (name, seasons, buildings, equipment, size, friends, status, _) in zip(helpers, texts):
-            name_cell, seasons_cell, buildings_cell, equipment_cell, size_cell, friends_cell, status_cell, tags_cell = (
+        for helper, (name, seasons, buildings, equipment, size, friends, _, _) in zip(helpers, texts):
+            name_cell, seasons_cell, buildings_cell, equipment_cell, size_cell, friends_cell, absent_cell, tags_cell = (
                 _row_cells(columns)
             )
             if name_cell.button(name, key=f"open_helper_{helper['id']}", type="tertiary"):
@@ -226,7 +244,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
             equipment_cell.write(equipment)
             size_cell.write(size)
             friends_cell.write(friends)
-            status_cell.write(f":red[{status}]" if status else "")
+            _cant_attend_cell(absent_cell, "helper", helper)
             tags_cell.html(_pills(pills.get(helper["id"])))
         if st.button("＋ Add helper", key="add_helper_open"):
             person_dialog.open_add_helper()

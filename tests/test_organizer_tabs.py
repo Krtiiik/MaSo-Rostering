@@ -90,6 +90,45 @@ def test_the_people_tab_lists_organizers_and_helpers_as_name_buttons(seasons):
     assert {b.label for b in at.button} >= {"Boss", "Anna", "＋ Add organizer", "＋ Add helper"}
 
 
+def _cant_attend_box(at, label):
+    return next(c for c in at.checkbox if c.label == label)
+
+
+def test_the_people_tab_has_a_cant_attend_checkbox_per_person(seasons):
+    at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
+
+    assert not at.exception
+    assert {c.label for c in at.checkbox} == {"Can't attend: Boss", "Can't attend: Anna"}
+    assert not any(c.value for c in at.checkbox)
+
+
+def test_ticking_a_helpers_checkbox_flags_them(seasons):
+    at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
+
+    _cant_attend_box(at, "Can't attend: Anna").check().run()
+
+    assert not at.exception
+    assert mutations.get_state(seasons)["helpers"][0]["cant_attend"] is True
+    assert _cant_attend_box(at, "Can't attend: Anna").value is True
+
+    _cant_attend_box(at, "Can't attend: Anna").uncheck().run()
+
+    assert not at.exception
+    assert not mutations.get_state(seasons)["helpers"][0].get("cant_attend")
+
+
+def test_ticking_a_placed_organizers_checkbox_waits_for_confirmation(seasons):
+    at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
+
+    _cant_attend_box(at, "Can't attend: Boss").check().run()
+
+    assert not at.exception
+    assert not mutations.get_state(seasons)["organizers"][0].get("cant_attend")
+    assert any(b.label == "Mark as Can't attend" for b in at.button)  # the confirmation dialog
+    # The table shows what is saved, not the refused tick.
+    assert _cant_attend_box(at, "Can't attend: Boss").value is False
+
+
 def test_tagging_an_organizer_in_their_popup_saves(seasons):
     at = AppTest.from_function(_organizer_popup_app, default_timeout=30).run()
     assert not at.exception

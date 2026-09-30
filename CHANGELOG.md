@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The People tab's Organizers and Helpers tables now have a "Can't attend"
+  checkbox per row (replacing the read-only "Status" text), so a person can be
+  flagged or brought back without opening their popup. Flagging someone with an
+  Assignment or Manual role entries asks for confirmation first, as before.
 - A "Clear roster" button in the Roster tab's bottom bar removes every Assignment
   (locked ones too) and resets the solver result and the out-of-date warning, back
   to the state before the first Solve. It asks first, saying how many Assignments
