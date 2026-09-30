@@ -67,3 +67,16 @@ the pooled numbers look dramatic. It does not predict the gain for future Likert
 - The solver has no per-Role maximums, so scarcity is artificial; "stress" is a proxy.
 - CP-SAT breaks ties arbitrarily: differences of 1–2 Helpers between variants are noise.
 - Likert evidence is two Seasons and 125 single-"Ano" Helpers: small numbers.
+
+## Decision
+
+**u = 1**, chosen by the user to protect friend requests. On the Likert Seasons under stress it
+satisfies 158 of 167 friend pairs (today 152, u=2 152, u=4 147) at the cost of about 7 Building
+placements versus today (179 vs 186 of 199). Single-"Ano" placements are unchanged (117 of 125).
+Baseline results are identical for u=1 to u=8, so this only matters when Roles compete.
+
+With u=1, an Ano to Klidně step costs 1 against a Building mismatch of 3 and an unsatisfied
+friend of 5, so role preferences mostly break ties between placements that are otherwise equal
+for Building and friends. `u` stays configurable next to the other solver weights (per #15).
+The evidence is two Seasons and the 2026-jaro stress solves were unconverged, so re-check on
+the next Season's data.
