@@ -10,7 +10,7 @@ from rostering.streamlit_app import mutations, session
 from rostering.streamlit_app.tabs import person_actions
 
 _ROLES = [r for r in Role if r != Role.Zaloha]  # Záloha is not a survey Preference
-_UNSET = "—"  # no answer: the Role reads as Nevadí
+_UNSET_TEXT = "— (bez odpovědi, počítá se jako Nevadí)"  # no stars: the Role reads as Nevadí
 _PREFERENCE_LABELS = {
     Preference.Ano: "Ano",
     Preference.Klidne: "Klidně",
@@ -26,28 +26,32 @@ DETAILS_NONCE = "_helper_details_nonce"
 
 
 def _preference_inputs(prefix: str, current: dict[str, str]) -> dict[str, str]:
-    """One selectbox per survey Role; returns the Preferences that were
-    answered (a Role left at the dash has no entry)."""
-    by_label = {label: pref.name for pref, label in _PREFERENCE_LABELS.items()}
-    label_by_name = {pref.name: label for pref, label in _PREFERENCE_LABELS.items()}
+    """One row per survey Role, stacked: the Role's name and a star rating on
+    the left, the Preference the stars map to on the right (Ano is five stars,
+    Ne one; no stars is no answer). Returns the Preferences that were answered."""
+    by_stars = {index: pref for index, pref in enumerate(reversed(list(_PREFERENCE_LABELS)))}
+    stars_by_name = {pref.name: index for index, pref in by_stars.items()}
     chosen: dict[str, str] = {}
-    columns = st.columns(len(_ROLES))
-    for column, role in zip(columns, _ROLES):
-        label = column.selectbox(
-            role.value,
-            options=[_UNSET, *by_label],
-            index=([_UNSET, *by_label].index(label_by_name[current[role.name]]) if role.name in current else 0),
+    for role in _ROLES:
+        name_col, stars_col, value_col = st.columns([2, 2, 3], vertical_alignment="center")
+        name_col.write(role.value)
+        index = stars_col.feedback(
+            "stars",
+            default=stars_by_name.get(current.get(role.name)),
             key=f"{prefix}_pref_{role.name}",
         )
-        if label != _UNSET:
-            chosen[role.name] = by_label[label]
+        if index is None:
+            value_col.caption(_UNSET_TEXT)
+        else:
+            chosen[role.name] = by_stars[index].name
+            value_col.write(_PREFERENCE_LABELS[by_stars[index]])
     return chosen
 
 
 def _optional_inputs(state: dict, prefix: str, helper: dict | None, own_id: int | None) -> dict:
     """The optional Helper fields, prefilled from ``helper`` when editing."""
     helper = helper or {}
-    st.caption("Preference rolí (role ponechaná na pomlčce se počítá jako Nevadí)")
+    st.caption("Preference rolí (hvězdičky: 5 = Ano … 1 = Ne; bez hvězdiček se role počítá jako Nevadí)")
     role_preferences = _preference_inputs(prefix, helper.get("role_preferences", {}))
     buildings = [b["name"] for b in state["config"]]
     building_preferences = st.multiselect(
