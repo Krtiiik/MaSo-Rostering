@@ -38,6 +38,19 @@ def test_the_tab_shows_the_unit_and_six_costs_with_the_solver_defaults(tab):
         assert tab.number_input(key=key).value == getattr(defaults.role_costs, field)
 
 
+def test_add_building_button_appends_a_uniquely_named_building(tab):
+    before = len(tab.session_state["config_draft"])
+
+    tab.button(key="add_building").click().run()
+    tab.button(key="add_building").click().run()
+
+    assert not tab.exception
+    names = [b["name"] for b in tab.session_state["config_draft"]]
+    assert len(names) == before + 2
+    assert len(set(names)) == len(names)
+    assert tab.session_state["config_draft"][-1]["rooms"] == []
+
+
 def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab):
     tab.number_input(key="w_role_cost_unit").set_value(3).run()
     tab.number_input(key="w_cost_zaloha").set_value(9).run()

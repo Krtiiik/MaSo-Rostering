@@ -216,11 +216,14 @@ def render() -> None:
             with st.container(key=f"building_grid_{bi}"):
                 _render_building_table(buildings, bi)
 
-    with st.form(key="add_building_form", clear_on_submit=True):
-        new_building_name = st.text_input("New building name")
-        if st.form_submit_button("+ Add building") and new_building_name:
-            buildings.append({"name": new_building_name, "rooms": [], "capacities": {}})
-            st.rerun()
+    if st.button("+ Add building", key="add_building", width="stretch"):
+        # Named afterwards in the building's own "Building name" field.
+        taken = {b["name"] for b in buildings}
+        number = len(buildings) + 1
+        while f"Building {number}" in taken:
+            number += 1
+        buildings.append({"name": f"Building {number}", "rooms": [], "capacities": {}})
+        st.rerun()
 
     st.subheader("Solver weights")
     weights = solver_config["weights"]

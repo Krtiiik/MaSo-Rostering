@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adding a Building on the Buildings tab is now a single full-width "+ Add
+  building" button instead of a name form; the new Building starts as
+  "Building N" and is renamed in its own "Building name" field.
 - The Tags tab's "Others (N)" section in the Tag edit menu is now titled
   "Add tag to others", saying what it does instead of showing a count.
 - On the Buildings tab, each building's grid takes only the width its columns
