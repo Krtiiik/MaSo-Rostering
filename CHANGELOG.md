@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   top (when there are any), then every matched friend with a "Vynutit" button
   (or "Vynuceno" when their Forced friends group already exists), and the
   matching of already-decided names folded into an expander.
+- On the 5. Parametry rozřazování tab, the five Preference costs (Ano, Klidně, Nevadí,
+  Spíš ne, Ne) are number inputs stacked vertically with a bar chart of their
+  distribution beside them. The role cost unit and the Záloha cost, which is not a
+  Preference, sit in a row above.
 - In the People tab's Helpers table, the Friends column of a Helper with unmatched
   friend names is a button that opens their popup straight on the "Jména
   kamarádů" tab, where the names are matched.

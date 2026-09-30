@@ -1,22 +1,25 @@
 """Tab 5: solver settings (weights, role costs, time limit, friend scoring)."""
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from rostering.persistence.serialize import solver_config_from_dict, solver_config_to_dict
 from rostering.solver.model import SolverConfig
 from rostering.streamlit_app import labels, mutations, session, solve_prompt
 
-# The six rating costs in the order the fields are shown: (RoleCosts field,
-# label, widget key).
-_ROLE_COST_FIELDS = [
+# The five Preference costs in the order the fields are shown, stacked beside
+# their bar chart: (RoleCosts field, label, widget key).
+_PREFERENCE_COST_FIELDS = [
     ("ano", "Ano", "w_cost_ano"),
     ("klidne", "Klidně", "w_cost_klidne"),
     ("nevadi", "Nevadí", "w_cost_nevadi"),
-    ("zaloha", "Záloha", "w_cost_zaloha"),
     ("spise_ne", "Spíš ne", "w_cost_spise_ne"),
     ("ne", "Ne", "w_cost_ne"),
 ]
+# Záloha is not a Preference option, so its cost sits outside the stack and the chart.
+_ZALOHA_COST_FIELD = ("zaloha", "Záloha", "w_cost_zaloha")
+_ROLE_COST_FIELDS = [*_PREFERENCE_COST_FIELDS, _ZALOHA_COST_FIELD]
 _ROLE_COST_UNIT_KEY = "w_role_cost_unit"
 
 
@@ -70,7 +73,7 @@ def render() -> None:
         "zvyšte ji, aby preference rolí vážily víc než budova a přání kamarádů."
     )
     role_costs = solver_config["role_costs"]
-    unit_col, *cost_cols = st.columns(1 + len(_ROLE_COST_FIELDS))
+    unit_col, zaloha_col = st.columns(2)
     weights["role_cost_unit"] = unit_col.number_input(
         "Jednotka cen rolí",
         min_value=0,
@@ -78,9 +81,27 @@ def render() -> None:
         value=int(weights["role_cost_unit"]),
         key=_ROLE_COST_UNIT_KEY,
     )
-    for col, (field, label, key) in zip(cost_cols, _ROLE_COST_FIELDS):
-        role_costs[field] = col.number_input(
-            label, min_value=0, step=1, value=int(role_costs[field]), key=key
+    field, label, key = _ZALOHA_COST_FIELD
+    role_costs[field] = zaloha_col.number_input(
+        label, min_value=0, step=1, value=int(role_costs[field]), key=key
+    )
+
+    input_col, chart_col = st.columns([1, 2])
+    with input_col:
+        for field, label, key in _PREFERENCE_COST_FIELDS:
+            role_costs[field] = st.number_input(
+                label, min_value=0, step=1, value=int(role_costs[field]), key=key
+            )
+    with chart_col:
+        st.caption("Rozložení cen podle preferencí")
+        st.bar_chart(
+            pd.DataFrame(
+                {"Cena": [role_costs[field] for field, _label, _key in _PREFERENCE_COST_FIELDS]},
+                index=pd.Index([label for _field, label, _key in _PREFERENCE_COST_FIELDS], name="Preference"),
+            ),
+            sort=False,
+            y_label="Cena",
+            height=320,
         )
     st.button("Obnovit výchozí ceny rolí", on_click=_restore_role_cost_defaults, key="w_restore_role_costs")
 
