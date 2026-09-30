@@ -14,6 +14,7 @@ from rostering.streamlit_app import labels as ui_labels
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
 # Between the padded detail cells of a row (monospace, see ``_line``).
 _GAP = "  "
+_OPEN_LABEL = "Otevřít"
 # Bumped on every Can't attend tick so the checkboxes start afresh from the saved
 # state (a flag that was refused or is still awaiting confirmation must not stay ticked).
 _CANT_ATTEND_NONCE = "_people_cant_attend_nonce"
@@ -177,31 +178,34 @@ def _render_table(
     add_label: str,
     on_add,
 ) -> None:
-    """One row per person: the name as a button (opens the popup), every other
-    column (Tags last) as a single padded ``st.text``, then the Can't attend
-    checkbox. Three elements a row, no per-cell containers: the page renders
-    (and reruns) in proportion to its element count, which is what made the
-    earlier cell-per-container table slow. The columns' ratios follow the
-    text lengths, the same for every row, so the rows stay level."""
+    """One row per person: the name as plain text, every other column (Tags
+    last) as a single padded ``st.text``, the Can't attend checkbox, then an
+    "Otevřít" button (opens the popup) in the last column. Four elements a
+    row, no per-cell containers: the page renders (and reruns) in proportion
+    to its element count, which is what made the earlier cell-per-container
+    table slow. The columns' ratios follow the text lengths, the same for
+    every row, so the rows stay level."""
     labels = [*detail_labels, "Štítky"]
     rows = [[*row, tag_text] for row, tag_text in zip(details, tags)]
     widths = [max(len(text) for text in [label, *(row[i] for row in rows)]) for i, label in enumerate(labels)]
     widths[-1] = 0  # the last cell is not padded
     ratios = [
-        max(len(text) for text in ["Jméno", *names]) + 6,
+        max(len(text) for text in ["Jméno", *names]) + 2,
         max(len(text) for text in [_line(labels, widths), *(_line(row, widths) for row in rows)]),
         len("Nemůže se zúčastnit") + 2,
+        len(_OPEN_LABEL) + 4,
     ]
     header = st.columns(ratios, vertical_alignment="center")
     header[0].text("Jméno")
     header[1].text(_line(labels, widths))
     header[2].text("Nemůže se zúčastnit")
     for person, name, row in zip(people, names, rows):
-        name_cell, details_cell, absent_cell = st.columns(ratios, vertical_alignment="center")
-        if name_cell.button(name, key=f"open_{kind}_{person['id']}", type="tertiary"):
-            person_dialog.open_person(kind, person["id"])
+        name_cell, details_cell, absent_cell, open_cell = st.columns(ratios, vertical_alignment="center")
+        name_cell.text(name)
         details_cell.text(_line(row, widths))
         _cant_attend_cell(absent_cell, kind, person)
+        if open_cell.button(_OPEN_LABEL, key=f"open_{kind}_{person['id']}", help=f"Otevřít: {person['name']}"):
+            person_dialog.open_person(kind, person["id"])
     if st.button(add_label, key=f"add_{kind}_open"):
         on_add()
 
