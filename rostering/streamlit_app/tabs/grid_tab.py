@@ -406,12 +406,14 @@ def render() -> None:
     show_tags, filter_tags, filter_mode = _render_tag_controls(state)
     helper_pills = mutations.grid_tag_pills(state)
     answers_changed = mutations.answers_changed_since_placed(state)
+    forced_marks = mutations.grid_forced_groups(state)
     grid_helpers = [
         {
             "id": h["id"],
             "name": h["name"],
             "tags": helper_pills[h["id"]],
             "answers_changed": answers_changed.get(h["id"], []),
+            "forced_groups": forced_marks.get(h["id"], []),
             "can_bring_notebook": h["can_bring_notebook"],
             "can_bring_camera": h["can_bring_camera"],
             "role_preferences": _grid_role_preferences(h["role_preferences"]),

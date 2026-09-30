@@ -111,6 +111,10 @@ def assignment_grid(
     Tag filter fades: they are never hidden, stay where they are and remain
     draggable. The two are independent. Both are computed by the caller.
 
+    A ``helpers`` entry may also carry ``forced_groups`` (a list of wordings such
+    as ``"Rodina (same Building, Room)"``, see CONTEXT.md "Forced friends group"):
+    the chip shows a link mark whose tooltip lists them. Purely visual.
+
     Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
     a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
     "room", "names"}`` for an edited manual-role cell (``names`` is the

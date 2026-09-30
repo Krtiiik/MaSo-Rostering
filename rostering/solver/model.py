@@ -324,7 +324,7 @@ def solve_competition(
     for family, relaxation in sorted(relaxed, key=lambda pair: pair[0].tier):
         units = solver.Value(relaxation.slack)
         if units > 0:
-            broken_rules.append(to_broken_rule(family, relaxation, units))
+            broken_rules.append(to_broken_rule(family, relaxation, units, assignments))
 
     return SolveResult(
         assignments=assignments,

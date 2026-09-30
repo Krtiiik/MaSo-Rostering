@@ -89,14 +89,15 @@ def render() -> None:
         "whenever it can; a group it cannot keep is reported as a Broken rule. Changing groups after a solve "
         "moves no one and makes the roster stale until the next Solve."
     )
-    fix_focus.render_callout(state, "forced_friends")
+    fix = fix_focus.render_callout(state, "forced_friends")
 
     _render_new(state)
     groups = forced_groups.list_groups(state)
     if not groups:
         st.info("No Forced friends groups yet.")
         return
-    focused = st.session_state.get(_FOCUS)
+    # The group a "Go fix" pointed at, for as long as that rule is still broken.
+    focused = fix.group_id if fix is not None else None
     for group in groups:
         _render_group(state, group, focused == group["id"])
 
@@ -119,11 +120,15 @@ def _render_new(state: dict) -> None:
 
 
 def _badge(group: dict) -> None:
-    if group["active"]:
-        st.badge("Active", icon=":material/check:", color="green")
+    """The status badge: active, dormant (with the reason) or violated by the
+    roster as it stands (with the live checker's lines)."""
+    status = group["status"]
+    if status == forced_groups.DORMANT:
+        st.badge("Dormant", icon=":material/pause:", color="orange", help=group["reason"])
+    elif status == forced_groups.VIOLATED:
+        st.badge("Violated", icon=":material/warning:", color="red")
     else:
-        st.badge("Inactive", icon=":material/pause:", color="orange", help=group["reason"])
-        st.caption(group["reason"])
+        st.badge("Active", icon=":material/check:", color="green")
 
 
 def _render_group(state: dict, group: dict, focused: bool) -> None:
@@ -133,17 +138,24 @@ def _render_group(state: dict, group: dict, focused: bool) -> None:
         head.subheader(group["name"])
         with badge_col:
             _badge(group)
+        if group["status"] == forced_groups.DORMANT:
+            st.caption(group["reason"])
+        for line in group["violations"]:
+            st.caption(f":red[{line}]")
         st.markdown(
             "  \n".join(_MEMBER_STYLE[m["state"]].format(m["name"] or "?") for m in group["members"])
             or ":gray[No members]"
         )
-        with st.form(key=prefix):
-            name = st.text_input("Name", value=group["name"], key=f"{prefix}_name")
-            people = _people_picker(state, f"{prefix}_people", group)
-            axes = _axis_picker(f"{prefix}_axes", group["axes"])
-            save_col, dissolve_col, _ = st.columns([2, 2, 6])
-            saved = save_col.form_submit_button("Save changes", type="primary")
-            dissolved = dissolve_col.form_submit_button("Dissolve group")
+        # The editor opens for a group to fix (from a Broken-rule "Go fix") and
+        # for one the roster violates, and stays folded away otherwise.
+        with st.expander("Edit group", icon=":material/edit:", expanded=focused or group["status"] == forced_groups.VIOLATED):
+            with st.form(key=prefix):
+                name = st.text_input("Name", value=group["name"], key=f"{prefix}_name")
+                people = _people_picker(state, f"{prefix}_people", group)
+                axes = _axis_picker(f"{prefix}_axes", group["axes"])
+                save_col, dissolve_col, _ = st.columns([2, 2, 6])
+                saved = save_col.form_submit_button("Save changes", type="primary")
+                dissolved = dissolve_col.form_submit_button("Dissolve group")
         if saved and _apply(
             forced_groups.update_group,
             group["id"],

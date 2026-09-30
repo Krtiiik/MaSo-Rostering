@@ -32,6 +32,9 @@ export interface Helper {
   // The answers (e.g. "Building preference") a re-submitted survey row changed
   // since this Helper was placed; absent or empty when nothing changed.
   answers_changed?: string[];
+  // The Forced friends groups in force that bind this Helper, worded for the
+  // tooltip ("Rodina (same Building, Room)"); absent or empty when none does.
+  forced_groups?: string[];
 }
 
 export interface FriendCardEntry {

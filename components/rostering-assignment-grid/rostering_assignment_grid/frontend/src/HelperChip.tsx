@@ -192,6 +192,14 @@ export function HelperChip({
           ✎{" "}
         </span>
       )}
+      {helper.forced_groups && helper.forced_groups.length > 0 && (
+        <span
+          className="helper-chip-forced"
+          title={`Forced friends: ${helper.forced_groups.join("; ")}`}
+        >
+          🔗{" "}
+        </span>
+      )}
       {helper.name}
       {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}
       {helper.can_bring_camera && <span title="Can bring a camera"> 📷</span>}

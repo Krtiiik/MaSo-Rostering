@@ -207,7 +207,13 @@ live if they later register and are recognized as the same Person). Groups are
 saved per Season, in Versions, cleared by Start over and kept on re-upload.
 Creating a group or changing its people or axes after a solve moves no one and
 makes the roster stale; dissolving one does so only if it was active and its
-members currently satisfy it. *Planned, not yet implemented*: an Organizer as a
+members currently satisfy it. A group shows a status: active, dormant (with the
+reason) or violated by the roster as it stands, and its member chips are marked
+on the roster grid. It is refused when its members' effective allowed Buildings
+(a Room group counts as Building) or Roles, from their Tags, have nothing in
+common on an axis it shares, and a Tag change that would cause that is refused;
+size, capacity and fixed or locked Assignments never block. *Planned, not yet
+implemented*: an Organizer as a
 member (never on the Role axis, since an Organizer has no solved Role; an
 unplaced Organizer is not active), and a group carrying over to a later Season
 alongside Tag import, since it belongs to the people in it, not to one Season.

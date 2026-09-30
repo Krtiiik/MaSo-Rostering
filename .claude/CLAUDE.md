@@ -366,18 +366,39 @@ pushing the tag, not just creating it locally.
   Room axis compares `(building, room)`). `solver/rules.py`
   `FORCED_FRIENDS_FAMILY` (tier between Tag restrictions and Equipment) states
   it as a max-count slack per rule and `_check_forced_friends` judges it live
-  (the line is the same static wording in both, `GroupRule.line`; its
+  (the line is the same wording in both, `GroupRule.line(assignments)`: `Group
+  Rodina [Anna, Petr, Jana] is split across rooms N4 and N6`, naming the active
+  members and the distinct places their Assignments occupy on the axis (a Room
+  name shared by two Buildings is suffixed with its Building). Because a slack
+  knows no places, `Relaxation` has an optional `describe_placed(units,
+  assignments)` that `to_broken_rule` uses with the solved roster; its
   `FixTarget` is `("forced_friends", group_id)`, which `fix_focus` turns into
-  `forced_friends_tab.focus_group`). `Competition.forced_groups` carries the
+  the group's editor, opened for the group a still-broken "Go fix" points at). `Competition.forced_groups` carries the
   groups (`mutations._build_competition`, `attending()`). Mutations:
   `add_group` / `update_group` / `dissolve_group`; a create, or an edit of
   people or axes, marks an existing roster stale, a rename does not, and a
   dissolve does only if the group was active with two placed active members
   currently satisfying it (`_was_pulling`). Only registered people can be
   picked (a member already in the group is kept even when not registered).
-  Not built yet: status "violated" and the grid chip marks (#60), the Tag
-  intersection edit-time check (#60), "make forced" and Organizer members
-  (#61), the import section (#62).
+  `list_groups` also gives each group a `status` (`active` / `dormant` /
+  `violated`, the last from `mutations.broken_rules`, so never before a roster
+  and never for a dormant group) and its `violations` lines; the tab's badge and
+  the fold-out "Edit group" form read them. `mutations.grid_forced_groups(state)`
+  gives the grid `{helper_id: ["Rodina (same Building, Room)"]}` for the active
+  members of groups in force (a dormant group marks no one), passed as each
+  helper's `forced_groups` prop; `HelperChip` shows a link mark whose tooltip
+  lists them. The one blocking edit-time check is `forced_friends.tag_clashes`
+  (the members' `tags.allowed_values` intersected per shared Building/Role axis;
+  Room is judged as Building; a member with an empty allowed set of their own
+  is left to the Helper dead-end check; Can't attend and unregistered members
+  are not counted). `forced_groups._refuse_tag_clash` runs it on `add_group`
+  and on an `update_group` that changes people or axes (a rename never blocks,
+  and an already-clashing group can only be edited towards holding), and
+  `mutations._stranded` / `_refuse_new_dead_ends` carry group clashes as
+  `(group id, axis, "group")` entries next to the Helper dead ends, so
+  `set_helper_tags`, `add_tag_to_helpers` and `update_tag` refuse a Tag change
+  that newly empties a group's intersection. Not built yet: "make forced" and
+  Organizer members (#61), the import section (#62).
   Helper ones and have no UI yet. Organizer Can't attend/Tags are separate,
   later tickets (the Organizer record already may carry a direct-Tag id list,
   `tags`, which promotion fills; nothing else reads it yet).

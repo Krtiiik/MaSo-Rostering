@@ -27,6 +27,9 @@ from rostering.streamlit_app.mutations import RosteringError
 ACTIVE = "active"
 CANT_ATTEND = "cant_attend"
 NOT_REGISTERED = "not_registered"
+# A group's status badge besides ACTIVE (which a member's state shares).
+DORMANT = "dormant"
+VIOLATED = "violated"
 
 
 def _records(state: dict[str, Any]) -> list[dict]:
@@ -51,7 +54,7 @@ def _member_state(state: dict[str, Any], member: dict) -> dict[str, Any]:
     }
 
 
-def _describe(group: dict) -> dict[str, Any]:
+def _describe(group: dict, violations: Sequence[str]) -> dict[str, Any]:
     members = group["members"]
     active = sum(1 for m in members if m["state"] == ACTIVE)
     reason = None
@@ -61,18 +64,34 @@ def _describe(group: dict) -> dict[str, Any]:
         reason = f"Fewer than two active members ({active} of {len(members)})" + (
             f": {'; '.join(notes)}" if notes else ""
         )
-    return {**group, "active": active >= 2, "reason": reason}
+    # A dormant group constrains nothing, so the roster cannot violate it.
+    violations = list(violations) if active >= 2 else []
+    status = DORMANT if active < 2 else VIOLATED if violations else ACTIVE
+    return {**group, "active": active >= 2, "reason": reason, "status": status, "violations": violations}
+
+
+def _violation_lines(state: dict[str, Any]) -> dict[int, list[str]]:
+    """The live checker's lines for each group the current roster violates."""
+    lines: dict[int, list[str]] = {}
+    for broken in mutations.broken_rules(state):
+        if broken.family == forced_friends.KIND:
+            lines.setdefault(broken.instance.entity[0], []).append(broken.line)
+    return lines
 
 
 def list_groups(state: dict[str, Any]) -> list[dict]:
     """The Season's groups as the panel shows them: ``id``, ``name``, ``axes``,
     ``members`` (``person_id``, ``name``, ``state`` one of ``"active"``,
     ``"cant_attend"``, ``"not_registered"``, and the ``helper_id`` when
-    registered), ``active`` (two or more active members) and, when inactive,
-    the ``reason``."""
+    registered), ``active`` (two or more active members), the ``reason`` when it
+    is not, and its ``status`` badge: ``"active"``, ``"dormant"`` (with the
+    ``reason``) or ``"violated"`` by the roster as it stands, in which case
+    ``violations`` holds the live checker's lines (empty otherwise)."""
+    groups = state.get("forced_groups") or []
+    violations = _violation_lines(state) if groups else {}
     return [
-        _describe({**g, "members": [_member_state(state, m) for m in g.get("members") or []]})
-        for g in state.get("forced_groups") or []
+        _describe({**g, "members": [_member_state(state, m) for m in g.get("members") or []]}, violations.get(g["id"], ()))
+        for g in groups
     ]
 
 
@@ -136,14 +155,28 @@ def _record(state: dict[str, Any], group_id: int) -> dict:
     raise RosteringError(f"No such Forced friends group: {group_id}")
 
 
+def _refuse_tag_clash(state: dict[str, Any], group_id: int) -> None:
+    """The one check that blocks creating or editing a group (the group is
+    already in the in-memory ``state``, not yet saved): its active members'
+    effective allowed sets, from their Tags, must have something in common on
+    every Building/Role axis it shares. Size, capacity and fixed Assignments
+    never block; they show up as a Broken rule."""
+    clashes = [c for c in mutations._group_tag_clashes(state) if c.group.id == group_id]
+    if clashes:
+        raise RosteringError("Refused: " + "; ".join(c.message() for c in clashes) + ".")
+
+
 def add_group(workspace: Workspace, name: str, person_ids: Sequence[str], axes: Sequence[str]) -> dict:
     """Create a group. Nobody is moved; if a roster exists it is marked stale
-    (a full Solve applies the group)."""
+    (a full Solve applies the group). Refused when its members' Tags leave them
+    no Building or Role in common on an axis it shares."""
     name = _validated_name(name)
     canonical = _validated_axes(axes)
     state = workspace.load()
     members = _validated_members(state, person_ids)
-    _records(state).append({"id": _next_group_id(state), "name": name, "axes": canonical, "members": members})
+    group_id = _next_group_id(state)
+    _records(state).append({"id": group_id, "name": name, "axes": canonical, "members": members})
+    _refuse_tag_clash(state, group_id)
     _stale_if_rostered(state, f"Forced friends group {name} was created: solve again to apply it")
     workspace.save(state)
     return state
@@ -159,7 +192,10 @@ def update_group(
 ) -> dict:
     """Edit a group; what is left out stays. Nobody is moved. A change of
     members or axes marks an existing roster stale; a rename alone does not,
-    since the rules the roster was solved for are unchanged."""
+    since the rules the roster was solved for are unchanged. A change of members
+    or axes is refused like a creation (see :func:`_refuse_tag_clash`), even for a
+    group already at odds, so it can only be edited towards holding; a rename is
+    never refused."""
     state = workspace.load()
     record = _record(state, group_id)
     changed = False
@@ -174,6 +210,7 @@ def update_group(
         changed |= [m["person_id"] for m in members] != [m["person_id"] for m in record["members"]]
         record["members"] = members
     if changed:
+        _refuse_tag_clash(state, group_id)
         _stale_if_rostered(state, f"Forced friends group {record['name']} was changed: solve again to apply it")
     workspace.save(state)
     return state
