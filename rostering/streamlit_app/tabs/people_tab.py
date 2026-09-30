@@ -21,17 +21,6 @@ def render() -> None:
     st.header(ui_labels.TAB_PEOPLE)
     workspace = session.get_workspace()
     season = mutations.get_open_season(workspace)
-    if season is None:
-        st.write(
-            "Nahrajte původní export odpovědí pomocníků z Google Forms (.xlsx). Tím se vytvoří nový ročník: "
-            "nejdřív potvrdíte jeho označení."
-        )
-    else:
-        st.write(
-            f"Nahrajte původní export z Google Forms (.xlsx), aby se odpovědi pomocníků načetly do ročníku "
-            f"**{season['label']}**. Pomocníci, kteří už v něm jsou, se obnoví podle svého nejnovějšího řádku "
-            "(párují se podle e-mailu), noví zájemci se přidají nezařazení a nikdo se nepřesouvá ani neodebírá."
-        )
 
     state = session.get_state()
     uploaded = st.file_uploader(
