@@ -12,7 +12,7 @@ def render() -> None:
     season = mutations.get_open_season(workspace)
     if season is None:
         st.subheader("New Season")
-        st.caption("Not saved yet — upload a responses file on the Upload tab to create the Season.")
+        st.caption("Not saved yet — upload a responses file on the People tab to create the Season.")
         return
 
     title_col, edit_col = st.columns([0.8, 0.2], vertical_alignment="center")

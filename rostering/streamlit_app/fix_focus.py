@@ -20,7 +20,7 @@ _KEY = "_fix_focus"
 # family whose tab does not exist yet has no entry, hence no "Go fix" button.
 TAB_LABELS = {
     "buildings": "2. Buildings",
-    "helpers": "1. Upload",
+    "helpers": "1. People",
     "tags": "3. Tags",
     "forced_friends": "4. Forced friends",
 }

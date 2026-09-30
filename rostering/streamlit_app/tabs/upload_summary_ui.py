@@ -40,6 +40,6 @@ def render(where: str) -> None:
             )
         if summary["uncertain"]:
             st.markdown(
-                f"**{len(summary['uncertain'])} uncertain match(es) awaiting review** (in the Upload tab): "
+                f"**{len(summary['uncertain'])} uncertain match(es) awaiting review** (in the People tab): "
                 + ", ".join(entry["helper_name"] for entry in summary["uncertain"])
             )

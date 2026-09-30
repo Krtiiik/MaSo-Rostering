@@ -110,12 +110,11 @@ ROSTERING_APP_URL="http://localhost:$port" node smoke.mjs ../../data/seasons/202
 
 or equivalently `npm run smoke -- ../../data/seasons/2026-jaro/raw-response.xlsx`.
 With no path argument it only checks the app shell loads (file input
-attached). With a path, it uploads that `.xlsx` via the Upload tab, waits
-for the parsed-helpers `st.dataframe` to render, resolves one unresolved
-friend name to a candidate and dismisses another as "not attending" via
-the inline per-name selectboxes in the "Resolve friend names" section (if
-any unresolved names exist — each selectbox applies its choice immediately
-on selection, there's no separate confirm button), switches to the
+attached). With a path, it uploads that `.xlsx` via the People tab, waits
+for the Organizers/Helpers tables to render, opens the first helper marked ⚠,
+and dismisses its first unresolved friend name as "not attending" in the
+popup's "Friend names" tab (if any unresolved names exist — each picker
+applies its choice immediately on selection), switches to the
 Buildings tab and clicks "Save & solve", switches to the Roster tab, drags
 the first helper chip into the first grid cell (exercising the CCv2
 component), and checks the Export button is present.
@@ -187,7 +186,7 @@ These call the `mutations.*` functions directly against an isolated
   someone else's already-running server.
 - **Streamlit's tab strip (`st.segmented_control`) is keyed to
   `st.session_state["_active_tab"]`.** Switching tabs from Python (the
-  Upload tab's "Continue →" CTA, the post-solve jump to Roster) goes through
+  People tab's "Continue →" CTA, the post-solve jump to Roster) goes through
   `session.switch_tab(...)`, which queues the change in `_pending_tab` and
   applies it in `app.py` *before* the widget renders on the next run — not
   a direct `st.session_state["_active_tab"] = ...` write. Streamlit raises
