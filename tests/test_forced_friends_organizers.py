@@ -605,20 +605,61 @@ def _friends_popup_app():
     st.fragment(person_dialog._helper_body)(1)
 
 
-def test_the_helper_popup_makes_a_friend_request_forced_with_one_click(seasons):
+def _multiselect(at, label):
+    return next(m for m in at.multiselect if m.label == label)
+
+
+def test_the_helper_popup_forces_a_friend_by_picking_them_in_the_multiselect(seasons):
     from streamlit.testing.v1 import AppTest
 
     mutations.update_helper(seasons, 1, friends=[2])
 
     at = AppTest.from_function(_friends_popup_app, default_timeout=30).run()
     assert not at.exception
-    next(b for b in at.button if b.label == "Vynutit").click().run()
+    _multiselect(at, "Vynucení kamarádi v místnosti").select("h2").run()
 
     assert not at.exception
     (group,) = mutations.get_state(seasons)["forced_groups"]
     assert (group["name"], group["axes"]) == ("Anna + Petr", ["building", "room"])
-    assert not any(b.label == "Vynutit" for b in at.button)  # the wish now shows as forced
-    assert any("Vynuceno" in c.value for c in at.caption)
+    assert _multiselect(at, "Vynucení kamarádi v místnosti").value == ["h2"]
+
+
+def test_the_helper_popup_unforces_a_friend_by_unpicking_them(seasons):
+    from streamlit.testing.v1 import AppTest
+
+    mutations.update_helper(seasons, 1, friends=[2])
+    forced_groups.make_forced(seasons, 1, 2)
+
+    at = AppTest.from_function(_friends_popup_app, default_timeout=30).run()
+    assert _multiselect(at, "Vynucení kamarádi v místnosti").value == ["h2"]
+    _multiselect(at, "Vynucení kamarádi v místnosti").unselect("h2").run()
+
+    assert not at.exception
+    assert mutations.get_state(seasons)["forced_groups"] == []
+    assert mutations.get_state(seasons)["helpers"][0]["friends"] == [2]  # the wish stays
+
+
+def test_the_forced_picker_offers_only_the_helpers_own_friends(seasons):
+    from streamlit.testing.v1 import AppTest
+
+    mutations.update_helper(seasons, 1, friends=[2])
+
+    at = AppTest.from_function(_friends_popup_app, default_timeout=30).run()
+
+    assert not at.exception
+    assert _multiselect(at, "Vynucení kamarádi v místnosti").options == ["Petr"]
+
+
+def test_the_friends_tab_holds_the_friends_picker_and_saves_a_pick_at_once(seasons):
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_function(_friends_popup_app, default_timeout=30).run()
+    friends_label = "Kamarádi (pomocníci nebo organizátoři, se kterými chce sdílet místnost)"
+    _multiselect(at, friends_label).select("h3").run()
+
+    assert not at.exception
+    assert mutations.get_state(seasons)["helpers"][0]["friends"] == [3]
+    assert _multiselect(at, "Vynucení kamarádi v místnosti").options == ["Jana"]
 
 
 def test_the_forced_friends_tab_no_longer_has_the_make_forced_expander(seasons):
@@ -645,4 +686,4 @@ def test_the_friends_tab_lists_unmatched_names_above_the_matched_friends(seasons
     assert not at.exception
     headings = [m.value for m in at.markdown if m.value.startswith("**")]
     assert headings == ["**K přiřazení**", "**Přiřazení kamarádi**"]
-    assert any(b.label == "Vynutit" for b in at.button)
+    assert any(m.label == "Vynucení kamarádi v místnosti" for m in at.multiselect)
