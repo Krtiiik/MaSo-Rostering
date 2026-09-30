@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Locked Assignments: a placed Helper's whole Assignment (Building, Room and
+  Role) can be locked so that a full Solve keeps it and re-places everyone else
+  around it. Ctrl/cmd-click a chip, or press the Lock/Unlock button on its hover
+  card, to toggle the lock; a plain click and a drag are unchanged (a drag now
+  starts only after the pointer has moved a few pixels), dragging a locked chip
+  moves the lock with it, dragging an unlocked chip never locks it, and dropping
+  a chip on an Additional-role overlay cell leaves the lock alone. A locked chip
+  shows a padlock and a heavier solid border. Locked Helpers count toward Room
+  and Building minimums and Friend-preference co-location, a locked Assignment
+  that breaks a rule is still kept, and a lock whose Room no longer exists is
+  dropped at the next Solve. Locks are saved with the Season and its Versions
+  and are not written to the Excel export.
 - A solve never fails because the hard rules clash. Room and Building
   minimums and Equipment eligibility now bend in a fixed order (minimums
   first, Equipment last, with room reserved for Tag restrictions and

@@ -1,4 +1,5 @@
 from rostering.domain import (
+    Assignment,
     Building,
     Competition,
     Helper,
@@ -170,3 +171,48 @@ def test_building_preference_still_penalizes_a_genuinely_different_building():
 
     assert result is not None
     assert result.objective_value == config.weights.building_mismatch
+
+
+def test_fixed_assignments_come_back_unchanged_and_an_empty_set_changes_nothing():
+    building = Building(name="B", rooms=[_room("R1"), _room("R2")])
+    helpers = [Helper(id=1, name="A"), Helper(id=2, name="B")]
+    comp = Competition(buildings={"B": building}, helpers=helpers)
+    fixed = [Assignment(helper_id=1, helper_name="A", building="B", room="R2", role=Role.Kreslic)]
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5), fixed_assignments=fixed)
+
+    kept = next(a for a in result.assignments if a.helper_id == 1)
+    assert (kept.building, kept.room, kept.role) == ("B", "R2", Role.Kreslic)
+    plain = solve_competition(comp, SolverConfig(time_limit_seconds=5), fixed_assignments=[])
+    assert plain.broken_rules == []
+
+
+def test_fixed_helpers_count_toward_a_room_minimum():
+    # R1 needs 3 Skenovač; two Helpers are fixed there, so the one free Helper
+    # completes it and no rule bends.
+    building = Building(name="B", rooms=[_room("R1", Skenovac=3), _room("R2")])
+    helpers = [Helper(id=1, name="A"), Helper(id=2, name="B"), Helper(id=3, name="C")]
+    comp = Competition(buildings={"B": building}, helpers=helpers)
+    fixed = [
+        Assignment(helper_id=1, helper_name="A", building="B", room="R1", role=Role.Skenovac),
+        Assignment(helper_id=2, helper_name="B", building="B", room="R1", role=Role.Skenovac),
+    ]
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5), fixed_assignments=fixed)
+
+    assert result.broken_rules == []
+    third = next(a for a in result.assignments if a.helper_id == 3)
+    assert (third.room, third.role) == ("R1", Role.Skenovac)
+
+
+def test_fixed_helpers_count_toward_friend_colocation():
+    building = Building(name="B", rooms=[_room("R1"), _room("R2")])
+    helpers = [Helper(id=1, name="A", friends=[2]), Helper(id=2, name="B"), Helper(id=3, name="C")]
+    comp = Competition(buildings={"B": building}, helpers=helpers)
+    fixed = [Assignment(helper_id=2, helper_name="B", building="B", room="R2", role=Role.Zaloha)]
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5), fixed_assignments=fixed)
+
+    friend = next(a for a in result.assignments if a.helper_id == 1)
+    assert friend.room == "R2"
+    assert (1, 2) in result.satisfied_friend_pairs

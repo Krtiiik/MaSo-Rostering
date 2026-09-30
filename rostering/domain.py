@@ -168,6 +168,9 @@ class Assignment:
     building: str
     room: str
     role: Role
+    # A Locked Assignment (see CONTEXT.md): a full Solve keeps it. The solver
+    # itself ignores this flag; callers pass the locked ones as fixed.
+    locked: bool = False
 
 
 @dataclass(frozen=True)

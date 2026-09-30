@@ -328,6 +328,11 @@ def render() -> None:
                 toast_lines = mutations.move_toast_lines(state, moved)
                 if toast_lines:
                     st.session_state[_TOAST_KEY] = toast_lines
+            elif event["type"] == "lock":
+                # Never blocks and never touches the Broken-rule check.
+                session.set_state(
+                    mutations.set_lock(session.get_workspace(), event["helper_id"], bool(event["locked"]))
+                )
             elif event["type"] == "cell_merge":
                 session.set_state(
                     mutations.set_cell_merges(

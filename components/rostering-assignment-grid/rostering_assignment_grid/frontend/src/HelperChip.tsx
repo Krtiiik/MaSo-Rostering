@@ -12,9 +12,16 @@ interface Props {
   onHoverChange?: (hovering: boolean) => void;
   // The Broken-rule lines this chip is part of, if any — marks it lightly.
   broken?: string[];
+  // Lock state of a placed Helper's Assignment; `onToggleLock` is given only
+  // for a placed chip (ctrl/cmd-click and the hover card's button use it).
+  locked?: boolean;
+  onToggleLock?: () => void;
 }
 
 const HOVER_DELAY_MS = 400;
+// Leaving the chip hides the card only after this grace period, so the cursor
+// can cross the small gap onto the card (to reach its Lock button).
+const HIDE_DELAY_MS = 250;
 const CARD_WIDTH = 260;
 // The card's real height varies with content (role/friend list length); this
 // is just an estimate used to decide whether to flip above/left of the
@@ -42,20 +49,38 @@ function computeCardPosition(clientX: number, clientY: number): { top: number; l
   return { top, left };
 }
 
-export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, onHoverChange, broken }: Props) {
+export function HelperChip({
+  helper,
+  card,
+  unsatisfiedFriend,
+  friendHighlight,
+  onHoverChange,
+  broken,
+  locked,
+  onToggleLock,
+}: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(helper.id),
   });
   const [cardPosition, setCardPosition] = useState<{ top: number; left: number } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mousePosRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(
     () => () => {
       if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+      if (hideTimerRef.current !== null) clearTimeout(hideTimerRef.current);
     },
     [],
   );
+
+  function cancelHide() {
+    if (hideTimerRef.current !== null) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  }
 
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 }
@@ -74,6 +99,9 @@ export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, o
   // positioned popover) regardless of where in the table the chip sits.
   function handleMouseEnter(event: MouseEvent<HTMLDivElement>) {
     onHoverChange?.(true);
+    cancelHide();
+    // Coming back onto the (already shown) card keeps it where it is.
+    if (cardPosition) return;
     mousePosRef.current = { x: event.clientX, y: event.clientY };
     hoverTimerRef.current = setTimeout(() => {
       if (mousePosRef.current) setCardPosition(computeCardPosition(mousePosRef.current.x, mousePosRef.current.y));
@@ -81,6 +109,9 @@ export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, o
   }
 
   function handleMouseMove(event: MouseEvent<HTMLDivElement>) {
+    // Moving over the card itself (it is a child of the chip) must not drag it
+    // away from the cursor, or its Lock button could never be reached.
+    if ((event.target as HTMLElement).closest(".helper-card")) return;
     mousePosRef.current = { x: event.clientX, y: event.clientY };
     if (cardPosition) {
       setCardPosition(computeCardPosition(event.clientX, event.clientY));
@@ -94,7 +125,20 @@ export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, o
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
-    setCardPosition(null);
+    if (!cardPosition) return;
+    cancelHide();
+    hideTimerRef.current = setTimeout(() => {
+      hideTimerRef.current = null;
+      setCardPosition(null);
+    }, HIDE_DELAY_MS);
+  }
+
+  // ctrl/cmd-click toggles the lock; a plain click (and a drag, which the
+  // grid's activation distance keeps apart from a click) does nothing.
+  function handleClick(event: MouseEvent<HTMLDivElement>) {
+    if (!onToggleLock || !(event.ctrlKey || event.metaKey)) return;
+    event.preventDefault();
+    onToggleLock();
   }
 
   return (
@@ -103,16 +147,30 @@ export function HelperChip({ helper, card, unsatisfiedFriend, friendHighlight, o
       style={style}
       {...listeners}
       {...attributes}
-      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${highlightClass}`}
+      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${highlightClass}`}
       title={titleText}
+      onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
+      {locked && (
+        <span className="helper-chip-lock" title="Locked: a full Solve keeps this Assignment">
+          🔒{" "}
+        </span>
+      )}
       {helper.name}
       {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}
       {helper.can_bring_camera && <span title="Can bring a camera"> 📷</span>}
-      {cardPosition && !isDragging && <HelperCard data={card} top={cardPosition.top} left={cardPosition.left} />}
+      {cardPosition && !isDragging && (
+        <HelperCard
+          data={card}
+          top={cardPosition.top}
+          left={cardPosition.left}
+          locked={locked}
+          onToggleLock={onToggleLock}
+        />
+      )}
     </div>
   );
 }

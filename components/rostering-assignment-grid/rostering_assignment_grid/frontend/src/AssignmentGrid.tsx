@@ -1,6 +1,6 @@
 import { FrontendRendererArgs } from "@streamlit/component-v2-lib";
 import { FC, ReactElement, ReactNode, useId, useMemo, useState } from "react";
-import { DndContext } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { Cell } from "./Cell";
 import { HelperChip } from "./HelperChip";
@@ -14,6 +14,8 @@ import type {
   HelperCardData,
   ManualEntry,
 } from "./types";
+
+const DRAG_ACTIVATION_DISTANCE = 6;
 
 export type AssignmentGridProps = Pick<
   FrontendRendererArgs<AssignmentGridState, AssignmentGridData>,
@@ -65,6 +67,12 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   setTriggerValue,
 }): ReactElement => {
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
+  // A drag only starts after the pointer has moved a few pixels, so a plain
+  // (or ctrl/cmd-) click on a chip stays a click.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE } }),
+    useSensor(KeyboardSensor),
+  );
   const datalistId = useId();
 
   const helpersById = useMemo(() => {
@@ -242,10 +250,14 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         friendHighlight = "requester";
       }
     }
+    // Only a placed Helper is lockable (the Unassigned pool has no lock).
+    const placed = assignmentByHelper.get(h.id);
     return (
       <HelperChip
         key={h.id}
         helper={h}
+        locked={placed?.locked === true}
+        onToggleLock={placed ? () => setTriggerValue("lock", { helper_id: h.id, locked: !placed.locked }) : undefined}
         card={cardDataFor(h)}
         unsatisfiedFriend={unsatisfiedHelperIds.has(h.id)}
         broken={brokenByHelper.get(h.id)}
@@ -448,7 +460,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           <option key={name} value={name} />
         ))}
       </datalist>
-      <DndContext onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         {unassignedHelpers.length > 0 && (
           <div className="unassigned-pool">
             <strong>Unassigned:</strong>{" "}

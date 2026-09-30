@@ -52,6 +52,9 @@ export interface Assignment {
   building: string;
   room: string;
   role: string;
+  // A Locked Assignment (see CONTEXT.md): a full Solve keeps it. Absent
+  // means unlocked.
+  locked?: boolean;
 }
 
 // One row of the table. "role" rows are the drag-and-drop solver roles,
@@ -133,6 +136,13 @@ export interface DropEvent {
   role: string;
 }
 
+// Fired by ctrl/cmd-clicking a placed chip or pressing the hover card's
+// Lock/Unlock button; `locked` is the lock's new value.
+export interface LockEvent {
+  helper_id: number;
+  locked: boolean;
+}
+
 // Fired whenever a manual-role cell's list of names changes; `names` is the
 // cell's full new list (not a single added/removed entry).
 export interface ManualSetEvent {
@@ -153,7 +163,7 @@ export interface CellMergeEvent {
   merged: boolean;
 }
 
-// The trigger key(s) this component reports back to Python. All three fire
+// The trigger key(s) this component reports back to Python. All four fire
 // once per completed edit and are consumed by Streamlit after the
 // resulting rerun (CCv2 triggers reset automatically — no manual dedup
 // bookkeeping needed on either side).
@@ -162,4 +172,5 @@ export interface AssignmentGridState {
   drop: DropEvent;
   manual_set: ManualSetEvent;
   cell_merge: CellMergeEvent;
+  lock: LockEvent;
 }

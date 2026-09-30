@@ -45,7 +45,7 @@ def assignment_grid(
     rooms: list[dict[str, str]],
     rows: list[dict[str, Any]],
     helpers: list[dict[str, Any]],
-    assignments: list[dict[str, Any]],
+    assignments: list[dict[str, Any]],  # a truthy ``locked`` marks a Locked Assignment
     manual_entries: list[dict[str, Any]],
     cell_merges: dict[str, dict[str, list[list[str]]]],
     helper_names: list[str],
@@ -102,7 +102,9 @@ def assignment_grid(
     cell's full new list of names), ``{"type": "cell_merge", "key",
     "building", "pairs", "merged"}`` for a merge/unmerge click within row
     ``key`` (``pairs`` is one or more ``[room_a, room_b]`` adjacent-name
-    pairs to set to ``merged``), or ``None`` otherwise — CCv2 triggers
+    pairs to set to ``merged``), ``{"type": "lock", "helper_id", "locked"}``
+    for a lock toggle (ctrl/cmd-click on a placed chip or the hover card's
+    Lock/Unlock button; ``locked`` is the new value), or ``None`` otherwise — CCv2 triggers
     reset automatically after the rerun that reports them, so callers
     don't need to dedupe.
     """
@@ -121,6 +123,7 @@ def assignment_grid(
         on_drop_change=_noop,
         on_manual_set_change=_noop,
         on_cell_merge_change=_noop,
+        on_lock_change=_noop,
     )
     if result.drop:
         return {"type": "drop", **result.drop}
@@ -128,4 +131,6 @@ def assignment_grid(
         return {"type": "manual_set", **result.manual_set}
     if result.cell_merge:
         return {"type": "cell_merge", **result.cell_merge}
+    if result.lock:
+        return {"type": "lock", **result.lock}
     return None
