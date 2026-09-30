@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A "Clear roster" button in the Roster tab's bottom bar removes every Assignment
+  (locked ones too) and resets the solver result and the out-of-date warning, back
+  to the state before the first Solve. It asks first, saying how many Assignments
+  (and how many locked) go; Helpers, Tags, Organizers and Manual roles are kept.
+
 ### Changed
 
 - Adding a Building on the Buildings tab is now a single full-width "+ Add

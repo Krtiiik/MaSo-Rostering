@@ -53,6 +53,26 @@ def solve_and_open_roster() -> None:
     st.rerun()
 
 
+@st.dialog("Clear the roster?")
+def _confirm_clear(count: int, locked: int, run: Callable[[], None]) -> None:
+    noun = "Assignment" if count == 1 else "Assignments"
+    st.write(f"All {count} {noun} will be removed and the solver result reset.")
+    if locked:
+        st.write(f"This includes {locked} locked.")
+    st.caption("Helpers, Tags and Manual roles are kept.")
+    cols = st.columns(2)
+    if cols[0].button("Clear roster", type="primary", key="clear_roster_confirm_go"):
+        run()
+    if cols[1].button("Cancel", key="clear_roster_confirm_cancel"):
+        st.rerun()
+
+
+def request_clear(state: dict[str, Any], run: Callable[[], None]) -> None:
+    """Run the roster clear ``run`` after the user confirms: it discards every
+    Assignment, locked ones too."""
+    _confirm_clear(len(state["assignments"]), mutations.locked_count(state), run)
+
+
 def remember_dropped_locks(state: dict[str, Any]) -> None:
     """Queue the "N locks dropped: ..." line(s) of the Solve that produced
     ``state`` for the Roster tab to show once."""

@@ -346,6 +346,10 @@ def render() -> None:
             st.session_state[_PLACED_KEY] = f"Placed {newcomers} new {noun}; everyone else stayed where they were."
         st.rerun()
 
+    def run_clear() -> None:
+        session.set_state(mutations.clear_roster(session.get_workspace()))
+        st.rerun()
+
     stale = mutations.stale_reasons(state)
     unplaced = mutations.unplaced_reason(state)
     blockers = mutations.export_blockers(state)
@@ -365,7 +369,7 @@ def render() -> None:
                 "(everyone placed stays put), or Solve; Export is blocked until everyone is placed.",
                 icon="⚠️",
             )
-        cols = st.columns([2, 2, 2, 2, 1, 2], vertical_alignment="center")
+        cols = st.columns([2, 2, 2, 2, 2, 1, 2], vertical_alignment="center")
         solve_label = f"Solve (keeps {locked} locked)" if locked else ("Re-solve" if state["assignments"] else "Solve")
         if cols[0].button(solve_label, type="primary"):
             solve_prompt.request_solve(state, run_solve)
@@ -386,14 +390,20 @@ def render() -> None:
         if cols[3].button("Clear all locks", disabled=not locked):
             session.set_state(mutations.clear_all_locks(session.get_workspace()))
             st.rerun()
-        cols[4].markdown(f"**{locked}** locked")
+        if cols[4].button(
+            "Clear roster",
+            disabled=not state["assignments"],
+            help="Remove every Assignment (locked ones too) and reset the solver result.",
+        ):
+            solve_prompt.request_clear(state, run_clear)
+        cols[5].markdown(f"**{locked}** locked")
 
         if state["assignments"] and blockers:
-            cols[5].button("Export to Excel", disabled=True, help="Export is blocked: " + "; ".join(blockers))
+            cols[6].button("Export to Excel", disabled=True, help="Export is blocked: " + "; ".join(blockers))
         elif state["assignments"]:
             try:
                 export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
-                cols[5].download_button(
+                cols[6].download_button(
                     "Export to Excel",
                     data=export_bytes,
                     file_name="roster.xlsx",
