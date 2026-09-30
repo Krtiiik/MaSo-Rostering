@@ -6,7 +6,7 @@ import copy
 import streamlit as st
 
 from rostering.domain import Role
-from rostering.streamlit_app import fix_focus, mutations, session
+from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
 _ROLE_ORDER = [r.name for r in Role]
@@ -218,14 +218,28 @@ def render() -> None:
 
         disabled = not state["helpers"]
         if action_cols[1].button("Save & solve", type="primary", disabled=disabled):
-            with st.spinner("Solving…"):
-                try:
-                    mutations.put_config(session.get_workspace(), buildings)
-                    mutations.put_solver_config(session.get_workspace(), solver_config)
-                    session.set_state(mutations.solve(session.get_workspace()))
+            def run_solve() -> None:
+                with st.spinner("Solving…"):
+                    try:
+                        solved = mutations.solve(session.get_workspace())
+                    except mutations.RosteringError as exc:
+                        st.error(str(exc))
+                        return
+                    session.set_state(solved)
+                    solve_prompt.remember_dropped_locks(solved)
                     session.switch_tab("3. Roster")
-                    st.rerun()
-                except mutations.RosteringError as exc:
-                    st.error(str(exc))
+                st.rerun()
+
+            try:
+                # Saved first, so the confirmation counts against the new
+                # layout (a removed Room drops its locks). Removing a Room that
+                # holds a lock is never blocked or prompted here.
+                mutations.put_config(session.get_workspace(), buildings)
+                saved = mutations.put_solver_config(session.get_workspace(), solver_config)
+            except mutations.RosteringError as exc:
+                st.error(str(exc))
+            else:
+                session.set_state(saved)
+                solve_prompt.request_solve(saved, run_solve)
         if disabled:
             st.caption("Upload helper responses first.")

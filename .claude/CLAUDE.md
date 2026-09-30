@@ -202,6 +202,16 @@ pushing the tag, not just creating it locally.
   card's Lock/Unlock button); its drag needs a 6px activation distance so a
   click stays a click. The hover card is interactive (`pointer-events: auto`)
   and closes after a short grace period so the cursor can reach its button.
+  Bulk control lives in the Roster tab's bottom bar: `lock_all_placed`,
+  `clear_all_locks`, `locked_count`, and `unlocked_assignments_replaced` (what
+  a full Solve would throw away, a to-be-dropped lock included; zero means no
+  confirmation). `streamlit_app/solve_prompt.py` shows that confirmation for
+  both the Roster tab's Solve and the Buildings tab's "Save & solve" (which
+  saves the config first so the count uses the new layout). `solve` records
+  the locks it dropped as lines in `diagnostics["dropped_locks"]` ("N locks
+  dropped: Room X no longer exists"), which the Roster tab shows once after
+  the solve. Locks live only in the Season's own `assignments`, so a new
+  Season or a Tag import never carries them.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

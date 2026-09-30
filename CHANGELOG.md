@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Lock controls in the roster tab's bottom bar: "Lock all placed", "Clear all
+  locks", a live "N locked" count, and a Solve button that reads "Solve (keeps N
+  locked)" while any lock is set. A full Solve (also the Buildings tab's "Save &
+  solve") that would replace unlocked Assignments first asks "N unlocked
+  Assignments will be replaced", and does not ask when nothing would be lost. A
+  Solve that had to drop locks because their Room or Building was removed says
+  so ("N locks dropped: Room X no longer exists"); removing a Room is never
+  blocked or prompted in the Buildings tab. Locking operations don't affect the
+  Broken-rule check or the Excel export, saved Versions restore locks (an older
+  Version without the flag restores as unlocked), and "Start over" clears them.
 - Locked Assignments: a placed Helper's whole Assignment (Building, Room and
   Role) can be locked so that a full Solve keeps it and re-places everyone else
   around it. Ctrl/cmd-click a chip, or press the Lock/Unlock button on its hover

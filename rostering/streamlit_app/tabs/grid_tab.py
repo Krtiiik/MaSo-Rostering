@@ -20,7 +20,7 @@ from __future__ import annotations
 import streamlit as st
 
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
-from rostering.streamlit_app import fix_focus, mutations, session
+from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
 from rostering_assignment_grid import assignment_grid
 
 _ROLE_ORDER = [r.name for r in Role]
@@ -258,20 +258,38 @@ def render() -> None:
         st.info("Configure at least one building with a room first.")
         return
 
+    locked = mutations.locked_count(state)
+
+    def run_solve() -> None:
+        with st.spinner("Solving…"):
+            try:
+                solved = mutations.solve(session.get_workspace())
+            except mutations.RosteringError as exc:
+                st.error(str(exc))
+                return
+            session.set_state(solved)
+            solve_prompt.remember_dropped_locks(solved)
+        st.rerun()
+
     with st.bottom:
-        cols = st.columns(2)
-        if cols[0].button("Re-solve" if state["assignments"] else "Solve", type="primary"):
-            with st.spinner("Solving…"):
-                try:
-                    session.set_state(mutations.solve(session.get_workspace()))
-                    st.rerun()
-                except mutations.RosteringError as exc:
-                    st.error(str(exc))
+        cols = st.columns([2, 2, 2, 1, 2], vertical_alignment="center")
+        solve_label = f"Solve (keeps {locked} locked)" if locked else ("Re-solve" if state["assignments"] else "Solve")
+        if cols[0].button(solve_label, type="primary"):
+            solve_prompt.request_solve(state, run_solve)
+
+        # Bulk lock management; single locks are set on the chips themselves.
+        if cols[1].button("Lock all placed", disabled=not state["assignments"] or locked == len(state["assignments"])):
+            session.set_state(mutations.lock_all_placed(session.get_workspace()))
+            st.rerun()
+        if cols[2].button("Clear all locks", disabled=not locked):
+            session.set_state(mutations.clear_all_locks(session.get_workspace()))
+            st.rerun()
+        cols[3].markdown(f"**{locked}** locked")
 
         if state["assignments"]:
             try:
                 export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
-                cols[1].download_button(
+                cols[4].download_button(
                     "Export to Excel",
                     data=export_bytes,
                     file_name="roster.xlsx",
@@ -279,6 +297,8 @@ def render() -> None:
                 )
             except mutations.RosteringError:
                 pass
+
+    solve_prompt.show_dropped_locks()
 
     # The toast for the previous run's drop (emitted after the rerun that
     # follows it, since a toast issued right before st.rerun() can be lost).
