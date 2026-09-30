@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Tags tab's "who carries this Tag" section is now one multiselect over every
+  Helper and Organizer (replacing the carrier list with per-person "Odebrat" buttons
+  and the separate "add to other people" picker). Tick or untick people and press
+  "Uložit změny" to add and remove in one go; someone who carries the Tag only
+  through a child Tag is listed with "(přes …)" and gets it directly when ticked.
 - In the People tab's Helpers table, the Friends column of a Helper with unmatched
   friend names is a button that opens their popup straight on the "Jména
   kamarádů" tab, where the names are matched.

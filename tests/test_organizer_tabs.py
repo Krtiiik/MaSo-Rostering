@@ -231,5 +231,20 @@ def test_the_tags_tab_lists_an_organizer_who_carries_the_tag(seasons):
     at = AppTest.from_function(_tags_tab_app, default_timeout=30).run()
 
     assert not at.exception
-    assert any(s.value == "Mají tento štítek (1)" for s in at.subheader)
-    assert any("Boss (organizátor)" in w.value for w in at.markdown)
+    assert any(s.value == "Kdo štítek nese (1)" for s in at.subheader)
+    assert at.multiselect(key="tag_people_1_0").value == ["o1"]
+    assert "Boss (organizátor)" in at.multiselect(key="tag_people_1_0").options
+
+
+def test_the_tags_tab_multiselect_adds_and_removes_carriers_in_one_save(seasons):
+    mutations.set_organizer_tags(seasons, 1, [1])
+    at = AppTest.from_function(_tags_tab_app, default_timeout=30).run()
+
+    at.multiselect(key="tag_people_1_0").set_value(["h1"]).run()
+    at.button(key="tag_people_save_1").click().run()
+
+    assert not at.exception
+    state = mutations.get_state(seasons)
+    assert mutations.helper_tags(state, 1)["direct"] == [1]
+    assert mutations.organizer_tags(state, 1)["direct"] == []
+    assert any(s.value == "Kdo štítek nese (1)" for s in at.subheader)

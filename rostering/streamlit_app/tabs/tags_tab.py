@@ -13,10 +13,10 @@ from rostering.streamlit_app.tabs import tag_import_ui
 
 # Session-state keys: the Tag being edited (a Tag id, or _NEW for the create
 # form), the Tag whose delete awaits confirmation, and a counter that gives the
-# "Others" picker fresh (empty) widgets after each add.
+# people picker fresh widgets (re-read from the state) after each save.
 _SELECTED = "_tags_selected"
 _PENDING_DELETE = "_tags_pending_delete"
-_OTHERS_NONCE = "_tags_others_nonce"
+_PEOPLE_NONCE = "_tags_people_nonce"
 _FLASH = "_tags_flash"
 _NEW = "new"
 _NO_PARENT = None
@@ -67,8 +67,7 @@ def render() -> None:
             tag = next(t for t in state["tags"] if t["id"] == selected)
             _render_form(state, tag)
             _render_delete_panel(state, tag)
-            _render_carriers(state, tag, fix.helper_id if fix else None, fix.organizer_id if fix else None)
-            _render_others(state, tag)
+            _render_people(state, tag, fix.helper_id if fix else None, fix.organizer_id if fix else None)
         else:
             st.session_state.pop(_SELECTED, None)
             st.info("Vyberte štítek, abyste ho upravili nebo viděli, kdo ho nese, nebo vytvořte nový.")
@@ -261,65 +260,70 @@ def _render_delete_panel(state: dict, tag: dict) -> None:
             st.rerun()
 
 
-def _render_carriers(
+def _render_people(
     state: dict, tag: dict, fixing_helper_id: int | None = None, fixing_organizer_id: int | None = None
 ) -> None:
+    """One multiselect over every Helper and Organizer: the ticked people carry
+    the Tag directly. A person who only carries it through a child Tag is listed
+    unticked, marked with that Tag; ticking them gives them the Tag directly."""
+    names = {t["id"]: t["name"] for t in state["tags"]}
     carriers = mutations.tag_carriers(state, tag["id"])
     organizer_carriers = mutations.tag_organizer_carriers(state, tag["id"])
-    names = {t["id"]: t["name"] for t in state["tags"]}
-    st.subheader(f"Mají tento štítek ({len(carriers) + len(organizer_carriers)})")
-    if not carriers and not organizer_carriers:
-        st.caption("Tento štítek zatím nikdo nenese.")
-    for carrier in carriers:
-        name_col, action_col = st.columns([5, 3], vertical_alignment="center")
-        name_col.write(("⚠ " if carrier["helper_id"] == fixing_helper_id else "") + carrier["name"])
-        if carrier["via"] is None:
-            if action_col.button(
-                "Odebrat", icon=":material/close:", type="tertiary", key=f"tag_remove_{tag['id']}_{carrier['helper_id']}"
-            ) and _apply(mutations.remove_tag_from_helper, tag["id"], carrier["helper_id"]):
-                st.rerun()
-        else:
-            action_col.caption(f"přes {names[carrier['via']]}")
-    for carrier in organizer_carriers:
-        name_col, action_col = st.columns([5, 3], vertical_alignment="center")
-        name_col.write(("⚠ " if carrier["organizer_id"] == fixing_organizer_id else "") + carrier["name"] + " (organizátor)")
-        if carrier["via"] is None:
-            if action_col.button(
-                "Odebrat",
-                icon=":material/close:",
-                type="tertiary",
-                key=f"tag_remove_{tag['id']}_organizer_{carrier['organizer_id']}",
-            ) and _apply(mutations.remove_tag_from_organizer, tag["id"], carrier["organizer_id"]):
-                st.rerun()
-        else:
-            action_col.caption(f"přes {names[carrier['via']]}")
-
-
-def _render_others(state: dict, tag: dict) -> None:
-    carrier_ids = {c["helper_id"] for c in mutations.tag_carriers(state, tag["id"])}
-    organizer_carrier_ids = {c["organizer_id"] for c in mutations.tag_organizer_carriers(state, tag["id"])}
     # Options are "h<id>" (a Helper) or "o<id>" (an Organizer).
-    others = {f"h{h['id']}": h["name"] for h in state["helpers"] if h["id"] not in carrier_ids}
-    others.update(
-        {f"o{o['id']}": f"{o['name']} (organizátor)" for o in state["organizers"] if o["id"] not in organizer_carrier_ids}
-    )
-    st.subheader("Přidat štítek dalším lidem")
-    if not others:
-        st.caption("Tento štítek už nese každý pomocník i organizátor.")
+    labels_by_key: dict[str, str] = {}
+    for helper in state["helpers"]:
+        labels_by_key[f"h{helper['id']}"] = helper["name"]
+    for organizer in state["organizers"]:
+        labels_by_key[f"o{organizer['id']}"] = f"{organizer['name']} (organizátor)"
+    current = {f"h{c['helper_id']}" for c in carriers if c["via"] is None}
+    current |= {f"o{c['organizer_id']}" for c in organizer_carriers if c["via"] is None}
+    for carrier in carriers:
+        if carrier["via"] is not None:
+            labels_by_key[f"h{carrier['helper_id']}"] += f" (přes {names[carrier['via']]})"
+    for carrier in organizer_carriers:
+        if carrier["via"] is not None:
+            labels_by_key[f"o{carrier['organizer_id']}"] += f" (přes {names[carrier['via']]})"
+    if fixing_helper_id is not None and f"h{fixing_helper_id}" in labels_by_key:
+        labels_by_key[f"h{fixing_helper_id}"] = "⚠ " + labels_by_key[f"h{fixing_helper_id}"]
+    if fixing_organizer_id is not None and f"o{fixing_organizer_id}" in labels_by_key:
+        labels_by_key[f"o{fixing_organizer_id}"] = "⚠ " + labels_by_key[f"o{fixing_organizer_id}"]
+
+    st.subheader(f"Kdo štítek nese ({len(carriers) + len(organizer_carriers)})")
+    if not labels_by_key:
+        st.caption("Zatím nejsou žádní pomocníci ani organizátoři.")
         return
-    nonce = st.session_state.get(_OTHERS_NONCE, 0)
-    pick_key = f"tag_others_pick_{tag['id']}_{nonce}"
-    options = sorted(others, key=lambda hid: others[hid].lower())
-    picked = st.multiselect(
-        "Pomocníci k přidání", options=options, format_func=lambda hid: others[hid], key=pick_key, placeholder="Vyberte pomocníky"
+    nonce = st.session_state.get(_PEOPLE_NONCE, 0)
+    options = sorted(labels_by_key, key=lambda key: labels_by_key[key].lower())
+    picked = set(
+        st.multiselect(
+            "Kdo štítek nese",
+            options=options,
+            default=sorted(current),
+            format_func=lambda key: labels_by_key[key],
+            key=f"tag_people_{tag['id']}_{nonce}",
+            placeholder="Vyberte lidi",
+            label_visibility="collapsed",
+        )
     )
+    to_add, to_remove = sorted(picked - current), sorted(current - picked)
+    parts = ([f"přidat {len(to_add)}"] if to_add else []) + ([f"odebrat {len(to_remove)}"] if to_remove else [])
     if st.button(
-        f"Přidat ({len(picked)}) ke štítku {tag['name']}", type="primary", disabled=not picked, key=f"tag_others_add_{tag['id']}"
-    ) and _apply(
-        mutations.add_tag_to_helpers,
-        tag["id"],
-        [int(key[1:]) for key in picked if key[0] == "h"],
-        [int(key[1:]) for key in picked if key[0] == "o"],
+        f"Uložit změny ({', '.join(parts)})" if parts else "Uložit změny",
+        type="primary",
+        disabled=not parts,
+        key=f"tag_people_save_{tag['id']}",
     ):
-        st.session_state[_OTHERS_NONCE] = nonce + 1
+        # Additions first: they can be refused, and then nothing has changed yet.
+        if to_add and not _apply(
+            mutations.add_tag_to_helpers,
+            tag["id"],
+            [int(key[1:]) for key in to_add if key[0] == "h"],
+            [int(key[1:]) for key in to_add if key[0] == "o"],
+        ):
+            return
+        for key in to_remove:
+            remove = mutations.remove_tag_from_helper if key[0] == "h" else mutations.remove_tag_from_organizer
+            if not _apply(remove, tag["id"], int(key[1:])):
+                return
+        st.session_state[_PEOPLE_NONCE] = nonce + 1
         st.rerun()
