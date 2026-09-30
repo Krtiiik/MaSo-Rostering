@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adding a Building on the Buildings tab is now a single full-width "+ Add
   building" button instead of a name form; the new Building starts as
   "Building N" and is renamed in its own "Building name" field.
+- The solver settings (weights, role costs, time limit, friend scoring) moved
+  from the Buildings tab to their own "5. Solver" tab, with its own "Save
+  settings" and "Save & solve"; the Roster tab is now "6. Roster". The
+  Buildings tab's "Save & solve" saves only the layout and solves with the
+  saved solver settings.
 - The Tags tab's "Others (N)" section in the Tag edit menu is now titled
   "Add tag to others", saying what it does instead of showing a count.
 - On the Buildings tab, each building's grid takes only the width its columns

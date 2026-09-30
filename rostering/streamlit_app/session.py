@@ -37,11 +37,12 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
     the UI (opened another Season, New Season, Start over, restored a Version)
     and drop every piece of UI state derived from the old one. ``keep_view``
     leaves the current tab and upload state alone (a Version restore)."""
-    # Imported here: config_tab imports this module.
-    from rostering.streamlit_app.tabs import config_tab
+    # Imported here: the tabs import this module.
+    from rostering.streamlit_app.tabs import config_tab, solver_tab
 
     set_state(new_state)
     config_tab.clear_drafts()
+    solver_tab.clear_drafts()
     if keep_view:
         return
     # (The last three are the roster grid's Tag controls, see grid_tab.)
