@@ -94,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - On the Buildings tab, the "Remove building" button no longer overlaps the
   "+ Add room" button when its label wraps in a narrow column.
+- The "Kamarádi" column of the People tab no longer counts friends who are
+  flagged Can't attend (Helpers or Organizers).
 
 ## [1.1.0] - 2026-09-30
 

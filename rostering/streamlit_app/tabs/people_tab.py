@@ -226,7 +226,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
                 ", ".join(filter(None, ["notebook" if helper["can_bring_notebook"] else "", "fotoaparát" if helper["can_bring_camera"] else ""]))
                 or "—",
                 helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
-                f"k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])),
+                f"k přiřazení: {unresolved}" if unresolved else str(mutations.attending_friend_count(state, helper)),
             ]
         )
     _render_table(

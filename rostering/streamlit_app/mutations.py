@@ -896,6 +896,14 @@ def _friend_key(ref: Any) -> tuple[str, int]:
     return ("organizer", saved["organizer_id"]) if isinstance(saved, dict) else ("helper", saved)
 
 
+def attending_friend_count(state: dict[str, Any], helper: dict[str, Any]) -> int:
+    """How many of a Helper's matched friends are attending: a friend flagged
+    Can't attend (Helper or Organizer) does not count."""
+    absent = {("helper", h["id"]) for h in state["helpers"] if h.get("cant_attend")}
+    absent |= {("organizer", o["id"]) for o in state.get("organizers", []) if o.get("cant_attend")}
+    return sum(1 for ref in helper["friends"] if _friend_key(ref) not in absent)
+
+
 def _decision_refs(raw: Any) -> list[Any]:
     """The friend references a saved ``friend_name_decisions`` value holds
     (nothing for a dismissed name). Older persisted state stored a single int
