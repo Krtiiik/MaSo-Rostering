@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Each group in the Forced friends tab is now one line: the bold group name, its
+  members and the status badge, with the "Upravit skupinku" editor folded directly
+  under it (the big heading and the separate members list are gone).
 - The role preferences in a Helper's edit (and add) form are stacked one role per row:
   the role name, a star rating (five stars = Ano … one star = Ne, none = no answer,
   counted as Nevadí) and, to the right, the Preference the stars map to.
