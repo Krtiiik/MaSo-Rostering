@@ -9,7 +9,7 @@ from __future__ import annotations
 import unicodedata
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:  # rostering.tags needs nothing from here at runtime
     from rostering.forced_friends import ForcedGroup
@@ -106,6 +106,18 @@ def parse_tshirt_size(value: Optional[str]) -> Optional[str]:
     return text if text in TSHIRT_SIZES else None
 
 
+@dataclass(frozen=True)
+class OrganizerRef:
+    """A Friend preference's reference to an Organizer. A friend reference is
+    one unified type resolving to either kind of person: a plain ``int`` is a
+    Helper id (as it has always been), an ``OrganizerRef`` names an Organizer."""
+
+    organizer_id: int
+
+
+FriendRef = Union[int, OrganizerRef]
+
+
 @dataclass
 class Helper:
     id: int
@@ -114,9 +126,10 @@ class Helper:
     # Acceptable buildings (the form's place question is multi-select) —
     # empty set means no preference expressed.
     building_preferences: frozenset[str] = field(default_factory=frozenset)
-    # IDs of helpers this helper asked to share a room with (soft, see
-    # rostering.solver.scoring for how requests are scored).
-    friends: list[int] = field(default_factory=list)
+    # The people this helper asked to share a room with (soft, see
+    # rostering.solver.scoring for how requests are scored): a Helper id, or an
+    # OrganizerRef for an Organizer.
+    friends: list[FriendRef] = field(default_factory=list)
     can_bring_notebook: bool = False
     can_bring_camera: bool = False
     # Free-text friend names that could not be resolved to a helper id
@@ -287,6 +300,8 @@ class Organizer:
     email: Optional[str] = None  # normalized; optional
     building: Optional[str] = None
     room: Optional[str] = None
+    # Ids of the Tags assigned to this Organizer directly (see rostering.tags).
+    tags: list[int] = field(default_factory=list)
 
 
 @dataclass

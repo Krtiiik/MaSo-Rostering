@@ -416,7 +416,9 @@ def render() -> None:
             "can_bring_camera": h["can_bring_camera"],
             "role_preferences": _grid_role_preferences(h["role_preferences"]),
             "building_preferences": h["building_preferences"],
-            "friends": [f for f in h["friends"] if f not in absent_ids],
+            # The grid draws Helper-to-Helper requests only; a request toward an
+            # Organizer (a {"organizer_id": n} reference) is not shown.
+            "friends": [f for f in h["friends"] if isinstance(f, int) and f not in absent_ids],
         }
         for h in attending
     ]

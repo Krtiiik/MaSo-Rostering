@@ -378,6 +378,30 @@ pushing the tag, not just creating it locally.
   Not built yet: status "violated" and the grid chip marks (#60), the Tag
   intersection edit-time check (#60), "make forced" and Organizer members
   (#61), the import section (#62).
+  Helper ones and have no UI yet. Organizer Can't attend/Tags are separate,
+  later tickets (the Organizer record already may carry a direct-Tag id list,
+  `tags`, which promotion fills; nothing else reads it yet).
+  Friend references: a Helper's `friends` is one list of unified references —
+  a plain int is a Helper id, `{"organizer_id": n}` (`OrganizerRef` on the
+  domain `Helper`; `serialize.friend_ref_to_json`/`friend_ref_from_json`) an
+  Organizer; `mutations._friend_key` is their comparable form. Ingestion:
+  `parse_raw_survey(path, organizers=...)` puts the Season's Organizers in the
+  name-resolution pool next to the Helpers (same normalized/fuzzy matching, a
+  Helper wins a shared name; `upload_responses` passes them), and
+  `resolve_friend` takes `resolved_organizer_ids` too. Scoring:
+  `scoring.build_organizer_requests` (none under `mutual`) feeds a term in
+  `solve_competition` at the Helper-to-Helper weight — satisfied by the exact
+  (Building, Room) when the Organizer has a Room, by any Room of the Building at
+  Building level, never when unplaced; Organizers are constants there, never
+  variables. `build_friend_pairs`, `SolveResult.*_friend_pairs`, the diagnostics
+  and the grid's friend hover stay Helper-to-Helper only. `mutations.promote_helper`
+  (confirmation like Can't attend when the Helper has an Assignment or Manual
+  role entries) creates the Organizer (Person link with `link_confirmed` /
+  `rejected_person_ids`, name, e-mail, `tags`), removes the Helper, and re-points
+  others' `friends` and `friend_name_decisions` via `_repoint_friend`;
+  `delete_organizer` drops an Organizer from them like `delete_helper`. A
+  re-upload still replaces the whole Helper list, so it brings a promoted
+  Helper back into the pool.
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
   Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
   `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never

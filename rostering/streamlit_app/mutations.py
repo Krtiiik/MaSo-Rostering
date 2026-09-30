@@ -24,6 +24,7 @@ from rostering.domain import (
     Competition,
     Helper,
     ManualRoles,
+    OrganizerRef,
     OverlayRole,
     Preference,
     Role,
@@ -42,6 +43,8 @@ from rostering.persistence.serialize import (
     assignment_from_dict,
     assignment_to_dict,
     config_from_list,
+    friend_ref_from_json,
+    friend_ref_to_json,
     helper_from_dict,
     helper_to_dict,
     manual_roles_from_dict,
@@ -266,9 +269,12 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     unique among stored Seasons) names it, defaulting to the guess from the
     export's submission timestamps; if neither is available,
     :class:`SeasonLabelRequired` is raised and nothing is changed."""
+    # A Helper may name one of the Season's Organizers as a friend, so they are
+    # candidates when the free-text friend names are resolved.
+    organizers = [organizer_from_dict(o) for o in workspace.load().get("organizers", [])]
     tmp_path = _write_temp(file_bytes, filename)
     try:
-        result = parse_raw_survey(tmp_path)
+        result = parse_raw_survey(tmp_path, organizers=organizers)
     except ValueError as exc:
         raise RosteringError(str(exc)) from exc
     finally:
@@ -371,9 +377,10 @@ def _recognize_rows(rows: list[Helper], existing: list[dict], known: list) -> tu
 
 
 def _decision_ids(raw: Any) -> list[int]:
-    """The Helper ids of one ``friend_name_decisions`` value (older states stored
-    a single int; a dismissed name has none)."""
-    return [raw] if isinstance(raw, int) else list(raw or [])
+    """The friend references of one ``friend_name_decisions`` value (a Helper id
+    or ``{"organizer_id": n}``; older states stored a single int; a dismissed
+    name has none)."""
+    return _decision_refs(raw)
 
 
 def _refresh_from_survey(record: dict, fresh: dict) -> None:
@@ -400,8 +407,13 @@ def _refresh_from_survey(record: dict, fresh: dict) -> None:
     kept = {name: decisions[name] for name in unresolved if name in decisions}
     if "friends" not in typed:
         friends = list(fresh["friends"])
+        present = {_friend_key(ref) for ref in friends}
         for raw in kept.values():
-            friends.extend(i for i in _decision_ids(raw) if i not in friends and i != record["id"])
+            for ref in _decision_ids(raw):
+                if ref == record["id"] or _friend_key(ref) in present:
+                    continue
+                present.add(_friend_key(ref))
+                friends.append(ref)
         record["friends"] = friends
     record["unresolved_friend_names"] = [n for n in unresolved if n not in kept]
     record["friend_name_order"] = list(unresolved)
@@ -427,7 +439,12 @@ def _merge_survey_rows(state: dict[str, Any], rows: list[Helper], known: list, e
     changed_entries: list[dict] = []
     for row, record, person_id in zip(rows, matches, person_ids):
         helper_id = id_map[row.id]
-        friends = [id_map[f] for f in row.friends if f in id_map and id_map[f] != helper_id]
+        # An Organizer reference names the Season's own Organizer and keeps its id.
+        friends = [
+            f if isinstance(f, OrganizerRef) else id_map[f]
+            for f in row.friends
+            if isinstance(f, OrganizerRef) or (f in id_map and id_map[f] != helper_id)
+        ]
         fresh = helper_to_dict(replace(row, id=helper_id, person_id=person_id, friends=friends))
         fresh["friend_name_order"] = list(row.unresolved_friend_names)
         fresh["survey_tshirt_size"] = row.tshirt_size
@@ -871,18 +888,38 @@ def unlink_organizer(workspace: Workspace, organizer_id: int) -> dict:
     return state
 
 
+def _friend_key(ref: Any) -> tuple[str, int]:
+    """A hashable, comparable form of a saved friend reference (a Helper's plain
+    id, or ``{"organizer_id": n}``)."""
+    saved = friend_ref_to_json(friend_ref_from_json(ref))
+    return ("organizer", saved["organizer_id"]) if isinstance(saved, dict) else ("helper", saved)
+
+
+def _decision_refs(raw: Any) -> list[Any]:
+    """The friend references a saved ``friend_name_decisions`` value holds
+    (nothing for a dismissed name). Older persisted state stored a single int
+    per name instead of a list."""
+    if raw is None:
+        return []
+    if isinstance(raw, (int, dict)):
+        return [raw]
+    return list(raw)
+
+
 def resolve_friend(
     workspace: Workspace,
     helper_id: int,
     name: str,
     action: str,
     resolved_helper_ids: Optional[list[int]] = None,
+    resolved_organizer_ids: Optional[list[int]] = None,
 ) -> dict:
     """Resolve (or dismiss) one unresolved friend name for a helper.
 
     A single free-text name can refer to more than one person (e.g. a
     group nickname), so ``resolved_helper_ids`` is a list — the name is
-    matched to every helper id in it.
+    matched to every helper id in it — and ``resolved_organizer_ids`` likewise
+    names the Organizers it refers to.
     """
     state = workspace.load()
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
@@ -892,25 +929,27 @@ def resolve_friend(
     if name not in helper["unresolved_friend_names"] and name not in decisions:
         raise RosteringError(f"{name!r} is not a known friend name for helper {helper_id}")
 
-    previous_raw = decisions.get(name)
-    # Older persisted state stored a single int per name instead of a list.
-    previous_ids = [previous_raw] if isinstance(previous_raw, int) else list(previous_raw or [])
-    for previous_id in previous_ids:
-        if previous_id in helper["friends"]:
-            helper["friends"].remove(previous_id)
+    previous = {_friend_key(ref) for ref in _decision_refs(decisions.get(name))}
+    helper["friends"] = [f for f in helper["friends"] if _friend_key(f) not in previous]
 
     if action == "resolve":
-        if not resolved_helper_ids:
+        if not resolved_helper_ids and not resolved_organizer_ids:
             raise RosteringError("resolved_helper_ids is required for action=resolve")
         known_ids = {h["id"] for h in state["helpers"]}
-        unknown_ids = [hid for hid in resolved_helper_ids if hid not in known_ids]
+        unknown_ids = [hid for hid in resolved_helper_ids or [] if hid not in known_ids]
         if unknown_ids:
             raise RosteringError(f"No such helper(s): {unknown_ids}")
-        new_ids = list(dict.fromkeys(resolved_helper_ids))
-        for hid in new_ids:
-            if hid not in helper["friends"]:
-                helper["friends"].append(hid)
-        decisions[name] = new_ids
+        known_organizers = {o["id"] for o in state["organizers"]}
+        unknown_organizers = [oid for oid in resolved_organizer_ids or [] if oid not in known_organizers]
+        if unknown_organizers:
+            raise RosteringError(f"No such Organizer(s): {unknown_organizers}")
+        new_refs: list[Any] = list(dict.fromkeys(resolved_helper_ids or []))
+        new_refs += [{"organizer_id": oid} for oid in dict.fromkeys(resolved_organizer_ids or [])]
+        present = {_friend_key(f) for f in helper["friends"]}
+        for ref in new_refs:
+            if _friend_key(ref) not in present:
+                helper["friends"].append(ref)
+        decisions[name] = new_refs
     elif action == "dismiss":
         decisions[name] = None
     else:
@@ -1260,7 +1299,7 @@ def _validated_helper_fields(
     building_preferences: Optional[list[str]] = None,
     can_bring_notebook: Optional[bool] = None,
     can_bring_camera: Optional[bool] = None,
-    friends: Optional[list[int]] = None,
+    friends: Optional[list[Any]] = None,
     tshirt_size: Optional[str] = None,
 ) -> dict[str, Any]:
     """The fields that were given (``None`` = not given), validated and in
@@ -1296,13 +1335,21 @@ def _validated_helper_fields(
     if can_bring_camera is not None:
         fields["can_bring_camera"] = bool(can_bring_camera)
     if friends is not None:
+        # A friend is a Helper id or an Organizer reference ({"organizer_id": n}).
+        refs = [friend_ref_to_json(friend_ref_from_json(f)) for f in friends]
         known_ids = {h["id"] for h in state["helpers"]}
-        unknown_ids = [f for f in friends if f not in known_ids]
+        unknown_ids = [f for f in refs if not isinstance(f, dict) and f not in known_ids]
         if unknown_ids:
             raise RosteringError(f"No such helper(s): {unknown_ids}")
-        if helper_id is not None and helper_id in friends:
+        known_organizers = {o["id"] for o in state["organizers"]}
+        unknown_organizers = [
+            f["organizer_id"] for f in refs if isinstance(f, dict) and f["organizer_id"] not in known_organizers
+        ]
+        if unknown_organizers:
+            raise RosteringError(f"No such Organizer(s): {unknown_organizers}")
+        if helper_id is not None and helper_id in refs:
             raise RosteringError("A Helper can't be their own friend.")
-        fields["friends"] = list(dict.fromkeys(friends))
+        fields["friends"] = list({_friend_key(f): f for f in refs}.values())
     if tshirt_size is not None:
         fields["tshirt_size"] = _parse_tshirt_size(tshirt_size)
     return fields
@@ -1336,7 +1383,7 @@ def add_helper(
     building_preferences: Optional[list[str]] = None,
     can_bring_notebook: Optional[bool] = None,
     can_bring_camera: Optional[bool] = None,
-    friends: Optional[list[int]] = None,
+    friends: Optional[list[Any]] = None,
     tshirt_size: Optional[str] = None,
 ) -> dict:
     """Add a Helper by hand (see CONTEXT.md "Hand-added Helper"): only ``name``
@@ -1393,7 +1440,7 @@ def update_helper(
     building_preferences: Optional[list[str]] = None,
     can_bring_notebook: Optional[bool] = None,
     can_bring_camera: Optional[bool] = None,
-    friends: Optional[list[int]] = None,
+    friends: Optional[list[Any]] = None,
     tshirt_size: Optional[str] = None,
 ) -> dict:
     """Edit any field of a Helper by hand, at any time (before or after a solve;
@@ -1434,18 +1481,20 @@ def _refresh_friend_pairs(state: dict[str, Any]) -> None:
     state["diagnostics"]["unsatisfied_friend_pairs"] = unsatisfied
 
 
-def _forget_as_friend(state: dict[str, Any], helper_id: int) -> None:
-    """Take a deleted Helper out of everyone's Friend preference. A friend name
+def _forget_as_friend(state: dict[str, Any], ref: Any) -> None:
+    """Take a deleted Helper (``ref`` is their id) or Organizer (``ref`` is
+    ``{"organizer_id": n}``) out of everyone's Friend preference. A friend name
     that was resolved only to them goes back to unresolved rather than being
     silently dropped."""
+    gone = _friend_key(ref)
     for other in state["helpers"]:
-        other["friends"] = [f for f in other.get("friends", []) if f != helper_id]
+        other["friends"] = [f for f in other.get("friends", []) if _friend_key(f) != gone]
         decisions = other.get("friend_name_decisions") or {}
         for friend_name, raw in list(decisions.items()):
-            ids = [raw] if isinstance(raw, int) else list(raw or [])
-            if helper_id not in ids:
+            refs = _decision_refs(raw)
+            if gone not in {_friend_key(r) for r in refs}:
                 continue
-            remaining = [i for i in ids if i != helper_id]
+            remaining = [r for r in refs if _friend_key(r) != gone]
             if remaining:
                 decisions[friend_name] = remaining
                 continue
@@ -1624,6 +1673,78 @@ def add_organizer(workspace: Workspace, name: str, email: Optional[str] = None) 
     return state
 
 
+def _repoint_friend(state: dict[str, Any], old: Any, new: Any) -> None:
+    """Point everyone's Friend preference (and the friend-name decisions behind
+    it) that names ``old`` at ``new`` instead; both are saved friend references."""
+    old_key = _friend_key(old)
+
+    def swapped(refs: list[Any]) -> list[Any]:
+        replaced = [new if _friend_key(r) == old_key else r for r in refs]
+        return list({_friend_key(r): r for r in replaced}.values())
+
+    for other in state["helpers"]:
+        other["friends"] = swapped(other.get("friends", []))
+        decisions = other.get("friend_name_decisions") or {}
+        for friend_name, raw in decisions.items():
+            if old_key in {_friend_key(r) for r in _decision_refs(raw)}:
+                decisions[friend_name] = swapped(_decision_refs(raw))
+
+
+def promote_helper(workspace: Workspace, helper_id: int, confirmed: bool = False) -> dict:
+    """Promote a Helper to Organizer (see CONTEXT.md "Organizer").
+
+    The Organizer keeps the Helper's Person link (and the link decisions made
+    about it), name, e-mail and direct Tags; it has no placement until
+    :func:`assign_organizer` puts it in a slot. The Helper leaves the solver pool
+    (their record is removed, and their id, like a deleted Helper's, is never
+    handed out again) and every other Helper's Friend preference that named them
+    now names the Organizer. Like Can't attend and a delete, a Helper with an
+    Assignment or Manual role entries is only promoted once ``confirmed``
+    (:class:`ConfirmationRequired` names what would go); confirming clears their
+    Assignment and lock and every Manual role entry holding them (Additional
+    roles are Helper-only, and a slot takes a tracked Organizer) and raises the
+    stale-roster flag. Demotion is not supported. The new Organizer is the last
+    of ``state["organizers"]``."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    impact = cant_attend_impact(state, helper_id)
+    if impact and not confirmed:
+        raise ConfirmationRequired(
+            f"Promoting {helper['name']} to Organizer clears " + "; ".join(impact) + ". "
+            "They leave the Helper pool and receive no solved Role, and the roster is out of date until the next Solve.",
+            impact,
+        )
+    organizer = {
+        "id": _next_organizer_id(state),
+        "person_id": helper.get("person_id") or new_person_id(),
+        "name": helper["name"],
+        "email": helper.get("email"),
+        "building": None,
+        "room": None,
+    }
+    if helper.get("tags"):
+        organizer["tags"] = list(helper["tags"])
+    for key in ("link_confirmed", "rejected_person_ids"):
+        if helper.get(key):
+            organizer[key] = helper[key]
+    state["organizers"].append(organizer)
+
+    state["helpers"] = [h for h in state["helpers"] if h["id"] != helper_id]
+    state["next_helper_id"] = max(int(state.get("next_helper_id") or 1), helper_id + 1)
+    _repoint_friend(state, helper_id, {"organizer_id": organizer["id"]})
+    if impact:
+        state["assignments"] = [a for a in state["assignments"] if a["helper_id"] != helper_id]
+        state["manual_roles"] = {
+            group: [e for e in entries if e.get("helper_id") != helper_id]
+            for group, entries in state["manual_roles"].items()
+        }
+        _add_stale_reason(state, f"{helper['name']} became an Organizer: their Assignment and role entries were cleared")
+    if state["assignments"]:
+        _refresh_friend_pairs(state)
+    workspace.save(state)
+    return state
+
+
 def update_organizer(
     workspace: Workspace, organizer_id: int, *, name: Optional[str] = None, email: Optional[str] = None
 ) -> dict:
@@ -1679,6 +1800,7 @@ def delete_organizer(workspace: Workspace, organizer_id: int, confirmed: bool = 
     state["manual_roles"]["structural"] = [
         e for e in state["manual_roles"]["structural"] if e.get("organizer_id") != organizer_id
     ]
+    _forget_as_friend(state, {"organizer_id": organizer_id})
     workspace.save(state)
     return state
 

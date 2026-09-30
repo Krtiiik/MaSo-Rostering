@@ -17,11 +17,21 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 import pandas as pd
 
-from rostering.domain import UNKNOWN_TSHIRT_SIZE, Helper, Role, normalize_email, normalize_name, parse_tshirt_size
+from rostering.domain import (
+    UNKNOWN_TSHIRT_SIZE,
+    FriendRef,
+    Helper,
+    Organizer,
+    OrganizerRef,
+    Role,
+    normalize_email,
+    normalize_name,
+    parse_tshirt_size,
+)
 from rostering.ingest.mapping import (
     EQUIPMENT_ALIASES,
     FIELD_HEADER_CANDIDATES,
@@ -274,10 +284,13 @@ def _role_preferences_for_row(
 
 def _resolve_friend_names(
     raw: object,
-    name_to_id: dict[str, int],
-    first_name_to_ids: dict[str, list[int]],
-) -> tuple[list[int], list[str]]:
-    resolved: list[int] = []
+    name_to_id: dict[str, FriendRef],
+    first_name_to_ids: dict[str, list[FriendRef]],
+) -> tuple[list[FriendRef], list[str]]:
+    """Resolve a free-text friend answer against the candidate pool: every
+    Helper of the export and every Organizer given (a plain id is a Helper, an
+    ``OrganizerRef`` an Organizer)."""
+    resolved: list[FriendRef] = []
     unresolved: list[str] = []
     for token in _split_free_text_names(raw):
         norm_token = normalize_name(token)
@@ -308,7 +321,11 @@ def _resolve_friend_names(
     return resolved, unresolved
 
 
-def parse_raw_survey(path: str | Path) -> RawSurveyResult:
+def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> RawSurveyResult:
+    """Parse a raw survey export. ``organizers`` (the Season's tracked
+    Organizers, if any) join the Helpers as candidates when free-text friend
+    names are resolved, so a Helper can name an Organizer; a name both carry
+    resolves to the Helper."""
     df = pd.read_excel(path)
     headers = list(df.columns)
     columns = _find_columns(headers)
@@ -329,13 +346,20 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
 
     # Pass 1: assign ids and build name-resolution indexes.
     names = [str(v).strip() for v in df[name_col].tolist()]
-    name_to_id: dict[str, int] = {}
-    first_name_to_ids: dict[str, list[int]] = {}
+    name_to_id: dict[str, FriendRef] = {}
+    first_name_to_ids: dict[str, list[FriendRef]] = {}
     for idx, name in enumerate(names, start=1):
         norm_full = normalize_name(name)
         name_to_id.setdefault(norm_full, idx)
         first = name.split(" ")[0]
         first_name_to_ids.setdefault(normalize_name(first), []).append(idx)
+    for organizer in organizers:
+        organizer_name = (organizer.name or "").strip()
+        if not organizer_name:
+            continue
+        ref = OrganizerRef(organizer.id)
+        name_to_id.setdefault(normalize_name(organizer_name), ref)
+        first_name_to_ids.setdefault(normalize_name(organizer_name.split(" ")[0]), []).append(ref)
 
     helpers: list[Helper] = []
     friends_col = columns.get("friends")
@@ -357,13 +381,13 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
         tshirt_size = (
             _resolve_tshirt_size(row.get(tshirt_col), warnings, name) if tshirt_col else UNKNOWN_TSHIRT_SIZE
         )
-        friend_ids: list[int] = []
+        friend_ids: list[FriendRef] = []
         unresolved_friends: list[str] = []
         if friends_col:
             friend_ids, unresolved_friends = _resolve_friend_names(
                 row.get(friends_col), name_to_id, first_name_to_ids
             )
-            friend_ids = [fid for fid in friend_ids if fid != idx]
+            friend_ids = [fid for fid in friend_ids if fid != idx]  # OrganizerRef never equals an int id
 
         helpers.append(
             Helper(
