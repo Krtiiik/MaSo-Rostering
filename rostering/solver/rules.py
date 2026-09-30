@@ -257,13 +257,16 @@ def _role_display(name: str) -> str:
     return Role[name].value
 
 
-def _tag_line(helper_name: str, blockers: list[tags_module.Restriction], axis: str, value: str) -> str:
+def _tag_line(
+    helper_name: str, blockers: list[tags_module.Restriction], axis: str, value: str, kind: str = "Helper"
+) -> str:
     """``Helper Anna (Tag 8.M, allows only Building Karlín) is placed in
-    Impakt`` -- the restrictions that keep the value out, the value itself."""
+    Impakt`` -- the restrictions that keep the value out, the value itself
+    (``kind`` says whose it is: a Helper, or an Organizer)."""
     display = _role_display if axis == tags_module.ROLE else str
     why = "; ".join(tags_module.describe_restriction(r, axis, display) for r in blockers)
     placed = f"as {display(value)}" if axis == tags_module.ROLE else f"in {value}"
-    return f"Helper {helper_name} ({why}) is placed {placed}"
+    return f"{kind} {helper_name} ({why}) is placed {placed}"
 
 
 def _tag_universes(buildings: list[str], roles: list[Role]) -> dict[str, list[str]]:
@@ -306,6 +309,37 @@ def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
     return relaxations
 
 
+def _check_organizer_tag_restrictions(ctx: CheckContext, universe: list[str]) -> list[BrokenRule]:
+    """An Organizer's Tag constraints on the Building axis, judged against their
+    placement (Organizers have no solved Role, so the Role axis never applies).
+    The solver never sees these: a placed Organizer is a fixed anchor it can
+    neither move nor bend, so only the live checker reports them."""
+    comp = ctx.competition
+    broken: list[BrokenRule] = []
+    for organizer in comp.organizers:
+        # Unplaced, or placed in a Building the configuration no longer has, is
+        # judged by nothing.
+        if not organizer.tags or organizer.building not in universe:
+            continue
+        blockers = tags_module.blocking(
+            tags_module.restrictions(comp.tags, organizer.tags, tags_module.BUILDING, universe), organizer.building
+        )
+        if not blockers:
+            continue
+        broken.append(
+            BrokenRule(
+                instance=RuleInstance("tag_building", ("organizer", organizer.id, organizer.building)),
+                family="tag_restrictions",
+                amount=1,
+                line=_tag_line(organizer.name, blockers, tags_module.BUILDING, organizer.building, kind="Organizer"),
+                cells=((organizer.building, organizer.room, None),) if organizer.room else (),
+                fix=FixTarget("tags", organizer_id=organizer.id, tag_id=blockers[0].tag.id),
+                organizer_ids=(organizer.id,),
+            )
+        )
+    return broken
+
+
 def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
     comp = ctx.competition
     if not comp.tags:
@@ -335,6 +369,7 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
                     fix=FixTarget("tags", helper_id=helper.id, tag_id=blockers[0].tag.id),
                 )
             )
+    broken.extend(_check_organizer_tag_restrictions(ctx, universes[tags_module.BUILDING]))
     return broken
 
 

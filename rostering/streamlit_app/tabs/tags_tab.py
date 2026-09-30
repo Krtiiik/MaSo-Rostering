@@ -1,6 +1,6 @@
 """Tab 3: the Season's Tags — the tag tree, an edit form, and who carries each
-Tag. Tagging Helpers one by one or in bulk also lives in the Upload tab's Helper
-list (``helper_tags``)."""
+Tag (Helpers and Organizers alike). Tagging them one by one or in bulk also lives
+in the Upload tab's Helper list (``helper_tags``)."""
 from __future__ import annotations
 
 import streamlit as st
@@ -57,7 +57,7 @@ def render() -> None:
             tag = next(t for t in state["tags"] if t["id"] == selected)
             _render_form(state, tag)
             _render_delete_panel(state, tag)
-            _render_carriers(state, tag, fix.helper_id if fix else None)
+            _render_carriers(state, tag, fix.helper_id if fix else None, fix.organizer_id if fix else None)
             _render_others(state, tag)
         else:
             st.session_state.pop(_SELECTED, None)
@@ -79,6 +79,7 @@ def _render_tree(state: dict) -> None:
     tags = [tag_tree.tag_from_dict(t) for t in state["tags"]]
     records = {t["id"]: t for t in state["tags"]}
     counts = mutations.tag_helper_counts(state)
+    organizer_counts = mutations.tag_organizer_counts(state)
     if st.button("New tag", icon=":material/add:", type="primary", key="tags_new"):
         st.session_state[_SELECTED] = _NEW
         st.session_state.pop(_PENDING_DELETE, None)
@@ -92,7 +93,10 @@ def _render_tree(state: dict) -> None:
         pill = tag_pills.pill_html(tag.name, tag.colour)
         marker = "font-weight:700;" if tag.id == selected else ""
         pill_col.html(f'<div style="margin-left:{depth * 1.5}rem;{marker}">{"↳ " if depth else ""}{pill}</div>')
-        count_col.caption(f"{counts[tag.id]} helper{'s' if counts[tag.id] != 1 else ''}")
+        count_col.caption(
+            f"{counts[tag.id]} helper{'s' if counts[tag.id] != 1 else ''}"
+            + (f" + {organizer_counts[tag.id]} org." if organizer_counts[tag.id] else "")
+        )
         if edit_col.button(
             "", icon=":material/edit:", type="tertiary", key=f"tags_edit_{tag.id}", help=f"Edit {records[tag.id]['name']}"
         ):
@@ -198,6 +202,8 @@ def _delete_lines(state: dict, tag: dict) -> list[str]:
     lines = []
     if impact["helpers"]:
         lines.append(f"Removed from {len(impact['helpers'])} helper(s): " + ", ".join(impact["helpers"]))
+    if impact["organizers"]:
+        lines.append(f"Removed from {len(impact['organizers'])} Organizer(s): " + ", ".join(impact["organizers"]))
     if impact["children"]:
         lines.append(
             "Child tags " + ", ".join(impact["children"]) + (f" move up to {parent}" if parent else " become top-level tags")
@@ -237,11 +243,14 @@ def _render_delete_panel(state: dict, tag: dict) -> None:
             st.rerun()
 
 
-def _render_carriers(state: dict, tag: dict, fixing_helper_id: int | None = None) -> None:
+def _render_carriers(
+    state: dict, tag: dict, fixing_helper_id: int | None = None, fixing_organizer_id: int | None = None
+) -> None:
     carriers = mutations.tag_carriers(state, tag["id"])
+    organizer_carriers = mutations.tag_organizer_carriers(state, tag["id"])
     names = {t["id"]: t["name"] for t in state["tags"]}
-    st.subheader(f"Has this tag ({len(carriers)})")
-    if not carriers:
+    st.subheader(f"Has this tag ({len(carriers) + len(organizer_carriers)})")
+    if not carriers and not organizer_carriers:
         st.caption("Nobody carries this Tag yet.")
     for carrier in carriers:
         name_col, action_col = st.columns([5, 3], vertical_alignment="center")
@@ -253,14 +262,32 @@ def _render_carriers(state: dict, tag: dict, fixing_helper_id: int | None = None
                 st.rerun()
         else:
             action_col.caption(f"via {names[carrier['via']]}")
+    for carrier in organizer_carriers:
+        name_col, action_col = st.columns([5, 3], vertical_alignment="center")
+        name_col.write(("⚠ " if carrier["organizer_id"] == fixing_organizer_id else "") + carrier["name"] + " (Organizer)")
+        if carrier["via"] is None:
+            if action_col.button(
+                "Remove",
+                icon=":material/close:",
+                type="tertiary",
+                key=f"tag_remove_{tag['id']}_organizer_{carrier['organizer_id']}",
+            ) and _apply(mutations.remove_tag_from_organizer, tag["id"], carrier["organizer_id"]):
+                st.rerun()
+        else:
+            action_col.caption(f"via {names[carrier['via']]}")
 
 
 def _render_others(state: dict, tag: dict) -> None:
     carrier_ids = {c["helper_id"] for c in mutations.tag_carriers(state, tag["id"])}
-    others = {h["id"]: h["name"] for h in state["helpers"] if h["id"] not in carrier_ids}
+    organizer_carrier_ids = {c["organizer_id"] for c in mutations.tag_organizer_carriers(state, tag["id"])}
+    # Options are "h<id>" (a Helper) or "o<id>" (an Organizer).
+    others = {f"h{h['id']}": h["name"] for h in state["helpers"] if h["id"] not in carrier_ids}
+    others.update(
+        {f"o{o['id']}": f"{o['name']} (Organizer)" for o in state["organizers"] if o["id"] not in organizer_carrier_ids}
+    )
     st.subheader(f"Others ({len(others)})")
     if not others:
-        st.caption("Every Helper already carries this Tag.")
+        st.caption("Every Helper and Organizer already carries this Tag.")
         return
     nonce = st.session_state.get(_OTHERS_NONCE, 0)
     find_key, pick_key = f"tag_others_find_{tag['id']}_{nonce}", f"tag_others_pick_{tag['id']}_{nonce}"
@@ -276,6 +303,11 @@ def _render_others(state: dict, tag: dict) -> None:
     )
     if st.button(
         f"Add {len(picked)} to {tag['name']}", type="primary", disabled=not picked, key=f"tag_others_add_{tag['id']}"
-    ) and _apply(mutations.add_tag_to_helpers, tag["id"], picked):
+    ) and _apply(
+        mutations.add_tag_to_helpers,
+        tag["id"],
+        [int(key[1:]) for key in picked if key[0] == "h"],
+        [int(key[1:]) for key in picked if key[0] == "o"],
+    ):
         st.session_state[_OTHERS_NONCE] = nonce + 1
         st.rerun()

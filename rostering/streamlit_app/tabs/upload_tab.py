@@ -8,7 +8,7 @@ import streamlit as st
 
 from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Role
 from rostering.streamlit_app import fix_focus, mutations, session
-from rostering.streamlit_app.tabs import helper_forms, helper_tags
+from rostering.streamlit_app.tabs import helper_forms, helper_tags, organizer_list
 
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
 _SIZE_COLUMN = "T-shirt size"
@@ -95,6 +95,7 @@ def render() -> None:
         fix = fix_focus.render_callout(state, "helpers")
         helper_tags.render()
         _render_helpers_overview(state, returning, focus_helper_id=fix.helper_id if fix else None)
+        organizer_list.render(state)
         helper_forms.render_edit_form(state)
         _render_person_links(workspace, state)
         _render_friend_resolution(state)

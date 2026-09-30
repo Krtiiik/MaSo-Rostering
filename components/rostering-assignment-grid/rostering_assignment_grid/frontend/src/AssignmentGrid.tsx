@@ -417,6 +417,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             colSpan={group.rooms.length}
             datalistId={datalist}
             singleEntry={singleEntry}
+            showTags={show_tags === true}
             onChange={(names) => setTriggerValue("manual_set", { key, building: group.building, room: group.rooms[0], names })}
             dropId={allowDuplicateDrop ? `duplicate::${key}::${group.building}::${group.rooms[0]}` : undefined}
             manualKey={key}
@@ -437,6 +438,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           colSpan={rooms.length}
           datalistId={datalist}
           singleEntry={singleEntry}
+          showTags={show_tags === true}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
       );
@@ -448,6 +450,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         colSpan={g.count}
         datalistId={datalist}
         singleEntry={singleEntry}
+        showTags={show_tags === true}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
         dropId={allowDuplicateDrop ? `duplicate::${key}::${g.building}` : undefined}
         manualKey={key}

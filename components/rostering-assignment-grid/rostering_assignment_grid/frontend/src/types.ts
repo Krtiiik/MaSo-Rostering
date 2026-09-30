@@ -119,6 +119,12 @@ export interface ManualEntry {
   // hand-typed text): still shown, marked as not yet a tracked Organizer,
   // until it is replaced by picking one.
   legacy?: boolean;
+  // An Organizer's Tag pills (shown under "Show tags"), whether the Tag filter
+  // dims them, and the Broken-rule lines their placement is part of — the same
+  // things a Helper's chip carries.
+  tags?: HelperTags | null;
+  dimmed?: boolean;
+  broken?: string[];
 }
 
 // A light "this breaks a rule" mark (see CONTEXT.md "Broken rule"), computed
@@ -137,9 +143,16 @@ export interface BrokenChipMark {
   line: string;
 }
 
+export interface BrokenOrganizerMark {
+  organizer_id: number;
+  line: string;
+}
+
 export interface BrokenMarks {
   cells: BrokenCellMark[];
   helpers: BrokenChipMark[];
+  // Organizers' slot chips; each is also reported on its ManualEntry.
+  organizers?: BrokenOrganizerMark[];
 }
 
 export interface AssignmentGridData {

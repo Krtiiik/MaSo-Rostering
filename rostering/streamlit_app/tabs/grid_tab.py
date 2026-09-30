@@ -17,6 +17,8 @@ rooms is unaffected. Purely a display/export grouping; the underlying
 per-helper room assignment is untouched either way."""
 from __future__ import annotations
 
+from typing import Sequence
+
 import streamlit as st
 
 from rostering import tags as tag_tree
@@ -124,7 +126,15 @@ def _manual_display_name(entry: dict, helper_names: dict[int, str]) -> str:
     return entry.get("helper_name") or ""
 
 
-def _manual_entries(state: dict) -> list[dict]:
+def _manual_entries(
+    state: dict,
+    organizer_pills: dict[int, dict] | None = None,
+    dimmed_organizer_ids: Sequence[int] = (),
+    organizer_broken: dict[int, list[str]] | None = None,
+) -> list[dict]:
+    """The grid's manual-role entries. An Organizer's entry also carries their Tag
+    pills, whether the Tag filter dims them and the Broken-rule lines their
+    placement is part of, like a Helper's chip does."""
     manual = state["manual_roles"]
     helper_names = _helper_options(state)
     organizer_names = {o["id"]: o["name"] for o in state["organizers"]}
@@ -144,6 +154,15 @@ def _manual_entries(state: dict) -> list[dict]:
                 "name": organizer_names.get(organizer_id, f"#{organizer_id}")
                 if organizer_id is not None
                 else _manual_display_name(s, helper_names),
+                **(
+                    {
+                        "tags": (organizer_pills or {}).get(organizer_id),
+                        "dimmed": organizer_id in dimmed_organizer_ids,
+                        "broken": (organizer_broken or {}).get(organizer_id, []),
+                    }
+                    if organizer_id is not None
+                    else {}
+                ),
             }
         )
     for o in manual["overlay"]:
@@ -275,7 +294,7 @@ def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
         key=TAG_FILTER_KEY,
         placeholder="Dim helpers without these tags" if tags else "No tags yet",
         disabled=not tags,
-        help="Helpers who do not match are dimmed, never hidden. Inherited tags count.",
+        help="Helpers and Organizers who do not match are dimmed, never hidden. Inherited tags count.",
     )
     mode = mode_col.radio(
         "Match",
@@ -366,6 +385,10 @@ def render() -> None:
     absent_ids = {h["id"] for h in state["helpers"] if h.get("cant_attend")}
     show_tags, filter_tags, filter_mode = _render_tag_controls(state)
     helper_pills = mutations.grid_tag_pills(state)
+    broken_marks = mutations.broken_rule_marks(broken_rules)
+    organizer_broken: dict[int, list[str]] = {}
+    for mark in broken_marks["organizers"]:
+        organizer_broken.setdefault(mark["organizer_id"], []).append(mark["line"])
     grid_helpers = [
         {
             "id": h["id"],
@@ -387,11 +410,17 @@ def render() -> None:
         rows=_grid_rows(),
         helpers=grid_helpers,
         assignments=state["assignments"],
-        manual_entries=_manual_entries(state),
+        manual_entries=_manual_entries(
+            state,
+            mutations.organizer_tag_pills(state),
+            mutations.dimmed_organizer_ids(state, filter_tags, filter_mode),
+            organizer_broken,
+        ),
         cell_merges=state.get("cell_merges", {}),
         helper_names=sorted({h["name"] for h in attending}, key=str.lower),
-        organizer_names=sorted({o["name"] for o in state["organizers"]}, key=str.lower),
-        broken_marks=mutations.broken_rule_marks(broken_rules),
+        # An Organizer who can't attend is not offered for a slot.
+        organizer_names=sorted({o["name"] for o in state["organizers"] if not o.get("cant_attend")}, key=str.lower),
+        broken_marks=broken_marks,
         show_tags=show_tags,
         dimmed_helper_ids=mutations.dimmed_helper_ids(state, filter_tags, filter_mode),
         key="assignment_grid",

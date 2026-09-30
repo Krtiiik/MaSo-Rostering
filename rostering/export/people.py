@@ -61,13 +61,18 @@ def without_absent(
     left out of the Competition, the Assignments and the Manual role entries,
     so an absent person never appears in a sheet or a total."""
     absent = {h.id for h in comp.helpers if h.cant_attend}
-    if not absent:
+    absent_organizers = {o.id for o in comp.organizers if o.cant_attend}
+    if not absent and not absent_organizers:
         return comp, result, manual
     return (
         comp.attending(),
         replace(result, assignments=[a for a in result.assignments if a.helper_id not in absent]),
         ManualRoles(
-            structural=[e for e in manual.structural if e.helper_id not in absent],
+            structural=[
+                e
+                for e in manual.structural
+                if e.helper_id not in absent and e.organizer_id not in absent_organizers
+            ],
             overlay=[e for e in manual.overlay if e.helper_id not in absent],
         ),
     )

@@ -277,9 +277,33 @@ pushing the tag, not just creating it locally.
   Helper review list (`get_uncertain_matches`, which thus offers a link to a
   Person known as an Organizer) cover them; `get_uncertain_organizer_matches` /
   `link_organizer` / `reject_organizer_match` / `unlink_organizer` mirror the
-  Helper ones and have no UI yet. Organizer Can't attend/Tags are separate,
-  later tickets (the Organizer record already may carry a direct-Tag id list,
-  `tags`, which promotion fills; nothing else reads it yet).
+  Helper ones and have no UI yet. Organizer Can't attend: `cant_attend: true`
+  on the record (`Organizer.cant_attend`; absent = off), set only by
+  `mutations.set_organizer_cant_attend` (+ `organizer_cant_attend_impact`), the
+  Helper flow with the slot entries as the thing cleared (placement follows
+  through `_sync_placements`, roster staled); `_place_organizer` refuses an
+  absent Organizer (`RosteringError`), `Competition.attending()` drops absent
+  Organizers (so the check, the solver's friend scoring — a request naming one
+  is not scored, silently — and, via `export.people.without_absent`, the export
+  never see them). `promote_helper` does not carry the Helper's flag over
+  (documented choice: promoting is deliberate, the Organizer attends). UI:
+  `tabs/organizer_list.py` (an Organizers table with the Can't attend checkbox and
+  its confirmation, under the Upload tab's Helper list). Organizer Tags: the
+  record's direct-Tag id list `tags`, with parallel functions to the Helper ones
+  (`organizer_tags`, `set_organizer_tags`, `remove_tag_from_organizer`,
+  `tag_organizer_carriers` / `tag_organizer_counts`, `organizer_tag_pills`,
+  `dimmed_organizer_ids`, `organizer_allowed`; `add_tag_to_helpers` takes
+  `organizer_ids` too, `tag_delete_impact` lists `organizers`). The dead-end
+  validation covers them on the Building axis only (`_stranded` keys are
+  `(kind, id, axis)`); the live checker's tag family also judges an Organizer's
+  placement (`RuleInstance("tag_building", ("organizer", id, building))`,
+  `BrokenRule.organizer_ids`, `FixTarget.organizer_id`), which the solver never
+  reports (a placed Organizer is a fixed anchor), and `mutations.broken_rules`
+  judges those even before the first solve (only they: an empty roster breaks no
+  minimum). The Upload tab's "Tag helpers" list and the Tags tab list Organizers
+  beside Helpers; the grid passes each slot chip's `tags`/`dimmed`/`broken` on its
+  `manual_entries` entry. Tag import (#51) does not exist yet, so nothing
+  re-applies Tags to Organizers across Seasons.
   Friend references: a Helper's `friends` is one list of unified references —
   a plain int is a Helper id, `{"organizer_id": n}` (`OrganizerRef` on the
   domain `Helper`; `serialize.friend_ref_to_json`/`friend_ref_from_json`) an
