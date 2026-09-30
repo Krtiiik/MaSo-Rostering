@@ -63,7 +63,14 @@ Tags, Can't attend flag and Manual roles; a new registrant gets a fresh id and
 no Assignment; a Helper missing from the export is kept. A friend name resolved
 by hand keeps its resolution while the same free-text name remains, a field
 typed by hand wins over the survey, and a T-shirt size set by hand survives
-while the survey answer for it is unchanged. A placed Helper whose Building
+while the survey answer for it is unchanged. A row that is a Hand-added Helper
+registering merges into them: automatically on an identical e-mail, and for a
+same-name row only once the user confirms it on the review list. The Helper
+keeps their id, Assignment, lock, Tags, Manual roles and flags, the survey
+answers fill every field left at its default, and no duplicate is left. A Manual
+role entry that names an unregistered person by typed text is offered, in the
+review list, a link to a Helper of the same normalized name; confirming turns
+the text into a Helper reference and declining leaves it as typed. A placed Helper whose Building
 preference, Preferences or equipment changed keeps their Assignment and is
 marked "answers changed since placed" until they are moved, locked or
 re-placed by a full Solve. A summary of what changed stays at the top of the

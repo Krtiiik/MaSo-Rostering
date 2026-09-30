@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A survey row of someone you already added by hand merges into that Helper, and
+  a leadership name you typed is offered a link to a newly recognized Helper.
+  A row with the hand-added Helper's e-mail updates them in place; a row with
+  only the same name waits on the Upload tab's review list, where "Merge" folds
+  it into the Helper you added. Either way they keep their id, Assignment, lock,
+  Tags, Manual roles and flags, no duplicate is left, and every Friend
+  preference or role entry pointing at the row now points at them; the survey
+  answers fill every field you left at its default while a value you typed by
+  hand wins. A name you typed into a Manual role for someone unregistered is
+  offered, in a new "Typed role names matching a Helper" list above the review
+  list, a link to a registered Helper of the same name: Link turns the text into
+  a real Helper reference (in every slot holding it), "Not the same person"
+  leaves the text and is not offered again.
 - Re-upload into an open Season keeps your hand work. Uploading a newer export
   into the open Season now runs the same recognition rules as a first upload
   against the Helpers already loaded: an identical e-mail refreshes that Helper

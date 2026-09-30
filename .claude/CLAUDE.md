@@ -248,8 +248,24 @@ pushing the tag, not just creating it locally.
   roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. A
   re-upload keeps hand-added records (they are never listed as "missing from the
   export"); a row with the same e-mail updates one in place, skipping the fields
-  in its `hand_typed`. Not done yet: a name-only merge through the review list,
-  and offering a typed Manual role name a link to a newly recognized Helper.
+  in its `hand_typed`. A same-name row with no e-mail match is a new registrant
+  on the review list whose candidate has `merges_into` (the hand-added Helper's
+  id, `_hand_added_merge_target`); `link_helper` then does not link two records
+  but folds the row into the hand-added Helper (`_merge_into_hand_added`): the
+  survey answers go through `_refresh_from_survey` (so `hand_typed` wins and
+  defaults fill), Tags are unioned, the row's Assignment and lock move over only
+  if the Helper has none, every Friend preference, `friend_name_decisions` and
+  Manual role entry naming the row's id is repointed, the row's record and its
+  `upload_summary` entries disappear, and the Helper stays `hand_added` with
+  `link_confirmed`. The Helper's own flags (Can't attend) win; the row's are not
+  carried. Typed Manual role names (`helper_id` None, `helper_name` text) are
+  matched live by normalized name against the attending Helpers
+  (`get_typed_role_link_offers`, one offer per typed name with its candidates
+  and slots; shown above the review list in the Upload tab);
+  `link_typed_role_name` rewrites every such entry to `{helper_id, helper_name:
+  None}` (dropping one whose slot the Helper already holds) and
+  `decline_typed_role_link` records the pair in `state["declined_typed_role_links"]`
+  (name key + Helper id) so it is never offered again.
 - Re-upload (`mutations.upload_responses` with a Season open, via
   `_merge_survey_rows`): `parse_raw_survey` still numbers its rows 1..N, so the
   merge maps each parsed id to a real one first (`_recognize_rows`: an identical
