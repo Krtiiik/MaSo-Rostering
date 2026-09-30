@@ -73,7 +73,7 @@ def render() -> None:
         if returning:
             msg += f" Vracejících se pomocníků (poznaných podle e-mailu z dřívějšího ročníku): **{len(returning)}**."
         if unresolved_count:
-            msg += f" Jmen kamarádů, která je ještě třeba přiřadit (otevřete pomocníka označeného ⚠): **{unresolved_count}**."
+            msg += f" Žádosti o kamarády, které je nutné přiřadit (otevřete pomocníka označeného ⚠): **{unresolved_count}**."
         st.success(msg)
 
         if state["ingestion_warnings"]:
