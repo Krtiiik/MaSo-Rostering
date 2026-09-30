@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On the Roster tab, a helper's details card opens when you click their chip
   instead of on hover, so it no longer gets in the way of dragging. Clicking the
   chip again, pressing Escape, clicking elsewhere or starting a drag closes it.
+- The Buildings tab shows an "Unsaved changes" note while the layout on screen
+  differs from what the Season has saved.
 
 ### Removed
 
