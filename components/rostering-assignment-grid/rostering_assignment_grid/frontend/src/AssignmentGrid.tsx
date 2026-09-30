@@ -63,6 +63,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   manual_entries,
   cell_merges,
   helper_names,
+  organizer_names,
   broken_marks,
   show_tags,
   dimmed_helper_ids,
@@ -76,6 +77,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     useSensor(KeyboardSensor),
   );
   const datalistId = useId();
+  const organizerDatalistId = useId();
 
   const helpersById = useMemo(() => {
     const map = new Map<number, Helper>();
@@ -399,7 +401,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   function renderManualRow(
     key: string,
     scope: "building" | "room" | "global",
-    plainText: boolean,
+    datalist: string | undefined,
     singleEntry: boolean,
     allowDuplicateDrop: boolean,
   ): ReactNode {
@@ -413,7 +415,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             key={`${group.building}::${group.rooms.join("+")}::${key}`}
             entries={manualEntriesForGroup(key, group.building, group.rooms)}
             colSpan={group.rooms.length}
-            datalistId={plainText ? undefined : datalistId}
+            datalistId={datalist}
             singleEntry={singleEntry}
             onChange={(names) => setTriggerValue("manual_set", { key, building: group.building, room: group.rooms[0], names })}
             dropId={allowDuplicateDrop ? `duplicate::${key}::${group.building}::${group.rooms[0]}` : undefined}
@@ -433,7 +435,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           key={`global::${key}`}
           entries={manualEntriesFor(key, null, null)}
           colSpan={rooms.length}
-          datalistId={plainText ? undefined : datalistId}
+          datalistId={datalist}
           singleEntry={singleEntry}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
@@ -444,7 +446,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         key={`${g.building}::${key}`}
         entries={manualEntriesFor(key, g.building, null)}
         colSpan={g.count}
-        datalistId={plainText ? undefined : datalistId}
+        datalistId={datalist}
         singleEntry={singleEntry}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
         dropId={allowDuplicateDrop ? `duplicate::${key}::${g.building}` : undefined}
@@ -464,6 +466,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     <div className="grid-scroll">
       <datalist id={datalistId}>
         {helper_names.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      <datalist id={organizerDatalistId}>
+        {(organizer_names ?? []).map((name) => (
           <option key={name} value={name} />
         ))}
       </datalist>
@@ -529,7 +536,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                   : renderManualRow(
                       rowDef.key,
                       rowDef.scope ?? "global",
-                      rowDef.plain_text ?? false,
+                      rowDef.organizer ? organizerDatalistId : rowDef.plain_text ? undefined : datalistId,
                       rowDef.single_entry ?? false,
                       rowDef.allowDuplicateDrop ?? false,
                     )}

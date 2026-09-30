@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Organizers as a tracked person category: the four leadership slots (Vedoucí
+  budovy, Pravá ruka, Vedoucí místností, Technická podpora) now hold only a
+  tracked Organizer instead of a Helper or free text. Type a name in a slot cell
+  on the Roster grid to pick an existing Organizer (autocompleted, ignoring case
+  and diacritics) or create one on the spot; an Organizer has a name, an id, a
+  Person link and an optional e-mail, is saved with the Season and in Versions,
+  and takes no solver Role or Role capacity. Assigning an Organizer to a slot is
+  the only way they are placed (a Room-scoped slot sets Building and Room, a
+  Building-scoped one the Building); assigning them to a slot elsewhere moves
+  their placement and removes their previous slot entries, and removing them from
+  every slot clears it. A hand placement is never refused for the rules it
+  breaks. The exported slot cells show Organizer names and the Organizer counts
+  once, in their placed Building, on the T-shirt and Building sheets. Slot
+  entries saved before this (a Helper or typed text) still display and export,
+  marked "not tracked" in the grid, until replaced. Organizers are recognized
+  across Seasons like any Person: an e-mail match links confidently, one without
+  an e-mail is only an uncertain name match, and someone known as an Organizer who
+  later registers as a Helper is offered a link on the review list, never
+  promoted.
 - Roster grid Tag pills and Tag filter: a "Show tags" toggle above the grid
   (off by default) renders each Helper's Tags as pills under their name, direct
   Tags solid and Tags carried only by implication dashed. A "Filter by tags"

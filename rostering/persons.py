@@ -42,8 +42,9 @@ def new_person_id() -> str:
 
 @dataclass(frozen=True)
 class PersonRecord:
-    """One Helper record of one stored Season, reduced to what recognition
-    needs."""
+    """One Helper (or Organizer) record of one stored Season, reduced to what
+    recognition needs. ``helper_id`` is the record's id within its Season and
+    ``kind``: a Helper and an Organizer of one Season may share an id."""
 
     person_id: str
     season_id: str
@@ -58,6 +59,7 @@ class PersonRecord:
     # settles the record for good.
     rejected: frozenset[str] = frozenset()
     link_confirmed: bool = False
+    kind: str = "helper"  # "helper" or "organizer"
 
     @property
     def name_key(self) -> str:
@@ -75,34 +77,37 @@ def ensure_person_ids(state: dict[str, Any]) -> bool:
     fresh one (states saved before Persons existed have none). Returns whether
     anything changed, so the caller can persist it and the ids stay stable."""
     changed = False
-    for helper in state.get("helpers", []):
-        if not helper.get("person_id"):
-            helper["person_id"] = new_person_id()
+    for record in (*state.get("helpers", []), *state.get("organizers", [])):
+        if not record.get("person_id"):
+            record["person_id"] = new_person_id()
             changed = True
     return changed
 
 
 def records_from_state(season: dict[str, str], state: dict[str, Any]) -> list[PersonRecord]:
     """The recognition records of one stored Season's state (``season`` is its
-    ``{"id", "label"}``). A Helper record with no ``person_id`` yet is skipped:
-    it has no identity to be matched to."""
+    ``{"id", "label"}``): its Helpers and its Organizers, both Persons alike. A
+    record with no ``person_id`` yet is skipped: it has no identity to be
+    matched to."""
     records = []
-    for helper in state.get("helpers", []):
-        if not helper.get("person_id"):
-            continue
-        records.append(
-            PersonRecord(
-                person_id=helper["person_id"],
-                season_id=season["id"],
-                season_label=season["label"],
-                helper_id=int(helper["id"]),
-                name=helper.get("name", ""),
-                email=normalize_email(helper.get("email")),
-                phone=(helper.get("phone") or "").strip() or None,
-                rejected=frozenset(helper.get("rejected_person_ids") or ()),
-                link_confirmed=bool(helper.get("link_confirmed")),
+    for kind, key in (("helper", "helpers"), ("organizer", "organizers")):
+        for record in state.get(key, []):
+            if not record.get("person_id"):
+                continue
+            records.append(
+                PersonRecord(
+                    person_id=record["person_id"],
+                    season_id=season["id"],
+                    season_label=season["label"],
+                    helper_id=int(record["id"]),
+                    name=record.get("name", ""),
+                    email=normalize_email(record.get("email")),
+                    phone=(record.get("phone") or "").strip() or None,
+                    rejected=frozenset(record.get("rejected_person_ids") or ()),
+                    link_confirmed=bool(record.get("link_confirmed")),
+                    kind=kind,
+                )
             )
-        )
     return records
 
 
@@ -143,10 +148,15 @@ class Candidate:
     record: PersonRecord
 
 
-def uncertain_candidates(records: Iterable[PersonRecord], season_id: str) -> dict[int, list[Candidate]]:
-    """The uncertain matches of one stored Season's Helpers (``season_id``):
-    Helper id -> the Persons proposed for them, most recent appearance first;
-    Helpers with nothing to review are absent.
+def uncertain_candidates(
+    records: Iterable[PersonRecord], season_id: str, kind: str = "helper"
+) -> dict[int, list[Candidate]]:
+    """The uncertain matches of one stored Season's Helpers (``season_id``; its
+    Organizers with ``kind="organizer"``): record id -> the Persons proposed for
+    them, most recent appearance first; records with nothing to review are
+    absent. A Helper is proposed a Person known only as an Organizer, and the
+    other way round (that is how a returning Organizer is offered a link, never
+    promoted); within one Season the two kinds are never proposed to each other.
 
     A Helper is proposed a Person when a record of that Person has the same
     normalized name, unless the Helper is already *settled*: linked (it shares
@@ -162,7 +172,7 @@ def uncertain_candidates(records: Iterable[PersonRecord], season_id: str) -> dic
 
     proposals: dict[int, list[Candidate]] = {}
     for helper in records:
-        if helper.season_id != season_id or helper.link_confirmed or not helper.name_key:
+        if helper.season_id != season_id or helper.kind != kind or helper.link_confirmed or not helper.name_key:
             continue
         if len(by_person[helper.person_id]) > 1:
             continue
@@ -170,7 +180,9 @@ def uncertain_candidates(records: Iterable[PersonRecord], season_id: str) -> dic
         for person_id, group in by_person.items():
             if person_id == helper.person_id or frozenset((helper.person_id, person_id)) in rejected_pairs:
                 continue
-            same_name = [r for r in group if r.name_key == helper.name_key]
+            same_name = [
+                r for r in group if r.name_key == helper.name_key and (r.season_id != season_id or r.kind == kind)
+            ]
             if not same_name:
                 continue
             best = max(same_name, key=lambda r: r.recency)

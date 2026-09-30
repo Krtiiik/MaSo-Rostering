@@ -20,6 +20,7 @@ from __future__ import annotations
 import streamlit as st
 
 from rostering import tags as tag_tree
+from rostering import organizers as organizer_slots
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
 from rostering_assignment_grid import assignment_grid
@@ -50,18 +51,14 @@ _MANUAL_ROWS_AFTER = [
 ]
 _STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
 
-# These structural roles are typically filled by people who never registered
-# as a helper (teachers, organizers), so their manual-role cells are plain
-# free text rather than an autocomplete/pick against registered helpers —
-# unlike overlay roles and Technická podpora, which layer onto an already
-# registered, already-assigned helper. Each is also a single-holder role (one
-# building lead, one deputy, one lead per room), so their cells cap at one
-# name rather than the multi-name lists overlay/Technická podpora cells allow.
-_PLAIN_TEXT_ROLE_NAMES = {
-    StructuralRole.VedouciBudovy.name,
-    StructuralRole.PravaRuka.name,
-    StructuralRole.VedouciMistnosti.name,
-}
+# The four leadership slots (structural roles) hold only a tracked Organizer,
+# never a Helper: their cell input autocompletes against the Season's
+# Organizers (`organizer_names`), and a name nobody tracks creates an Organizer
+# on the spot (mutations.set_slot_holders). Three of them are single-holder
+# roles (one building lead, one deputy, one lead per room), so their cells cap
+# at one name rather than the multi-name lists Technická podpora and the
+# overlay roles allow.
+_SINGLE_HOLDER_ROLE_NAMES = {r.name for r in organizer_slots.SINGLE_HOLDER_ROLES}
 
 # Czech wording as shown on the registration form (see
 # rostering.ingest.preferences), for display in the roster grid's helper
@@ -98,8 +95,8 @@ def _grid_rows() -> list[dict]:
             "key": role.name,
             "label": role.value,
             "scope": scope,
-            "plain_text": role.name in _PLAIN_TEXT_ROLE_NAMES,
-            "single_entry": role.name in _PLAIN_TEXT_ROLE_NAMES,
+            "organizer": role.name in _STRUCTURAL_ROLE_NAMES,
+            "single_entry": role.name in _SINGLE_HOLDER_ROLE_NAMES,
             "allowDuplicateDrop": allow_duplicate_drop,
         }
 
@@ -130,15 +127,23 @@ def _manual_display_name(entry: dict, helper_names: dict[int, str]) -> str:
 def _manual_entries(state: dict) -> list[dict]:
     manual = state["manual_roles"]
     helper_names = _helper_options(state)
+    organizer_names = {o["id"]: o["name"] for o in state["organizers"]}
     entries = []
     for s in manual["structural"]:
+        organizer_id = s.get("organizer_id")
         entries.append(
             {
                 "key": s["role"],
                 "building": s["building"],
                 "room": s.get("room"),
                 "helper_id": s.get("helper_id"),
-                "name": _manual_display_name(s, helper_names),
+                "organizer_id": organizer_id,
+                # An entry saved before Organizers existed (a Helper or typed
+                # text) is shown, marked, until it is replaced.
+                "legacy": organizer_id is None,
+                "name": organizer_names.get(organizer_id, f"#{organizer_id}")
+                if organizer_id is not None
+                else _manual_display_name(s, helper_names),
             }
         )
     for o in manual["overlay"]:
@@ -167,30 +172,20 @@ def _resolve_manual_name(state: dict, name: str) -> dict:
     return {"helper_id": None, "helper_name": name}
 
 
-def _apply_manual_set(state: dict, event: dict) -> dict:
+def _apply_overlay_set(state: dict, event: dict) -> dict:
+    """The Manual roles after an edit of an Additional role cell (Helper-only:
+    a typed name is resolved to a registered Helper or kept as free text). The
+    leadership slots take Organizers instead, see mutations.set_slot_holders."""
     key = event["key"]
     building = event.get("building")
     room = event.get("room")
     names = [n.strip() for n in event.get("names", []) if n and n.strip()]
     manual = state["manual_roles"]
-    if key in _PLAIN_TEXT_ROLE_NAMES:
-        names = names[-1:]  # single-holder role — keep only the latest name
-        resolved = [{"helper_id": None, "helper_name": n} for n in names]
-    else:
-        resolved = [_resolve_manual_name(state, n) for n in names]
-
-    if key in _STRUCTURAL_ROLE_NAMES:
-        filtered = [
-            s
-            for s in manual["structural"]
-            if not (s["role"] == key and s["building"] == building and s.get("room") == room)
-        ]
-        new_entries = [{"role": key, "building": building, "room": room, **r} for r in resolved]
-        return {**manual, "structural": filtered + new_entries}
+    resolved = [_resolve_manual_name(state, n) for n in names]
 
     # Overlay roles are either building-scoped (room None, e.g. Registrace)
-    # or room-scoped (UvadeciUcastniku/FoceniPredavaniCen) — in both cases
-    # filtered/replaced the same way as structural, by (role, building, room).
+    # or room-scoped (UvadeciUcastniku/FoceniPredavaniCen) — filtered/replaced
+    # by (role, building, room).
     other = [
         o
         for o in manual["overlay"]
@@ -393,6 +388,7 @@ def render() -> None:
         manual_entries=_manual_entries(state),
         cell_merges=state.get("cell_merges", {}),
         helper_names=sorted({h["name"] for h in attending}, key=str.lower),
+        organizer_names=sorted({o["name"] for o in state["organizers"]}, key=str.lower),
         broken_marks=mutations.broken_rule_marks(broken_rules),
         show_tags=show_tags,
         dimmed_helper_ids=mutations.dimmed_helper_ids(state, filter_tags, filter_mode),
@@ -424,8 +420,17 @@ def render() -> None:
                     )
                 )
             else:
-                next_manual = _apply_manual_set(state, event)
-                session.set_state(mutations.put_manual_roles(session.get_workspace(), next_manual))
+                if event["key"] in _STRUCTURAL_ROLE_NAMES:
+                    # A leadership slot takes a tracked Organizer: pick one by
+                    # name or create one on the spot; the placement follows.
+                    session.set_state(
+                        mutations.set_slot_holders(
+                            session.get_workspace(), event["key"], event["building"], event.get("room"), event["names"]
+                        )
+                    )
+                else:
+                    next_manual = _apply_overlay_set(state, event)
+                    session.set_state(mutations.put_manual_roles(session.get_workspace(), next_manual))
         except mutations.RosteringError as exc:
             st.error(str(exc))
         st.rerun()

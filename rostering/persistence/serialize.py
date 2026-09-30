@@ -11,6 +11,7 @@ from rostering.domain import (
     Building,
     Helper,
     ManualRoles,
+    Organizer,
     OverlayAssignment,
     OverlayRole,
     Preference,
@@ -171,6 +172,28 @@ def _match_enum(enum_cls, value: str):
     raise ValueError(f"Unknown {enum_cls.__name__}: {value!r}")
 
 
+def organizer_to_dict(o: Organizer) -> dict:
+    return {
+        "id": o.id,
+        "name": o.name,
+        "person_id": o.person_id,
+        "email": o.email,
+        "building": o.building,
+        "room": o.room,
+    }
+
+
+def organizer_from_dict(data: dict) -> Organizer:
+    return Organizer(
+        id=int(data["id"]),
+        name=data.get("name", ""),
+        person_id=data.get("person_id"),
+        email=data.get("email"),
+        building=data.get("building"),
+        room=data.get("room"),
+    )
+
+
 def manual_roles_to_dict(manual: ManualRoles) -> dict:
     return {
         "structural": [
@@ -180,6 +203,7 @@ def manual_roles_to_dict(manual: ManualRoles) -> dict:
                 "room": s.room,
                 "helper_id": s.helper_id,
                 "helper_name": s.helper_name,
+                "organizer_id": s.organizer_id,
             }
             for s in manual.structural
         ],
@@ -204,6 +228,7 @@ def manual_roles_from_dict(data: dict) -> ManualRoles:
             room=s.get("room"),
             helper_id=s.get("helper_id"),
             helper_name=s.get("helper_name"),
+            organizer_id=s.get("organizer_id"),
         )
         for s in (data or {}).get("structural", [])
     ]
