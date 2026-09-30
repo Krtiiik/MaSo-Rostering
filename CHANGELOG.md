@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A Building's overall role numbers on the Buildings tab are now exact limits
+  instead of minimums: a Building with "Fotograf 2" gets exactly two Fotografs,
+  so too many breaks the rule as much as too few. Room numbers stay minimums and
+  0 still means no limit. The Broken-rule banner words an overshoot like
+  "Building B · Skenovač: 3 of 2 required (1 too many)"; the rule is still
+  bent first, with the Room minimums. A saved Season keeps its numbers, which
+  now read as exact counts.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added

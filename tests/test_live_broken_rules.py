@@ -124,12 +124,12 @@ def test_a_hand_move_that_breaks_a_minimum_shows_it_at_once_and_moving_back_clea
     assert mutations.broken_rules(fixed) == []
 
 
-def test_a_building_minimum_shortfall_is_a_count(workspace):
+def test_a_building_limit_shortfall_is_a_count(workspace):
     _seed_roster(workspace)
 
     broken = mutations.broken_rules(mutations.move_helper(workspace, 3, "B", "R2", "Zaloha"))
 
-    assert [b.instance for b in broken] == [RuleInstance("building_minimum", ("B", "Skenovac"))]
+    assert [b.instance for b in broken] == [RuleInstance("building_exact", ("B", "Skenovac"))]
     assert broken[0].line == "Building B · Skenovač: 1 of 2 required (needs 1 more)"
 
 
@@ -154,12 +154,25 @@ def test_broken_rules_come_in_tier_order_minimums_first(workspace):
     assert [b.family for b in broken] == ["minimums", "equipment"]
 
 
+def test_a_building_limit_overshoot_is_a_count_too(workspace):
+    _seed_roster(workspace)
+
+    broken = mutations.broken_rules(mutations.move_helper(workspace, 1, "B", "R1", "Skenovac"))
+
+    # Three scan where the Building's limit is exactly two; Anna is also
+    # missing from R1's Fotograf minimum, which is a separate rule.
+    building = next(b for b in broken if b.instance.kind == "building_exact")
+    assert building.instance == RuleInstance("building_exact", ("B", "Skenovac"))
+    assert building.amount == 1
+    assert building.line == "Building B · Skenovač: 3 of 2 required (1 too many)"
+
+
 def test_stale_assignments_to_removed_rooms_do_not_crash_the_check(workspace):
     state = _seed_roster(workspace)
     state["assignments"][2] = _assignment(3, "Eva", "Gone", "Nowhere", "Skenovac")
 
     # Eva no longer counts anywhere: the shortfall, not an exception.
-    assert [b.instance.kind for b in mutations.broken_rules(state)] == ["building_minimum"]
+    assert [b.instance.kind for b in mutations.broken_rules(state)] == ["building_exact"]
 
 
 def test_each_instance_carries_the_cells_and_chips_it_affects(workspace):
@@ -169,7 +182,7 @@ def test_each_instance_carries_the_cells_and_chips_it_affects(workspace):
 
     broken = _by_kind(mutations.broken_rules(state))
 
-    assert broken["building_minimum"].cells == (("B", "R1", "Skenovac"), ("B", "R2", "Skenovac"))
+    assert broken["building_exact"].cells == (("B", "R1", "Skenovac"), ("B", "R2", "Skenovac"))
     assert broken["equipment"].helper_ids == (2,)
     marks = mutations.broken_rule_marks(mutations.broken_rules(state))
     assert marks["helpers"] == [{"helper_id": 2, "line": "Helper Petr has no camera but is Fotograf"}]
@@ -190,8 +203,8 @@ def test_each_instance_has_a_go_fix_target(workspace):
 
     assert broken["room_minimum"].fix.tab == "buildings"
     assert (broken["room_minimum"].fix.building, broken["room_minimum"].fix.room) == ("B", "R1")
-    assert broken["building_minimum"].fix.tab == "buildings"
-    assert broken["building_minimum"].fix.building == "B"
+    assert broken["building_exact"].fix.tab == "buildings"
+    assert broken["building_exact"].fix.building == "B"
     assert broken["equipment"].fix.tab == "helpers"
     assert broken["equipment"].fix.helper_id == 2
 

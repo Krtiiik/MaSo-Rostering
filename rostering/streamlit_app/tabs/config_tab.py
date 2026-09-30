@@ -120,7 +120,8 @@ def _render_building_table(buildings: list[dict], bi: int) -> None:
 
         subheader_cols = st.columns([1] + [1] * n_units)
         subheader_cols[0].write("")
-        for i in range(n_units):
+        subheader_cols[1].caption("Exactly (0 = no limit)")
+        for i in range(1, n_units):
             subheader_cols[1 + i].caption("Min")
 
         for role_name in _ROLE_ORDER:
@@ -183,7 +184,10 @@ def clear_drafts() -> None:
 
 def render() -> None:
     st.header("2. Buildings & rooms")
-    st.write("Define the buildings, their rooms, and how many of each role each can hold this season.")
+    st.write(
+        "Define the buildings, their rooms, and how many of each role each can hold this season. "
+        "A room's number is a minimum; a building's overall number is an exact count."
+    )
 
     state = session.get_state()
     _ensure_drafts(state)

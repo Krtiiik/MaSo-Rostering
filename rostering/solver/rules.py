@@ -5,7 +5,8 @@ rule"): every hard rule is given a *slack* — the size of its violation — tha
 the solver pays a penalty for, so it always returns a full roster and reports
 the rules it had to bend. The tiers bend in a fixed order, first to last:
 
-1. ``MINIMUMS`` — Room and Building role minimums;
+1. ``MINIMUMS`` — Room role minimums and Building role limits (a Building's
+   count is exact: both too few and too many break it);
 2. ``TAG_RESTRICTIONS`` — Tag constraints on Building/Role;
 3. ``FORCED_FRIENDS`` — Forced-friend groups;
 4. ``EQUIPMENT`` — Equipment eligibility (Fotograf needs a camera).
@@ -157,18 +158,36 @@ def _minimums(ctx: ModelContext) -> list[Relaxation]:
                 )
             )
 
+    # A Building's role count is an exact limit, not a minimum: both too few
+    # and too many are a violation, sized by how far off the count is.
     for building in ctx.buildings:
         room_ids = ctx.building_rooms.get(building.name, [])
         for role, cap in building.capacities.items():
             if not cap.minimum:
                 continue
             terms = [ctx.role_room_var[h.id, role, rid] for rid in room_ids for h in ctx.helpers]
+            max_units = max(cap.minimum, len(ctx.helpers))
+            offset = ctx.model.NewIntVar(-cap.minimum, len(ctx.helpers), f"offset_building_{building.name}_{role.name}")
+            ctx.model.Add(offset == sum(terms) - cap.minimum)
+            slack = ctx.model.NewIntVar(0, max_units, f"off_building_{building.name}_{role.name}")
+            ctx.model.AddAbsEquality(slack, offset)
+            where = f"Building {building.name}"
             relaxations.append(
                 Relaxation(
-                    instance=RuleInstance("building_minimum", (building.name, role.name)),
-                    slack=shortfall(f"short_building_{building.name}_{role.name}", cap.minimum, terms),
-                    max_units=cap.minimum,
-                    describe=_minimum_line(f"Building {building.name}", role, cap.minimum),
+                    instance=RuleInstance("building_exact", (building.name, role.name)),
+                    slack=slack,
+                    max_units=max_units,
+                    describe=lambda off, where=where, role=role, limit=cap.minimum: (
+                        f"{where} · {role.value}: {off} off the required {limit}"
+                    ),
+                    describe_placed=lambda _off, assignments, where=where, role=role, limit=cap.minimum, name=building.name: (
+                        _exact_line(
+                            where,
+                            role,
+                            limit,
+                            sum(1 for a in assignments if a.building == name and a.role == role),
+                        )
+                    ),
                 )
             )
     return relaxations
@@ -176,6 +195,13 @@ def _minimums(ctx: ModelContext) -> list[Relaxation]:
 
 def _minimum_line(where: str, role: Role, minimum: int) -> Callable[[int], str]:
     return lambda short: f"{where} · {role.value}: {minimum - short} of {minimum} required (needs {short} more)"
+
+
+def _exact_line(where: str, role: Role, limit: int, have: int) -> str:
+    """A Building's exact limit, judged against ``have`` people placed."""
+    if have < limit:
+        return f"{where} · {role.value}: {have} of {limit} required (needs {limit - have} more)"
+    return f"{where} · {role.value}: {have} of {limit} required ({have - limit} too many)"
 
 
 def _equipment_line(helper_name: str) -> str:
@@ -225,14 +251,14 @@ def _check_minimums(ctx: CheckContext) -> list[BrokenRule]:
     for building in ctx.competition.buildings.values():
         for role, cap in building.capacities.items():
             have = sum(counts.get((building.name, room.name, role), 0) for room in building.rooms)
-            short = cap.minimum - have
-            if cap.minimum and short > 0:
+            off = abs(cap.minimum - have)
+            if cap.minimum and off > 0:
                 broken.append(
                     BrokenRule(
-                        instance=RuleInstance("building_minimum", (building.name, role.name)),
+                        instance=RuleInstance("building_exact", (building.name, role.name)),
                         family="minimums",
-                        amount=short,
-                        line=_minimum_line(f"Building {building.name}", role, cap.minimum)(short),
+                        amount=off,
+                        line=_exact_line(f"Building {building.name}", role, cap.minimum, have),
                         cells=tuple((building.name, room.name, role.name) for room in building.rooms),
                         fix=FixTarget("buildings", building=building.name, role=role.name),
                     )

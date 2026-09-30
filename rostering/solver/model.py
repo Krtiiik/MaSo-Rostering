@@ -4,8 +4,8 @@ Structural constraints (never relaxed):
 - each helper gets exactly one room and exactly one role;
 - fixed Assignments (``fixed_assignments``) are held as given.
 
-Hard rules (relaxed — see ``rostering.solver.rules``): room/building role
-minimums, Tag constraints on Building/Role, Forced friends groups and Equipment
+Hard rules (relaxed — see ``rostering.solver.rules``): room role minimums,
+building role exact limits, Tag constraints on Building/Role, Forced friends groups and Equipment
 eligibility. A solve never fails because they clash;
 each rule carries a slack penalized in strict priority tiers, and the rules
 the solver had to bend come back as ``SolveResult.broken_rules``.
