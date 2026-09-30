@@ -28,9 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counted as Nevadí) and, to the right, the Preference the stars map to.
 - "Vynutit přání být s kamarádem" moved from the Forced friends tab into a
   Helper's popup. Its tab is now "Kamarádi": the friend names still to match on
-  top (when there are any), then every matched friend with a "Vynutit" button
-  (or "Vynuceno" when their Forced friends group already exists), and the
-  matching of already-decided names folded into an expander.
+  top (when there are any), then the "Kamarádi" multiselect (moved here from the
+  Details tab; a pick saves at once), then a "Vynucení kamarádi v místnosti"
+  multiselect over that Helper's own friends (picking one makes the Forced friends
+  group of the two, unpicking dissolves it; replaces the per-friend "Vynutit"
+  buttons), and the matching of already-decided names folded into an expander.
 - On the 5. Parametry rozřazování tab, the five Preference costs (Ano, Klidně, Nevadí,
   Spíš ne, Ne) are number inputs stacked vertically, each labelled with its star
   rating (Ano five stars down to Ne one), with a static horizontal bar chart of

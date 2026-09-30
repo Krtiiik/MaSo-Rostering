@@ -409,6 +409,27 @@ def make_forced(workspace: Workspace, helper_id: int, friend: Any) -> dict:
     return add_group(workspace, f"{helper['name']} + {person[1]}", [helper["person_id"], person[0]], room_axes)
 
 
+def unforce(workspace: Workspace, helper_id: int, friend: Any) -> dict:
+    """Undo :func:`make_forced`: dissolve the Room group made of exactly this
+    Helper and this friend (a Helper id or ``{"organizer_id": n}``), whatever it
+    is called. Refused when no such group exists; a larger group, or one of
+    another axis, containing them is left alone."""
+    state = workspace.load()
+    helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
+    person = _friend_person(state, friend) if helper is not None else None
+    if helper is None or person is None or not helper.get("person_id"):
+        raise RosteringError("Toto není přiřazené přání být s kamarádem.")
+    room_axes = list(forced_friends.normalize_axes([forced_friends.ROOM]))
+    wanted = {helper["person_id"], person[0]}
+    group = next(
+        (g for g in _records(state) if g["axes"] == room_axes and {m["person_id"] for m in g["members"]} == wanted),
+        None,
+    )
+    if group is None:
+        raise RosteringError(f"Skupinka v místnosti pro {helper['name']} a {person[1]} neexistuje.")
+    return dissolve_group(workspace, group["id"])
+
+
 # -- Import from an earlier Season -------------------------------------------------
 #
 # The second section of the "Import from an earlier Season" offer, after Tags (see
