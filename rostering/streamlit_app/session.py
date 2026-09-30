@@ -54,6 +54,10 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
         "_grid_show_tags",
         "_grid_tag_filter",
         "_grid_tag_mode",
+        "_tag_import_summary",
+        "_tag_import_banner_dismissed",
+        "_tag_import_late_link_helper",
+        "_tag_import_late_link_result",
     ):
         st.session_state.pop(key, None)
     # A new key gives the upload tab a fresh, empty file picker, so a file

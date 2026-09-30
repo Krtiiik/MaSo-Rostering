@@ -8,6 +8,7 @@ import streamlit as st
 from rostering import tags as tag_tree
 from rostering.domain import Role
 from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
+from rostering.streamlit_app.tabs import tag_import_ui
 
 # Session-state keys: the Tag being edited (a Tag id, or _NEW for the create
 # form), the Tag whose delete awaits confirmation, and a counter that gives the
@@ -45,6 +46,9 @@ def render() -> None:
     # A "Go fix" from a Broken rule: says what to fix here, for as long as it is
     # still broken (the Tag itself was preselected by the hand-off).
     fix = fix_focus.render_callout(state, "tags")
+
+    tag_import_ui.render_summary("tags")
+    tag_import_ui.render_button("tags")
 
     tree_col, edit_col = st.columns([5, 6], gap="large")
     with tree_col:
@@ -115,6 +119,8 @@ def _render_form(state: dict, tag: dict | None) -> None:
     names = {t["id"]: t["name"] for t in state["tags"]}
     prefix = f"tag_form_{tag['id'] if tag else 'new'}"
     st.subheader("New tag" if tag is None else f"Edit {tag['name']}")
+    if tag is not None and tag.get("origins"):
+        st.caption("Imported from " + ", ".join(mutations.tag_origin_labels(state, tag["id"])) + ".")
     with st.form(key=prefix):
         name = st.text_input("Name", value=tag["name"] if tag else "", key=f"{prefix}_name")
         colour_col, parent_col = st.columns(2)
