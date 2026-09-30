@@ -141,9 +141,11 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     st.rerun()
 
 
-def _apply_link_edit(action, *args) -> None:
+def _apply_link_edit(action, *args, tagged_helper_id: int | None = None) -> None:
     """Run one link mutation, refresh the session state and rerun; show the
-    error instead if it is refused."""
+    error instead if it is refused. ``tagged_helper_id`` is the Helper who holds
+    the link afterwards when that isn't the first argument (a merge into a
+    Helper added by hand)."""
     try:
         session.set_state(action(session.get_workspace(), *args))
     except mutations.RosteringError as exc:
@@ -151,7 +153,7 @@ def _apply_link_edit(action, *args) -> None:
         return
     if action is mutations.link_helper:
         # A confirmed link: offer the Person's Tags from an already-imported Season.
-        tag_import_ui.queue_late_link_offer(args[0])
+        tag_import_ui.queue_late_link_offer(tagged_helper_id or args[0])
     st.rerun()
 
 
@@ -162,14 +164,15 @@ def _describe(email: str | None, phone: str | None) -> str:
 def _render_uncertain_matches(workspace) -> None:
     """The review list: same-name Persons proposed for a new Helper, to be
     confirmed or rejected one by one. Unreviewed candidates stay unlinked."""
+    _render_typed_role_links(workspace)
     entries = mutations.get_uncertain_matches(workspace)
     if not entries:
         return
     st.subheader(f"Possible returning helpers ({len(entries)})")
     st.caption(
-        "These Helpers have the same name as someone from an earlier Season but a different (or no) e-mail, "
-        "so they are **not linked** until you confirm. The phone is only a hint. Anything you leave "
-        "unreviewed stays unlinked."
+        "These Helpers have the same name as someone from an earlier Season (or a Helper you added by hand) "
+        "but a different (or no) e-mail, so they are **not linked** until you confirm. The phone is only a "
+        "hint. Anything you leave unreviewed stays unlinked."
     )
     for entry in entries:
         with st.container(border=True):
@@ -178,13 +181,25 @@ def _render_uncertain_matches(workspace) -> None:
             )
             for candidate in entry["candidates"]:
                 info_col, link_col, reject_col = st.columns([5, 1.2, 2.2], vertical_alignment="center")
+                merges_into = candidate["merges_into"]
                 info_col.write(
-                    f"{candidate['name']} · Season {candidate['season']} · "
-                    f"{_describe(candidate['email'], candidate['phone'])}"
+                    f"{candidate['name']} · "
+                    + ("added by hand this Season" if merges_into else f"Season {candidate['season']}")
+                    + f" · {_describe(candidate['email'], candidate['phone'])}"
                 )
+                if merges_into:
+                    info_col.caption(
+                        "Merging keeps the Helper you added (their Assignment, lock, Tags and roles) and "
+                        "fills what you left blank from this survey row."
+                    )
                 key = f"{entry['helper_id']}_{candidate['person_id']}"
-                if link_col.button("Link", key=f"review_link_{key}", type="primary"):
-                    _apply_link_edit(mutations.link_helper, entry["helper_id"], candidate["person_id"])
+                if link_col.button("Merge" if merges_into else "Link", key=f"review_link_{key}", type="primary"):
+                    _apply_link_edit(
+                        mutations.link_helper,
+                        entry["helper_id"],
+                        candidate["person_id"],
+                        tagged_helper_id=merges_into,
+                    )
                 if reject_col.button("Not the same person", key=f"review_reject_{key}"):
                     _apply_link_edit(
                         mutations.reject_person_match, entry["helper_id"], candidate["person_id"]
@@ -203,6 +218,30 @@ def _render_uncertain_matches(workspace) -> None:
                     st.error(str(exc))
                 else:
                     st.rerun()
+
+
+def _render_typed_role_links(workspace) -> None:
+    """Names typed into a Manual role for someone unregistered that a Helper
+    has since matched, offered a link to that Helper. Declining leaves the text."""
+    offers = mutations.get_typed_role_link_offers(workspace)
+    if not offers:
+        return
+    st.subheader(f"Typed role names matching a Helper ({len(offers)})")
+    st.caption(
+        "These names were typed into a role in the Roster tab, and a registered Helper now has the same name. "
+        "Linking turns the typed text into that Helper; \"Not the same person\" leaves it as typed."
+    )
+    for offer in offers:
+        with st.container(border=True):
+            st.markdown(f"**{offer['name']}** — typed as: {'; '.join(offer['slots'])}")
+            for candidate in offer["candidates"]:
+                info_col, link_col, reject_col = st.columns([5, 1.2, 2.2], vertical_alignment="center")
+                info_col.write(f"{candidate['name']} · {_describe(candidate['email'], candidate['phone'])}")
+                key = f"{offer['name']}_{candidate['helper_id']}"
+                if link_col.button("Link", key=f"typed_role_link_{key}", type="primary"):
+                    _apply_link_edit(mutations.link_typed_role_name, offer["name"], candidate["helper_id"])
+                if reject_col.button("Not the same person", key=f"typed_role_reject_{key}"):
+                    _apply_link_edit(mutations.decline_typed_role_link, offer["name"], candidate["helper_id"])
 
 
 def _render_person_links(workspace, state: dict) -> None:

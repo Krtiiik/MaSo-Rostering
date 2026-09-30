@@ -366,13 +366,14 @@ def _decision_ids(raw: Any) -> list[int]:
     return [raw] if isinstance(raw, int) else list(raw or [])
 
 
-def _refresh_from_survey(record: dict, fresh: dict, row: Helper) -> None:
+def _refresh_from_survey(record: dict, fresh: dict) -> None:
     """Replace a recognized Helper's survey-derived fields from the latest row
     (``fresh`` is that row as a record on the Helper's real ids), except any
     field typed by hand. A friend name the user resolved by hand keeps its
     resolution while the same free-text name is still in the row; a changed or
     removed name loses it. A T-shirt size set by hand survives while the
     survey answer for it is unchanged."""
+    unresolved = fresh["friend_name_order"]
     typed = set(record.get("hand_typed") or [])
     for field in _SURVEY_FIELDS:
         if field not in typed:
@@ -386,14 +387,14 @@ def _refresh_from_survey(record: dict, fresh: dict, row: Helper) -> None:
     record["survey_tshirt_size"] = fresh["tshirt_size"]
 
     decisions = record.get("friend_name_decisions") or {}
-    kept = {name: decisions[name] for name in row.unresolved_friend_names if name in decisions}
+    kept = {name: decisions[name] for name in unresolved if name in decisions}
     if "friends" not in typed:
         friends = list(fresh["friends"])
         for raw in kept.values():
             friends.extend(i for i in _decision_ids(raw) if i not in friends and i != record["id"])
         record["friends"] = friends
-    record["unresolved_friend_names"] = [n for n in row.unresolved_friend_names if n not in kept]
-    record["friend_name_order"] = list(row.unresolved_friend_names)
+    record["unresolved_friend_names"] = [n for n in unresolved if n not in kept]
+    record["friend_name_order"] = list(unresolved)
     if kept:
         record["friend_name_decisions"] = kept
     else:
@@ -425,7 +426,7 @@ def _merge_survey_rows(state: dict[str, Any], rows: list[Helper], known: list, e
             new_entries.append({"helper_id": helper_id, "name": fresh["name"]})
             continue
         before = _material_answers(record)
-        _refresh_from_survey(record, fresh, row)
+        _refresh_from_survey(record, fresh)
         for assignment in state["assignments"]:
             if assignment["helper_id"] == helper_id:
                 assignment["helper_name"] = record["name"]
@@ -512,14 +513,17 @@ def get_uncertain_matches(workspace: Workspace) -> list[dict]:
     An entry is ``helper_id``, ``helper_name``, ``helper_email``,
     ``helper_phone`` and ``candidates``: each ``person_id`` plus the details of
     the Person's most recent same-name record (``name``, ``season`` label,
-    ``email``, ``phone`` — the phone only a hint), most recent first. Empty
-    with no Season open."""
+    ``email``, ``phone`` — the phone only a hint), most recent first, and
+    ``merges_into``: the id of the Helper added by hand in this Season that
+    confirming the candidate merges the entry's Helper into (None for an
+    ordinary link). Empty with no Season open."""
     season = workspace.open_season()
     if season is None:
         return []
     proposals = uncertain_candidates(workspace.person_records(), season["id"])
+    state = workspace.load()
     entries = []
-    for helper in workspace.load()["helpers"]:
+    for helper in state["helpers"]:
         candidates = proposals.get(helper["id"])
         if not candidates:
             continue
@@ -536,6 +540,7 @@ def get_uncertain_matches(workspace: Workspace) -> list[dict]:
                         "season": c.record.season_label,
                         "email": c.record.email,
                         "phone": c.record.phone,
+                        "merges_into": _merge_target_id(state, helper, c.person_id),
                     }
                     for c in candidates
                 ],
@@ -585,18 +590,130 @@ def _known_person(workspace: Workspace, person_id: str) -> None:
         raise RosteringError("No such Person.")
 
 
+def _hand_added_merge_target(state: dict[str, Any], helper: dict, person_id: str) -> Optional[dict]:
+    """The Helper added by hand in this Season that confirming ``helper``'s link
+    to ``person_id`` merges them into: a survey-derived Helper who is the same
+    Person as a hand-added one. None for any other link (a hand-added Helper is
+    never the one absorbed)."""
+    if helper.get("hand_added"):
+        return None
+    return next(
+        (h for h in state["helpers"] if h is not helper and h.get("hand_added") and h.get("person_id") == person_id),
+        None,
+    )
+
+
+def _merge_target_id(state: dict[str, Any], helper: dict, person_id: str) -> Optional[int]:
+    target = _hand_added_merge_target(state, helper, person_id)
+    return None if target is None else target["id"]
+
+
+def _merge_into_hand_added(workspace: Workspace, state: dict[str, Any], absorbed: dict, target: dict) -> None:
+    """Fold a survey-derived Helper record into the hand-added Helper it turned
+    out to be. ``target`` keeps their id, Assignment (and lock), Tags, Manual
+    roles and flags; the survey answers fill every field they left at its
+    default, while a value typed by hand wins. ``absorbed`` disappears, and
+    everything that pointed at it (Friend preferences, Manual role entries)
+    points at ``target``; anything the row was given meanwhile (an Assignment
+    when ``target`` has none, Tags) is carried over."""
+    target_id, absorbed_id = target["id"], absorbed["id"]
+    absorbed_typed = [f for f in absorbed.get("hand_typed") or [] if f not in (target.get("hand_typed") or [])]
+
+    order = absorbed.get("friend_name_order")
+    if order is None:
+        order = [*absorbed.get("unresolved_friend_names", []), *(absorbed.get("friend_name_decisions") or {})]
+    fresh = {
+        **absorbed,
+        "friends": [f for f in absorbed.get("friends", []) if f != target_id],
+        "friend_name_order": order,
+    }
+    if absorbed.get("friend_name_decisions"):
+        target["friend_name_decisions"] = {**(target.get("friend_name_decisions") or {}), **absorbed["friend_name_decisions"]}
+    _refresh_from_survey(target, fresh)
+    target["survey_tshirt_size"] = absorbed.get("survey_tshirt_size")
+    _mark_hand_typed(target, absorbed_typed)  # what the row's own hand edits set stays typed by hand
+
+    # Who they are: the Person the survey row already belonged to (e.g. by
+    # e-mail from an earlier Season) wins over a fresh hand-added one.
+    season = workspace.open_season()
+    settled_elsewhere = {
+        r.person_id
+        for r in workspace.person_records()
+        if (r.season_id, r.helper_id) not in {(season["id"], absorbed_id), (season["id"], target_id)}
+    }
+    if target.get("person_id") not in settled_elsewhere and absorbed.get("person_id") in settled_elsewhere:
+        target["person_id"] = absorbed["person_id"]
+    target["link_confirmed"] = True
+    rejected = [
+        p for p in dict.fromkeys([*(target.get("rejected_person_ids") or []), *(absorbed.get("rejected_person_ids") or [])])
+        if p != target["person_id"]
+    ]
+    if rejected:
+        target["rejected_person_ids"] = rejected
+    else:
+        target.pop("rejected_person_ids", None)
+
+    direct_tags = [*(target.get("tags") or []), *(t for t in absorbed.get("tags") or [] if t not in (target.get("tags") or []))]
+    if direct_tags:
+        target["tags"] = direct_tags
+
+    placed = {a["helper_id"] for a in state["assignments"]}
+    if absorbed_id in placed and target_id not in placed:
+        for assignment in state["assignments"]:
+            if assignment["helper_id"] == absorbed_id:
+                assignment["helper_id"] = target_id
+                assignment["helper_name"] = target["name"]
+    else:
+        state["assignments"] = [a for a in state["assignments"] if a["helper_id"] != absorbed_id]
+
+    for group in state["manual_roles"].values():
+        for entry in group:
+            if entry.get("helper_id") == absorbed_id:
+                entry["helper_id"] = target_id
+
+    state["helpers"] = [h for h in state["helpers"] if h["id"] != absorbed_id]
+    for other in state["helpers"]:
+        other["friends"] = list(dict.fromkeys(target_id if f == absorbed_id else f for f in other.get("friends", [])))
+        if other["id"] == target_id:
+            other["friends"] = [f for f in other["friends"] if f != target_id]
+        decisions = other.get("friend_name_decisions") or {}
+        for friend_name, raw in list(decisions.items()):
+            ids = _decision_ids(raw)
+            if absorbed_id in ids:
+                decisions[friend_name] = list(dict.fromkeys(target_id if i == absorbed_id else i for i in ids))
+
+    summary = state.get("upload_summary")
+    if summary:
+        for key in ("new", "changed", "missing"):
+            summary[key] = [e for e in summary.get(key, []) if e["helper_id"] != absorbed_id]
+        if not any(summary.get(key) for key in ("new", "changed", "missing")):
+            state.pop("upload_summary")
+    if state["assignments"]:
+        _refresh_friend_pairs(state)
+
+
 def link_helper(workspace: Workspace, helper_id: int, person_id: str) -> dict:
     """Link a Helper of the open Season to a Person the stored Seasons know:
     confirms a proposed candidate, or links by hand to any Person (a returner
     who changed both e-mail and name form). Changes only this Helper's Person
     link — never a Helper id — and settles the Helper, so their other
     candidates are no longer proposed. Remembered on the Helper record
-    independently of e-mail."""
+    independently of e-mail.
+
+    When the Person is a Helper the organizer added by hand in this Season, the
+    link is a merge instead: the survey-derived Helper is folded into the
+    hand-added one, who keeps their id, Assignment, lock, Tags, Manual roles and
+    flags (see :func:`_merge_into_hand_added`), so no duplicate is left."""
     state = workspace.load()
     helper = _helper_record(state, helper_id)
     _known_person(workspace, person_id)
     if helper.get("person_id") == person_id:
         raise RosteringError(f"{helper['name']} is already linked to that Person.")
+    target = _hand_added_merge_target(state, helper, person_id)
+    if target is not None:
+        _merge_into_hand_added(workspace, state, helper, target)
+        workspace.save(state)
+        return state
     helper["person_id"] = person_id
     helper["link_confirmed"] = True
     remaining = [p for p in helper.get("rejected_person_ids", []) if p != person_id]
@@ -792,6 +909,91 @@ def dismiss_upload_summary(workspace: Workspace) -> dict:
     the Export gate are unaffected."""
     state = workspace.load()
     state.pop("upload_summary", None)
+    workspace.save(state)
+    return state
+
+
+def _typed_role_entries(state: dict[str, Any]) -> list[tuple[str, dict]]:
+    """The Manual role entries that name someone by hand-typed text (no Helper
+    reference), as ``(group, entry)``."""
+    return [
+        (group, entry)
+        for group in ("structural", "overlay")
+        for entry in state["manual_roles"][group]
+        if entry.get("helper_id") is None and (entry.get("helper_name") or "").strip()
+    ]
+
+
+def get_typed_role_link_offers(workspace: Workspace) -> list[dict]:
+    """The typed Manual role names of the open Season that now match a Helper:
+    a name someone typed for an unregistered person that a registered, attending
+    Helper of the same normalized name has since matched (a newly recognized
+    Helper from a re-upload, or one added by hand). One offer per typed name
+    (``name`` as typed, the ``slots`` holding it as display labels) with its
+    ``candidates`` (``helper_id``, ``name``, ``email``, ``phone``), the pairings
+    the user declined left out. Nothing is linked until
+    :func:`link_typed_role_name` confirms it."""
+    if workspace.open_season() is None:
+        return []
+    state = workspace.load()
+    declined = {(d["name"], d["helper_id"]) for d in state.get("declined_typed_role_links") or []}
+    offers: dict[str, dict] = {}
+    for _group, entry in _typed_role_entries(state):
+        key = normalize_name(entry["helper_name"])
+        offer = offers.setdefault(key, {"name": entry["helper_name"], "slots": [], "candidates": []})
+        offer["slots"].append(_manual_entry_label(entry))
+    for key, offer in offers.items():
+        offer["candidates"] = [
+            {"helper_id": h["id"], "name": h["name"], "email": h.get("email"), "phone": h.get("phone")}
+            for h in state["helpers"]
+            if not h.get("cant_attend") and normalize_name(h["name"]) == key and (key, h["id"]) not in declined
+        ]
+    return sorted((o for o in offers.values() if o["candidates"]), key=lambda o: normalize_name(o["name"]))
+
+
+def link_typed_role_name(workspace: Workspace, name: str, helper_id: int) -> dict:
+    """Confirm a typed Manual role name as a Helper: every entry holding that
+    text (matched ignoring case, diacritics and spacing) becomes a real
+    reference to the Helper, in every slot it sits in (an entry whose slot the
+    Helper already holds is just dropped). Refused for a Helper the name doesn't
+    match, or who can't attend."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    key = normalize_name(name)
+    if helper.get("cant_attend") or normalize_name(helper["name"]) != key:
+        raise RosteringError(f"{helper['name']} is not a match for the typed name {name!r}.")
+    typed = [entry for _group, entry in _typed_role_entries(state) if normalize_name(entry["helper_name"]) == key]
+    if not typed:
+        raise RosteringError(f"No Manual role entry names {name!r} by text.")
+    for group in ("structural", "overlay"):
+        held = {
+            (e["role"], e.get("building"), e.get("room"))
+            for e in state["manual_roles"][group]
+            if e.get("helper_id") == helper_id
+        }
+        kept = []
+        for entry in state["manual_roles"][group]:
+            if any(entry is t for t in typed):
+                slot = (entry["role"], entry.get("building"), entry.get("room"))
+                if slot in held:
+                    continue  # the Helper already holds this slot
+                held.add(slot)
+                entry["helper_id"], entry["helper_name"] = helper_id, None
+            kept.append(entry)
+        state["manual_roles"][group] = kept
+    workspace.save(state)
+    return state
+
+
+def decline_typed_role_link(workspace: Workspace, name: str, helper_id: int) -> dict:
+    """"Not the same person" for a typed Manual role name: the text stays as
+    typed and this name is never offered a link to this Helper again."""
+    state = workspace.load()
+    _helper_record(state, helper_id)
+    declined = state.setdefault("declined_typed_role_links", [])
+    pair = {"name": normalize_name(name), "helper_id": helper_id}
+    if pair not in declined:
+        declined.append(pair)
     workspace.save(state)
     return state
 
