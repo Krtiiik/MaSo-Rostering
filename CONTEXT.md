@@ -114,7 +114,11 @@ optional single parent Tag it implies. Implication forms a tree — a Tag has
 at most one parent and cannot imply itself or one of its own descendants. A
 Helper's effective Tags are the ones assigned to them directly plus every
 implied ancestor, computed live off the Tag tree rather than copied onto the
-Helper.
+Helper (e.g. "8.M" implies "GCHD", so an 8.M Helper is GCHD too). Each Season
+keeps its own Tags; they reach a later Season through Tag import. Tags are
+managed in the Tags tab and applied there or inline in the Upload tab's Helper
+list; deleting a Tag strips it from its Helpers and moves its child Tags up to
+its own parent.
 
 **Tag constraint**:
 A positive (allow-list) or negative (deny-list) restriction a Tag places on
@@ -276,13 +280,7 @@ Person; link edits change only the Person link, never a Helper id. Phone
 number is never a key — shown on a candidate as a hint only. Anything else
 is treated as a new Person.
 
-#### Tags *(planned, not yet implemented)*
-
-**Tag**:
-A named, coloured label with an optional note, attached to any number of
-Helpers. A Tag may imply other Tags (e.g. "8.M" implies "GCHD") and may
-carry hard constraints on the Building or Role its Helpers can be assigned.
-Each Season keeps its own Tags; they reach a later Season through Tag import.
+#### Tag import and Class promotion *(planned, not yet implemented)*
 
 **Tag import**:
 Bringing an earlier Season's Tags into the current Season and re-applying

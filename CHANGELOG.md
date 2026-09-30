@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tags: a new "3. Tags" tab (the Roster tab is now "4. Roster") builds the
+  Season's tree of named, coloured Tags. A Tag has a required name (unique in the
+  Season, ignoring case), a colour, a note and an optional single parent Tag it
+  implies; it can never become its own ancestor. The tab shows the tree indented
+  by implication with coloured pills, a Helper count and an edit link per Tag,
+  a "New tag" button, an edit form, and a "Delete this tag" panel that warns
+  first, listing the Helpers who lose the Tag and the child Tags that move up to
+  its parent (or become top-level). Under the form, "Has this tag" lists every
+  carrier (direct ones with a remove button, inherited ones marked "via <tag>")
+  and "Others" adds many Helpers at once with a find box and a multiselect.
+  A Helper's effective Tags (direct plus every ancestor) are computed live from
+  the tree, never stored. The Upload tab's Helper list gains a "Tag helpers"
+  section: a per-Helper multiselect of direct Tags, a column of pills (direct
+  solid, implied dashed) and a bulk "apply a tag to all shown" over the
+  filtered list. Tags are saved per Season, in Versions, kept on a re-upload,
+  and cleared by Start over.
 - Add, edit and delete a Helper by hand: an "Add a helper by hand" form on the
   Upload tab needs only a name and a contact (a blank name or contact is
   rejected; a name or e-mail another Helper of the Season already has shows a

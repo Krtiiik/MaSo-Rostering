@@ -248,6 +248,26 @@ pushing the tag, not just creating it locally.
   roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. Note a
   re-upload still replaces the Season's whole Helper list, so it does not yet
   keep hand-added records.
+- Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
+  Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
+  `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never
+  reused), and a Helper's *direct* Tags are the Tag ids in its record's
+  `tags`. Effective Tags (direct plus every ancestor) are never stored:
+  `tags.effective_tag_ids` / `implied_tag_ids` / `via_tag_id` are pure
+  functions of the Tag definitions and the direct ids, reached through
+  `mutations.helper_tags`, `tag_carriers` and `tag_helper_counts`. Writes are
+  `add_tag` / `update_tag` (unique name ignoring case, hex colour, parent
+  refused when it is the Tag itself or a descendant) / `delete_tag` (raises
+  `ConfirmationRequired` for a Tag with carriers or children unless
+  `confirmed`; then strips it and re-parents its children) and
+  `set_helper_tags` / `add_tag_to_helpers` / `remove_tag_from_helper`. Tags
+  are part of every Version, empty after Start over, and stay through a
+  re-upload (`_carry_over_tags`, matched by `person_id`); `Workspace` gives a
+  state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
+  (the "3. Tags" tab) and `tabs/helper_tags.py` (a fragment above the Upload
+  tab's Helper table), both drawing pills through `tag_pills.py`. Tag
+  constraints, the grid's Tag pills and filter, and Tag import are separate
+  tickets and not built yet.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

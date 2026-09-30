@@ -54,6 +54,7 @@ from rostering.persons import build_persons, link_persons, new_person_id, uncert
 from rostering.solver.checker import check_roster, newly_broken, toasts
 from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
+from rostering import tags as tag_tree
 
 
 class RosteringError(Exception):
@@ -288,6 +289,7 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     state = workspace.load()
     _carry_over_link_decisions(state["helpers"], helper_dicts)
     _carry_over_cant_attend(state["helpers"], helper_dicts)
+    _carry_over_tags(state["helpers"], helper_dicts)
     state["helpers"] = helper_dicts
     state["ingestion_warnings"] = result.warnings
     state["export_timestamps"] = [t.date().isoformat() for t in result.submission_timestamps]
@@ -334,6 +336,16 @@ def _carry_over_cant_attend(old_helpers: list[dict], new_helpers: list[dict]) ->
     for new in new_helpers:
         if new["person_id"] in flagged:
             new["cant_attend"] = True
+
+
+def _carry_over_tags(old_helpers: list[dict], new_helpers: list[dict]) -> None:
+    """The Season's Tags stay through a re-upload (only the Helper records are
+    replaced), so the Tags a Helper was given by hand move onto the new record
+    that is the same Person."""
+    tags_by_person = {h["person_id"]: h["tags"] for h in old_helpers if h.get("tags") and h.get("person_id")}
+    for new in new_helpers:
+        if new["person_id"] in tags_by_person:
+            new["tags"] = list(tags_by_person[new["person_id"]])
 
 
 # -- Persons ------------------------------------------------------------------
@@ -974,6 +986,249 @@ def delete_helper(workspace: Workspace, helper_id: int, confirmed: bool = False)
         _refresh_friend_pairs(state)
     workspace.save(state)
     return state
+
+
+# -- Tags ------------------------------------------------------------------------
+
+
+class _Unchanged:
+    """Marks an :func:`update_tag` argument that was not given (``None`` is a
+    real value for a parent: no parent)."""
+
+
+_UNCHANGED = _Unchanged()
+
+
+def _tag_definitions(state: dict[str, Any]) -> list[tag_tree.Tag]:
+    return [tag_tree.tag_from_dict(t) for t in state.get("tags") or []]
+
+
+def _tag_record(state: dict[str, Any], tag_id: int) -> dict:
+    tag = next((t for t in state.get("tags") or [] if t["id"] == tag_id), None)
+    if tag is None:
+        raise RosteringError(f"No such tag: {tag_id}")
+    return tag
+
+
+def _validated_tag_name(state: dict[str, Any], name: str, own_id: Optional[int] = None) -> str:
+    cleaned = (name or "").strip()
+    if not cleaned:
+        raise RosteringError("A tag needs a name.")
+    for other in state.get("tags") or []:
+        if other["id"] != own_id and tag_tree.name_key(other["name"]) == tag_tree.name_key(cleaned):
+            raise RosteringError(f"A tag named {other['name']} already exists.")
+    return cleaned
+
+
+def _validated_tag_colour(colour: str) -> str:
+    if not tag_tree.is_hex_colour(colour):
+        raise RosteringError(f"A tag colour is a hex colour like #3366cc, not {colour!r}.")
+    return colour.lower()
+
+
+def _validated_tag_parent(state: dict[str, Any], tag_id: Optional[int], parent_id: Optional[int]) -> Optional[int]:
+    if parent_id is None:
+        return None
+    parent = _tag_record(state, parent_id)
+    if tag_id is not None and not tag_tree.can_be_parent(_tag_definitions(state), tag_id, parent_id):
+        detail = "itself" if parent_id == tag_id else f"{parent['name']}, which implies it"
+        raise RosteringError(f"A tag can't imply {detail}: it would become its own ancestor.")
+    return parent_id
+
+
+def add_tag(
+    workspace: Workspace,
+    name: str,
+    *,
+    colour: Optional[str] = None,
+    note: str = "",
+    parent_id: Optional[int] = None,
+) -> dict:
+    """Create a Tag in the open Season (see CONTEXT.md "Tag"): a required name,
+    unique among the Season's Tags ignoring case, a hex colour (each new Tag
+    otherwise gets the next colour of a fixed palette), a free note and an
+    optional single parent Tag it implies. The new Tag is the last of
+    ``state["tags"]``."""
+    state = workspace.load()
+    tags = state.setdefault("tags", [])
+    record = {
+        "id": _next_tag_id(state),
+        "name": _validated_tag_name(state, name),
+        "colour": _validated_tag_colour(colour or tag_tree.PALETTE[len(tags) % len(tag_tree.PALETTE)]),
+        "note": (note or "").strip(),
+        "parent_id": _validated_tag_parent(state, None, parent_id),
+    }
+    tags.append(record)
+    workspace.save(state)
+    return state
+
+
+def update_tag(
+    workspace: Workspace,
+    tag_id: int,
+    *,
+    name: Optional[str] = None,
+    colour: Optional[str] = None,
+    note: Optional[str] = None,
+    parent_id: Optional[int] | _Unchanged = _UNCHANGED,
+) -> dict:
+    """Edit a Tag; fields left out stay as they are, and ``parent_id=None``
+    makes it a root. The same rules as :func:`add_tag` apply, and a Tag can
+    never be given itself or one of its own descendants as parent, which would
+    make it its own ancestor. Nothing changes if any field is refused."""
+    state = workspace.load()
+    record = _tag_record(state, tag_id)
+    changes: dict[str, Any] = {}
+    if name is not None:
+        changes["name"] = _validated_tag_name(state, name, own_id=tag_id)
+    if colour is not None:
+        changes["colour"] = _validated_tag_colour(colour)
+    if note is not None:
+        changes["note"] = note.strip()
+    if not isinstance(parent_id, _Unchanged):
+        changes["parent_id"] = _validated_tag_parent(state, tag_id, parent_id)
+    record.update(changes)
+    workspace.save(state)
+    return state
+
+
+def _direct_tag_ids(helper: dict) -> list[int]:
+    return list(helper.get("tags") or [])
+
+
+def helper_tags(state: dict[str, Any], helper_id: int) -> dict[str, list[int]]:
+    """A Helper's Tags as Tag ids, computed live from the Tag tree: ``direct``
+    (assigned to them, in the order assigned), ``implied`` (every ancestor of a
+    direct Tag that is not itself direct, nearest first) and ``effective``
+    (both). Nothing here is stored on the Helper but the direct ones."""
+    tags = _tag_definitions(state)
+    direct = [t for t in dict.fromkeys(_direct_tag_ids(_helper_record(state, helper_id))) if any(x.id == t for x in tags)]
+    implied = tag_tree.implied_tag_ids(tags, direct)
+    return {"direct": direct, "implied": implied, "effective": [*direct, *implied]}
+
+
+def _assign_tags(state: dict[str, Any], helper: dict, tag_ids: list[int]) -> None:
+    """The single place a Helper's direct Tags are written."""
+    known = {t["id"] for t in state.get("tags") or []}
+    for tag_id in tag_ids:
+        if tag_id not in known:
+            raise RosteringError(f"No such tag: {tag_id}")
+    helper["tags"] = list(dict.fromkeys(tag_ids))
+
+
+def set_helper_tags(workspace: Workspace, helper_id: int, tag_ids: list[int]) -> dict:
+    """Replace the Tags assigned directly to one Helper (the Helper list's
+    inline multiselect). Implied Tags follow by themselves."""
+    state = workspace.load()
+    _assign_tags(state, _helper_record(state, helper_id), list(tag_ids))
+    workspace.save(state)
+    return state
+
+
+def add_tag_to_helpers(workspace: Workspace, tag_id: int, helper_ids: list[int]) -> dict:
+    """Give one Tag directly to each of these Helpers, keeping whatever else
+    they carry (the Tags tab's "Add N to <tag>" and the Helper list's bulk
+    apply). All or nothing: an unknown Helper or Tag changes nobody."""
+    state = workspace.load()
+    _tag_record(state, tag_id)
+    helpers = [_helper_record(state, helper_id) for helper_id in helper_ids]
+    for helper in helpers:
+        _assign_tags(state, helper, [*_direct_tag_ids(helper), tag_id])
+    workspace.save(state)
+    return state
+
+
+def remove_tag_from_helper(workspace: Workspace, tag_id: int, helper_id: int) -> dict:
+    """Take a directly assigned Tag off a Helper. A Tag they carry only by
+    implication is removed by removing the Tag that implies it."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    _assign_tags(state, helper, [t for t in _direct_tag_ids(helper) if t != tag_id])
+    workspace.save(state)
+    return state
+
+
+def tag_carriers(state: dict[str, Any], tag_id: int) -> list[dict]:
+    """Every Helper who carries a Tag, directly or by implication, by name:
+    ``helper_id``, ``name`` and ``via`` — None for a direct carrier, else the id
+    of the direct Tag that implies it for them."""
+    _tag_record(state, tag_id)
+    tags = _tag_definitions(state)
+    carriers = []
+    for helper in state["helpers"]:
+        direct = helper_tags(state, helper["id"])["direct"]
+        if tag_id in direct:
+            carriers.append({"helper_id": helper["id"], "name": helper["name"], "via": None})
+        elif tag_id in tag_tree.effective_tag_ids(tags, direct):
+            carriers.append(
+                {"helper_id": helper["id"], "name": helper["name"], "via": tag_tree.via_tag_id(tags, direct, tag_id)}
+            )
+    return sorted(carriers, key=lambda c: c["name"].lower())
+
+
+def tag_helper_counts(state: dict[str, Any]) -> dict[int, int]:
+    """Tag id -> how many Helpers carry it, directly or by implication."""
+    counts = {t["id"]: 0 for t in state.get("tags") or []}
+    for helper in state["helpers"]:
+        for tag_id in helper_tags(state, helper["id"])["effective"]:
+            counts[tag_id] += 1
+    return counts
+
+
+def tag_delete_impact(state: dict[str, Any], tag_id: int) -> dict[str, list[str]]:
+    """What deleting a Tag would change, by name: ``helpers`` it would be
+    stripped from (those who carry it directly) and ``children`` that would be
+    re-parented. Both empty means the delete needs no confirmation."""
+    record = _tag_record(state, tag_id)
+    return {
+        "helpers": sorted(
+            (h["name"] for h in state["helpers"] if tag_id in _direct_tag_ids(h)), key=str.lower
+        ),
+        "children": sorted(
+            (t["name"] for t in state["tags"] if t["parent_id"] == record["id"]), key=str.lower
+        ),
+    }
+
+
+def delete_tag(workspace: Workspace, tag_id: int, confirmed: bool = False) -> dict:
+    """Delete a Tag. One that is carried directly by a Helper or has child Tags
+    is only deleted once ``confirmed``; without it :class:`ConfirmationRequired`
+    lists the affected Helpers and child Tags and nothing changes. Confirming
+    strips the Tag from those Helpers and re-parents its children to its own
+    parent (they become roots if it had none)."""
+    state = workspace.load()
+    record = _tag_record(state, tag_id)
+    impact = tag_delete_impact(state, tag_id)
+    if (impact["helpers"] or impact["children"]) and not confirmed:
+        lines = []
+        if impact["helpers"]:
+            lines.append("Removed from: " + ", ".join(impact["helpers"]))
+        if impact["children"]:
+            parent = next((t["name"] for t in state["tags"] if t["id"] == record["parent_id"]), None)
+            lines.append(
+                f"Child tags {', '.join(impact['children'])} "
+                + (f"move up to {parent}" if parent else "become top-level tags")
+            )
+        raise ConfirmationRequired(f"Deleting the tag {record['name']} changes: " + "; ".join(lines) + ".", lines)
+    for helper in state["helpers"]:
+        if tag_id in _direct_tag_ids(helper):
+            helper["tags"] = [t for t in helper["tags"] if t != tag_id]
+    for child in state["tags"]:
+        if child["parent_id"] == tag_id:
+            child["parent_id"] = record["parent_id"]
+    state["tags"] = [t for t in state["tags"] if t["id"] != tag_id]
+    state["next_tag_id"] = max(int(state.get("next_tag_id") or 1), tag_id + 1)
+    workspace.save(state)
+    return state
+
+
+def _next_tag_id(state: dict[str, Any]) -> int:
+    """A Tag id above every id in use and above every id ever handed out
+    (``next_tag_id`` is that high-water mark, so a deleted Tag's id is not
+    reused)."""
+    new_id = max(int(state.get("next_tag_id") or 1), max((t["id"] for t in state.get("tags") or []), default=0) + 1)
+    state["next_tag_id"] = new_id + 1
+    return new_id
 
 
 def put_config(workspace: Workspace, buildings: list[dict], config_path: Optional[Path] = None) -> dict:

@@ -252,7 +252,7 @@ def _render_broken_banner(broken_rules: list[BrokenRule], has_roster: bool) -> N
 
 
 def render() -> None:
-    st.header("3. Roster")
+    st.header("4. Roster")
     state = session.get_state()
     rooms = _flatten_rooms(state["config"])
 
