@@ -125,35 +125,33 @@ def _render_new(state: dict) -> None:
             st.rerun()
 
 
-def _badge(group: dict) -> None:
-    """The status badge: active, dormant (with the reason) or violated by the
-    roster as it stands (with the live checker's lines)."""
+def _badge(group: dict) -> str:
+    """The status badge as inline markdown (so it sits on the group's one
+    line): active, dormant or violated by the roster as it stands."""
     status = group["status"]
     if status == forced_groups.DORMANT:
-        st.badge("Nečinná", icon=":material/pause:", color="orange", help=group["reason"])
-    elif status == forced_groups.VIOLATED:
-        st.badge("Porušena", icon=":material/warning:", color="red")
-    else:
-        st.badge("Aktivní", icon=":material/check:", color="green")
+        return ":orange-badge[:material/pause: Nečinná]"
+    if status == forced_groups.VIOLATED:
+        return ":red-badge[:material/warning: Porušena]"
+    return ":green-badge[:material/check: Aktivní]"
+
+
+def _summary_line(group: dict) -> str:
+    """One line per group: bold name, the members, then the status (and any
+    note badges)."""
+    members = ", ".join(_MEMBER_STYLE[m["state"]].format(m["name"] or "?") for m in group["members"])
+    notes = "".join(f" :gray-badge[:material/info: {badge}]" for badge in group["badges"])
+    return f"**{group['name']}** · {members or ':gray[Žádní členové]'} {_badge(group)}{notes}"
 
 
 def _render_group(state: dict, group: dict, focused: bool) -> None:
     prefix = f"ff_group_{group['id']}"
     with st.container(border=True):
-        head, badge_col = st.columns([6, 3], vertical_alignment="center")
-        head.subheader(group["name"])
-        with badge_col:
-            _badge(group)
+        st.markdown(_summary_line(group))
         if group["status"] == forced_groups.DORMANT:
             st.caption(group["reason"])
         for line in group["violations"]:
             st.caption(f":red[{line}]")
-        for badge in group["badges"]:
-            st.badge(badge, icon=":material/info:", color="gray")
-        st.markdown(
-            "  \n".join(_MEMBER_STYLE[m["state"]].format(m["name"] or "?") for m in group["members"])
-            or ":gray[Žádní členové]"
-        )
         # The editor opens for a group to fix (from a Broken-rule "Go fix") and
         # for one the roster violates, and stays folded away otherwise.
         with st.expander("Upravit skupinku", icon=":material/edit:", expanded=focused or group["status"] == forced_groups.VIOLATED):
