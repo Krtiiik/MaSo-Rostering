@@ -45,7 +45,7 @@ def test_unmeetable_room_minimum_returns_a_full_roster_and_the_broken_rule():
     assert {a.helper_id for a in result.assignments} == {1, 2}
     # Everyone who can is put where the rule needs them; the shortfall is reported.
     assert all(a.role == Role.Skenovac for a in result.assignments)
-    instance = RuleInstance("room_minimum", ("B", "R1", "Skenovac"))
+    instance = RuleInstance("room_exact", ("B", "R1", "Skenovac"))
     broken = _broken(result)
     assert list(broken) == [instance]
     assert broken[instance].family == "minimums"
@@ -69,6 +69,34 @@ def test_unmeetable_building_limit_is_reported():
     assert broken[instance].line == "Building B · Měnič: 1 of 2 required (needs 1 more)"
 
 
+def test_a_room_count_is_exact_so_the_solver_never_overfills_it():
+    building = Building(name="B", rooms=[_room("R1", Skenovac=2), _room("R2")])
+    helpers = [
+        Helper(id=i, name=f"H{i}", role_preferences={Role.Skenovac: Preference.Ano}) for i in range(1, 6)
+    ]
+
+    result = solve_competition(Competition(buildings={"B": building}, helpers=helpers), _config())
+
+    assert result.broken_rules == []
+    assert sum(1 for a in result.assignments if (a.room, a.role) == ("R1", Role.Skenovac)) == 2
+
+
+def test_an_unmeetable_room_count_reports_the_overshoot():
+    # Four Helpers are pinned to R1's Skenovač, whose count is exactly one.
+    building = Building(name="B", rooms=[_room("R1", Skenovac=1)])
+    helpers = [Helper(id=i, name=f"H{i}") for i in range(1, 5)]
+    pinned = [Assignment(helper_id=i, helper_name=f"H{i}", building="B", room="R1", role=Role.Skenovac) for i in range(1, 5)]
+
+    result = solve_competition(
+        Competition(buildings={"B": building}, helpers=helpers), _config(), fixed_assignments=pinned
+    )
+
+    broken = _broken(result)
+    instance = RuleInstance("room_exact", ("B", "R1", "Skenovac"))
+    assert broken[instance].amount == 3
+    assert broken[instance].line == "Room R1 · Skenovač: 4 of 1 required (3 too many)"
+
+
 def test_a_building_limit_is_exact_so_the_solver_never_overfills_it():
     building = Building(
         name="B",
@@ -88,12 +116,15 @@ def test_a_building_limit_is_exact_so_the_solver_never_overfills_it():
 def test_an_unmeetable_building_limit_reports_the_overshoot():
     building = Building(
         name="B",
-        rooms=[_room("R1", Skenovac=3)],
+        rooms=[_room("R1")],
         capacities={Role.Skenovac: RoleCapacity(minimum=2)},
     )
     helpers = [Helper(id=i, name=f"H{i}") for i in range(1, 5)]
+    pinned = [Assignment(helper_id=i, helper_name=f"H{i}", building="B", room="R1", role=Role.Skenovac) for i in range(1, 4)]
 
-    result = solve_competition(Competition(buildings={"B": building}, helpers=helpers), _config())
+    result = solve_competition(
+        Competition(buildings={"B": building}, helpers=helpers), _config(), fixed_assignments=pinned
+    )
 
     broken = _broken(result)
     instance = RuleInstance("building_exact", ("B", "Skenovac"))
@@ -121,7 +152,7 @@ def test_a_minimum_bends_before_equipment():
     result = solve_competition(comp, _config())
 
     assert result.assignments[0].role != Role.Fotograf
-    assert list(_broken(result)) == [RuleInstance("room_minimum", ("B", "R1", "Fotograf"))]
+    assert list(_broken(result)) == [RuleInstance("room_exact", ("B", "R1", "Fotograf"))]
 
 
 def test_equipment_bends_only_when_nothing_else_can():
@@ -192,7 +223,7 @@ def test_a_fixed_assignment_never_moves_to_save_a_minimum():
     result = solve_competition(comp, _config(), fixed_assignments=fixed)
 
     assert result.assignments[0].role == Role.Zaloha
-    assert list(_broken(result)) == [RuleInstance("room_minimum", ("B", "R1", "Skenovac"))]
+    assert list(_broken(result)) == [RuleInstance("room_exact", ("B", "R1", "Skenovac"))]
 
 
 def test_a_fixed_assignment_naming_an_unknown_room_is_rejected():
@@ -245,7 +276,7 @@ def test_a_new_rule_family_holds_while_a_minimum_bends_instead():
     result = solve_competition(comp, _config(), families=families)
 
     assert result.assignments[0].role == Role.Fotograf
-    assert list(_broken(result)) == [RuleInstance("room_minimum", ("B", "R1", "Skenovac"))]
+    assert list(_broken(result)) == [RuleInstance("room_exact", ("B", "R1", "Skenovac"))]
 
 
 def test_tier_weights_are_dominance_ordered():
@@ -268,7 +299,7 @@ def test_many_bent_minimums_never_cost_one_equipment_violation():
 
     result = solve_competition(comp, _config())
 
-    instance = RuleInstance("room_minimum", ("B", "R1", "Fotograf"))
+    instance = RuleInstance("room_exact", ("B", "R1", "Fotograf"))
     assert all(a.role != Role.Fotograf for a in result.assignments)
     assert list(_broken(result)) == [instance]
     assert _broken(result)[instance].amount == 3

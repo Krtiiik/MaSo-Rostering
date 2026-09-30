@@ -81,7 +81,7 @@ registrant is unassigned.
 An action that solves only for the unassigned Helpers (new registrants of a
 Re-upload, a Hand-added Helper, someone no longer Can't attend) while every
 existing Assignment, locked or not, is held fixed: the fixed Helpers still
-count toward Room minimums, Building limits and Friend preferences, and nobody placed
+count toward Room and Building counts and Friend preferences, and nobody placed
 is moved, repaired or re-solved even when a hand move of theirs breaks a rule.
 It neither creates nor clears locks. If not every rule can hold, it still
 returns a roster with Broken rules reported, like any solve. A full Solve
@@ -184,7 +184,7 @@ constraints or its parent) that would is refused too. Never Room. An entry
 naming a Building the Season's configuration no longer has is inert — ignored
 by the solver and the check, shown as "not in this Season" — and Buildings are
 matched by name the way Building preference is. A Helper placed outside their
-allowed set is a Broken rule; the solver bends it after the minimums.
+allowed set is a Broken rule; the solver bends it after the Room and Building counts.
 
 **Preference**:
 A Helper's 5-point ordinal rating of one Role, from most to least willing:
@@ -246,17 +246,17 @@ The solver's output for one Helper: the Building, Room, and Role they're
 placed into.
 
 **Broken rule**:
-A hard rule the current roster fails to satisfy: a Room minimum or a Building
+A hard rule the current roster fails to satisfy: a Room or Building role
 limit (an exact count, so too many breaks it as much as too few),
 a Tag constraint, a Forced-friend group, or Equipment eligibility. A solve
 never fails outright because of one — it returns a full roster with as few
 Broken rules as it can manage and lists what it had to bend. Rules bend in a
-fixed order (minimums first, then Tag constraints, Forced-friend groups, and
+fixed order (Room and Building counts first, then Tag constraints, Forced-friend groups, and
 Equipment eligibility last); a pre-placed Organizer never bends. Whether a
 rule is broken is judged against the roster as it currently stands, so a
 hand edit that fixes it clears it immediately. A hand edit is never refused
 for breaking a rule — a placement that breaks one stands and simply shows as
-a Broken rule, including an Organizer's hand placement; only minimums, which
+a Broken rule, including an Organizer's hand placement; only the Room and Building counts, which
 routinely dip mid-edit, are exempt from warning at the moment of the edit.
 _Avoid_: Infeasible solve
 

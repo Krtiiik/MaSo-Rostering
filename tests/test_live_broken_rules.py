@@ -114,7 +114,7 @@ def test_a_hand_move_that_breaks_a_minimum_shows_it_at_once_and_moving_back_clea
 
     broken = mutations.broken_rules(mutations.move_helper(workspace, 1, "B", "R1", "Zaloha"))
 
-    instance = RuleInstance("room_minimum", ("B", "R1", "Fotograf"))
+    instance = RuleInstance("room_exact", ("B", "R1", "Fotograf"))
     assert [b.instance for b in broken] == [instance]
     assert broken[0].family == "minimums"
     assert broken[0].amount == 1
@@ -147,11 +147,12 @@ def test_an_equipment_violation_names_the_helper(workspace):
 def test_broken_rules_come_in_tier_order_minimums_first(workspace):
     _seed_roster(workspace)
 
-    # Petr (no camera) becomes the second Fotograf while R2 loses a scanner.
+    # Petr (no camera) becomes the second Fotograf (R1 holds exactly one) while
+    # R2 loses a scanner (the Building holds exactly two).
     mutations.move_helper(workspace, 2, "B", "R1", "Fotograf")
     broken = mutations.broken_rules(mutations.get_state(workspace))
 
-    assert [b.family for b in broken] == ["minimums", "equipment"]
+    assert [b.family for b in broken] == ["minimums", "minimums", "equipment"]
 
 
 def test_a_building_limit_overshoot_is_a_count_too(workspace):
@@ -186,8 +187,9 @@ def test_each_instance_carries_the_cells_and_chips_it_affects(workspace):
     assert broken["equipment"].helper_ids == (2,)
     marks = mutations.broken_rule_marks(mutations.broken_rules(state))
     assert marks["helpers"] == [{"helper_id": 2, "line": "Helper Petr has no camera but is Fotograf"}]
-    # The equipment rule marks Petr's whole Room (R1); the shortfall the cells.
+    # The equipment rule marks Petr's whole Room (R1); the counts their cells.
     assert {(c["building"], c["room"], c["role"]) for c in marks["cells"]} == {
+        ("B", "R1", "Fotograf"),
         ("B", "R1", "Skenovac"),
         ("B", "R2", "Skenovac"),
         ("B", "R1", None),
@@ -201,8 +203,8 @@ def test_each_instance_has_a_go_fix_target(workspace):
 
     broken = _by_kind(mutations.broken_rules(state))
 
-    assert broken["room_minimum"].fix.tab == "buildings"
-    assert (broken["room_minimum"].fix.building, broken["room_minimum"].fix.room) == ("B", "R1")
+    assert broken["room_exact"].fix.tab == "buildings"
+    assert (broken["room_exact"].fix.building, broken["room_exact"].fix.room) == ("B", "R1")
     assert broken["building_exact"].fix.tab == "buildings"
     assert broken["building_exact"].fix.building == "B"
     assert broken["equipment"].fix.tab == "helpers"
@@ -228,11 +230,11 @@ def test_the_diff_reports_only_instances_new_in_the_after_state(workspace):
     after = mutations.move_helper(workspace, 2, "B", "R1", "Fotograf")  # fixes it, breaks camera
 
     assert [b.instance for b in mutations.newly_broken_rules(before, mid)] == [
-        RuleInstance("room_minimum", ("B", "R1", "Fotograf"))
+        RuleInstance("room_exact", ("B", "R1", "Fotograf"))
     ]
     diff = mutations.newly_broken_rules(mid, after)
     assert RuleInstance("equipment", (2,)) in [b.instance for b in diff]
-    assert RuleInstance("room_minimum", ("B", "R1", "Fotograf")) not in [b.instance for b in diff]
+    assert RuleInstance("room_exact", ("B", "R1", "Fotograf")) not in [b.instance for b in diff]
 
 
 def test_a_move_that_breaks_equipment_toasts_a_line_worded_like_the_banner(workspace):
