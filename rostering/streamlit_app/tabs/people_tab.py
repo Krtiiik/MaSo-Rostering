@@ -11,10 +11,8 @@ import streamlit as st
 from rostering.domain import UNKNOWN_TSHIRT_SIZE
 from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
-
-# Column widths of the two tables.
-_HELPER_COLUMNS = [3, 2, 2.5, 1, 1, 1.5, 1.5, 4]
-_ORGANIZER_COLUMNS = [3, 6.5, 1.5, 4]
+# Height in px of one table row; see ``_row_cells``.
+_ROW_HEIGHT = 44
 
 
 def render() -> None:
@@ -137,9 +135,21 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     st.rerun()
 
 
-def _header(columns: list[float], labels: list[str]) -> None:
-    for column, label in zip(st.columns(columns), labels):
+def _table_columns(labels: list[str], rows: list[list[str]]) -> list:
+    """One Streamlit column per label, created upfront with the header as its
+    first cell; the caller then appends each row's cell to its column. A column's
+    width follows its longest text (``rows`` holds every row's display texts)."""
+    widths = [max(len(text) for text in [label, *(row[i] for row in rows)]) + 4 for i, label in enumerate(labels)]
+    columns = st.columns(widths)
+    for column, label in zip(columns, labels):
         column.markdown(f"**{label}**")
+    return columns
+
+
+def _row_cells(columns: list) -> list:
+    """The next row's cell in each column. Columns are independent vertical
+    stacks, so every cell gets the same fixed height to keep a row's cells level."""
+    return [column.container(height=_ROW_HEIGHT, border=False, vertical_alignment="center") for column in columns]
 
 
 def _pills(pills: dict | None) -> str:
@@ -147,20 +157,33 @@ def _pills(pills: dict | None) -> str:
     return html or '<span style="opacity:.5">—</span>'  # st.html refuses an empty body
 
 
+def _pills_text(pills: dict | None) -> str:
+    """What ``_pills`` shows, as plain text (for sizing a column)."""
+    return " ".join(tag["name"] for tag in [*pills["direct"], *pills["implied"]]) if pills else "—"
+
+
 def _render_organizers(state: dict) -> None:
     organizers = sorted(state["organizers"], key=lambda o: o["name"].lower())
     st.subheader(f"Organizers ({len(organizers)})")
     pills = mutations.organizer_tag_pills(state)
+    texts = [
+        [
+            organizer["name"],
+            " · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—",
+            "Can't attend" if organizer.get("cant_attend") else "",
+            _pills_text(pills.get(organizer["id"])),
+        ]
+        for organizer in organizers
+    ]
     with st.container(border=True):
-        if organizers:
-            _header(_ORGANIZER_COLUMNS, ["Name", "Placement", "Status", "Tags"])
-        for organizer in organizers:
-            name_col, placement_col, status_col, tags_col = st.columns(_ORGANIZER_COLUMNS, vertical_alignment="center")
-            if name_col.button(organizer["name"], key=f"open_organizer_{organizer['id']}", type="tertiary"):
+        columns = _table_columns(["Name", "Placement", "Status", "Tags"], texts)
+        for organizer, (name, placement, status, _) in zip(organizers, texts):
+            name_cell, placement_cell, status_cell, tags_cell = _row_cells(columns)
+            if name_cell.button(name, key=f"open_organizer_{organizer['id']}", type="tertiary"):
                 person_dialog.open_person("organizer", organizer["id"])
-            placement_col.write(" · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—")
-            status_col.write(":red[Can't attend]" if organizer.get("cant_attend") else "")
-            tags_col.html(_pills(pills.get(organizer["id"])))
+            placement_cell.write(placement)
+            status_cell.write(f":red[{status}]" if status else "")
+            tags_cell.html(_pills(pills.get(organizer["id"])))
         if st.button("＋ Add organizer", key="add_organizer_open"):
             person_dialog.open_add_organizer()
 
@@ -171,29 +194,39 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     helpers = sorted(state["helpers"], key=lambda h: h["name"].lower())
     st.subheader(f"Helpers ({len(helpers)})")
     pills = mutations.grid_tag_pills(state)
-    with st.container(border=True):
-        if helpers:
-            _header(
-                _HELPER_COLUMNS,
-                ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Status", "Tags"],
-            )
-        for helper in helpers:
-            name_col, seasons_col, buildings_col, equipment_col, size_col, friends_col, status_col, tags_col = (
-                st.columns(_HELPER_COLUMNS, vertical_alignment="center")
-            )
-            unresolved = len(helper["unresolved_friend_names"])
-            mark = ("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "")
-            if name_col.button(mark + helper["name"], key=f"open_helper_{helper['id']}", type="tertiary"):
-                person_dialog.open_person("helper", helper["id"])
-            seasons_col.write(", ".join(returning.get(helper["id"], [])) or "—")
-            buildings_col.write(", ".join(helper["building_preferences"]) or "any")
-            equipment_col.write(
+    texts = []
+    for helper in helpers:
+        unresolved = len(helper["unresolved_friend_names"])
+        mark = ("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "")
+        texts.append(
+            [
+                mark + helper["name"],
+                ", ".join(returning.get(helper["id"], [])) or "—",
+                ", ".join(helper["building_preferences"]) or "any",
                 " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
-                or "—"
+                or "—",
+                helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
+                f"{unresolved} to match" if unresolved else str(len(helper["friends"])),
+                "Can't attend" if helper.get("cant_attend") else "",
+                _pills_text(pills.get(helper["id"])),
+            ]
+        )
+    with st.container(border=True):
+        columns = _table_columns(
+            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Status", "Tags"], texts
+        )
+        for helper, (name, seasons, buildings, equipment, size, friends, status, _) in zip(helpers, texts):
+            name_cell, seasons_cell, buildings_cell, equipment_cell, size_cell, friends_cell, status_cell, tags_cell = (
+                _row_cells(columns)
             )
-            size_col.write(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE)
-            friends_col.write(f"{unresolved} to match" if unresolved else str(len(helper["friends"])))
-            status_col.write(":red[Can't attend]" if helper.get("cant_attend") else "")
-            tags_col.html(_pills(pills.get(helper["id"])))
+            if name_cell.button(name, key=f"open_helper_{helper['id']}", type="tertiary"):
+                person_dialog.open_person("helper", helper["id"])
+            seasons_cell.write(seasons)
+            buildings_cell.write(buildings)
+            equipment_cell.write(equipment)
+            size_cell.write(size)
+            friends_cell.write(friends)
+            status_cell.write(f":red[{status}]" if status else "")
+            tags_cell.html(_pills(pills.get(helper["id"])))
         if st.button("＋ Add helper", key="add_helper_open"):
             person_dialog.open_add_helper()
