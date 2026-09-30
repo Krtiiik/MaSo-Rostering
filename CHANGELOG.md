@@ -27,10 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the role name, a star rating (five stars = Ano … one star = Ne, none = no answer,
   counted as Nevadí) and, to the right, the Preference the stars map to.
 - "Vynutit přání být s kamarádem" moved from the Forced friends tab into a
-  Helper's popup. Its tab is now "Kamarádi": the friend names still to match on
-  top (when there are any), then every matched friend with a "Vynutit" button
-  (or "Vynuceno" when their Forced friends group already exists), and the
-  matching of already-decided names folded into an expander.
+  Helper's popup. Its tab is now "Kamarádi": every friend name from the survey on
+  top under "K přiřazení" (matched ones stay there, in their original order, and
+  can be changed in place; there is no "Změnit přiřazení jmen z dotazníku"
+  expander), then every matched friend with a "Vynutit" button (or "Vynuceno"
+  when their Forced friends group already exists).
 - On the 5. Parametry rozřazování tab, the five Preference costs (Ano, Klidně, Nevadí,
   Spíš ne, Ne) are number inputs stacked vertically, each labelled with its star
   rating (Ano five stars down to Ne one), with a static horizontal bar chart of

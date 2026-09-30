@@ -263,10 +263,9 @@ pushing the tag, not just creating it locally.
   that opens that person's popup (`person_dialog.open_person`, an `st.dialog`
   with `on_dismiss="rerun"` so the table is current once it closes): for a
   Helper the tabs Details (Can't attend, every field, Save / Promote / Delete,
-  `helper_forms.render_details`), Tags, Friends (`person_dialog._render_friends`: the survey names still to
-  match on top, `resolve_friend`; then every matched friend with a "Vynutit"
-  button, or "Vynuceno" when that group exists; then, in an expander, the
-  matching of the names already decided) and Person links
+  `helper_forms.render_details`), Tags, Friends (`person_dialog._render_friends`: every survey name, matched
+  or not, on top under "K přiřazení" (`resolve_friend`); then every matched
+  friend with a "Vynutit" button, or "Vynuceno" when that group exists) and Person links
   (`person_links.render_helper_links`); for an Organizer Details and Tags. Edits
   that only change the popup (Tags, friend names, Can't attend) call
   `person_actions.rerun_popup` (a fragment rerun, the popup stays open); Save,

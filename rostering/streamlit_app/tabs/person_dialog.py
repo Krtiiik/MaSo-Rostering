@@ -220,23 +220,17 @@ def _save_decision(helper_id: int, name: str, *args) -> None:
 
 
 def _render_friends(helper: dict) -> None:
-    """The Friends tab: the survey names still to match on top (when there are
-    any), then every matched friend with the option to force the wish, then
-    (folded away) the matching of the names already decided."""
+    """The Friends tab: every survey name on top (when there are any), matched
+    or not, in its original order so a decided name stays where it was and can
+    be changed, then every matched friend with the option to force the wish."""
     names = _friend_names(helper)
-    unresolved = [n for n in names if n in helper["unresolved_friend_names"]]
-    decided = [n for n in names if n not in unresolved]
-    if unresolved:
+    if names:
         st.markdown("**K přiřazení**")
         st.caption(
-            "Tato jména z dotazníku zatím nejsou přiřazená k nikomu. Jméno může odpovídat více pomocníkům, pokud "
-            "označuje skupinu lidí."
+            "Jména z dotazníku a komu patří. Jméno může odpovídat více pomocníkům, pokud označuje skupinu lidí."
         )
-        _render_name_matchers(helper, unresolved)
-    _render_friend_list(helper, bool(unresolved))
-    if decided:
-        with st.expander("Změnit přiřazení jmen z dotazníku"):
-            _render_name_matchers(helper, decided)
+        _render_name_matchers(helper, names)
+    _render_friend_list(helper, bool(names))
 
 
 def _make_forced(helper_id: int, friend: object) -> None:
