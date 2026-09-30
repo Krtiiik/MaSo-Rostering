@@ -29,9 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (or "Vynuceno" when their Forced friends group already exists), and the
   matching of already-decided names folded into an expander.
 - On the 5. Parametry rozřazování tab, the five Preference costs (Ano, Klidně, Nevadí,
-  Spíš ne, Ne) are number inputs stacked vertically with a bar chart of their
-  distribution beside them. The role cost unit and the Záloha cost, which is not a
-  Preference, sit in a row above.
+  Spíš ne, Ne) are number inputs stacked vertically, each labelled with its star
+  rating (Ano five stars down to Ne one), with a static horizontal bar chart of
+  their distribution beside them (values printed at the bar ends, no tooltip). The
+  role cost unit and the Záloha cost, which is not a Preference, sit in a row above.
 - The Tags tab's "who carries this Tag" section is now one multiselect over every
   Helper and Organizer (replacing the carrier list with per-person "Odebrat" buttons
   and the separate "add to other people" picker). Tick or untick people and press
