@@ -397,8 +397,31 @@ pushing the tag, not just creating it locally.
   `mutations._stranded` / `_refuse_new_dead_ends` carry group clashes as
   `(group id, axis, "group")` entries next to the Helper dead ends, so
   `set_helper_tags`, `add_tag_to_helpers` and `update_tag` refuse a Tag change
-  that newly empties a group's intersection. Not built yet: "make forced" and
-  Organizer members (#61), the import section (#62).
+  that newly empties a group's intersection. Organizer members: a member is a
+  Person, and `list_groups` resolves them to a Helper, an Organizer (`kind`;
+  state `active` when placed, `unplaced` otherwise, `cant_attend` when flagged)
+  or nobody, so a promoted Helper (same `person_id`) stays a member. A placed,
+  attending Organizer is an `Anchor` on a `GroupRule`
+  (`group_rules(helpers, groups, organizers, buildings)`, `active_organizers`,
+  `active_member_count`): the Building axis takes every anchor, the Room axis
+  only those holding a Room, and a Room group with a Building-level anchor gets an
+  extra Building rule for it; the Role axis never has anchors. The solver adds an
+  anchor as a fixed head to the count of its Building/Room
+  (`ModelContext.organizers`), the checker adds it to the values compared
+  (`BrokenRule.organizer_ids`, cells for a Room-level anchor), and a rule with two
+  anchors and no Helper is a constant the solver reports but cannot fix. The
+  Role-axis ban is `forced_groups._refuse_organizer_on_role`: refused only when
+  an edit *introduces* the combination (adding an Organizer to a Role group, or
+  ticking Role over one), so a promoted member's group stays editable. The
+  `badges` of `list_groups` say `Role not applied to <name>`. The edit-time Tag
+  check counts Helpers only. `forced_groups.friend_requests(state)` and
+  `make_forced(workspace, helper_id, friend)` (friend: Helper id or
+  `{"organizer_id": n}`) back the tab's "Make a friend request forced" expander:
+  a normal `add_group` named `Anna + Petr` with the Room axis, refused when that
+  exact group exists; the request is not touched. The grid marks Helper chips
+  only (`grid_forced_groups` counts a placed Organizer towards a group being in
+  force), Organizer slot chips carry no group mark. Not built yet: the import
+  section (#62).
   Helper ones and have no UI yet. Organizer Can't attend/Tags are separate,
   later tickets (the Organizer record already may carry a direct-Tag id list,
   `tags`, which promotion fills; nothing else reads it yet).

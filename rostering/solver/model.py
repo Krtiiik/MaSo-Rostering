@@ -211,6 +211,7 @@ def solve_competition(
         role_room_var=role_room_var,
         tags=comp.tags,
         forced_groups=comp.forced_groups,
+        organizers=comp.organizers,
     )
     relaxed = [(family, relaxation) for family in families for relaxation in family.relax(ctx)]
 

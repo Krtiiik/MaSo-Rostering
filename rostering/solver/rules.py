@@ -58,6 +58,7 @@ from rostering.domain import (
     Competition,
     FixTarget,
     Helper,
+    Organizer,
     Role,
     Room,
     RuleInstance,
@@ -93,6 +94,8 @@ class ModelContext:
     tags: list[tags_module.Tag] = field(default_factory=list)
     # The Season's Forced friends groups (members resolved against ``helpers``).
     forced_groups: list[forced_friends.ForcedGroup] = field(default_factory=list)
+    # The Season's attending Organizers, who anchor a group at their placement.
+    organizers: list[Organizer] = field(default_factory=list)
 
 
 @dataclass
@@ -385,18 +388,28 @@ def _forced_friends(ctx: ModelContext) -> list[Relaxation]:
     exactly 0 when they all share it. Groups are independent, so overlapping
     ones are never merged."""
     relaxations: list[Relaxation] = []
-    for rule in forced_friends.group_rules(ctx.helpers, ctx.forced_groups):
+    known = {b.name: [r.name for r in b.rooms] for b in ctx.buildings}
+    for rule in forced_friends.group_rules(ctx.helpers, ctx.forced_groups, ctx.organizers, known):
+        # A placed Organizer never moves: they add a fixed head to the count of
+        # the Building/Room they stand in.
+        anchored: dict = {}
+        for anchor in rule.anchors:
+            anchored[anchor.value(rule.axis)] = anchored.get(anchor.value(rule.axis), 0) + 1
         counts = []
         if rule.axis == forced_friends.BUILDING:
-            for room_ids in ctx.building_rooms.values():
-                counts.append(sum(ctx.assign_room[h, rid] for h in rule.helper_ids for rid in room_ids))
+            for name, room_ids in ctx.building_rooms.items():
+                counts.append(
+                    sum(ctx.assign_room[h, rid] for h in rule.helper_ids for rid in room_ids) + anchored.get(name, 0)
+                )
         elif rule.axis == forced_friends.ROOM:
-            for rid in range(len(ctx.rooms)):
-                counts.append(sum(ctx.assign_room[h, rid] for h in rule.helper_ids))
+            for rid, (building_name, room) in enumerate(ctx.rooms):
+                counts.append(
+                    sum(ctx.assign_room[h, rid] for h in rule.helper_ids) + anchored.get((building_name, room.name), 0)
+                )
         else:
             for role in ctx.roles:
                 counts.append(sum(ctx.assign_role[h, role] for h in rule.helper_ids))
-        size = len(rule.helper_ids)
+        size = rule.size
         largest = ctx.model.NewIntVar(0, size, f"forced_{rule.group.id}_{rule.axis}_largest")
         ctx.model.AddMaxEquality(largest, counts)
         slack = ctx.model.NewIntVar(0, size - 1, f"forced_{rule.group.id}_{rule.axis}_apart")
@@ -421,7 +434,8 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
     known_rooms = {(b.name, r.name) for b in comp.buildings.values() for r in b.rooms}
     helpers = {h.id: h for h in comp.helpers}
     broken: list[BrokenRule] = []
-    for rule in forced_friends.group_rules(comp.helpers, comp.forced_groups):
+    known_buildings = {name: [r.name for r in b.rooms] for name, b in comp.buildings.items()}
+    for rule in forced_friends.group_rules(comp.helpers, comp.forced_groups, comp.organizers, known_buildings):
         # A member with no Assignment, or one in a Room the configuration no
         # longer has, is judged by nothing (like the other families).
         members = [
@@ -431,18 +445,22 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
         ]
         units = forced_friends.split_units(
             [forced_friends.place_value(rule.axis, a.building, a.room, a.role.name) for a in members]
+            + [anchor.value(rule.axis) for anchor in rule.anchors]
         )
         if not units:
             continue
+        cells = [(a.building, a.room, None) for a in members]
+        cells += [(anchor.building, anchor.room, None) for anchor in rule.anchors if anchor.room]
         broken.append(
             BrokenRule(
                 instance=rule.instance,
                 family="forced_friends",
                 amount=units,
                 line=rule.line(members),
-                cells=tuple(dict.fromkeys((a.building, a.room, None) for a in members)),
+                cells=tuple(dict.fromkeys(cells)),
                 helper_ids=tuple(a.helper_id for a in members),
                 fix=FixTarget("forced_friends", group_id=rule.group.id),
+                organizer_ids=tuple(anchor.organizer_id for anchor in rule.anchors),
             )
         )
     return broken
