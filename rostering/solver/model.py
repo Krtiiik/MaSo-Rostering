@@ -53,7 +53,7 @@ from rostering.solver.rules import (
     tier_weights,
     to_broken_rule,
 )
-from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs
+from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs, build_organizer_requests
 
 
 @dataclass
@@ -263,6 +263,24 @@ def solve_competition(
         satisfied = model.NewBoolVar(f"friendsat_{a_id}_{b_id}")
         model.Add(satisfied == sum(colocated_terms))
         satisfied_vars[a_id, b_id] = satisfied
+        weighted = weight * config.weights.friend_unsatisfied * scale
+        if weighted:
+            penalty_terms.append(weighted * (1 - satisfied))
+            ordinary_max += weighted
+
+    # Requests to be with an Organizer. An Organizer is a fixed anchor, never
+    # moved or bent: placed in a Room, the request is met by sharing that Room;
+    # placed only at Building level, by sharing the Building; unplaced (or placed
+    # somewhere the configuration lacks), it cannot be met. Same weight as above.
+    for h_id, organizer_id, weight in build_organizer_requests(helpers, comp.organizers, config.friend_scoring):
+        organizer = next(o for o in comp.organizers if o.id == organizer_id)
+        if organizer.room:
+            anchor_rooms = [room_ids_by_name[organizer.building, organizer.room]] if (
+                organizer.building, organizer.room
+            ) in room_ids_by_name else []
+        else:
+            anchor_rooms = building_rooms.get(organizer.building, []) if organizer.building else []
+        satisfied = sum(assign_room[h_id, room_id] for room_id in anchor_rooms)
         weighted = weight * config.weights.friend_unsatisfied * scale
         if weighted:
             penalty_terms.append(weighted * (1 - satisfied))

@@ -13,13 +13,18 @@ independent, configurable axes:
   into a single scored pair (satisfying it once is "fully satisfied");
   ``False`` scores the two directions independently, so a mutual request
   counts for double the weight of a one-sided one.
+
+A request may also name an Organizer (see ``build_organizer_requests``): it is
+scored against the Organizer's placement at the same weight, and since an
+Organizer never answers a survey it can never be reciprocated, so under
+``MUTUAL`` it never counts.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
 
-from rostering.domain import Helper
+from rostering.domain import Helper, Organizer, OrganizerRef
 
 
 class FriendScoringMode(Enum):
@@ -61,3 +66,24 @@ def build_friend_pairs(
         seen.add(key)
         pairs.append((a, b, config.weight))
     return pairs
+
+
+def build_organizer_requests(
+    helpers: list[Helper], organizers: list[Organizer], config: FriendScoringConfig
+) -> list[tuple[int, int, int]]:
+    """Return (helper_id, organizer_id, weight) triples for the Helpers' requests
+    to be with an Organizer, at the same weight as a Helper-to-Helper request.
+    A request toward an Organizer is never reciprocated, so ``MUTUAL`` mode
+    scores none of them; a reference to an Organizer not in ``organizers`` is
+    ignored. Whether one is satisfied is up to the caller, from the Organizer's
+    placement."""
+    if config.mode is FriendScoringMode.MUTUAL:
+        return []
+    organizer_ids = {o.id for o in organizers}
+    requests: list[tuple[int, int, int]] = []
+    for h in helpers:
+        wanted = dict.fromkeys(
+            f.organizer_id for f in h.friends if isinstance(f, OrganizerRef) and f.organizer_id in organizer_ids
+        )
+        requests.extend((h.id, organizer_id, config.weight) for organizer_id in wanted)
+    return requests

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Friend preferences toward Organizers, and promoting a Helper to Organizer. A
+  Helper's friends can now name an Organizer as well as another Helper: survey
+  friend names are matched against the Season's Organizers too (same matching;
+  names that match nobody still show up to resolve), and the Upload tab's name
+  resolution and the Helper edit form can pick Organizers. The solver scores such
+  a request like a Helper-to-Helper one and against the Organizer's placement:
+  met by sharing their Room when placed in a Room, by sharing their Building when
+  placed only at Building level, never met while they are unplaced, and never
+  counted under mutual friend scoring since an Organizer can't reciprocate. A
+  placed Organizer is a fixed anchor the solver never moves. "Promote to
+  Organizer" in the Helper edit form turns a Helper into an Organizer who keeps
+  their name, e-mail, Tags and Person link, leaves the solver pool (asking first
+  when it clears an Assignment, lock or role entries) and takes over the
+  friend requests other Helpers made toward them.
 - Organizers as a tracked person category: the four leadership slots (Vedoucí
   budovy, Pravá ruka, Vedoucí místností, Technická podpora) now hold only a
   tracked Organizer instead of a Helper or free text. Type a name in a slot cell

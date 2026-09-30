@@ -9,9 +9,11 @@ from rostering.domain import (
     UNKNOWN_TSHIRT_SIZE,
     Assignment,
     Building,
+    FriendRef,
     Helper,
     ManualRoles,
     Organizer,
+    OrganizerRef,
     OverlayAssignment,
     OverlayRole,
     Preference,
@@ -85,13 +87,27 @@ def config_from_list(data: list[dict]) -> dict[str, Building]:
     return result
 
 
+def friend_ref_to_json(ref: FriendRef) -> Any:
+    """A friend reference as saved: a Helper's plain id, or ``{"organizer_id": n}``."""
+    return {"organizer_id": ref.organizer_id} if isinstance(ref, OrganizerRef) else ref
+
+
+def friend_ref_from_json(raw: Any) -> FriendRef:
+    """The inverse of :func:`friend_ref_to_json` (an ``OrganizerRef`` passes through)."""
+    if isinstance(raw, OrganizerRef):
+        return raw
+    if isinstance(raw, dict):
+        return OrganizerRef(int(raw["organizer_id"]))
+    return int(raw)
+
+
 def helper_to_dict(h: Helper) -> dict:
     data = {
         "id": h.id,
         "name": h.name,
         "role_preferences": {role.name: pref.name for role, pref in h.role_preferences.items()},
         "building_preferences": sorted(h.building_preferences),
-        "friends": list(h.friends),
+        "friends": [friend_ref_to_json(f) for f in h.friends],
         "can_bring_notebook": h.can_bring_notebook,
         "can_bring_camera": h.can_bring_camera,
         "unresolved_friend_names": list(h.unresolved_friend_names),
@@ -121,7 +137,7 @@ def helper_from_dict(data: dict) -> Helper:
         name=data["name"],
         role_preferences=role_preferences,
         building_preferences=frozenset(data.get("building_preferences", [])),
-        friends=list(data.get("friends", [])),
+        friends=[friend_ref_from_json(f) for f in data.get("friends", [])],
         can_bring_notebook=bool(data.get("can_bring_notebook", False)),
         can_bring_camera=bool(data.get("can_bring_camera", False)),
         unresolved_friend_names=list(data.get("unresolved_friend_names", [])),
@@ -173,7 +189,7 @@ def _match_enum(enum_cls, value: str):
 
 
 def organizer_to_dict(o: Organizer) -> dict:
-    return {
+    data = {
         "id": o.id,
         "name": o.name,
         "person_id": o.person_id,
@@ -181,6 +197,9 @@ def organizer_to_dict(o: Organizer) -> dict:
         "building": o.building,
         "room": o.room,
     }
+    if o.tags:  # a missing key means no direct Tags
+        data["tags"] = list(o.tags)
+    return data
 
 
 def organizer_from_dict(data: dict) -> Organizer:
@@ -191,6 +210,7 @@ def organizer_from_dict(data: dict) -> Organizer:
         email=data.get("email"),
         building=data.get("building"),
         room=data.get("room"),
+        tags=[int(t) for t in data.get("tags") or []],
     )
 
 

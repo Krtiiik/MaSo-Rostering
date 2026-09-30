@@ -63,20 +63,25 @@ A second category of tracked person, distinct from Helper: a per-Season
 record with an id, a Person link, a name and an optional e-mail, saved with
 the Season and in Versions. An Organizer uses no solved Role or Role
 capacity. Created by hand (name only), typically on the spot when naming
-someone in an Organizer role slot; *promotion of an existing Helper is
-planned, not yet implemented* — promotion removes them from the Helper pool,
-so a promoted Organizer receives no solved Role that Season and one person is
-never both at once. An Organizer holds exactly one placement (Building, or
+someone in an Organizer role slot, or by promoting an existing Helper —
+promotion keeps their Person link, name, e-mail and Tags, removes them from the
+Helper pool (clearing their Assignment and lock) and re-points other Helpers'
+Friend preferences that named them, so a promoted Organizer receives no solved
+Role that Season and one person is never both at once (there is no demotion).
+An Organizer holds exactly one placement (Building, or
 Building+Room) per Season, set implicitly by assigning them into an
 Organizer role slot — there is no separate placement step, and no placement
 without a role slot. Assigning them to a slot at another placement moves the
 placement and removes their previous slot entries; a slot at the same
 placement is kept alongside; removing them from every slot clears it. A
-hand placement is never blocked. *Planned, not yet implemented*: a Helper's
-Friend preference can name an Organizer as well as another Helper; it's
-scored against the Organizer's placement (a Room match if placed in a Room, a
-Building match if only placed at Building level), and can't be satisfied
-against an unplaced Organizer. Organizers can carry Tags, same as Helpers.
+hand placement is never blocked. A Helper's Friend preference can name an
+Organizer as well as another Helper; it's scored, at the same weight as a
+Helper-to-Helper request, against the Organizer's placement (a Room match if
+placed in a Room, a Building match if only placed at Building level), can't be
+satisfied against an unplaced Organizer, and never counts under `mutual` mode
+since an Organizer can't reciprocate. The solver treats a placed Organizer as
+a fixed anchor that never moves. *Planned, not yet implemented*: Organizers
+carry Tags, same as Helpers.
 
 **Building**:
 A venue hosting part of the competition. The set of Buildings is not stable
@@ -272,8 +277,7 @@ stored Season, and a new row is matched against all of them. A Person exists
 only through the Seasons that record them: forgetting a Season forgets
 whatever only it knew.
 A hand-created Organizer has no e-mail, so every match for them is uncertain
-unless an e-mail is entered (a promoted Helper, planned, would keep their
-Person). Someone already known as an Organizer who shows
+unless an e-mail is entered (a promoted Helper keeps their Person). Someone already known as an Organizer who shows
 up in a new survey is offered a link to that Person, never auto-promoted.
 
 **Returning helper**:
