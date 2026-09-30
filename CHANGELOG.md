@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Buildings tab's "Save config" now saves the solver settings (weights, role
+  costs, time limit, friend scoring) as well as the building layout; before, only
+  "Save & solve" persisted the settings, so a reload after "Save config" lost
+  them. The tab also shows an "Unsaved changes" note while what is on screen
+  differs from what the Season has saved.
+
 ### Added
 
 - Tag import re-applies Tags to Organizers as well as Helpers. What a Person

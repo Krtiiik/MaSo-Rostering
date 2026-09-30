@@ -176,6 +176,41 @@ def _restore_role_cost_defaults() -> None:
         st.session_state.pop(key, None)
 
 
+def _layout_key(buildings: list[dict]) -> list:
+    """A building layout reduced to what it means: names and every Role's
+    minimum (an absent capacity counts as 0, as the draft's fields show it)."""
+
+    def caps(capacities: dict) -> dict[str, int]:
+        return {r: int((capacities.get(r) or {}).get("minimum") or 0) for r in _ROLE_ORDER}
+
+    return [
+        (
+            b["name"],
+            caps(b.get("capacities") or {}),
+            [(r["name"], caps(r.get("capacities") or {})) for r in b.get("rooms") or []],
+        )
+        for b in buildings
+    ]
+
+
+def has_unsaved_changes(state: dict, buildings: list[dict], solver_config: dict) -> bool:
+    """Whether the drafts on this tab differ from what the open Season has saved."""
+    saved_solver = solver_config_to_dict(solver_config_from_dict(state["solver_config"]))
+    drafted_solver = solver_config_to_dict(solver_config_from_dict(solver_config))
+    return _layout_key(buildings) != _layout_key(state["config"]) or drafted_solver != saved_solver
+
+
+def _save_drafts(buildings: list[dict], solver_config: dict) -> dict:
+    """Save both drafts to the open Season and make the result the session's
+    state. The layout is copied so later edits to the draft never reach the
+    saved state through a shared reference."""
+    workspace = session.get_workspace()
+    mutations.put_config(workspace, copy.deepcopy(buildings))
+    saved = mutations.put_solver_config(workspace, solver_config)
+    session.set_state(saved)
+    return saved
+
+
 def clear_drafts() -> None:
     st.session_state.pop("config_draft", None)
     st.session_state.pop("solver_config_draft", None)
@@ -258,10 +293,12 @@ def render() -> None:
     )
 
     with st.bottom:
+        # Filled in after the buttons ran, so it reflects a save just made.
+        unsaved_note = st.empty()
         action_cols = st.columns(2)
-        if action_cols[0].button("Save config"):
+        if action_cols[0].button("Save config", key="save_config"):
             try:
-                session.set_state(mutations.put_config(session.get_workspace(), buildings))
+                _save_drafts(buildings, solver_config)
                 st.success("Config saved.")
             except mutations.RosteringError as exc:
                 st.error(str(exc))
@@ -284,12 +321,15 @@ def render() -> None:
                 # Saved first, so the confirmation counts against the new
                 # layout (a removed Room drops its locks). Removing a Room that
                 # holds a lock is never blocked or prompted here.
-                mutations.put_config(session.get_workspace(), buildings)
-                saved = mutations.put_solver_config(session.get_workspace(), solver_config)
+                saved = _save_drafts(buildings, solver_config)
             except mutations.RosteringError as exc:
                 st.error(str(exc))
             else:
-                session.set_state(saved)
                 solve_prompt.request_solve(saved, run_solve)
         if disabled:
             st.caption("Upload helper responses first.")
+        if has_unsaved_changes(session.get_state(), buildings, solver_config):
+            unsaved_note.caption(
+                "⚠ Unsaved changes: the layout and solver settings here are not saved until you "
+                "click Save config (or Save & solve). Reloading the page discards them."
+            )

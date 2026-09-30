@@ -52,3 +52,46 @@ def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab
     assert solver_config_from_dict(tab.session_state["solver_config_draft"]) == SolverConfig()
     assert tab.number_input(key="w_role_cost_unit").value == 1
     assert tab.number_input(key="w_cost_zaloha").value == 4
+
+
+def _unsaved_note(tab):
+    return [c.value for c in tab.caption if "Unsaved changes" in c.value]
+
+
+def test_a_fresh_tab_has_no_unsaved_changes_note(tab):
+    assert not tab.exception
+    assert _unsaved_note(tab) == []
+
+
+def test_editing_shows_the_unsaved_note_and_save_config_clears_it(tab):
+    tab.number_input(key="w_cost_zaloha").set_value(9).run()
+    assert _unsaved_note(tab)
+
+    tab.button(key="save_config").click().run()
+
+    assert not tab.exception
+    assert _unsaved_note(tab) == []
+
+
+def test_save_config_saves_the_solver_settings_too(tab):
+
+    tab.number_input(key="w_cost_zaloha").set_value(9).run()
+    tab.number_input(key="w_time_limit").set_value(42).run()
+    tab.button(key="save_config").click().run()
+
+    saved = tab.session_state["workspace_state"]["solver_config"]
+    assert solver_config_from_dict(saved).role_costs.zaloha == 9
+    assert saved["time_limit_seconds"] == 42
+
+
+def test_editing_the_layout_after_saving_is_unsaved_again(tab):
+    tab.button(key="save_config").click().run()
+    assert _unsaved_note(tab) == []
+
+    tab.button(key="add_room_0").click().run()
+
+    assert _unsaved_note(tab)
+    # The saved layout was not changed through a shared reference.
+    draft_rooms = len(tab.session_state["config_draft"][0]["rooms"])
+    saved_rooms = len(tab.session_state["workspace_state"]["config"][0]["rooms"])
+    assert draft_rooms == saved_rooms + 1
