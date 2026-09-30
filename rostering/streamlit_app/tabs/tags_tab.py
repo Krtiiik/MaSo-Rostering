@@ -296,7 +296,7 @@ def _render_others(state: dict, tag: dict) -> None:
     others.update(
         {f"o{o['id']}": f"{o['name']} (Organizer)" for o in state["organizers"] if o["id"] not in organizer_carrier_ids}
     )
-    st.subheader(f"Others ({len(others)})")
+    st.subheader("Add tag to others")
     if not others:
         st.caption("Every Helper and Organizer already carries this Tag.")
         return

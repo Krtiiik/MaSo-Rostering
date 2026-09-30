@@ -148,7 +148,7 @@ if (xlsxPath) {
   await page.getByRole("button", { name: "New tag" }).click();
   await page.getByLabel("Name", { exact: true }).fill("SmokeTag");
   await page.getByRole("button", { name: "Create tag" }).click();
-  await page.getByText("Others (", { exact: false }).waitFor({ timeout: 10000 });
+  await page.getByText("Add tag to others", { exact: true }).waitFor({ timeout: 10000 });
   await openMultiselect("Helpers to add");
   await page.getByRole("option").nth(1).click(); // 0 = "Select all"
   await page.keyboard.press("Escape");

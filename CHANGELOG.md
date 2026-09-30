@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Tags tab's "Others (N)" section in the Tag edit menu is now titled
+  "Add tag to others", saying what it does instead of showing a count.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added
