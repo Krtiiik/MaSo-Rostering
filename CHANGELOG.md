@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Forced friends groups report their state. Each group in the Forced friends tab
+  shows a status badge: Active, Dormant (with the reason, e.g. fewer than two
+  active members) or Violated by the roster as it stands, with the violation
+  named under it. The Broken-rule line now says who and where, e.g. "Group
+  Rodina [Anna, Petr, Jana] is split across rooms N4 and N6" (the same words from
+  the solver and the live check), its "Go fix" opens the group's editor, and a
+  drop that newly splits a group toasts the line and still applies. The roster
+  grid marks the chips of members of a group in force with a link symbol whose
+  tooltip lists the group(s) and the axes they share. Creating a group, or
+  changing its people or axes, is now refused when their Tags leave them no
+  Building (a Room group counts as Building) or Role in common on a shared axis,
+  and a Tag edit or assignment that would newly cause that is refused too;
+  group size, capacity and locked or fixed Assignments never block, they show as
+  Broken rules.
 - Forced friends groups: a new "4. Forced friends" tab (the Roster tab is now
   "5. Roster") lists named groups of people who must share a Building, Room
   and/or Role, each with an editable name, a people multiselect, the axes to

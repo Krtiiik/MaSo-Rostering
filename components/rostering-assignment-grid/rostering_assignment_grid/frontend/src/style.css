@@ -163,6 +163,12 @@
   font-weight: 700;
 }
 
+/* Marks a member of a Forced friends group in force; its tooltip names the
+   group(s) and the axes they must share. */
+.helper-chip-forced {
+  cursor: help;
+}
+
 /* The Tag filter fades a Helper who does not match; they stay in place and
    draggable. Hovering restores full strength, which also keeps the hover card
    (a child of the chip) readable. */

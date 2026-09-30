@@ -2007,20 +2007,34 @@ def _tag_universes(state: dict[str, Any]) -> dict[str, list[str]]:
     }
 
 
-def _stranded(state: dict[str, Any]) -> set[tuple[int, str]]:
-    """Every ``(helper id, axis)`` that currently has no allowed Building or no
-    allowed Role."""
+def _group_tag_clashes(state: dict[str, Any]) -> list[forced_friends.TagClash]:
+    """The Forced friends groups whose active members' allowed sets have nothing
+    in common on a Building or Role axis the group shares."""
+    competition = _build_competition(state)
+    return forced_friends.tag_clashes(
+        competition.forced_groups, competition.helpers, competition.tags, _tag_universes(state)
+    )
+
+
+def _stranded(state: dict[str, Any]) -> set[tuple]:
+    """Every dead end of the Tag constraints: ``(helper id, axis)`` for a Helper
+    with no allowed Building or no allowed Role, and ``(group id, axis,
+    "group")`` for a Forced friends group whose members share no allowed
+    Building or Role."""
     direct = {h["id"]: _direct_tag_ids(h) for h in state["helpers"]}
-    return tag_tree.dead_ends(_tag_definitions(state), direct, _tag_universes(state))
+    stranded: set[tuple] = tag_tree.dead_ends(_tag_definitions(state), direct, _tag_universes(state))
+    stranded |= {(clash.group.id, clash.axis, "group") for clash in _group_tag_clashes(state)}
+    return stranded
 
 
-def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[int, str]]) -> None:
+def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple]) -> None:
     """The one validation behind every Tag entry point (the Tags tab and the
     Helper list's inline multiselect alike): refuse an edit, already applied to
     the in-memory ``state`` but not yet saved, that leaves a Helper with no
-    allowed Building or no allowed Role. Only Helpers the edit newly strands
-    count, so one already stranded (say, by a later configuration change) never
-    blocks an unrelated edit."""
+    allowed Building or no allowed Role, or a Forced friends group whose members
+    then share no allowed Building or Role. Only what the edit newly strands
+    counts, so a Helper or group already stranded (say, by a later configuration
+    change) never blocks an unrelated edit."""
     fresh = sorted(_stranded(state) - before)
     if not fresh:
         return
@@ -2028,13 +2042,15 @@ def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[int, str]]) -
     universes = _tag_universes(state)
     names = {h["id"]: h["name"] for h in state["helpers"]}
     problems = []
-    for helper_id, axis in fresh:
+    for helper_id, axis in (f for f in fresh if len(f) == 2):
         record = next(h for h in state["helpers"] if h["id"] == helper_id)
         found = tag_tree.restrictions(tags, _direct_tag_ids(record), axis, universes[axis])
         display = (lambda v: Role[v].value) if axis == tag_tree.ROLE else str
         why = "; ".join(tag_tree.describe_restriction(r, axis, display) for r in found)
         noun = "Role" if axis == tag_tree.ROLE else "Building"
         problems.append(f"{names[helper_id]} would be left with no allowed {noun} ({why})")
+    fresh_groups = {f[:2] for f in fresh if len(f) == 3}
+    problems += [c.message() for c in _group_tag_clashes(state) if (c.group.id, c.axis) in fresh_groups]
     shown, hidden = problems[:3], len(problems) - 3
     raise RosteringError("Refused: " + "; ".join(shown) + (f"; and {hidden} more" if hidden > 0 else "") + ".")
 
@@ -3057,6 +3073,23 @@ def broken_rule_marks(broken: list[BrokenRule]) -> dict[str, list[dict]]:
         ],
         "helpers": [{"helper_id": hid, "line": rule.line} for rule in broken for hid in rule.helper_ids],
     }
+
+
+def grid_forced_groups(state: dict[str, Any]) -> dict[int, list[str]]:
+    """What the grid marks on a chip: for each Helper who is an active member of a
+    Forced friends group in force (two or more attending members), the groups that
+    bind them, worded ``Rodina (same Building, Room)`` for the chip's tooltip. A
+    dormant group binds no one, so marks no one."""
+    competition = _build_competition(state)
+    marks: dict[int, list[str]] = {}
+    for group in competition.forced_groups:
+        active = forced_friends.active_helper_ids(group, competition.helpers)
+        if len(active) < 2:
+            continue
+        line = f"{group.name} (same {', '.join(forced_friends.AXIS_LABELS[a] for a in group.axes)})"
+        for helper_id in active:
+            marks.setdefault(helper_id, []).append(line)
+    return marks
 
 
 def set_lock(workspace: Workspace, helper_id: int, locked: bool) -> dict:

@@ -20,7 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Hashable, Iterable, Optional, Sequence
 
-from rostering.domain import Helper, RuleInstance
+from rostering import tags as tags_module
+from rostering.domain import Assignment, Helper, Role, RuleInstance
 
 BUILDING = "building"
 ROOM = "room"
@@ -112,14 +113,30 @@ def split_units(values: Sequence[Hashable]) -> int:
     return len(values) - max(values.count(v) for v in set(values))
 
 
+def place_label(axis: str, a: Assignment) -> str:
+    """How a violation line names where an Assignment sits on ``axis``."""
+    if axis == BUILDING:
+        return a.building
+    if axis == ROOM:
+        return a.room
+    return a.role.value
+
+
+def _joined(labels: Sequence[str]) -> str:
+    """``A``, ``A and B``, ``A, B and C``."""
+    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + " and " + labels[-1]
+
+
 @dataclass(frozen=True)
 class GroupRule:
     """One enforced axis of one active group: ``helper_ids`` are the active
-    members, who must all have the same value on ``axis``."""
+    members (``helper_names`` their names, in the same order), who must all have
+    the same value on ``axis``."""
 
     group: ForcedGroup
     axis: str
     helper_ids: tuple[int, ...]
+    helper_names: tuple[str, ...] = ()
 
     @property
     def instance(self) -> RuleInstance:
@@ -129,19 +146,37 @@ class GroupRule:
     def max_units(self) -> int:
         return len(self.helper_ids) - 1
 
-    def line(self, units: int, members: Optional[int] = None) -> str:
-        total = len(self.helper_ids) if members is None else members
-        return (
-            f"Group {self.group.name} is split across {_PLURALS[self.axis]}: "
-            f"{units} of {total} members placed apart from the rest"
+    def _subject(self) -> str:
+        return f"Group {self.group.name} [{', '.join(self.helper_names)}]"
+
+    def line(self, assignments: Sequence[Assignment] = ()) -> str:
+        """``Group Rodina [Anna, Petr, Jana] is split across rooms N4 and N6``:
+        the members' names and the distinct places the ``assignments`` of those
+        members occupy on the axis (first seen first). The solver and the live
+        checker word every violation through this one function."""
+        by_id = {a.helper_id: a for a in assignments}
+        members = [by_id[h] for h in self.helper_ids if h in by_id]
+        places: dict[Hashable, Assignment] = {}
+        for a in members:
+            places.setdefault(place_value(self.axis, a.building, a.room, a.role.name), a)
+        labels = [place_label(self.axis, a) for a in places.values()]
+        if self.axis == ROOM and len(set(labels)) < len(labels):
+            # The same Room name in two Buildings: say which is which.
+            labels = [f"{place_label(ROOM, a)} ({a.building})" for a in places.values()]
+        return f"{self._subject()} is split across {_PLURALS[self.axis].lower()}" + (
+            f" {_joined(labels)}" if labels else ""
         )
 
 
-def active_helper_ids(group: ForcedGroup, helpers: Iterable[Helper]) -> list[int]:
-    """The ids of the group's active members among ``helpers`` (the Season's
-    attending Helpers): those carrying a member Person."""
+def active_helpers(group: ForcedGroup, helpers: Iterable[Helper]) -> list[Helper]:
+    """The group's active members among ``helpers`` (the Season's attending
+    Helpers): those carrying a member Person."""
     members = set(group.person_ids)
-    return [h.id for h in helpers if h.person_id in members]
+    return [h for h in helpers if h.person_id in members]
+
+
+def active_helper_ids(group: ForcedGroup, helpers: Iterable[Helper]) -> list[int]:
+    return [h.id for h in active_helpers(group, helpers)]
 
 
 def group_rules(helpers: Sequence[Helper], groups: Iterable[ForcedGroup]) -> list[GroupRule]:
@@ -149,8 +184,69 @@ def group_rules(helpers: Sequence[Helper], groups: Iterable[ForcedGroup]) -> lis
     for each group with at least two active members, one per enforced axis."""
     rules: list[GroupRule] = []
     for group in groups:
-        active = tuple(active_helper_ids(group, helpers))
+        active = active_helpers(group, helpers)
         if len(active) < 2:
             continue
-        rules.extend(GroupRule(group, axis, active) for axis in enforced_axes(group.axes))
+        ids, names = tuple(h.id for h in active), tuple(h.name for h in active)
+        rules.extend(GroupRule(group, axis, ids, names) for axis in enforced_axes(group.axes))
     return rules
+
+
+@dataclass(frozen=True)
+class TagClash:
+    """A group whose active members' effective allowed sets (see
+    ``rostering.tags.allowed_values``) have nothing in common on a shared axis
+    (``tags.BUILDING`` or ``tags.ROLE``): it could never hold. ``limits`` are the
+    members Tags narrow, as ``(name, allowed values)``."""
+
+    group: ForcedGroup
+    axis: str
+    limits: tuple[tuple[str, tuple[str, ...]], ...]
+
+    def message(self) -> str:
+        role = self.axis == tags_module.ROLE
+        shown = [
+            f"{name}: only {', '.join(Role[v].value if role else v for v in values)}"
+            for name, values in self.limits[:3]
+        ]
+        more = len(self.limits) - len(shown)
+        noun = "Role" if role else "Building"
+        return f"Group {self.group.name} can't share a {noun} ({'; '.join(shown)}" + (
+            f"; and {more} more)" if more > 0 else ")"
+        )
+
+
+def tag_clashes(
+    groups: Iterable[ForcedGroup],
+    helpers: Sequence[Helper],
+    tags: Sequence[tags_module.Tag],
+    universes: dict[str, Sequence[str]],
+) -> list[TagClash]:
+    """The groups (among those with two or more active members in ``helpers``,
+    the attending Helpers) whose members' allowed sets have an empty
+    intersection on a Building or Role axis the group shares. This is the one
+    check that blocks creating or editing a group (Room implies Building, so a
+    Room group is judged on Building); size, capacity and fixed Assignments never
+    do. A member who has nowhere to go on the axis at all is that Helper's own
+    dead end (refused by the Tag edit) and does not also count against the group.
+    """
+    clashes: list[TagClash] = []
+    for group in groups:
+        active = active_helpers(group, helpers)
+        if len(active) < 2:
+            continue
+        for axis in (tags_module.BUILDING, tags_module.ROLE):
+            universe = list(universes.get(axis) or [])
+            if axis not in group.axes or not universe:
+                continue
+            allowed = {h.id: tags_module.allowed_values(tags, h.tags, axis, universe) for h in active}
+            if any(not values for values in allowed.values()):
+                continue
+            common = set(universe)
+            for values in allowed.values():
+                common &= set(values)
+            if common:
+                continue
+            limits = tuple((h.name, tuple(allowed[h.id])) for h in active if len(allowed[h.id]) < len(universe))
+            clashes.append(TagClash(group, axis, limits))
+    return clashes

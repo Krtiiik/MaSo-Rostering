@@ -46,7 +46,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 from ortools.sat.python import cp_model
 
@@ -105,6 +105,9 @@ class Relaxation:
     slack: cp_model.LinearExprT
     max_units: int
     describe: Callable[[int], str]
+    # Optionally words the violation from the finished roster (it needs to say
+    # where people ended up, which no slack knows); ``describe`` is the fallback.
+    describe_placed: Optional[Callable[[int, Sequence[Assignment]], str]] = None
 
 
 @dataclass
@@ -368,7 +371,8 @@ def _forced_friends(ctx: ModelContext) -> list[Relaxation]:
                 instance=rule.instance,
                 slack=slack,
                 max_units=rule.max_units,
-                describe=lambda units, rule=rule: rule.line(units),
+                describe=lambda _units, rule=rule: rule.line(),
+                describe_placed=lambda _units, assignments, rule=rule: rule.line(assignments),
             )
         )
     return relaxations
@@ -400,7 +404,7 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
                 instance=rule.instance,
                 family="forced_friends",
                 amount=units,
-                line=rule.line(units, len(members)),
+                line=rule.line(members),
                 cells=tuple(dict.fromkeys((a.building, a.room, None) for a in members)),
                 helper_ids=tuple(a.helper_id for a in members),
                 fix=FixTarget("forced_friends", group_id=rule.group.id),
@@ -450,10 +454,14 @@ def tier_weights(ordinary_max: int, max_units_by_tier: dict[Tier, int]) -> dict[
     return weights
 
 
-def to_broken_rule(family: RuleFamily, relaxation: Relaxation, units: int) -> BrokenRule:
-    return BrokenRule(
-        instance=relaxation.instance,
-        family=family.name,
-        amount=units,
-        line=relaxation.describe(units),
+def to_broken_rule(
+    family: RuleFamily, relaxation: Relaxation, units: int, assignments: Sequence[Assignment] = ()
+) -> BrokenRule:
+    """The solver's report of one bent rule instance; ``assignments`` is the
+    roster it returns, for a rule whose line names where people ended up."""
+    line = (
+        relaxation.describe_placed(units, assignments)
+        if relaxation.describe_placed is not None
+        else relaxation.describe(units)
     )
+    return BrokenRule(instance=relaxation.instance, family=family.name, amount=units, line=line)
