@@ -43,6 +43,13 @@ named roles belong to each. Implementation details not in the glossary:
   `mutations.move_organizer` (`assign_organizer`, plus leaving the slot cell the
   chip came from); Organizers holding no slot and not flagged Can't attend are the
   "Organizátoři" list of the Nezařazení area (`grid_tab._grid_organizers`).
+- Moving a placed Helper (`mutations.move_helper`) out of the place an Additional
+  role entry of theirs is scoped to also drops that entry (`_entries_left_behind`;
+  `_entry_covers` judges a room-scoped entry by the cell group its room sits in for
+  its own row, so a merged pair is one place; legacy/typed entries and Organizer
+  slots are never touched). Unless `confirmed`, it raises `ConfirmationRequired`
+  (`move_manual_role_impact` gives the lines) and changes nothing; the grid tab's
+  `_confirm_drop` dialog opens from the `drop` event and calls it again confirmed.
 - In the roster grid, all three Additional roles can be filled either by
   drag-and-dropping a helper's existing chip onto their own building's/room's
   overlay cell (which duplicates them into that slot without moving their

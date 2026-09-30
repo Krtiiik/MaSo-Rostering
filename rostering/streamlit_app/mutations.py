@@ -31,6 +31,7 @@ from rostering.domain import (
     Role,
     SolveResult,
     StructuralRole,
+    group_adjacent_rooms,
     normalize_email,
     normalize_name,
     parse_tshirt_size,
@@ -3469,7 +3470,53 @@ def clear_roster(workspace: Workspace) -> dict:
     return state
 
 
-def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, role: str) -> dict:
+def _entry_covers(state: dict[str, Any], entry: dict, building: str, room: str) -> bool:
+    """Whether a Manual role entry's cell holds the place ``building``/``room``:
+    a building-scoped entry (no room) holds its whole Building, a room-scoped one
+    the cell group its room sits in for its own row, so two rooms the row has
+    merged count as one place."""
+    if entry.get("building") != building:
+        return False
+    if entry.get("room") is None:
+        return True
+    names = next(([r["name"] for r in b["rooms"]] for b in state["config"] if b["name"] == building), [])
+    merges = state.get("cell_merges", {}).get(entry["role"], {}).get(building, [])
+    group = next((g for g in group_adjacent_rooms(names, merges) if entry["room"] in g), [entry["room"]])
+    return room in group
+
+
+def _entries_left_behind(state: dict[str, Any], helper_id: int, building: str, room: str) -> list[dict]:
+    """The Additional role entries that hold this Helper where they stand now
+    and no longer fit ``building``/``room``. Empty for an unplaced Helper."""
+    previous = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
+    if previous is None:
+        return []
+    return [
+        entry
+        for entry in state["manual_roles"]["overlay"]
+        if entry.get("helper_id") == helper_id
+        and _entry_covers(state, entry, previous["building"], previous["room"])
+        and not _entry_covers(state, entry, building, room)
+    ]
+
+
+def move_manual_role_impact(state: dict[str, Any], helper_id: int, building: str, room: str) -> list[str]:
+    """What moving this Helper to ``building``/``room`` would take them out of,
+    one line each: the Additional role entries (Manuální role) that hold them
+    where they stand now and no longer fit where they would stand. Empty when
+    they are unplaced, stay within every such cell, or hold none, in which case
+    no confirmation is needed."""
+    return [f"Manuální role: {_manual_entry_label(e)}" for e in _entries_left_behind(state, helper_id, building, room)]
+
+
+def move_helper(
+    workspace: Workspace, helper_id: int, building: str, room: str, role: str, confirmed: bool = False
+) -> dict:
+    """Place a Helper by hand. A move out of a Room whose Additional role cell
+    holds them also takes them out of that role (the entry is scoped to the place
+    they left), so it is only done once ``confirmed``; without it
+    :class:`ConfirmationRequired` names the entries that would go and nothing
+    changes. Nothing else is ever refused."""
     state = workspace.load()
     known_ids = {h["id"] for h in state["helpers"]}
     if helper_id not in known_ids:
@@ -3477,6 +3524,15 @@ def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, 
     if any(h["id"] == helper_id and h.get("cant_attend") for h in state["helpers"]):
         raise RosteringError(f"Pomocník {helper_id} je označen jako Nemůže se zúčastnit, takže ho nelze zařadit.")
     helper_name = next(h["name"] for h in state["helpers"] if h["id"] == helper_id)
+
+    impact = move_manual_role_impact(state, helper_id, building, room)
+    if impact and not confirmed:
+        raise ConfirmationRequired(
+            f"Přesunutím pomocníka {helper_name} se odebere z: " + "; ".join(impact) + ".", impact
+        )
+    if impact:
+        leaving = _entries_left_behind(state, helper_id, building, room)
+        state["manual_roles"]["overlay"] = [e for e in state["manual_roles"]["overlay"] if not any(e is x for x in leaving)]
 
     previous = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
     assignments = [a for a in state["assignments"] if a["helper_id"] != helper_id]

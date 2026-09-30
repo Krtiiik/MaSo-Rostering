@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dragging a Helper out of a Room on the Roster tab now also takes them out of the
+  Additional roles (Manuální role) held there. The room-scoped roles (Uvaděči
+  účastníků, Focení předávání cen) go when the Helper leaves that Room (two rooms the
+  row has merged count as one place), Registrace when they leave the Building. A
+  dialog lists what goes and asks first; cancelling leaves the Helper where they were.
 - On the Roster tab a manual role's cell is now the same kind of cell as a solver
   role's: names are chips in the cell, and the "+ přidat jméno" field is gone —
   clicking the cell opens a name field instead (Enter saves, Escape cancels). The
