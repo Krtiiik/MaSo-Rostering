@@ -22,6 +22,7 @@ import streamlit as st
 from rostering import tags as tag_tree
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
+from rostering.streamlit_app.tabs import upload_summary_ui
 from rostering_assignment_grid import assignment_grid
 
 _ROLE_ORDER = [r.name for r in Role]
@@ -297,6 +298,7 @@ def render() -> None:
     st.header("4. Roster")
     state = session.get_state()
     rooms = _flatten_rooms(state["config"])
+    upload_summary_ui.render("roster")
 
     if not rooms:
         st.info("Configure at least one building with a room first.")
@@ -316,12 +318,22 @@ def render() -> None:
         st.rerun()
 
     stale = mutations.stale_reasons(state)
+    unplaced = mutations.unplaced_reason(state)
+    blockers = mutations.export_blockers(state)
     with st.bottom:
         if stale:
             # Right above the Solve button: what made the roster stale, and that
             # Solving is what clears it.
             st.warning(
                 "**Roster is out of date:** " + "; ".join(stale) + ". Solve again; Export is blocked until then.",
+                icon="⚠️",
+            )
+        if unplaced:
+            # Registrants nobody has placed yet (e.g. new in a re-upload): drag
+            # them into the grid from the Unassigned pool, or Solve.
+            st.warning(
+                f"**{unplaced}.** Drag them into the grid from the Unassigned pool, or Solve; Export is blocked "
+                "until everyone is placed.",
                 icon="⚠️",
             )
         cols = st.columns([2, 2, 2, 1, 2], vertical_alignment="center")
@@ -338,8 +350,8 @@ def render() -> None:
             st.rerun()
         cols[3].markdown(f"**{locked}** locked")
 
-        if state["assignments"] and stale:
-            cols[4].button("Export to Excel", disabled=True, help="The roster is out of date: solve again first.")
+        if state["assignments"] and blockers:
+            cols[4].button("Export to Excel", disabled=True, help="Export is blocked: " + "; ".join(blockers))
         elif state["assignments"]:
             try:
                 export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
@@ -371,11 +383,13 @@ def render() -> None:
     absent_ids = {h["id"] for h in state["helpers"] if h.get("cant_attend")}
     show_tags, filter_tags, filter_mode = _render_tag_controls(state)
     helper_pills = mutations.grid_tag_pills(state)
+    answers_changed = mutations.answers_changed_since_placed(state)
     grid_helpers = [
         {
             "id": h["id"],
             "name": h["name"],
             "tags": helper_pills[h["id"]],
+            "answers_changed": answers_changed.get(h["id"], []),
             "can_bring_notebook": h["can_bring_notebook"],
             "can_bring_camera": h["can_bring_camera"],
             "role_preferences": _grid_role_preferences(h["role_preferences"]),

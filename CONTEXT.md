@@ -55,6 +55,21 @@ nobody was moved (e.g. after clearing a Can't attend Helper's placement). A
 banner near Solve gives the reason, Export is blocked until the next full
 Solve, which clears it. Saved with Versions.
 
+**Re-upload**:
+Uploading a newer survey export into the open Season. It never moves or
+deletes hand work: a recognized Helper (see Returning helper) refreshes their
+survey-derived fields from the latest row and keeps their id, Assignment, lock,
+Tags, Can't attend flag and Manual roles; a new registrant gets a fresh id and
+no Assignment; a Helper missing from the export is kept. A friend name resolved
+by hand keeps its resolution while the same free-text name remains, a field
+typed by hand wins over the survey, and a T-shirt size set by hand survives
+while the survey answer for it is unchanged. A placed Helper whose Building
+preference, Preferences or equipment changed keeps their Assignment and is
+marked "answers changed since placed" until they are moved, locked or
+re-placed by a full Solve. A summary of what changed stays at the top of the
+Upload and Roster tabs until dismissed, and Export is blocked while any
+registrant is unassigned.
+
 **Simulace**:
 A rehearsal for the competition, held before the event day.
 

@@ -156,6 +156,13 @@
   background: transparent;
 }
 
+/* Marks a placed Helper whose re-submitted answers changed since they were
+   placed (their Assignment was left as it is). */
+.helper-chip-answers-changed {
+  color: var(--st-orange-color, #e0a800);
+  font-weight: 700;
+}
+
 /* The Tag filter fades a Helper who does not match; they stay in place and
    draggable. Hovering restores full strength, which also keeps the hover card
    (a child of the chip) readable. */

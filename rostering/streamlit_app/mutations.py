@@ -273,33 +273,27 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
                 "(a year plus jaro or podzim, e.g. 2026-jaro)."
             )
 
-    # Recognize Returning helpers: an identical normalized e-mail links a row
-    # to the Person recorded in any stored Season (this Season's previous
-    # upload included), whatever the name; anything else is a new Person.
-    person_ids = link_persons([h.email for h in result.helpers], workspace.person_records())
-    helper_dicts = [
-        helper_to_dict(replace(h, person_id=person_id)) for h, person_id in zip(result.helpers, person_ids)
-    ]
-    for helper_dict in helper_dicts:
-        # Fixed at upload time so the resolution UI can keep names in their
-        # original order even after some of them are resolved and drop out
-        # of unresolved_friend_names.
-        helper_dict["friend_name_order"] = list(helper_dict["unresolved_friend_names"])
-
     state = workspace.load()
-    _carry_over_link_decisions(state["helpers"], helper_dicts)
-    _carry_over_cant_attend(state["helpers"], helper_dicts)
-    _carry_over_tags(state["helpers"], helper_dicts)
-    state["helpers"] = helper_dicts
+    # A Season about to be created starts blank whatever a draft held; an open
+    # Season with no Helpers has nothing to refresh either, so every row is new.
+    existing = [] if creating else list(state["helpers"])
+    state["helpers"] = list(existing)  # the same records; new registrants are appended to this list only
+    if creating:
+        state.pop("next_helper_id", None)
+    _merge_survey_rows(state, result.helpers, workspace.person_records(), existing)
     state["ingestion_warnings"] = result.warnings
     state["export_timestamps"] = [t.date().isoformat() for t in result.submission_timestamps]
-    state["assignments"] = []
-    state["diagnostics"] = {
-        "status": None,
-        "objective_value": None,
-        "unsatisfied_friend_pairs": [],
-        "satisfied_friend_pairs": [],
-    }
+    if not existing:
+        state["assignments"] = []
+        state["diagnostics"] = {
+            "status": None,
+            "objective_value": None,
+            "unsatisfied_friend_pairs": [],
+            "satisfied_friend_pairs": [],
+        }
+    elif state["assignments"]:
+        # Nobody moved, but friend names may now resolve to other Helpers.
+        _refresh_friend_pairs(state)
     if creating:
         workspace.create_season(label, state)
     else:
@@ -307,45 +301,173 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     return workspace.load()
 
 
-def _carry_over_link_decisions(old_helpers: list[dict], new_helpers: list[dict]) -> None:
-    """A re-upload replaces the Season's Helper records, so what the user
-    decided about a Person — rejected pairings and a confirmed link — moves
-    onto the new record that is the same Person (the same ``person_id``, which
-    an identical e-mail keeps)."""
-    rejected: dict[str, list[str]] = {}
-    confirmed: set[str] = set()
-    for old in old_helpers:
-        person_id = old.get("person_id")
-        if not person_id:
+# What a re-upload refreshes on a recognized Helper straight from the latest
+# row. Everything else on the record (Tags, Can't attend, links, hand-added
+# markers, ...) is hand-made state and never touched.
+_SURVEY_FIELDS = (
+    "name",
+    "role_preferences",
+    "building_preferences",
+    "can_bring_notebook",
+    "can_bring_camera",
+    "email",
+    "phone",
+)
+# The answers whose change matters for a placed Helper, in the order the
+# summary and the marker list them.
+_MATERIAL_ANSWERS = ("Building preference", "Preferences", "Equipment")
+
+
+def _material_answers(record: dict) -> dict[str, Any]:
+    """The answers whose change matters for a placed Helper (Building set,
+    Preferences, equipment), in a comparable form. A blank Preference counts as
+    Nevadí, so an answer that only spells that out is no change."""
+    preferences = record.get("role_preferences") or {}
+    return {
+        "Building preference": frozenset(record.get("building_preferences") or []),
+        "Preferences": {role.name: preferences.get(role.name, Preference.Nevadi.name) for role in Role},
+        "Equipment": (bool(record.get("can_bring_notebook")), bool(record.get("can_bring_camera"))),
+    }
+
+
+def _recognize_rows(rows: list[Helper], existing: list[dict], known: list) -> tuple[list[Optional[dict]], list[str]]:
+    """Recognize each parsed row against the Season's loaded Helpers: the
+    existing record it is the same Person as (an identical normalized e-mail, or
+    a Person an earlier Season recorded under that e-mail), else ``None`` for a
+    new registrant. Also returns each row's ``person_id`` (the same recognition
+    routine as a first upload). A name-only match is never recognized here: the
+    row stays a new registrant and the review list proposes the link."""
+    by_email: dict[str, dict] = {}
+    by_person: dict[str, dict] = {}
+    for record in sorted(existing, key=lambda h: h["id"]):
+        email = normalize_email(record.get("email"))
+        if email:
+            by_email.setdefault(email, record)
+        if record.get("person_id"):
+            by_person.setdefault(record["person_id"], record)
+    person_ids = link_persons([row.email for row in rows], known)
+    claimed: set[int] = set()
+    matches: list[Optional[dict]] = []
+    for row, person_id in zip(rows, person_ids):
+        record = by_email.get(row.email) if row.email else None
+        if record is None:
+            record = by_person.get(person_id)
+        if record is not None and record["id"] in claimed:
+            record = None  # one Helper never takes two rows
+        if record is not None:
+            claimed.add(record["id"])
+        matches.append(record)
+    return matches, person_ids
+
+
+def _decision_ids(raw: Any) -> list[int]:
+    """The Helper ids of one ``friend_name_decisions`` value (older states stored
+    a single int; a dismissed name has none)."""
+    return [raw] if isinstance(raw, int) else list(raw or [])
+
+
+def _refresh_from_survey(record: dict, fresh: dict, row: Helper) -> None:
+    """Replace a recognized Helper's survey-derived fields from the latest row
+    (``fresh`` is that row as a record on the Helper's real ids), except any
+    field typed by hand. A friend name the user resolved by hand keeps its
+    resolution while the same free-text name is still in the row; a changed or
+    removed name loses it. A T-shirt size set by hand survives while the
+    survey answer for it is unchanged."""
+    typed = set(record.get("hand_typed") or [])
+    for field in _SURVEY_FIELDS:
+        if field not in typed:
+            record[field] = fresh[field]
+
+    if "tshirt_size" not in typed:
+        baseline = record.get("survey_tshirt_size")
+        hand_set = baseline is not None and record.get("tshirt_size") != baseline
+        if not (hand_set and fresh["tshirt_size"] == baseline):
+            record["tshirt_size"] = fresh["tshirt_size"]
+    record["survey_tshirt_size"] = fresh["tshirt_size"]
+
+    decisions = record.get("friend_name_decisions") or {}
+    kept = {name: decisions[name] for name in row.unresolved_friend_names if name in decisions}
+    if "friends" not in typed:
+        friends = list(fresh["friends"])
+        for raw in kept.values():
+            friends.extend(i for i in _decision_ids(raw) if i not in friends and i != record["id"])
+        record["friends"] = friends
+    record["unresolved_friend_names"] = [n for n in row.unresolved_friend_names if n not in kept]
+    record["friend_name_order"] = list(row.unresolved_friend_names)
+    if kept:
+        record["friend_name_decisions"] = kept
+    else:
+        record.pop("friend_name_decisions", None)
+
+
+def _merge_survey_rows(state: dict[str, Any], rows: list[Helper], known: list, existing: list[dict]) -> None:
+    """Load the parsed survey rows into ``state["helpers"]`` (which holds
+    ``existing``): a recognized Helper is updated in place and keeps their id, a
+    new registrant gets a fresh never-reused id (and no Assignment), and a
+    Helper missing from the export is kept untouched. On a re-upload (there were
+    Helpers before) the effect is recorded as the persistent upload summary, and
+    a placed Helper whose Building set, Preferences or equipment changed gets an
+    "answers changed since placed" marker, without moving anyone."""
+    matches, person_ids = _recognize_rows(rows, existing, known)
+    id_map = {row.id: (record["id"] if record else _next_helper_id(state)) for row, record in zip(rows, matches)}
+    placed = {a["helper_id"] for a in state["assignments"]}
+
+    new_entries: list[dict] = []
+    changed_entries: list[dict] = []
+    for row, record, person_id in zip(rows, matches, person_ids):
+        helper_id = id_map[row.id]
+        friends = [id_map[f] for f in row.friends if f in id_map and id_map[f] != helper_id]
+        fresh = helper_to_dict(replace(row, id=helper_id, person_id=person_id, friends=friends))
+        fresh["friend_name_order"] = list(row.unresolved_friend_names)
+        fresh["survey_tshirt_size"] = row.tshirt_size
+        if record is None:
+            state["helpers"].append(fresh)
+            new_entries.append({"helper_id": helper_id, "name": fresh["name"]})
             continue
-        rejected.setdefault(person_id, []).extend(old.get("rejected_person_ids") or [])
-        if old.get("link_confirmed"):
-            confirmed.add(person_id)
-    for new in new_helpers:
-        kept = list(dict.fromkeys(rejected.get(new["person_id"], [])))
-        if kept:
-            new["rejected_person_ids"] = kept
-        if new["person_id"] in confirmed:
-            new["link_confirmed"] = True
+        before = _material_answers(record)
+        _refresh_from_survey(record, fresh, row)
+        for assignment in state["assignments"]:
+            if assignment["helper_id"] == helper_id:
+                assignment["helper_name"] = record["name"]
+        if helper_id not in placed:
+            continue
+        after = _material_answers(record)
+        fields = [label for label in _MATERIAL_ANSWERS if before[label] != after[label]]
+        if fields:
+            already = record.get("answers_changed", [])
+            record["answers_changed"] = [label for label in _MATERIAL_ANSWERS if label in fields or label in already]
+            changed_entries.append({"helper_id": helper_id, "name": record["name"], "fields": fields})
+
+    if not existing:
+        return  # the first load of a Season is not a re-upload: nothing to summarize
+    recognized = {record["id"] for record in matches if record is not None}
+    missing = [
+        {"helper_id": h["id"], "name": h["name"]}
+        for h in existing
+        if h["id"] not in recognized and not h.get("hand_added")
+    ]
+    _store_upload_summary(state, new_entries, changed_entries, missing)
 
 
-def _carry_over_cant_attend(old_helpers: list[dict], new_helpers: list[dict]) -> None:
-    """Can't attend is set by hand, never by survey data, so a re-upload keeps
-    it on the new record that is the same Person as a flagged one."""
-    flagged = {h["person_id"] for h in old_helpers if h.get("cant_attend") and h.get("person_id")}
-    for new in new_helpers:
-        if new["person_id"] in flagged:
-            new["cant_attend"] = True
-
-
-def _carry_over_tags(old_helpers: list[dict], new_helpers: list[dict]) -> None:
-    """The Season's Tags stay through a re-upload (only the Helper records are
-    replaced), so the Tags a Helper was given by hand move onto the new record
-    that is the same Person."""
-    tags_by_person = {h["person_id"]: h["tags"] for h in old_helpers if h.get("tags") and h.get("person_id")}
-    for new in new_helpers:
-        if new["person_id"] in tags_by_person:
-            new["tags"] = list(tags_by_person[new["person_id"]])
+def _store_upload_summary(state: dict[str, Any], new: list[dict], changed: list[dict], missing: list[dict]) -> None:
+    """Keep what a re-upload did until the user dismisses it. A summary nobody
+    has dismissed yet accumulates the new registrants and changed answers of
+    later uploads (so nothing unread is lost), while the Helpers missing from
+    the export are always those of the latest one."""
+    live = {h["id"] for h in state["helpers"]}
+    old = state.get("upload_summary") or {}
+    new_ids = {e["helper_id"] for e in new}
+    all_new = [e for e in old.get("new", []) if e["helper_id"] in live and e["helper_id"] not in new_ids] + new
+    changed_by_id = {e["helper_id"]: dict(e) for e in old.get("changed", []) if e["helper_id"] in live}
+    for entry in changed:
+        earlier = changed_by_id.get(entry["helper_id"], {}).get("fields", [])
+        merged = [label for label in _MATERIAL_ANSWERS if label in entry["fields"] or label in earlier]
+        changed_by_id[entry["helper_id"]] = {**entry, "fields": merged}
+    all_changed = list(changed_by_id.values())
+    if all_new or all_changed or missing:
+        state["upload_summary"] = {"new": all_new, "changed": all_changed, "missing": missing}
+    else:
+        state.pop("upload_summary", None)
 
 
 # -- Persons ------------------------------------------------------------------
@@ -604,6 +726,76 @@ def mark_stale(workspace: Workspace, reason: str) -> dict:
     return state
 
 
+def unplaced_helpers(state: dict[str, Any]) -> list[dict]:
+    """The Helper records taking part who hold no Assignment on a roster that
+    exists (new registrants of a re-upload, a Helper added by hand, someone
+    un-flagged from Can't attend). Empty before the first solve or placement,
+    when there is no roster to be incomplete."""
+    if not state["assignments"]:
+        return []
+    placed = {a["helper_id"] for a in state["assignments"]}
+    return [h for h in state["helpers"] if not h.get("cant_attend") and h["id"] not in placed]
+
+
+def unplaced_reason(state: dict[str, Any]) -> Optional[str]:
+    """The line naming the registrants still unassigned (e.g. "2 registrants
+    are not placed yet: Klára, Eva"), or None when everyone is placed."""
+    unplaced = unplaced_helpers(state)
+    if not unplaced:
+        return None
+    names = ", ".join(h["name"] for h in unplaced[:5]) + (f" and {len(unplaced) - 5} more" if len(unplaced) > 5 else "")
+    noun = "registrant is" if len(unplaced) == 1 else "registrants are"
+    return f"{len(unplaced)} {noun} not placed yet: {names}"
+
+
+def export_blockers(state: dict[str, Any]) -> list[str]:
+    """Why Export is blocked right now, one line each: the stale-roster reasons,
+    plus every registrant still unassigned (which lifts by itself as they are
+    placed, by hand or by a Solve, unlike the stale flag that only a full Solve
+    clears)."""
+    unplaced = unplaced_reason(state)
+    return stale_reasons(state) + ([unplaced] if unplaced else [])
+
+
+def answers_changed_since_placed(state: dict[str, Any]) -> dict[int, list[str]]:
+    """The placed Helpers whose re-submitted answers changed materially since
+    they were placed: Helper id -> the changed fields (``Building preference``,
+    ``Preferences``, ``Equipment``). The marker stays until the Helper is moved,
+    locked or re-placed by a full Solve, or loses their Assignment; dismissing
+    the upload summary leaves it."""
+    placed = {a["helper_id"] for a in state["assignments"]}
+    return {h["id"]: list(h["answers_changed"]) for h in state["helpers"] if h.get("answers_changed") and h["id"] in placed}
+
+
+def upload_summary(workspace: Workspace) -> Optional[dict]:
+    """What the latest re-upload(s) did to the open Season, kept until
+    :func:`dismiss_upload_summary` (None when there is none): ``new`` registrants
+    (unassigned), ``changed`` answers of placed Helpers (with the fields),
+    Helpers ``missing`` from the export (kept), and, live, the ``uncertain``
+    matches still awaiting review (:func:`get_uncertain_matches` entries)."""
+    stored = workspace.load().get("upload_summary")
+    if not stored:
+        return None
+    return {**stored, "uncertain": get_uncertain_matches(workspace)}
+
+
+def _clear_answers_changed(state: dict[str, Any], helper_ids: Optional[set[int]] = None) -> None:
+    """Drop the "answers changed since placed" marker of these Helpers (all of
+    them when ``helper_ids`` is None): they were just moved, locked or re-placed."""
+    for helper in state["helpers"]:
+        if helper_ids is None or helper["id"] in helper_ids:
+            helper.pop("answers_changed", None)
+
+
+def dismiss_upload_summary(workspace: Workspace) -> dict:
+    """Dismiss the upload summary. Only the summary goes: markers on Helpers and
+    the Export gate are unaffected."""
+    state = workspace.load()
+    state.pop("upload_summary", None)
+    workspace.save(state)
+    return state
+
+
 def _manual_entry_label(entry: dict) -> str:
     role = next((r.value for r in (*StructuralRole, *OverlayRole) if r.name == entry["role"]), entry["role"])
     where = " · ".join(filter(None, [entry.get("building"), entry.get("room")]))
@@ -655,6 +847,7 @@ def set_cant_attend(workspace: Workspace, helper_id: int, cant_attend: bool, con
     helper["cant_attend"] = True
     if impact:
         state["assignments"] = [a for a in state["assignments"] if a["helper_id"] != helper_id]
+        _clear_answers_changed(state, {helper_id})
         satisfied, unsatisfied = _recompute_friend_pairs(state)
         state["diagnostics"]["satisfied_friend_pairs"] = satisfied
         state["diagnostics"]["unsatisfied_friend_pairs"] = unsatisfied
@@ -1999,8 +2192,10 @@ def solve(workspace: Workspace) -> dict:
         # Nothing to store: the previous roster (if any) is left untouched.
         raise RosteringError(str(exc)) from exc
 
-    # A full Solve keeps the locked Assignments and replaces every other one.
+    # A full Solve keeps the locked Assignments and replaces every other one,
+    # which re-places those Helpers: their answers no longer changed "since placed".
     locked_ids = {a.helper_id for a in fixed}
+    _clear_answers_changed(state, {h["id"] for h in state["helpers"]} - locked_ids)
     state["assignments"] = [
         assignment_to_dict(replace(a, locked=a.helper_id in locked_ids)) for a in result.assignments
     ]
@@ -2071,6 +2266,7 @@ def set_lock(workspace: Workspace, helper_id: int, locked: bool) -> dict:
         if assignment["helper_id"] == helper_id:
             if locked:
                 assignment["locked"] = True
+                _clear_answers_changed(state, {helper_id})  # pinning it is accepting the placement
             else:
                 assignment.pop("locked", None)
             workspace.save(state)
@@ -2083,6 +2279,7 @@ def lock_all_placed(workspace: Workspace) -> dict:
     state = workspace.load()
     for assignment in state["assignments"]:
         assignment["locked"] = True
+    _clear_answers_changed(state)
     workspace.save(state)
     return state
 
@@ -2112,6 +2309,7 @@ def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, 
         moved["locked"] = True  # a lock moves with its Helper
     assignments.append(moved)
     state["assignments"] = assignments
+    _clear_answers_changed(state, {helper_id})  # placed anew by hand
     satisfied, unsatisfied = _recompute_friend_pairs(state)
     state["diagnostics"]["satisfied_friend_pairs"] = satisfied
     state["diagnostics"]["unsatisfied_friend_pairs"] = unsatisfied
@@ -2195,6 +2393,9 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
     reasons = stale_reasons(state)
     if reasons:
         raise RosteringError("The roster is out of date: " + "; ".join(reasons) + ". Solve again before exporting.")
+    unplaced = unplaced_reason(state)
+    if unplaced:
+        raise RosteringError(unplaced + ". Place them (drag them into the grid, or Solve) before exporting.")
 
     comp = _build_competition(state)
     result = SolveResult(

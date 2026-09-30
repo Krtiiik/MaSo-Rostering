@@ -8,7 +8,7 @@ import streamlit as st
 
 from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Role
 from rostering.streamlit_app import fix_focus, mutations, session
-from rostering.streamlit_app.tabs import helper_forms, helper_tags, tag_import_ui
+from rostering.streamlit_app.tabs import helper_forms, helper_tags, tag_import_ui, upload_summary_ui
 
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
 _SIZE_COLUMN = "T-shirt size"
@@ -32,7 +32,8 @@ def render() -> None:
     else:
         st.write(
             f"Upload the raw Google Forms export (.xlsx) to load helper responses into Season "
-            f"**{season['label']}**. This replaces the helpers previously uploaded to it."
+            f"**{season['label']}**. Helpers already in it are refreshed from their latest row (matched by e-mail), "
+            "new registrants are added unassigned, and nobody is moved or removed."
         )
 
     state = session.get_state()
@@ -53,6 +54,8 @@ def render() -> None:
                 except mutations.RosteringError as exc:
                     st.error(str(exc))
             st.rerun()
+
+    upload_summary_ui.render("upload")
 
     if season is not None:
         helper_forms.render_flash()
@@ -90,6 +93,9 @@ def render() -> None:
                 + ". Solve again in the Roster tab; Export is blocked until then.",
                 icon="⚠️",
             )
+        unplaced = mutations.unplaced_reason(state)
+        if unplaced:
+            st.warning(unplaced + ". Place them in the Roster tab; Export is blocked until then.", icon="⚠️")
         tag_import_ui.render_banner()
         tag_import_ui.render_summary("banner")
         tag_import_ui.render_promotion_auto()
