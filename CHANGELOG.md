@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Organizers can be members of a Forced friends group, and a friend request can
+  be made forced. A placed Organizer anchors the group at their placement (their
+  Building, and their Room when they hold one; a Room group with an Organizer who
+  only leads a Building enforces just that Building), an unplaced Organizer is
+  dormant. An Organizer cannot be added to a group that shares Role, nor can Role
+  be ticked on a group with one in it; a member who is promoted to Organizer stays
+  in the group, the Role axis is no longer applied to them and the group shows
+  "Role not applied to <name>". Dragging a Helper away from a group with a placed
+  Organizer is an ordinary Broken rule. In the Forced friends tab, "Make a friend
+  request forced" turns a resolved friend request into a new Room group of the two
+  people and leaves the request as it was.
 - Forced friends groups report their state. Each group in the Forced friends tab
   shows a status badge: Active, Dormant (with the reason, e.g. fewer than two
   active members) or Violated by the roster as it stands, with the violation

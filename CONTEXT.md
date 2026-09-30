@@ -120,7 +120,9 @@ Broken rule) and can be flagged Can't attend like a Helper (their slot entries
 and so their placement are cleared, and while flagged they cannot be given a
 slot, are left out of the check and the export, and a Friend preference naming
 them stops counting). Promotion does not carry a Helper's Can't attend flag
-over: promoting is a deliberate act, so the Organizer attends.
+over: promoting is a deliberate act, so the Organizer attends. An Organizer can
+also be a member of a Forced friends group, as an anchor at their placement (see
+**Forced friends group**).
 
 **Building**:
 A venue hosting part of the competition. The set of Buildings is not stable
@@ -197,7 +199,8 @@ Helper or an Organizer — minimized-if-unsatisfied, never a hard
 constraint. Configurable as `pairwise` (each request scores
 independently) or `mutual` (only reciprocated requests count), and as
 `symmetric` (a reciprocated pair merges into one scored unit) or not
-(each direction scores separately).
+(each direction scores separately). A resolved request can be hardened into a
+Forced friends group ("make forced"), which never changes the request itself.
 
 **Forced friends group**:
 A named, user-authored hard constraint: a set of people — Persons, each
@@ -218,10 +221,18 @@ reason) or violated by the roster as it stands, and its member chips are marked
 on the roster grid. It is refused when its members' effective allowed Buildings
 (a Room group counts as Building) or Roles, from their Tags, have nothing in
 common on an axis it shares, and a Tag change that would cause that is refused;
-size, capacity and fixed or locked Assignments never block. *Planned, not yet
-implemented*: an Organizer as a
-member (never on the Role axis, since an Organizer has no solved Role; an
-unplaced Organizer is not active), and a group carrying over to a later Season
+size, capacity and fixed or locked Assignments never block. An Organizer can be
+a member: a placed one is active and anchors the group at their placement (the
+Building axis, and the Room axis when they hold a Room; a Room axis on an
+Organizer who only leads a Building enforces just the Building), an unplaced one
+is not active. An Organizer never takes part in the Role axis, since they have no
+solved Role: they cannot be added to a group that shares Role, and a member who
+becomes an Organizer (promotion) keeps their place in the group with the Role axis
+not applied to them, shown as a badge "Role not applied to <name>". Dragging a
+Helper away from a group with a placed Organizer breaks the group like any other.
+A resolved Friend preference can be hardened with "make forced", which creates a
+new group of those two people with the Room axis and leaves the Friend preference
+as it was. *Planned, not yet implemented*: a group carrying over to a later Season
 alongside Tag import, since it belongs to the people in it, not to one Season.
 
 **Assignment**:

@@ -3256,12 +3256,14 @@ def grid_forced_groups(state: dict[str, Any]) -> dict[int, list[str]]:
     Forced friends group in force (two or more attending members), the groups that
     bind them, worded ``Rodina (same Building, Room)`` for the chip's tooltip. A
     dormant group binds no one, so marks no one."""
-    competition = _build_competition(state)
+    competition = _build_competition(state).attending()
     marks: dict[int, list[str]] = {}
     for group in competition.forced_groups:
-        active = forced_friends.active_helper_ids(group, competition.helpers)
-        if len(active) < 2:
+        # A placed Organizer counts towards a group being in force; only the
+        # Helper members carry a chip mark.
+        if forced_friends.active_member_count(group, competition.helpers, competition.organizers) < 2:
             continue
+        active = forced_friends.active_helper_ids(group, competition.helpers)
         line = f"{group.name} (same {', '.join(forced_friends.AXIS_LABELS[a] for a in group.axes)})"
         for helper_id in active:
             marks.setdefault(helper_id, []).append(line)
