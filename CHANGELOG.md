@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The People tab's Tags column shows coloured pills (solid for direct Tags,
+  dashed for inherited ones) instead of plain text.
 - The People tab's Organizers and Helpers tables no longer open a person's popup
   from their name: the name is plain text and an "Otevřít" button in a new last
   column opens the same popup.
