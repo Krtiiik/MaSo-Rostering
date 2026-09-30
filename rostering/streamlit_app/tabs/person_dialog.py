@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations, session, tag_pills
+from rostering.streamlit_app import forced_groups, mutations, session, tag_pills
 from rostering.streamlit_app.tabs import helper_forms, person_actions, person_links
 
 # A refused Tag pick's reason, shown once after the rerun, and a counter that
@@ -23,7 +23,7 @@ _DISMISS_LABEL = "✕ Nezúčastní se"
 _UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
 
 
-FRIENDS_TAB = "Jména kamarádů"
+FRIENDS_TAB = "Kamarádi"
 
 
 def open_person(kind: str, person_id: int, tab: str | None = None) -> None:
@@ -76,7 +76,7 @@ def _helper_body(helper_id: int, tab: str | None = None) -> None:
     with tags:
         _render_tags("helper", helper)
     with friends:
-        _render_friend_names(helper)
+        _render_friends(helper)
     with links:
         person_links.render_helper_links(session.get_workspace(), helper)
 
@@ -219,15 +219,62 @@ def _save_decision(helper_id: int, name: str, *args) -> None:
     person_actions.rerun_popup()
 
 
-def _render_friend_names(helper: dict) -> None:
-    """Match the friend names this Helper wrote on the survey to people. A name
-    can match more than one helper if it refers to a group."""
+def _render_friends(helper: dict) -> None:
+    """The Friends tab: the survey names still to match on top (when there are
+    any), then every matched friend with the option to force the wish, then
+    (folded away) the matching of the names already decided."""
     names = _friend_names(helper)
-    if not names:
-        st.caption("Tento pomocník neuvedl žádné kamarády, které by bylo třeba přiřadit.")
+    unresolved = [n for n in names if n in helper["unresolved_friend_names"]]
+    decided = [n for n in names if n not in unresolved]
+    if unresolved:
+        st.markdown("**K přiřazení**")
+        st.caption(
+            "Tato jména z dotazníku zatím nejsou přiřazená k nikomu. Jméno může odpovídat více pomocníkům, pokud "
+            "označuje skupinu lidí."
+        )
+        _render_name_matchers(helper, unresolved)
+    _render_friend_list(helper, bool(unresolved))
+    if decided:
+        with st.expander("Změnit přiřazení jmen z dotazníku"):
+            _render_name_matchers(helper, decided)
+
+
+def _make_forced(helper_id: int, friend: object) -> None:
+    """Force one friend wish (a Room group of the two) and refresh the popup."""
+    try:
+        session.set_state(forced_groups.make_forced(session.get_workspace(), helper_id, friend))
+    except mutations.RosteringError as exc:
+        st.error(str(exc))
         return
+    person_actions.rerun_popup()
+
+
+def _render_friend_list(helper: dict, after_unresolved: bool) -> None:
+    """Every friend this Helper has, with "Vynutit" (a Forced friends group of
+    the two who must share a Room, hence a Building) unless that group exists."""
+    requests = [r for r in forced_groups.friend_requests(session.get_state()) if r["helper_id"] == helper["id"]]
+    if after_unresolved:
+        st.markdown("**Přiřazení kamarádi**")
+    if not requests:
+        st.caption("Tento pomocník zatím nemá žádného přiřazeného kamaráda.")
+        return
+    st.caption(
+        "Přání být s kamarádem je jen přání. Jeho vynucením vznikne skupinka dvou lidí, kteří musí sdílet "
+        "místnost (a tedy i budovu); samotné přání zůstane, jak bylo. Skupinky najdete na záložce „Vynucené skupinky kamarádů“."
+    )
+    for i, request in enumerate(requests):
+        name_col, action_col = st.columns([3, 2], vertical_alignment="center")
+        name_col.write(request["friend_name"])
+        if request["forced"]:
+            action_col.caption(":material/link: Vynuceno")
+        elif action_col.button("Vynutit", key=f"force_{helper['id']}_{i}"):
+            _make_forced(helper["id"], request["friend"])
+
+
+def _render_name_matchers(helper: dict, names: list[str]) -> None:
+    """Match the given friend names this Helper wrote on the survey to people. A
+    name can match more than one helper if it refers to a group."""
     state = session.get_state()
-    st.caption("Jméno může odpovídat více pomocníkům, pokud označuje skupinu lidí.")
     decisions = helper.get("friend_name_decisions", {})
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
     candidates = sorted((hid for hid in other_helpers if hid != helper["id"]), key=lambda hid: other_helpers[hid].lower())

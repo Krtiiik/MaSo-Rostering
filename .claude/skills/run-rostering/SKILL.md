@@ -113,7 +113,7 @@ With no path argument it only checks the app shell loads (file input
 attached). With a path, it uploads that `.xlsx` via the People tab, waits
 for the Organizers/Helpers tables to render, opens the first helper marked ⚠,
 and dismisses its first unresolved friend name as "not attending" in the
-popup's "Friend names" tab (if any unresolved names exist — each picker
+popup's "Friends" tab (if any unresolved names exist — each picker
 applies its choice immediately on selection), switches to the
 Buildings tab and clicks "Save & solve", switches to the Roster tab, drags
 the first helper chip into the first grid cell (exercising the CCv2

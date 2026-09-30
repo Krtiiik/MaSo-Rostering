@@ -263,8 +263,10 @@ pushing the tag, not just creating it locally.
   that opens that person's popup (`person_dialog.open_person`, an `st.dialog`
   with `on_dismiss="rerun"` so the table is current once it closes): for a
   Helper the tabs Details (Can't attend, every field, Save / Promote / Delete,
-  `helper_forms.render_details`), Tags, Friend names (the per-Helper matching of
-  the free-text friend names, `resolve_friend`) and Person links
+  `helper_forms.render_details`), Tags, Friends (`person_dialog._render_friends`: the survey names still to
+  match on top, `resolve_friend`; then every matched friend with a "Vynutit"
+  button, or "Vynuceno" when that group exists; then, in an expander, the
+  matching of the names already decided) and Person links
   (`person_links.render_helper_links`); for an Organizer Details and Tags. Edits
   that only change the popup (Tags, friend names, Can't attend) call
   `person_actions.rerun_popup` (a fragment rerun, the popup stays open); Save,
@@ -463,7 +465,7 @@ pushing the tag, not just creating it locally.
   `badges` of `list_groups` say `Role not applied to <name>`. The edit-time Tag
   check counts Helpers only. `forced_groups.friend_requests(state)` and
   `make_forced(workspace, helper_id, friend)` (friend: Helper id or
-  `{"organizer_id": n}`) back the tab's "Make a friend request forced" expander:
+  `{"organizer_id": n}`) back the "Vynutit" button on each matched friend in a Helper's popup (Friends tab; the Forced friends tab itself no longer has it):
   a normal `add_group` named `Anna + Petr` with the Room axis, refused when that
   exact group exists; the request is not touched. The grid marks Helper chips
   only (`grid_forced_groups` counts a placed Organizer towards a group being in

@@ -106,7 +106,7 @@ def test_unmatched_friend_names_are_a_button_that_opens_the_popup_on_the_friends
     button.click().run()
 
     assert not at.exception
-    assert any(t.label == "Jména kamarádů" for t in at.tabs)  # the popup's tab strip
+    assert any(t.label == "Kamarádi" for t in at.tabs)  # the popup's tab strip
 
 
 def test_a_helper_without_unmatched_friend_names_has_no_friends_button(seasons):

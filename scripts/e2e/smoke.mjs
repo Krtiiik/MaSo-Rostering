@@ -67,7 +67,7 @@ if (xlsxPath) {
   console.log("people tables rendered");
 
   // Friend names are matched in a helper's popup: a name button marked with a
-  // warning sign has some unresolved. Open one, go to its "Friend names" tab
+  // warning sign has some unresolved. Open one, go to its "Friends" tab
   // and dismiss its first name as "not attending" (each picker applies its
   // choice immediately and the popup stays open), then close the popup.
   const flagged = page.getByRole("button", { name: /^⚠/ });
@@ -77,7 +77,7 @@ if (xlsxPath) {
     await flagged.first().scrollIntoViewIfNeeded();
     await flagged.first().click();
     const popup = page.getByRole("dialog");
-    await popup.getByRole("tab", { name: "Jména kamarádů" }).click();
+    await popup.getByRole("tab", { name: "Kamarádi" }).click();
     await popup.locator('[data-testid="stMultiSelect"]').first().click();
     await page.getByRole("option").first().click(); // "not attending"
     await page.waitForTimeout(800);
