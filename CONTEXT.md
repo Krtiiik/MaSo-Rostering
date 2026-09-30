@@ -6,6 +6,10 @@ solver.
 
 ## Language
 
+The app's front end is Czech. Terms below are English (as in code); each
+carries its Czech UI name on a `Czech:` line. UI-only labels (tabs, actions)
+are in `docs/czech-ui-glossary.md`.
+
 ### Rostering
 
 **Season**:
@@ -16,10 +20,11 @@ Building/Room configuration, from every other Season. A Season is identified
 by a required label — a year plus jaro/podzim — that is unique among stored
 Seasons, editable, and what orders Seasons in time. Every Season the app has
 worked on stays stored, not only the current one.
+Czech: Ročník.
 
 **Helper**:
 A volunteer who registered via the survey and is eligible to receive one of
-the 6 solver-assigned Roles. Czech: pomocník.
+the 6 solver-assigned Roles. Czech: Pomocník.
 
 **Hand-added Helper**:
 A Helper entered directly into the app rather than parsed from the survey.
@@ -29,6 +34,7 @@ at its normal empty/no-preference default. Otherwise an ordinary Helper, with
 no visual distinction; every field is editable and it can be deleted at any
 time, deleting one who holds an Assignment or Manual role entries being
 confirmed and clearing them exactly as Can't attend does.
+Czech: Manuálně přidaný pomocník.
 
 **Locked Assignment**:
 An Assignment the user has fixed by hand for a chosen Helper so that a full
@@ -40,6 +46,7 @@ may break a rule, and it is the rule that bends, never the lock. Moving a
 locked Helper by hand moves the lock with them. A lock ends only when the user
 clears it, or the Helper is marked Can't attend, or becomes an Organizer, or
 their Room or Building no longer exists at the next Solve.
+Czech: Uzamčené přiřazení; the lock itself is "Zámek".
 
 **Can't attend**:
 A per-Helper (or per-Organizer, see Organizer) flag marking them unavailable for the Season: excluded from the
@@ -48,12 +55,19 @@ Reversible at any time. Flagging a Helper who already has an Assignment or
 Manual role entries asks for confirmation, then clears the Assignment (and its
 lock) and every Manual role entry holding them and makes the roster stale;
 un-flagging restores none of it and never re-solves.
+Czech: Nemůže se zúčastnit.
+
+**Roster**:
+The full set of Assignments for a Season — who is placed where, and in what
+Role — as the solver produced it and hand edits have left it.
+Czech: Rozdělení pomocníků.
 
 **Stale roster**:
 A roster that no longer matches the Helpers and rules it was solved for, though
 nobody was moved (e.g. after clearing a Can't attend Helper's placement). A
 banner near Solve gives the reason, Export is blocked until the next full
 Solve, which clears it. Saved with Versions.
+Czech: Neaktuální rozdělení pomocníků.
 
 **Re-upload**:
 Uploading a newer survey export into the open Season. It never moves or
@@ -76,6 +90,7 @@ marked "answers changed since placed" until they are moved, locked or
 re-placed by a full Solve. A summary of what changed stays at the top of the
 Upload and Roster tabs until dismissed, and Export is blocked while any
 registrant is unassigned.
+Czech: Opětovné nahrání.
 
 **Place new registrants**:
 An action that solves only for the unassigned Helpers (new registrants of a
@@ -87,6 +102,7 @@ It neither creates nor clears locks. If not every rule can hold, it still
 returns a roster with Broken rules reported, like any solve. A full Solve
 stays available and discards every Assignment except locked ones; newcomers
 can also simply be dragged into the grid by hand.
+Czech: Zařadit nové registrované.
 
 **Simulace**:
 A rehearsal for the competition, held before the event day.
@@ -123,15 +139,18 @@ them stops counting). Promotion does not carry a Helper's Can't attend flag
 over: promoting is a deliberate act, so the Organizer attends. An Organizer can
 also be a member of a Forced friends group, as an anchor at their placement (see
 **Forced friends group**).
+Czech: Organizátor.
 
 **Building**:
 A venue hosting part of the competition. The set of Buildings is not stable
 across Seasons — always driven by that Season's configuration, never
 hardcoded.
+Czech: Budova.
 
 **Room**:
 A room within a Building. Room groupings also change Season to Season —
 rooms get merged or split.
+Czech: Místnost.
 
 **Large room**:
 A Room noticeably bigger than the others, shown across two columns in the
@@ -141,12 +160,14 @@ building-wide — is at least 1.5 times the median size of the Rooms on the
 roster that have Helpers. Judged against the roster as it currently stands,
 so a hand edit or re-solve can change it. A Room the user has merged with a
 neighbour is never Large.
+Czech: Velká místnost.
 
 **Building preference**:
 The set of Buildings a Helper marked as acceptable on the survey (a
 multi-select question, not a single ranked choice). Satisfied if the
 Helper's assigned Building is in the set, or the set is empty (no
 preference expressed).
+Czech: Preferované budovy.
 
 **Equipment eligibility**:
 A hard rule gating Fotograf: a Helper who didn't mark that they can
@@ -154,12 +175,14 @@ bring a camera cannot be assigned Fotograf, unless the rules can't all hold
 and this becomes a Broken rule. Bringing a laptop is no longer
 a hard constraint on Kreslič — it's tracked only for display (the roster
 export's `(n)` tag).
+Czech: Způsobilost dle vybavení.
 
 **T-shirt size**:
 A Helper's shirt size, one of XS, S, M, L, XL, XXL, or **Unknown** when the
 survey answer is blank or unrecognizable (or a Hand-added Helper has none).
 Editable by hand on the Helper. Counted per Building, by the Building the
 person is placed in, for the shirt order.
+Czech: Velikost trička (Unknown: Neznámá).
 
 **Tag**:
 A label a Helper can carry: name (required, unique), colour, and note, plus an
@@ -172,6 +195,7 @@ keeps its own Tags; they reach a later Season through Tag import. Tags are
 managed in the Tags tab and applied there or inline in the Upload tab's Helper
 list; deleting a Tag strips it from its Helpers and moves its child Tags up to
 its own parent.
+Czech: Štítek.
 
 **Tag constraint**:
 A positive (allow-list) or negative (deny-list) restriction a Tag places on
@@ -186,12 +210,14 @@ naming a Building the Season's configuration no longer has is inert — ignored
 by the solver and the check, shown as "not in this Season" — and Buildings are
 matched by name the way Building preference is. A Helper placed outside their
 allowed set is a Broken rule; the solver bends it after the minimums.
+Czech: Omezení štítku.
 
 **Preference**:
 A Helper's 5-point ordinal rating of one Role, from most to least willing:
 Ano ("yes") → Klidně ("sure") → Nevadí ("don't mind") → Spíš ne ("rather
 not") → Ne ("no"). A blank answer counts as Nevadí, so a Helper who left all
 five blank has no preference between Roles.
+Czech: Preference rolí.
 
 **Friend preference**:
 A Helper's soft request to share a Room with another named person — a
@@ -201,6 +227,7 @@ independently) or `mutual` (only reciprocated requests count), and as
 `symmetric` (a reciprocated pair merges into one scored unit) or not
 (each direction scores separately). A resolved request can be hardened into a
 Forced friends group ("make forced"), which never changes the request itself.
+Czech: Přání být s kamarádem (one request: žádost o kamaráda).
 
 **Forced friends group**:
 A named, user-authored hard constraint: a set of people — Persons, each
@@ -241,10 +268,12 @@ with fewer than two active members is imported inactive), each group ticked in o
 overview of its returning and missing members. An import copies, never shares (the
 source Season is never edited), skips a group already present with the same members
 and axes, and carries no link that is still unreviewed.
+Czech: Vynucená skupinka kamarádů ("make forced": Vynutit).
 
 **Assignment**:
 The solver's output for one Helper: the Building, Room, and Role they're
 placed into.
+Czech: Přiřazení.
 
 **Broken rule**:
 A hard rule the current roster fails to satisfy: a Room or Building minimum,
@@ -258,6 +287,7 @@ hand edit that fixes it clears it immediately. A hand edit is never refused
 for breaking a rule — a placement that breaks one stands and simply shows as
 a Broken rule, including an Organizer's hand placement; only minimums, which
 routinely dip mid-edit, are exempt from warning at the moment of the edit.
+Czech: Porušené pravidlo.
 _Avoid_: Infeasible solve
 
 #### Solver roles
@@ -266,6 +296,7 @@ _Avoid_: Infeasible solve
 The single Role the solver assigns to each Helper — exactly one, from a
 fixed set of 6. Distinct from Organizer role and Additional role, which are
 assigned by hand, not by the solver.
+Czech: Role.
 
 **Opravovatel**:
 Corrector/grader.
@@ -294,6 +325,7 @@ a Helper who is fine with a real Role gets that rather than Záloha.
 **Manual roles**:
 Any role assigned by hand after the solver runs, rather than by the solver
 itself — covers Organizer role and Additional role.
+Czech: Manuální role.
 _Avoid_: Out-of-solver roles
 
 **Organizer role**:
@@ -302,6 +334,7 @@ of the assignee's solved Role — filled only by a tracked Organizer. A slot
 entry saved before Organizers existed (a registered Helper's id or a
 hand-typed name) is a legacy entry: still shown and exported, marked as not
 yet a tracked Organizer, until replaced by picking one.
+Czech: Organizátorská role.
 _Avoid_: Structural role
 
 **Vedoucí budovy**:
@@ -322,6 +355,7 @@ A Manual role a Helper keeps in addition to their solved Role, since the
 duties happen before/after the event and don't conflict in time. Scoped to
 wherever the Helper is already solved into — Registrace by Building, the
 other two by Room.
+Czech: Doplňková role.
 _Avoid_: Overlay role
 
 **Registrace**:
@@ -349,6 +383,7 @@ whatever only it knew.
 A hand-created Organizer has no e-mail, so every match for them is uncertain
 unless an e-mail is entered (a promoted Helper keeps their Person). Someone already known as an Organizer who shows
 up in a new survey is offered a link to that Person, never auto-promoted.
+Czech: Osoba.
 
 **Returning helper**:
 A Helper who also registered in an earlier Season and is recognized as the
@@ -368,6 +403,7 @@ Any Helper's link can also be undone (unlink) or pointed by hand at any past
 Person; link edits change only the Person link, never a Helper id. Phone
 number is never a key — shown on a candidate as a hint only. Anything else
 is treated as a new Person.
+Czech: Vracející se pomocník.
 
 #### Tag import and Class promotion
 
@@ -391,6 +427,7 @@ skipped and constraint entries naming a
 Building the current Season lacks are dropped. A re-import and that late
 prompt find a Tag by origin first, then by name; a Tag deleted on purpose is
 recreated only by an explicit re-import, which says so.
+Czech: Import štítků; the offer is "Import z dřívějšího ročníku".
 
 **Class promotion**:
 Renaming school-class Tags — names of the form number, dot, optional space,
@@ -411,6 +448,7 @@ already has blocks Apply, and Tags are never merged. Only the current Season is
 edited. The Season records, per source, the promotion applied and which Tags
 were deliberately left unpromoted, so a later import or a late-confirmed link
 resolves the promoted name.
+Czech: Zestárnutí třídy (action: Zestárnout třídu).
 
 ### Application
 
@@ -419,9 +457,11 @@ The web app's single current session: the one Season currently open, plus
 every edit made since. There is exactly one Workspace — no working on
 several Seasons at once. Earlier Seasons stay stored and can be reopened
 into the Workspace, which is the only way to correct them.
+Czech: Pracovní plocha.
 
 **Version**:
 A named, timestamped snapshot of the open Season's whole state, saved and
 restorable on demand. Restoring rolls back everything the Season holds
 (Person links, Tags, Forced friends groups, Assignments) except its label,
 and belongs to that Season — deleting the Season deletes its Versions.
+Czech: Verze.
