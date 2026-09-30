@@ -420,8 +420,10 @@ pushing the tag, not just creating it locally.
   a normal `add_group` named `Anna + Petr` with the Room axis, refused when that
   exact group exists; the request is not touched. The grid marks Helper chips
   only (`grid_forced_groups` counts a placed Organizer towards a group being in
-  force), Organizer slot chips carry no group mark. Not built yet: the import
-  section (#62).
+  force), Organizer slot chips carry no group mark. Import from an
+  earlier Season: the second `ImportSection` (`forced_groups`, registered at the
+  bottom of `forced_groups.py`; `mutations.py` imports that module last so it
+  loads wherever `mutations` does), see the Tag import note below.
   Helper ones and have no UI yet. Organizer Can't attend/Tags are separate,
   later tickets (the Organizer record already may carry a direct-Tag id list,
   `tags`, which promotion fills; nothing else reads it yet).
@@ -492,14 +494,32 @@ pushing the tag, not just creating it locally.
   (the "3. Tags" tab) and `tabs/helper_tags.py` (a fragment above the Upload
   tab's Helper table), both drawing pills through `tag_pills.py`.
 - Tag import (`mutations.py`, "Tag import" section; UI in
-  `tabs/tag_import_ui.py`): `import_from_season(workspace, source_season_id)`
-  runs every `ImportSection` in `_IMPORT_SECTIONS` (`register_import_section`;
-  Tags is the first, Forced friends will add a second) over one earlier stored
-  Season (read through `Workspace.stored_state`, never written) against the open
-  state, saved once, and returns `{"source", "sections"}`; the Tags section
-  summary has `tags_created`, `tags_restored`, `tags_reused`, `helpers_tagged`,
-  `dropped_constraint_entries`, `skipped_assignments`, `awaiting_review` and
-  display `lines`. Offer helpers: `import_sources`, `default_import_source`,
+  `tabs/tag_import_ui.py`): `import_from_season(workspace, source_season_id,
+  selections=None)` runs every `ImportSection` in `_IMPORT_SECTIONS`
+  (`register_import_section`; Tags is the first, Forced friends groups the
+  second) over one earlier stored Season (read through `Workspace.stored_state`,
+  never written) against the open state, saved once, and returns `{"source",
+  "sections"}`; the Tags section summary has `tags_created`, `tags_restored`,
+  `tags_reused`, `helpers_tagged`, `dropped_constraint_entries`,
+  `skipped_assignments`, `awaiting_review` and display `lines`. A section a user
+  can choose from also has an `overview` (`ImportSection.overview`, surfaced by
+  `import_overview(workspace, source_season_id)`) and reads what was ticked from
+  `ImportContext.selections[key]` (`selections` of `import_from_season`; no entry
+  means everything). The Forced friends section (`forced_groups.py`, "Import from
+  an earlier Season"; key `forced_groups`, selection = source group ids) lists
+  each source group with `returning` / `missing` names, `importable` (at least
+  one member is a Person with a Helper or Organizer record here, so recognized by
+  `person_id`; an unreviewed uncertain match shares none, so is not carried and
+  its member is a `not_registered` placeholder that turns live once the link is
+  confirmed) and `already_present`; it copies each ticked, importable group whole
+  (all members kept as `{person_id, name}`, own id from `next_forced_group_id`,
+  canonical axes), skips one whose member `person_id` set and axes equal an
+  existing group's, raises the stale flag when a roster exists and a group
+  arrived, never refuses on a Tag clash (it lists it in the summary; the solver
+  reports it as a Broken rule) and summarises `groups_imported`,
+  `groups_inactive`, `groups_skipped`, `groups_left_out`,
+  `groups_without_returning`, `tag_clashes` and `lines`. The UI dialog shows one
+  tick per group before the Import button. Offer helpers: `import_sources`, `default_import_source`,
   `tag_import_offer` (also the `banner` flag). A Tag record gains `origins`, a
   list of `{season_id, tag_id}` (a copy gets one; a same-name Tag already there
   is matched and gains one, without being changed), and the state gains

@@ -1,9 +1,9 @@
 """The Tag import offer (see CONTEXT.md "Tag import"), shared by the Tags tab (an
 always-available button) and the Upload tab (a banner while the Season has no
 Tags yet, and the "apply their Tags?" prompt after an uncertain link is
-confirmed). The dialog lists the sections the import will bring (Tags today; the
-offer is section-based) and the result summary is shown once in the tab that
-started the import. Class promotion (see CONTEXT.md) shares the module: its
+confirmed). The dialog lists the sections the import will bring (Tags, then
+Forced friends groups, with one tick per group; the offer is section-based) and
+the result summary is shown once in the tab that started the import. Class promotion (see CONTEXT.md) shares the module: its
 dialog opens from a button in the Tags tab and by itself after an import that
 crossed a school year into podzim."""
 from __future__ import annotations
@@ -23,6 +23,8 @@ _LATE_RESULT = "_tag_import_late_link_result"
 # the line saying what an Apply renamed (shown once).
 _PROMOTE_AUTO = "_class_promotion_auto"
 _PROMOTE_NOTICE = "_class_promotion_notice"
+# The key of the Forced friends section of the offer (see ``forced_groups``).
+_GROUPS_KEY = "forced_groups"
 
 
 def _season_id() -> str | None:
@@ -32,6 +34,40 @@ def _season_id() -> str | None:
 
 def _source_label(source: dict) -> str:
     return f"{source['label']} · {source['helper_count']} helpers · {source['tag_count']} Tags"
+
+
+def _render_groups_overview(section: dict, source_id: str, where: str) -> list[int]:
+    """The Forced friends section's overview: one tick per group of the source
+    Season with its returning and missing members. A group with nobody returning
+    cannot be ticked, and one already in this Season is ticked but skipped by the
+    import. Returns the source ids of the ticked groups."""
+    st.markdown(f"**{section['title']}**")
+    if not section["groups"]:
+        st.caption("The source Season has no Forced friends groups.")
+        return []
+    st.caption(
+        "Each group goes with its people; a member who is not registered this Season stays in it as a dim "
+        "placeholder and becomes live if they register later."
+    )
+    ticked: list[int] = []
+    for group in section["groups"]:
+        axes = ", ".join(axis.capitalize() for axis in group["axes"])
+        if st.checkbox(
+            f"{group['name']} (same {axes})",
+            value=group["importable"],
+            disabled=not group["importable"] or group["already_present"],
+            key=f"tag_import_group_{where}_{_season_id()}_{source_id}_{group['group_id']}",
+        ):
+            ticked.append(group["group_id"])
+        parts = [f"Returning: {', '.join(group['returning']) or 'nobody'}"]
+        if group["missing"]:
+            parts.append(f"Missing: {', '.join(group['missing'])}")
+        if not group["importable"]:
+            parts.append("nobody returns, so it is not imported")
+        elif group["already_present"]:
+            parts.append("already in this Season, so it is skipped")
+        st.caption(" · ".join(parts))
+    return ticked
 
 
 @st.dialog("Import from an earlier Season")
@@ -55,11 +91,16 @@ def _import_dialog(where: str) -> None:
         "Imports: "
         + ", ".join(section["title"] for section in offer["sections"])
         + ". The Tag tree is copied with its constraints, and every Returning helper linked by a confirmed "
-        "match gets their Tags back. Nothing in the source Season changes."
+        "match gets their Tags back. Forced friends groups follow the people in them. Nothing in the source "
+        "Season changes."
     )
+    selections: dict[str, list[int]] = {}
+    for section in mutations.import_overview(workspace, source_id)["sections"]:
+        if section["key"] == _GROUPS_KEY:
+            selections[_GROUPS_KEY] = _render_groups_overview(section, source_id, where)
     if st.button("Import", type="primary", key=f"tag_import_go_{where}"):
         try:
-            summary = mutations.import_from_season(workspace, source_id)
+            summary = mutations.import_from_season(workspace, source_id, selections)
         except mutations.RosteringError as exc:
             st.error(str(exc))
             return

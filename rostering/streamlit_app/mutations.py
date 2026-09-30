@@ -11,7 +11,7 @@ from __future__ import annotations
 import functools
 import re
 import tempfile
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar
@@ -2545,16 +2545,22 @@ class ImportContext:
     source: dict[str, str]
     season: dict[str, str]
     person_records: list
+    # What the user ticked, by section key (see :func:`import_from_season`); a
+    # section with no entry imports everything it offers.
+    selections: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class ImportSection:
     """One importable thing: a ``key``, a ``title`` for the UI and ``run``, which
-    imports it and returns its summary (a dict; ``lines`` are shown as text)."""
+    imports it and returns its summary (a dict; ``lines`` are shown as text). A
+    section the user can choose from also gives ``overview``, which lists what it
+    would bring from the source (a dict, read only; see :func:`import_overview`)."""
 
     key: str
     title: str
     run: Callable[[ImportContext], dict[str, Any]]
+    overview: Optional[Callable[[ImportContext], dict[str, Any]]] = None
 
 
 _IMPORT_SECTIONS: list[ImportSection] = []
@@ -2797,34 +2803,66 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
 register_import_section(ImportSection("tags", "Tags", _import_tags_section))
 
 
-def import_from_season(workspace: Workspace, source_season_id: str) -> dict:
-    """Import from one earlier stored Season into the open one: every registered
-    section runs against the source (Tags first) and everything is saved
-    together — or nothing, if any of it fails. Running it again, from this or
-    another Season, is additive and never copies a Tag twice. The source Season
-    is only read. Returns ``{"source": {"id", "label"}, "sections": [...],
-    "promotion_prompt": bool}``, each section its ``key``, ``title`` and own
-    summary (the Tags section's is described in :func:`_import_tags_section`);
-    ``promotion_prompt`` says the Class promotion dialog should open by itself
-    (the open Season is podzim and a school year turned since the source)."""
+def _import_context(
+    workspace: Workspace, source_season_id: str, selections: Optional[dict[str, Any]] = None
+) -> ImportContext:
+    """What the sections work on for an import from ``source_season_id`` into the
+    open Season (see :class:`ImportContext`); refuses with no Season open or a
+    source that is not an earlier stored Season."""
     season = workspace.open_season()
     if season is None:
         raise RosteringError("Open a Season (or upload responses to create one) before importing Tags.")
     source = next((s for s in import_sources(workspace) if s["id"] == source_season_id), None)
     if source is None:
         raise RosteringError("Pick an earlier stored Season to import from.")
-    state = workspace.load()
-    source_state = workspace.stored_state(source["id"])
     identity = {"id": source["id"], "label": source["label"]}
+    return ImportContext(
+        workspace.load(),
+        workspace.stored_state(source["id"]),
+        identity,
+        season,
+        workspace.person_records(),
+        dict(selections or {}),
+    )
+
+
+def import_overview(workspace: Workspace, source_season_id: str) -> dict:
+    """What importing from ``source_season_id`` would offer to choose from, read
+    only: ``{"source": {"id", "label"}, "sections": [...]}`` with, for each
+    registered section that has something to choose (Tags has not), its ``key``,
+    ``title`` and its own overview (the Forced friends section's lists each group
+    of the source with its returning and missing members, see
+    ``forced_groups.import_overview``). Refuses like :func:`import_from_season`."""
+    context = _import_context(workspace, source_season_id)
+    sections = [
+        {"key": s.key, "title": s.title, **s.overview(context)} for s in _IMPORT_SECTIONS if s.overview is not None
+    ]
+    return {"source": context.source, "sections": sections}
+
+
+def import_from_season(workspace: Workspace, source_season_id: str, selections: Optional[dict[str, Any]] = None) -> dict:
+    """Import from one earlier stored Season into the open one: every registered
+    section runs against the source (Tags first) and everything is saved
+    together — or nothing, if any of it fails. Running it again, from this or
+    another Season, is additive and never copies a Tag twice. The source Season
+    is only read. ``selections`` carries what the user ticked, by section key
+    (Forced friends groups: ``{"forced_groups": [source group ids]}``); a
+    section with no entry imports everything it offers. Returns ``{"source":
+    {"id", "label"}, "sections": [...], "promotion_prompt": bool}``, each section
+    its ``key``, ``title`` and own summary (the Tags section's is described in
+    :func:`_import_tags_section`); ``promotion_prompt`` says the Class promotion
+    dialog should open by itself (the open Season is podzim and a school year
+    turned since the source)."""
+    context = _import_context(workspace, source_season_id, selections)
+    season, source, state = context.season, context.source, context.state
     record = state.setdefault("tag_imports", {}).setdefault(
         source["id"], {"label": source["label"], "deleted_tag_ids": []}
     )
     record["label"] = source["label"]
-    context = ImportContext(state, source_state, identity, season, workspace.person_records())
     sections = [{"key": s.key, "title": s.title, **s.run(context)} for s in _IMPORT_SECTIONS]
     workspace.save(state)
     prompt = season["label"].endswith("-podzim") and school_years_crossed(source["label"], season["label"]) >= 1
-    return {"source": identity, "sections": sections, "promotion_prompt": prompt}
+    return {"source": source, "sections": sections, "promotion_prompt": prompt}
 
 
 def _late_link_tags(workspace: Workspace, state: dict[str, Any], helper: dict) -> list[dict]:
@@ -3435,3 +3473,8 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
         return tmp_path.read_bytes()
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+# The Forced friends import section registers itself when its module loads; it
+# builds on this module, so it can only be imported once everything above exists.
+from rostering.streamlit_app import forced_groups as _forced_groups  # noqa: E402,F401

@@ -232,8 +232,15 @@ not applied to them, shown as a badge "Role not applied to <name>". Dragging a
 Helper away from a group with a placed Organizer breaks the group like any other.
 A resolved Friend preference can be hardened with "make forced", which creates a
 new group of those two people with the Room axis and leaves the Friend preference
-as it was. *Planned, not yet implemented*: a group carrying over to a later Season
-alongside Tag import, since it belongs to the people in it, not to one Season.
+as it was. A group belongs to the people in it, not to one Season, so it carries
+over to a later Season in the same "Import from an earlier Season" offer as Tag
+import, as its second section after Tags (see **Tag import**): every group of the
+source that has at least one member recognized this Season is copied whole, with
+the members not registered here as dim "not registered" placeholders (a group left
+with fewer than two active members is imported inactive), each group ticked in one
+overview of its returning and missing members. An import copies, never shares (the
+source Season is never edited), skips a group already present with the same members
+and axes, and carries no link that is still unreviewed.
 
 **Assignment**:
 The solver's output for one Helper: the Building, Room, and Role they're
@@ -373,7 +380,7 @@ earlier Tag it came from (its origin, surviving renames). One source Season
 per import, by default the most recent earlier stored one; importing again
 from another Season is additive. Offered by a button in the Tags tab and by a
 banner after the first upload while the Season has no Tags; the offer is made
-of sections (Tags first, so further importable things can join it). Only
+of sections (Tags first, then Forced friends groups). Only
 directly carried Tags are re-applied, to confidently linked Persons; an
 unreviewed uncertain match is not tagged until its link is confirmed, which
 then asks whether to apply their Tags. An assignment that would leave a Helper
