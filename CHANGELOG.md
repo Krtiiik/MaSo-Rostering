@@ -38,11 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On the Roster tab a manual role's cell is now the same kind of cell as a solver
   role's: names are chips in the cell, and the "+ přidat jméno" field is gone —
   clicking the cell opens a name field instead (Enter saves, Escape cancels). The
-  row label carries an italic "Manuální role" note with a link icon, which is how
-  the manual rows are told apart.
+  row label carries an italic note with a link icon ("Organizátorská role" on an
+  Organizer row, "Manuální role" on an Additional role row), which is how the manual
+  rows are told apart.
 - The Organizer rows and the Helper rows are set apart by a heavier line wherever
   one kind follows the other.
-
+- The confirmation lines for a person or Organizer who holds a leadership slot now read
+  "Organizátorská role: …" instead of "Manuální role: …".
 - Each group in the Forced friends tab is now one line: the bold group name, its
   members and the status badge, with the "Upravit skupinku" editor folded directly
   under it (the big heading and the separate members list are gone).

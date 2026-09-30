@@ -637,7 +637,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                   {rowDef.label}
                   {rowDef.kind === "manual" && (
                     <span className="row-label-note">
-                      <Link2Icon /> Manuální role
+                      <Link2Icon /> {rowDef.organizer ? "Organizátorská role" : "Manuální role"}
                     </span>
                   )}
                 </th>
