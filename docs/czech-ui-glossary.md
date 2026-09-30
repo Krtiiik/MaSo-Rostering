@@ -37,7 +37,7 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | Promote this helper to Organizer | Povýšit na organizátora |
 | Lock / Unlock | Zamknout / Odemknout |
 | Unassigned (grid pool) | Nezařazení |
-| Overlays (Roster tab pills: Friends / Tags) | Zobrazení (Kamarádi / Štítky) |
+| Overlays (Roster tab pills: Friends / Tags / Role satisfaction / Building satisfaction) | Zobrazení (Kamarádi / Štítky / Spokojenost s rolí / Spokojenost s budovou) |
 | Filter by tags | Filtrovat podle štítků |
 | Make forced | Vynutit |
 

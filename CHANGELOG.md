@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Two more Zobrazení modes on the Roster tab: "Spokojenost s rolí" gives each placed
+  chip a thick left border (green when the Role is rated Nevadí or better, red for
+  Spíš ne / Ne; Záloha is not judged) and "Spokojenost s budovou" a thick top border
+  (green when the Building is one the Helper marked acceptable or they named none,
+  red otherwise). They combine with the other modes.
 - An "Obnovit výchozí budovy" button in the Buildings tab's bottom bar replaces the
   layout being edited with the default bundled with the app. Nothing is saved until
   "Uložit konfiguraci" is clicked, so it can still be dropped by reloading the page.

@@ -625,6 +625,11 @@ pushing the tag, not just creating it locally.
   confused with the deprecated "Overlay role" term, see `CONTEXT.md`.)
   *Friends* gates the hover highlights and the persistent orange unsatisfied
   marker (off = neither); the details card's friend lists are not an overlay.
+  *Role satisfaction* (`role_fit`) gives a placed chip a thick left border and *Building satisfaction*
+  (`building_fit`) a thick top border, green/red (`HelperChip`, `.role-fit-*`/`.building-fit-*` in
+  `style.css`): a Role is satisfied at Nevadí or better (blank = Nevadí, Záloha unjudged), a Building when
+  it is in the helper's `acceptable_buildings` (`grid_tab._acceptable_buildings`, matched with
+  `building_keys`; empty Building preference = every Building).
   *Tags* stripes each chip (`HelperChip`, and Organizer chips in `ManualCell`)
   into equal segments, one per **direct** Tag in its colour (`tagStripes.ts`,
   tinted with `color-mix` so the normal text stays readable; Tag names incl.

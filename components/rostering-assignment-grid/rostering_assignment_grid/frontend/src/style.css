@@ -201,6 +201,38 @@
   outline-offset: 1px;
 }
 
+/* The satisfaction overlays, kept after the unsatisfied-friend colours so their
+   border wins: a thick left border for the Role, a thick top border for the
+   Building (green = satisfied, red = not). The padding shrinks by what the border
+   grows, so a chip keeps its size (the locked border's 2px included). */
+.helper-chip.role-fit-ok,
+.helper-chip.role-fit-bad {
+  border-left-width: 4px;
+  padding-left: 3px;
+}
+
+.helper-chip.building-fit-ok,
+.helper-chip.building-fit-bad {
+  border-top-width: 3px;
+  padding-top: 0;
+}
+
+.helper-chip.role-fit-ok {
+  border-left-color: var(--st-green-color, #21c354);
+}
+
+.helper-chip.role-fit-bad {
+  border-left-color: var(--st-red-color, #dc3545);
+}
+
+.helper-chip.building-fit-ok {
+  border-top-color: var(--st-green-color, #21c354);
+}
+
+.helper-chip.building-fit-bad {
+  border-top-color: var(--st-red-color, #dc3545);
+}
+
 .manual-cell {
   position: relative;
   min-width: 140px;

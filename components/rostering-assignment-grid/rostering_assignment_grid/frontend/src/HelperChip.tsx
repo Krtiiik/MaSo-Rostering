@@ -9,6 +9,10 @@ interface Props {
   showTags?: boolean;
   // Faded by the Tag filter (still in place, still draggable).
   dimmed?: boolean;
+  // The satisfaction overlays: whether the placed Role / Building suits the
+  // Helper's answers (undefined = overlay off or nothing to judge, no border).
+  roleFit?: boolean;
+  buildingFit?: boolean;
   unsatisfiedFriend?: boolean;
   friendHighlight?: "satisfied" | "unsatisfied" | "requester";
   onHoverChange?: (hovering: boolean) => void;
@@ -26,6 +30,8 @@ export function HelperChip({
   helper,
   showTags,
   dimmed,
+  roleFit,
+  buildingFit,
   unsatisfiedFriend,
   friendHighlight,
   onHoverChange,
@@ -42,6 +48,8 @@ export function HelperChip({
     [
       ...(broken ?? []),
       ...(unsatisfiedFriend ? ["Má nesplněné přání být s kamarádem"] : []),
+      ...(roleFit === undefined ? [] : [roleFit ? "Spokojen/a s rolí" : "Nespokojen/a s rolí"]),
+      ...(buildingFit === undefined ? [] : [buildingFit ? "Spokojen/a s budovou" : "Nespokojen/a s budovou"]),
       ...(showTags ? [tagTitle(helper.tags) ?? ""] : []),
     ]
       .filter(Boolean)
@@ -54,6 +62,9 @@ export function HelperChip({
   };
 
   const highlightClass = friendHighlight ? ` friend-highlight-${friendHighlight}` : "";
+  const fitClass =
+    (roleFit === undefined ? "" : roleFit ? " role-fit-ok" : " role-fit-bad") +
+    (buildingFit === undefined ? "" : buildingFit ? " building-fit-ok" : " building-fit-bad");
 
   // ctrl/cmd-click toggles the lock; a plain click opens the details card (the
   // grid owns it, so it survives the chip moving). A drag never reaches here:
@@ -75,7 +86,7 @@ export function HelperChip({
       style={style}
       {...listeners}
       {...attributes}
-      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${dimmed ? " dimmed" : ""}${stripes ? " tag-striped" : ""}${highlightClass}`}
+      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${dimmed ? " dimmed" : ""}${stripes ? " tag-striped" : ""}${fitClass}${highlightClass}`}
       title={titleText}
       onClick={handleClick}
       onMouseEnter={() => onHoverChange?.(true)}
