@@ -381,10 +381,13 @@ per import, by default the most recent earlier stored one; importing again
 from another Season is additive. Offered by a button in the Tags tab and by a
 banner after the first upload while the Season has no Tags; the offer is made
 of sections (Tags first, then Forced friends groups). Only
-directly carried Tags are re-applied, to confidently linked Persons; an
-unreviewed uncertain match is not tagged until its link is confirmed, which
+directly carried Tags are re-applied, to confidently linked Persons, whether
+they are a Helper or an Organizer this Season and whichever they were in the
+source (a Helper promoted since gets their Helper Tags as an Organizer);
+an unreviewed uncertain match is not tagged until its link is confirmed, which
 then asks whether to apply their Tags. An assignment that would leave a Helper
-with no allowed Building or Role is skipped and constraint entries naming a
+with no allowed Building or Role, or an Organizer with no allowed Building, is
+skipped and constraint entries naming a
 Building the current Season lacks are dropped. A re-import and that late
 prompt find a Tag by origin first, then by name; a Tag deleted on purpose is
 recreated only by an explicit re-import, which says so.

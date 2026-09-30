@@ -452,8 +452,8 @@ pushing the tag, not just creating it locally.
   judges those even before the first solve (only they: an empty roster breaks no
   minimum). The Upload tab's "Tag helpers" list and the Tags tab list Organizers
   beside Helpers; the grid passes each slot chip's `tags`/`dimmed`/`broken` on its
-  `manual_entries` entry. Tag import (#51) does not exist yet, so nothing
-  re-applies Tags to Organizers across Seasons.
+  `manual_entries` entry. Tag import re-applies them to Organizers across Seasons
+  (see the Tag import note below).
   Friend references: a Helper's `friends` is one list of unified references —
   a plain int is a Helper id, `{"organizer_id": n}` (`OrganizerRef` on the
   domain `Helper`; `serialize.friend_ref_to_json`/`friend_ref_from_json`) an
@@ -532,7 +532,22 @@ pushing the tag, not just creating it locally.
   `apply_late_link_tags` (the Person's direct Tags in every imported Season;
   never recreates a deleted Tag). Applying Tags to a Helper goes through
   `_add_valid_tags`, which skips (not refuses) what would newly strand them.
-  Not done yet: Organizers receiving Tags on import (they do not exist).
+  Organizers take part on both sides: `_source_direct_tags_by_person` unions a
+  Person's Helper and Organizer records of the source (by `person_id`), the Tags
+  section applies them to the open Season's Helpers *and* Organizers
+  (`_add_valid_tags(..., kind="organizer")`, Building axis only like
+  `_stranded`; a skip is `{"kind", "<kind>_id", "<kind>", "tag_id", "tag",
+  "reason"}`), and so promotion (source Helper, now Organizer) and its reverse
+  work through the shared `person_id`. The summary has `organizers_tagged` and
+  `organizers_awaiting_review` next to the Helper lists (`uncertain_candidates`
+  run per `kind`; the display lines for Organizers show once the Season has any).
+  An Organizer's link is confirmed with `link_organizer` (no UI yet), then
+  `late_link_organizer_tag_offer` / `apply_late_link_organizer_tags` mirror the
+  Helper pair over the same `_late_link_tags`, so `render_late_link_prompt`
+  (Helper-only) has no Organizer counterpart until the Organizer review has a
+  screen. A Person who is both a Helper and an Organizer in the open Season
+  (possible after a re-upload brings a promoted Helper back) is tagged on both
+  records. Tests: `tests/test_tag_import_organizers.py`.
 - Class promotion (`mutations.py`, "Class promotion" section; the pure name
   rules `tags.is_class_name` / `promoted_class_name`, the year rule
   `season_label.school_years_crossed`; UI in `tabs/tag_import_ui.py`):

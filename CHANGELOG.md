@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tag import re-applies Tags to Organizers as well as Helpers. What a Person
+  carried directly in the source Season, as a Helper or as an Organizer, is
+  re-applied to their confidently linked record this Season, whichever kind it is
+  now (so a Helper promoted since gets their Helper Tags as an Organizer, and a
+  former Organizer who registered as a Helper gets theirs back). An Organizer's
+  assignment that would leave them with no allowed Building is skipped and counted
+  like a Helper's (they have no Role, so the Role axis never skips one). The
+  import summary gains an "Organizers tagged" line and an "Organizers awaiting
+  review, not tagged" line beside the Helper ones (shown once the Season has
+  Organizers), and an Organizer whose link is confirmed after the import can be
+  offered "apply their Tags?" through the same origin-then-name resolution
+  (`late_link_organizer_tag_offer` / `apply_late_link_organizer_tags`; the
+  Organizer review has no screen yet, so the prompt itself is not shown in the
+  app).
 - Forced friends groups carry over to a later Season in the "Import from an
   earlier Season" offer, as its second section after Tags. The dialog lists every
   group of the source Season with its returning and missing members and a tick
@@ -159,7 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dims them with the Tag filter and marks their chip when their placement breaks
   a rule. Deleting a Tag now also warns about and strips Organizers who carry it.
   Promoting a Helper does not carry over their Can't attend flag. Re-applying an
-  Organizer's Tags in a later Season waits for Tag import.
+  Organizer's Tags in a later Season is part of Tag import (see below).
 - Friend preferences toward Organizers, and promoting a Helper to Organizer. A
   Helper's friends can now name an Organizer as well as another Helper: survey
   friend names are matched against the Season's Organizers too (same matching;

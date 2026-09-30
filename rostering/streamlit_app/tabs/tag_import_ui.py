@@ -90,9 +90,9 @@ def _import_dialog(where: str) -> None:
     st.caption(
         "Imports: "
         + ", ".join(section["title"] for section in offer["sections"])
-        + ". The Tag tree is copied with its constraints, and every Returning helper linked by a confirmed "
-        "match gets their Tags back. Forced friends groups follow the people in them. Nothing in the source "
-        "Season changes."
+        + ". The Tag tree is copied with its constraints, and every Returning helper or Organizer linked by a "
+        "confirmed match gets their Tags back. Forced friends groups follow the people in them. Nothing in the "
+        "source Season changes."
     )
     selections: dict[str, list[int]] = {}
     for section in mutations.import_overview(workspace, source_id)["sections"]:
