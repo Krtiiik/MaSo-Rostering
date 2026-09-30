@@ -199,6 +199,41 @@ if (xlsxPath) {
   );
   await page.screenshot({ path: path.join(SHOT_DIR, "06-tag-filter.png"), fullPage: true });
 
+  // The details card opens on a click, never on a hover, and a drag never opens it.
+  const cardNames = () => page.locator(".helper-card .helper-card-name").allTextContents();
+  const chips = page.locator("div.helper-chip");
+  await chips.nth(0).hover();
+  await page.waitForTimeout(800);
+  expect((await page.locator(".helper-card").count()) === 0, "hovering a chip does not open the details card");
+  await chips.nth(0).click();
+  await page.waitForSelector(".helper-card", { timeout: 5000 });
+  expect((await page.locator(".helper-card").count()) === 1, "clicking a chip opens its details card");
+  await chips.nth(1).click();
+  await page.waitForTimeout(300);
+  const switched = await cardNames();
+  expect(switched.length === 1, "clicking another chip switches the card to that Helper");
+  await page.mouse.click(1380, 990);
+  await page.waitForTimeout(300);
+  expect((await page.locator(".helper-card").count()) === 0, "clicking elsewhere closes the details card");
+  await chips.nth(0).click();
+  await page.waitForSelector(".helper-card", { timeout: 5000 });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  expect((await page.locator(".helper-card").count()) === 0, "Escape closes the details card");
+  {
+    const box = await chips.nth(0).boundingBox();
+    const cell = await page.locator("td.grid-cell").nth(1).boundingBox();
+    if (box && cell) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 12, { steps: 5 });
+      await page.mouse.move(cell.x + cell.width / 2, cell.y + cell.height / 2, { steps: 10 });
+      await page.mouse.up();
+      await page.waitForTimeout(1500);
+      expect((await page.locator(".helper-card").count()) === 0, "dragging a chip does not open the details card");
+    }
+  }
+
   const exportButton = page.getByRole("button", { name: "Export to Excel" });
   if ((await exportButton.count()) > 0) {
     console.log("export button present");

@@ -307,15 +307,6 @@
   pointer-events: auto;
 }
 
-/* An invisible margin bridging the gap between the chip and the card, so the
-   cursor can travel from one to the other without the card closing. */
-.helper-card::before {
-  content: "";
-  position: absolute;
-  inset: -18px;
-  z-index: -1;
-}
-
 .helper-card-name {
   font-weight: 600;
   margin-bottom: 6px;
