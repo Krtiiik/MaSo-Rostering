@@ -23,14 +23,18 @@ _DISMISS_LABEL = "✕ Nezúčastní se"
 _UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
 
 
-def open_person(kind: str, person_id: int) -> None:
-    """Open the popup for a Helper (``kind`` "helper") or an Organizer."""
+FRIENDS_TAB = "Jména kamarádů"
+
+
+def open_person(kind: str, person_id: int, tab: str | None = None) -> None:
+    """Open the popup for a Helper (``kind`` "helper") or an Organizer, on its
+    first tab or on the one named ``tab`` (for a Helper, ``FRIENDS_TAB``)."""
     people = session.get_state()["organizers" if kind == "organizer" else "helpers"]
     person = next((p for p in people if p["id"] == person_id), None)
     if person is None:
         return
     body = _organizer_body if kind == "organizer" else _helper_body
-    st.dialog(person["name"], width="large", on_dismiss="rerun")(body)(person_id)
+    st.dialog(person["name"], width="large", on_dismiss="rerun")(body)(person_id, tab)
 
 
 def open_add_helper() -> None:
@@ -58,12 +62,14 @@ def _cant_attend_checkbox(kind: str, person: dict) -> None:
         person_actions.set_cant_attend(kind, person["id"], flag)
 
 
-def _helper_body(helper_id: int) -> None:
+def _helper_body(helper_id: int, tab: str | None = None) -> None:
     helper = _find("helper", helper_id)
     if helper is None:
         st.info("Tento pomocník už neexistuje.")
         return
-    details, tags, friends, links = st.tabs(["Podrobnosti", "Štítky", "Jména kamarádů", "Propojení osob"])
+    details, tags, friends, links = st.tabs(
+        ["Podrobnosti", "Štítky", FRIENDS_TAB, "Propojení osob"], default=tab
+    )
     with details:
         _cant_attend_checkbox("helper", helper)
         helper_forms.render_details(helper)
@@ -75,7 +81,7 @@ def _helper_body(helper_id: int) -> None:
         person_links.render_helper_links(session.get_workspace(), helper)
 
 
-def _organizer_body(organizer_id: int) -> None:
+def _organizer_body(organizer_id: int, tab: str | None = None) -> None:
     organizer = _find("organizer", organizer_id)
     if organizer is None:
         st.info("Tento organizátor už neexistuje.")

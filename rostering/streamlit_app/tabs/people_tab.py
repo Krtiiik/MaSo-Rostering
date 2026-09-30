@@ -166,6 +166,7 @@ def _render_table(
     tags: list[dict | None],
     add_label: str,
     on_add,
+    detail_actions: list[dict[int, str]] | None = None,
 ) -> None:
     """One ``st.columns`` row per person with one column per field: the name as
     plain text, each detail as a plain ``st.text``, the Can't attend checkbox,
@@ -173,12 +174,19 @@ def _render_table(
     per-cell containers: the page renders (and reruns) in proportion to its
     element count, which is what made the earlier container-per-cell table slow.
     The columns' ratios follow the longest text of each column, the same for
-    every row, so the rows stay level."""
+    every row, so the rows stay level. ``detail_actions`` (one dict per person)
+    turns a detail cell, by its index, into a button that opens the person's
+    popup on the named tab."""
+    detail_actions = detail_actions or [{} for _ in people]
     absent_label = "Nemůže se zúčastnit"
     name_label, tags_label = "Jméno", "Štítky"
     ratios = [
         max(len(text) for text in [name_label, *names]) + 2,
-        *(max(len(text) for text in [label, *(row[i] for row in details)]) + 2 for i, label in enumerate(detail_labels)),
+        *(
+            max(len(text) for text in [label, *(row[i] for row in details)])
+            + (5 if any(i in actions for actions in detail_actions) else 2)
+            for i, label in enumerate(detail_labels)
+        ),
         len(absent_label) + 2,
         max([len(tags_label), *(_tag_width(pills) for pills in tags)]),
         6,
@@ -186,11 +194,15 @@ def _render_table(
     header = st.columns(ratios, vertical_alignment="center")
     for column, label in zip(header, [name_label, *detail_labels, absent_label, tags_label]):
         column.markdown(f"**{label}**")
-    for person, name, row, person_tags in zip(people, names, details, tags):
+    for person, name, row, person_tags, actions in zip(people, names, details, tags, detail_actions):
         name_cell, *detail_cells, absent_cell, tags_cell, open_cell = st.columns(ratios, vertical_alignment="center")
         name_cell.text(name)
-        for cell, text in zip(detail_cells, row):
-            cell.text(text)
+        for i, (cell, text) in enumerate(zip(detail_cells, row)):
+            if i in actions:
+                if cell.button(text, key=f"detail_{kind}_{person['id']}_{i}", help=f"Otevřít: {person['name']}"):
+                    person_dialog.open_person(kind, person["id"], actions[i])
+            else:
+                cell.text(text)
         _cant_attend_cell(absent_cell, kind, person)
         tags_cell.html(_tag_html(person_tags))
         if open_cell.button(_OPEN_LABEL, key=f"open_{kind}_{person['id']}", help=f"Otevřít: {person['name']}"):
@@ -222,7 +234,9 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     st.subheader(f"Pomocníci ({len(helpers)})")
     st.caption("Odvozené štítky (které pomocník má jen díky nadřazenému štítku) mají čárkovaný obrys. Vybavení: 💻 notebook, 📷 fotoaparát.")
     pills = mutations.grid_tag_pills(state)
-    names, details = [], []
+    detail_labels = ["Dřívější ročníky", "Budovy", "Vybavení", "Tričko", "Kamarádi"]
+    friends_column = detail_labels.index("Kamarádi")
+    names, details, detail_actions = [], [], []
     for helper in helpers:
         unresolved = len(helper["unresolved_friend_names"])
         names.append(("▶ " if helper["id"] == focus_helper_id else "") + ("⚠️ " if unresolved else "") + helper["name"])
@@ -236,13 +250,15 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
                 f"⚠️ k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])),
             ]
         )
+        detail_actions.append({friends_column: person_dialog.FRIENDS_TAB} if unresolved else {})
     _render_table(
         "helper",
         helpers,
         names,
-        ["Dřívější ročníky", "Budovy", "Vybavení", "Tričko", "Kamarádi"],
+        detail_labels,
         details,
         [pills.get(h["id"]) for h in helpers],
         "＋ Přidat pomocníka",
         person_dialog.open_add_helper,
+        detail_actions,
     )

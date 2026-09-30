@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- In the People tab's Helpers table, the Friends column of a Helper with unmatched
+  friend names is a button that opens their popup straight on the "Jména
+  kamarádů" tab, where the names are matched.
 - The People tab marks a Helper with unmatched friend names with a coloured ⚠️
   emoji (before their name and in the Friends column) instead of the small
   monochrome ⚠ glyph.
