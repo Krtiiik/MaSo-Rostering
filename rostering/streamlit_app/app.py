@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations, season_header, seasons_panel, session, versions_sidebar
+from rostering.streamlit_app import mutations, season_header, seasons_panel, session, solve_prompt, versions_sidebar
 from rostering.streamlit_app.tabs import config_tab, forced_friends_tab, grid_tab, people_tab, solver_tab, tags_tab
 
 _TABS = ["1. People", "2. Buildings", "3. Tags", "4. Forced friends", "5. Solver", "6. Roster"]
@@ -88,6 +88,9 @@ def main() -> None:
         solver_tab.render()
     elif active_tab == "6. Roster":
         grid_tab.render()
+
+    # Last, so a queued Solve runs over the fully drawn page (see solve_prompt).
+    solve_prompt.run_pending()
 
 
 main()

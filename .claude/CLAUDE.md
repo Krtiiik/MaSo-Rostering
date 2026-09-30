@@ -210,7 +210,14 @@ pushing the tag, not just creating it locally.
   a full Solve would throw away, a to-be-dropped lock included; zero means no
   confirmation). `streamlit_app/solve_prompt.py` shows that confirmation for
   the Roster tab's Solve and the Buildings and Solver tabs' "Save & solve" (which
-  saves the config first so the count uses the new layout). `solve` records
+  saves the config first so the count uses the new layout). Every Solve and
+  Place new registrants runs in an undismissible "Solving…" `st.dialog`: the
+  buttons only `request_*` (queue the work callable in session state and
+  rerun, which also closes the confirmation, since one dialog per run is all
+  Streamlit allows) and `solve_prompt.run_pending()`, last in `app.py`, runs it
+  inside the dialog; the work raises `RosteringError` instead of calling
+  `st.error`/`st.rerun` itself, and a failure keeps the dialog open with the
+  message and a Close button. `solve` records
   the locks it dropped as lines in `diagnostics["dropped_locks"]` ("N locks
   dropped: Room X no longer exists"), which the Roster tab shows once after
   the solve. Locks live only in the Season's own `assignments`, so a new
