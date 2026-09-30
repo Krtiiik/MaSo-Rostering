@@ -141,12 +141,12 @@ if (xlsxPath) {
   await page.getByRole("button", { name: "Nový štítek" }).click();
   await page.getByLabel("Název", { exact: true }).fill("SmokeTag");
   await page.getByRole("button", { name: "Vytvořit štítek" }).click();
-  await page.getByText("Přidat štítek dalším lidem", { exact: true }).waitFor({ timeout: 10000 });
-  await openMultiselect("Pomocníci k přidání");
+  await page.getByText("Kdo štítek nese (0)", { exact: true }).waitFor({ timeout: 10000 });
+  await openMultiselect("Kdo štítek nese");
   await page.getByRole("option").nth(1).click(); // 0 = "Select all"
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Přidat (1) ke štítku SmokeTag" }).click();
-  await page.getByText("Mají tento štítek (1)").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Uložit změny (přidat 1)" }).click();
+  await page.getByText("Kdo štítek nese (1)").waitFor({ timeout: 10000 });
 
   await page.getByRole("radio", { name: "Rozdělení pomocníků" }).click();
   await page.waitForSelector("div.helper-chip", { timeout: 10000 });
