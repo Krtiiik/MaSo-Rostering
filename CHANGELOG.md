@@ -154,6 +154,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   columns), replaced by the popup.
 - The "Find a helper" box above the "Add tag to others" picker when editing a Tag. The
   picker itself is searchable, so the extra filter was redundant.
+- The "Přejmenovat" button beside the Season label above the tabs; a Season is renamed
+  from the sidebar's Seasons panel only.
 
 ### Fixed
 
