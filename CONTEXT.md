@@ -77,6 +77,17 @@ re-placed by a full Solve. A summary of what changed stays at the top of the
 Upload and Roster tabs until dismissed, and Export is blocked while any
 registrant is unassigned.
 
+**Place new registrants**:
+An action that solves only for the unassigned Helpers (new registrants of a
+Re-upload, a Hand-added Helper, someone no longer Can't attend) while every
+existing Assignment, locked or not, is held fixed: the fixed Helpers still
+count toward Room/Building minimums and Friend preferences, and nobody placed
+is moved, repaired or re-solved even when a hand move of theirs breaks a rule.
+It neither creates nor clears locks. If not every rule can hold, it still
+returns a roster with Broken rules reported, like any solve. A full Solve
+stays available and discards every Assignment except locked ones; newcomers
+can also simply be dragged into the grid by hand.
+
 **Simulace**:
 A rehearsal for the competition, held before the event day.
 

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- "Place new registrants" in the Roster tab's bottom bar places only the
+  unassigned Helpers (late registrants, someone un-flagged from Can't attend)
+  while everyone already placed stays exactly where they are: every existing
+  Assignment is held fixed, still counting toward Room/Building minimums and
+  Friend preferences, so a hand move that breaks a rule is neither repaired nor
+  disturbed. It neither creates nor clears locks, leaves the "roster is out of
+  date" flag as it is and, when not every rule can hold, still returns a roster
+  with the Broken rules reported like any solve. A full Solve is unchanged and
+  still discards everything except locked Assignments; you can also drag
+  newcomers into the grid by hand.
 - A survey row of someone you already added by hand merges into that Helper, and
   a leadership name you typed is offered a link to a newly recognized Helper.
   A row with the hand-added Helper's e-mail updates them in place; a row with
