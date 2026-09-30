@@ -581,13 +581,51 @@ def put_solver_config(workspace: Workspace, solver_config: dict) -> dict:
     return state
 
 
-def _locked_assignments(state: dict[str, Any], comp: Competition) -> list[Assignment]:
-    """The Locked Assignments a full Solve holds fixed. A lock whose Helper or
-    Room no longer exists is dropped (that Helper is re-solved as unlocked)."""
-    rooms = {(b.name, room.name) for b in comp.buildings.values() for room in b.rooms}
-    helper_ids = {h.id for h in comp.helpers}
-    locked = [assignment_from_dict(a) for a in state["assignments"] if a.get("locked")]
-    return [a for a in locked if a.helper_id in helper_ids and (a.building, a.room) in rooms]
+def _split_locks(state: dict[str, Any]) -> tuple[list[Assignment], list[str]]:
+    """The Locked Assignments a full Solve holds fixed, and the reason for each
+    lock it drops instead: a lock whose Helper, Building or Room no longer
+    exists is dropped (that Helper is re-solved as unlocked)."""
+    rooms = {(b["name"], r["name"]) for b in state["config"] for r in b["rooms"]}
+    buildings = {b["name"] for b in state["config"]}
+    helper_ids = {h["id"] for h in state["helpers"]}
+    kept: list[Assignment] = []
+    dropped: list[str] = []
+    for data in state["assignments"]:
+        if not data.get("locked"):
+            continue
+        assignment = assignment_from_dict(data)
+        if assignment.helper_id not in helper_ids:
+            dropped.append(f"Helper {assignment.helper_name} no longer exists")
+        elif assignment.building not in buildings:
+            dropped.append(f"Building {assignment.building} no longer exists")
+        elif (assignment.building, assignment.room) not in rooms:
+            dropped.append(f"Room {assignment.room} no longer exists")
+        else:
+            kept.append(assignment)
+    return kept, dropped
+
+
+def _dropped_locks_lines(reasons: list[str]) -> list[str]:
+    """The Solve result's note on dropped locks, e.g. ``"2 locks dropped: Room
+    R2 no longer exists"`` (empty when none were)."""
+    if not reasons:
+        return []
+    distinct = list(dict.fromkeys(reasons))
+    noun = "lock" if len(reasons) == 1 else "locks"
+    return [f"{len(reasons)} {noun} dropped: {'; '.join(distinct)}"]
+
+
+def locked_count(state: dict[str, Any]) -> int:
+    """How many Assignments are locked (the bottom bar's live count)."""
+    return sum(1 for a in state["assignments"] if a.get("locked"))
+
+
+def unlocked_assignments_replaced(state: dict[str, Any]) -> int:
+    """How many Assignments a full Solve would replace: everything not held by a
+    Locked Assignment (a lock the Solve drops counts as replaced). Zero — so no
+    confirmation is needed — when nothing is placed yet or all are locked."""
+    kept, _ = _split_locks(state)
+    return len(state["assignments"]) - len(kept)
 
 
 def solve(workspace: Workspace) -> dict:
@@ -599,7 +637,7 @@ def solve(workspace: Workspace) -> dict:
 
     comp = _build_competition(state)
     solver_config = solver_config_from_dict(state["solver_config"])
-    fixed = _locked_assignments(state, comp)
+    fixed, dropped = _split_locks(state)
     try:
         result = solve_competition(comp, solver_config, fixed_assignments=fixed)
     except NoRosterFound as exc:
@@ -622,6 +660,9 @@ def solve(workspace: Workspace) -> dict:
         "broken_rules": [
             {"family": b.family, "amount": b.amount, "line": b.line} for b in result.broken_rules
         ],
+        # The locks this solve dropped because their Helper/Room/Building is
+        # gone (each Helper was re-solved unlocked); shown once after a solve.
+        "dropped_locks": _dropped_locks_lines(dropped),
     }
     workspace.save(state)
     return state
@@ -678,6 +719,24 @@ def set_lock(workspace: Workspace, helper_id: int, locked: bool) -> dict:
             workspace.save(state)
             return state
     raise RosteringError(f"Helper {helper_id} is not placed, so there is nothing to lock.")
+
+
+def lock_all_placed(workspace: Workspace) -> dict:
+    """Lock every placed Helper's Assignment (a no-op with nothing placed)."""
+    state = workspace.load()
+    for assignment in state["assignments"]:
+        assignment["locked"] = True
+    workspace.save(state)
+    return state
+
+
+def clear_all_locks(workspace: Workspace) -> dict:
+    """Unlock every Assignment; the Assignments themselves stay."""
+    state = workspace.load()
+    for assignment in state["assignments"]:
+        assignment.pop("locked", None)
+    workspace.save(state)
+    return state
 
 
 def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, role: str) -> dict:

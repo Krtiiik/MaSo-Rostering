@@ -170,3 +170,162 @@ def test_locks_are_saved_and_restored_with_a_version(workspace):
     restored = mutations.restore_version(workspace, saved["slug"])
 
     assert _assignment(restored, 1).get("locked") is True
+
+
+# -- Bottom-bar controls and the lock lifecycle (#45) ------------------------
+
+
+def _one_room_config():
+    return [{"name": "B", "rooms": [TWO_ROOMS[0]["rooms"][0]], "capacities": {}}]
+
+
+def _sheet_text(xlsx_bytes: bytes) -> list:
+    import io
+
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(io.BytesIO(xlsx_bytes))
+    return [[cell.value for row in sheet.iter_rows() for cell in row] for sheet in workbook.worksheets]
+
+
+def test_lock_all_placed_locks_every_placed_helper_and_clear_all_locks_frees_them(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    assert mutations.locked_count(mutations.get_state(workspace)) == 0
+
+    locked = mutations.lock_all_placed(workspace)
+
+    assert all(a.get("locked") is True for a in locked["assignments"])
+    assert mutations.locked_count(locked) == 2
+    assert mutations.get_state(workspace) == locked  # persisted
+
+    cleared = mutations.clear_all_locks(workspace)
+
+    assert not any(a.get("locked") for a in cleared["assignments"])
+    assert mutations.locked_count(cleared) == 0
+    assert len(cleared["assignments"]) == 2  # the Assignments themselves stay
+
+
+def test_the_locked_count_follows_single_locks(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+
+    assert mutations.locked_count(mutations.set_lock(workspace, 1, True)) == 1
+    assert mutations.locked_count(mutations.set_lock(workspace, 2, True)) == 2
+    assert mutations.locked_count(mutations.set_lock(workspace, 1, False)) == 1
+
+
+def test_the_bulk_lock_controls_do_nothing_before_the_first_solve(workspace):
+    _seed(workspace)
+
+    assert mutations.lock_all_placed(workspace)["assignments"] == []
+    assert mutations.clear_all_locks(workspace)["assignments"] == []
+
+
+def test_a_solve_asks_only_about_the_unlocked_assignments_it_would_replace(workspace):
+    _seed(workspace)
+    assert mutations.unlocked_assignments_replaced(mutations.get_state(workspace)) == 0  # nothing placed yet
+
+    solved = mutations.solve(workspace)
+    assert mutations.unlocked_assignments_replaced(solved) == 2
+
+    assert mutations.unlocked_assignments_replaced(mutations.set_lock(workspace, 1, True)) == 1
+    assert mutations.unlocked_assignments_replaced(mutations.lock_all_placed(workspace)) == 0  # nothing to lose
+
+
+def test_a_lock_the_solve_would_drop_counts_as_a_replaced_assignment(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    mutations.move_helper(workspace, 1, "B", "R2", "Kreslic")
+    mutations.set_lock(workspace, 1, True)
+
+    state = mutations.put_config(workspace, _one_room_config())
+
+    assert mutations.unlocked_assignments_replaced(state) == 2  # Petr, and Anna whose lock would be dropped
+
+
+def test_a_solve_reports_the_locks_it_dropped_and_why(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    mutations.move_helper(workspace, 1, "B", "R2", "Kreslic")
+    mutations.move_helper(workspace, 2, "B", "R2", "Kreslic")
+    mutations.lock_all_placed(workspace)
+    mutations.put_config(workspace, _one_room_config())
+
+    state = mutations.solve(workspace)
+
+    assert state["diagnostics"]["dropped_locks"] == ["2 locks dropped: Room R2 no longer exists"]
+    assert mutations.locked_count(state) == 0
+
+
+def test_a_solve_names_a_removed_building_and_each_reason_separately(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    mutations.move_helper(workspace, 1, "B", "R2", "Kreslic")
+    mutations.move_helper(workspace, 2, "B", "R1", "Kreslic")
+    mutations.lock_all_placed(workspace)
+    other_building = [{"name": "C", "rooms": [{"name": "R2", "capacities": {"Zaloha": {"minimum": 0}}}], "capacities": {}}]
+    mutations.put_config(workspace, other_building)
+
+    state = mutations.solve(workspace)
+
+    assert state["diagnostics"]["dropped_locks"] == ["2 locks dropped: Building B no longer exists"]
+
+
+def test_a_solve_that_drops_no_lock_reports_none(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    mutations.set_lock(workspace, 1, True)
+
+    assert mutations.solve(workspace)["diagnostics"]["dropped_locks"] == []
+
+
+def test_locking_operations_leave_the_broken_rules_and_the_export_untouched(workspace):
+    _seed(workspace)
+    before = mutations.solve(workspace)
+    export_before = _sheet_text(mutations.export_xlsx_bytes(workspace))
+    lines_before = [b.line for b in mutations.broken_rules(before)]
+
+    locked = mutations.lock_all_placed(workspace)
+    assert [b.line for b in mutations.broken_rules(locked)] == lines_before
+    assert _sheet_text(mutations.export_xlsx_bytes(workspace)) == export_before  # no lock in the Excel
+
+    cleared = mutations.clear_all_locks(workspace)
+    assert [b.line for b in mutations.broken_rules(cleared)] == lines_before
+
+
+def test_an_older_version_without_the_flag_restores_as_unlocked(workspace):
+    _seed(workspace)
+    workspace.create_season("2026-jaro")
+    mutations.solve(workspace)
+    saved = mutations.save_version(workspace, "Before locking")  # no lock flag anywhere in it
+    mutations.lock_all_placed(workspace)
+
+    restored = mutations.restore_version(workspace, saved["slug"])
+
+    assert mutations.locked_count(restored) == 0
+    assert len(restored["assignments"]) == 2
+
+
+def test_start_over_clears_all_locks(workspace):
+    _seed(workspace)
+    workspace.create_season("2026-jaro")
+    mutations.solve(workspace)
+    mutations.lock_all_placed(workspace)
+
+    state = mutations.reset_workspace(workspace)
+
+    assert state["assignments"] == []
+    assert mutations.locked_count(state) == 0
+
+
+def test_locks_stay_in_their_own_season(workspace):
+    _seed(workspace)
+    workspace.create_season("2026-jaro")
+    mutations.solve(workspace)
+    mutations.lock_all_placed(workspace)
+
+    fresh = mutations.new_season(workspace)
+
+    assert fresh["assignments"] == []
+    assert mutations.locked_count(fresh) == 0
