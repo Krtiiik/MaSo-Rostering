@@ -181,6 +181,13 @@ def render() -> None:
     weights["friend_unsatisfied"] = weight_cols[2].number_input(
         "Friend-unsatisfied weight", value=int(weights["friend_unsatisfied"]), key="w_friend"
     )
+    solver_config["time_limit_seconds"] = st.number_input(
+        "Time limit (seconds)",
+        min_value=1,
+        value=int(solver_config.get("time_limit_seconds", 10)),
+        key="w_time_limit",
+        help="How long a solve may search. If it ends with no roster found, raise this and solve again.",
+    )
     friend_scoring = solver_config["friend_scoring"]
     friend_scoring["mode"] = st.selectbox(
         "Friend scoring mode",

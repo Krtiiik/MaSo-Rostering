@@ -159,7 +159,20 @@ pushing the tag, not just creating it locally.
   distribution — see README.md "Setup" for the two-package editable-install
   this requires. Its built JS/CSS bundle is checked into git so a normal
   `pip install -e` alone is enough to run the app.
-- Equipment eligibility is a **hard** constraint (see `CONTEXT.md`).
+- Equipment eligibility is a **hard** rule (see `CONTEXT.md`), meaning the
+  solver bends it only last. Hard rules are never constraints that can make a
+  solve infeasible: `rostering/solver/rules.py` relaxes each through a slack
+  penalized in fixed, dominance-ordered tiers (`Tier`: minimums, Tag
+  restrictions, Forced-friend groups, Equipment), and `solve_competition`
+  returns a full roster with `SolveResult.broken_rules`. Only the one-Room /
+  one-Role shape and `fixed_assignments` never bend. A new rule family (Tags,
+  Forced friends) registers a `RuleFamily` via `register_rule_family`; each
+  `Relaxation` it returns carries the `RuleInstance` identity (rule kind +
+  entity) the live checker must emit too. The one remaining failure is the
+  time limit expiring with no roster (`NoRosterFound`, surfaced as "No roster
+  found within N seconds"). `diagnostics["broken_rules"]` in the saved state
+  is the solver's report as of the last solve, shown in the grid tab; the
+  live checker/banner (later ticket) supersedes it.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

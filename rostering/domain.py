@@ -170,16 +170,46 @@ class Assignment:
     role: Role
 
 
+@dataclass(frozen=True)
+class RuleInstance:
+    """The identity of one hard-rule instance: rule kind plus the entity it
+    binds, e.g. ``("room_minimum", ("Karlín", "N4", "Fotograf"))`` or
+    ``("equipment", (helper_id,))``. The solver's relaxation reports its
+    Broken rules under these identities, and the live checker must emit the
+    same ones so the two can be compared."""
+
+    kind: str
+    entity: tuple
+
+
+@dataclass(frozen=True)
+class BrokenRule:
+    """One hard rule the roster fails to satisfy (see CONTEXT.md "Broken
+    rule"): ``family`` is the rule family's name, ``amount`` the size of the
+    violation in people (a minimum's shortfall; 1 for an all-or-nothing rule)
+    and ``line`` the human-readable description."""
+
+    instance: RuleInstance
+    family: str
+    amount: int
+    line: str
+
+
 @dataclass
 class SolveResult:
     assignments: list[Assignment]
     status: str
+    # The ordinary preference/friend objective only; the penalties for
+    # Broken rules are not included.
     objective_value: float
     # (helper_a_id, helper_b_id) pairs whose friend request was not satisfied.
     unsatisfied_friend_pairs: list[tuple[int, int]] = field(default_factory=list)
     # (helper_a_id, helper_b_id) pairs whose friend request ended up satisfied
     # (both assigned to the same room).
     satisfied_friend_pairs: list[tuple[int, int]] = field(default_factory=list)
+    # The hard rules the solver had to bend to return a full roster, stricter
+    # tiers last. Empty when every rule holds.
+    broken_rules: list[BrokenRule] = field(default_factory=list)
 
 
 @dataclass

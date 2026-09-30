@@ -12,7 +12,7 @@ from rostering.export.excel import write_roster
 from rostering.ingest.legacy import load_helpers_csv, write_helpers_csv
 from rostering.ingest.raw_survey import parse_raw_survey
 from rostering.manual import load_manual_roles
-from rostering.solver.model import SolverConfig, solve_competition
+from rostering.solver.model import NoRosterFound, SolverConfig, solve_competition
 
 
 def _cmd_ingest(args: argparse.Namespace) -> int:
@@ -33,13 +33,18 @@ def _cmd_solve(args: argparse.Namespace) -> int:
     comp = Competition(helpers=helpers_result.helpers, buildings=buildings)
     manual = load_manual_roles(args.manual_roles)
 
-    result = solve_competition(comp, SolverConfig())
-    if result is None:
-        print("No feasible roster found", file=sys.stderr)
+    try:
+        result = solve_competition(comp, SolverConfig())
+    except NoRosterFound as exc:
+        print(str(exc), file=sys.stderr)
         return 1
 
     write_roster(comp, result, manual, args.output)
     print(f"Wrote roster ({result.status}, objective={result.objective_value}) to {args.output}")
+    if result.broken_rules:
+        print(f"{len(result.broken_rules)} rule(s) had to be bent:", file=sys.stderr)
+        for broken in result.broken_rules:
+            print(f"  - {broken.line}", file=sys.stderr)
     if result.unsatisfied_friend_pairs:
         print(f"{len(result.unsatisfied_friend_pairs)} friend request(s) unsatisfied:", file=sys.stderr)
         name_by_id = {h.id: h.name for h in comp.helpers}
