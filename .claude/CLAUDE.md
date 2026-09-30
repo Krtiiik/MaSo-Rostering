@@ -242,8 +242,12 @@ pushing the tag, not just creating it locally.
   closes the popup, and the dialog opens from there, since dialogs can't nest).
 - People tab (`tabs/people_tab.py`, "1. People"): the upload, the review lists
   and two hand-built table views (Streamlit's own tables can't hold a click
-  target or pills): Organizers above, Helpers below, one `st.columns` row per
-  person sorted by name, each ending with a "＋ Add" button. A name is a button
+  target): Organizers above, Helpers below, one `st.columns` row per person
+  sorted by name (`_render_table`: a name button, one padded monospace `st.text`
+  with every other column, Tags as plain text last, and the Can't attend
+  checkbox; column ratios follow the text lengths. Keep rows to a few elements
+  and never one container per cell, which made the tab very slow), each table
+  ending with a "＋ Add" button. A name is a button
   that opens that person's popup (`person_dialog.open_person`, an `st.dialog`
   with `on_dismiss="rerun"` so the table is current once it closes): for a
   Helper the tabs Details (Can't attend, every field, Save / Promote / Delete,

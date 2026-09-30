@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The People tab's Organizers and Helpers tables are much lighter to render and
+  rerun: each row is now a name button, one plain-text cell holding every other
+  column, and the Can't attend checkbox, instead of a fixed-height container per
+  cell. Tags show as plain text (implied ones in brackets) rather than coloured
+  pills, and Can't attend is now the last column.
 - The People tab's tables now size each column to its widest cell in the browser
   instead of from a character count worked out beforehand.
 - Solving (Solve, Save & solve and Place new registrants) now runs in a modal

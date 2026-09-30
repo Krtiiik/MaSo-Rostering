@@ -9,10 +9,10 @@ import hashlib
 import streamlit as st
 
 from rostering.domain import UNKNOWN_TSHIRT_SIZE
-from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
+from rostering.streamlit_app import fix_focus, mutations, session
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
-# Height in px of one table row; see ``_row_cells``.
-_ROW_HEIGHT = 44
+# Between the padded detail cells of a row (monospace, see ``_line``).
+_GAP = "  "
 # Bumped on every Can't attend tick so the checkboxes start afresh from the saved
 # state (a flag that was refused or is still awaiting confirmation must not stay ticked).
 _CANT_ATTEND_NONCE = "_people_cant_attend_nonce"
@@ -138,26 +138,17 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     st.rerun()
 
 
-def _table_columns(labels: list[str]) -> list:
-    """One content-width column per label, created upfront with the header as its
-    first cell; the caller then appends each row's cell to its column. A column
-    is as wide as its widest cell, so nothing is measured in advance."""
-    row = st.container(horizontal=True, wrap=False, gap="medium")
-    columns = [row.container(width="content") for _ in labels]
-    for column, label in zip(columns, labels):
-        column.markdown(f"**{label}**")
-    return columns
+def _tag_text(pills: dict | None) -> str:
+    """A person's Tags as plain text: direct Tags by name, implied ones in brackets."""
+    if not pills:
+        return "—"
+    names = [tag["name"] for tag in pills["direct"]] + [f"({tag['name']})" for tag in pills["implied"]]
+    return " ".join(names) or "—"
 
 
-def _row_cells(columns: list) -> list:
-    """The next row's cell in each column. Columns are independent vertical
-    stacks, so every cell gets the same fixed height to keep a row's cells level."""
-    return [column.container(height=_ROW_HEIGHT, border=False, vertical_alignment="center") for column in columns]
-
-
-def _pills(pills: dict | None) -> str:
-    html = tag_pills.pills_html(pills["direct"], pills["implied"]) if pills else ""
-    return html or '<span style="opacity:.5">—</span>'  # st.html refuses an empty body
+def _line(cells: list[str], widths: list[int]) -> str:
+    """``cells`` padded to ``widths`` and joined, so the monospace ``st.text`` of every row lines up."""
+    return _GAP.join(cell.ljust(width) for cell, width in zip(cells, widths))
 
 
 def _cant_attend_cell(cell, kind: str, person: dict) -> None:
@@ -175,21 +166,59 @@ def _cant_attend_cell(cell, kind: str, person: dict) -> None:
         person_actions.set_cant_attend(kind, person["id"], flag)
 
 
+def _render_table(
+    kind: str,
+    people: list[dict],
+    names: list[str],
+    detail_labels: list[str],
+    details: list[list[str]],
+    tags: list[str],
+    add_label: str,
+    on_add,
+) -> None:
+    """One row per person: the name as a button (opens the popup), every other
+    column (Tags last) as a single padded ``st.text``, then the Can't attend
+    checkbox. Three elements a row, no per-cell containers: the page renders
+    (and reruns) in proportion to its element count, which is what made the
+    earlier cell-per-container table slow. The columns' ratios follow the
+    text lengths, the same for every row, so the rows stay level."""
+    labels = [*detail_labels, "Tags"]
+    rows = [[*row, tag_text] for row, tag_text in zip(details, tags)]
+    widths = [max(len(text) for text in [label, *(row[i] for row in rows)]) for i, label in enumerate(labels)]
+    widths[-1] = 0  # the last cell is not padded
+    ratios = [
+        max(len(text) for text in ["Name", *names]) + 6,
+        max(len(text) for text in [_line(labels, widths), *(_line(row, widths) for row in rows)]),
+        len("Can't attend") + 2,
+    ]
+    header = st.columns(ratios, vertical_alignment="center")
+    header[0].text("Name")
+    header[1].text(_line(labels, widths))
+    header[2].text("Can't attend")
+    for person, name, row in zip(people, names, rows):
+        name_cell, details_cell, absent_cell = st.columns(ratios, vertical_alignment="center")
+        if name_cell.button(name, key=f"open_{kind}_{person['id']}", type="tertiary"):
+            person_dialog.open_person(kind, person["id"])
+        details_cell.text(_line(row, widths))
+        _cant_attend_cell(absent_cell, kind, person)
+    if st.button(add_label, key=f"add_{kind}_open"):
+        on_add()
+
+
 def _render_organizers(state: dict) -> None:
     organizers = sorted(state["organizers"], key=lambda o: o["name"].lower())
     st.subheader(f"Organizers ({len(organizers)})")
     pills = mutations.organizer_tag_pills(state)
-    with st.container(border=True):
-        columns = _table_columns(["Name", "Placement", "Can't attend", "Tags"])
-        for organizer in organizers:
-            name_cell, placement_cell, absent_cell, tags_cell = _row_cells(columns)
-            if name_cell.button(organizer["name"], key=f"open_organizer_{organizer['id']}", type="tertiary"):
-                person_dialog.open_person("organizer", organizer["id"])
-            placement_cell.write(" · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—")
-            _cant_attend_cell(absent_cell, "organizer", organizer)
-            tags_cell.html(_pills(pills.get(organizer["id"])))
-        if st.button("＋ Add organizer", key="add_organizer_open"):
-            person_dialog.open_add_organizer()
+    _render_table(
+        "organizer",
+        organizers,
+        [o["name"] for o in organizers],
+        ["Placement"],
+        [[" · ".join(filter(None, [o.get("building"), o.get("room")])) or "—"] for o in organizers],
+        [_tag_text(pills.get(o["id"])) for o in organizers],
+        "＋ Add organizer",
+        person_dialog.open_add_organizer,
+    )
 
 
 def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_id: int | None = None) -> None:
@@ -197,28 +226,29 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     helper's row."""
     helpers = sorted(state["helpers"], key=lambda h: h["name"].lower())
     st.subheader(f"Helpers ({len(helpers)})")
+    st.caption("Tags a helper only has by implication are shown in (brackets).")
     pills = mutations.grid_tag_pills(state)
-    with st.container(border=True):
-        columns = _table_columns(
-            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Can't attend", "Tags"]
+    names, details = [], []
+    for helper in helpers:
+        unresolved = len(helper["unresolved_friend_names"])
+        names.append(("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "") + helper["name"])
+        details.append(
+            [
+                ", ".join(returning.get(helper["id"], [])) or "—",
+                ", ".join(helper["building_preferences"]) or "any",
+                ", ".join(filter(None, ["notebook" if helper["can_bring_notebook"] else "", "camera" if helper["can_bring_camera"] else ""]))
+                or "—",
+                helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
+                f"{unresolved} to match" if unresolved else str(len(helper["friends"])),
+            ]
         )
-        for helper in helpers:
-            name_cell, seasons_cell, buildings_cell, equipment_cell, size_cell, friends_cell, absent_cell, tags_cell = (
-                _row_cells(columns)
-            )
-            unresolved = len(helper["unresolved_friend_names"])
-            mark = ("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "")
-            if name_cell.button(mark + helper["name"], key=f"open_helper_{helper['id']}", type="tertiary"):
-                person_dialog.open_person("helper", helper["id"])
-            seasons_cell.write(", ".join(returning.get(helper["id"], [])) or "—")
-            buildings_cell.write(", ".join(helper["building_preferences"]) or "any")
-            equipment_cell.write(
-                " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
-                or "—"
-            )
-            size_cell.write(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE)
-            friends_cell.write(f"{unresolved} to match" if unresolved else str(len(helper["friends"])))
-            _cant_attend_cell(absent_cell, "helper", helper)
-            tags_cell.html(_pills(pills.get(helper["id"])))
-        if st.button("＋ Add helper", key="add_helper_open"):
-            person_dialog.open_add_helper()
+    _render_table(
+        "helper",
+        helpers,
+        names,
+        ["Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends"],
+        details,
+        [_tag_text(pills.get(h["id"])) for h in helpers],
+        "＋ Add helper",
+        person_dialog.open_add_helper,
+    )
