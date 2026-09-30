@@ -310,7 +310,7 @@ def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
 
 
 def render() -> None:
-    st.header("5. Roster")
+    st.header("6. Roster")
     state = session.get_state()
     rooms = _flatten_rooms(state["config"])
     upload_summary_ui.render("roster")

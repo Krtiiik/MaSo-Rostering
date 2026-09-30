@@ -206,7 +206,7 @@ pushing the tag, not just creating it locally.
   `clear_all_locks`, `locked_count`, and `unlocked_assignments_replaced` (what
   a full Solve would throw away, a to-be-dropped lock included; zero means no
   confirmation). `streamlit_app/solve_prompt.py` shows that confirmation for
-  both the Roster tab's Solve and the Buildings tab's "Save & solve" (which
+  the Roster tab's Solve and the Buildings and Solver tabs' "Save & solve" (which
   saves the config first so the count uses the new layout). `solve` records
   the locks it dropped as lines in `diagnostics["dropped_locks"]` ("N locks
   dropped: Room X no longer exists"), which the Roster tab shows once after
@@ -349,7 +349,7 @@ pushing the tag, not just creating it locally.
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
 - Forced friends groups (`rostering/forced_friends.py`, the lifecycle in
   `streamlit_app/forced_groups.py`, UI in `tabs/forced_friends_tab.py` — the
-  "4. Forced friends" tab, Roster being "5. Roster"): a group is a dict in
+  "4. Forced friends" tab, then "5. Solver" and "6. Roster"): a group is a dict in
   `state["forced_groups"]` (`id` from the high-water mark
   `next_forced_group_id`, `name`, canonical `axes` — Room implies Building —
   and `members`, each `{person_id, name}` with the last-known name), part of

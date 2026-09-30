@@ -1,4 +1,4 @@
-"""The config tab's role cost fields (rendered headlessly with Streamlit's AppTest)."""
+"""The solver tab's role cost fields (rendered headlessly with Streamlit's AppTest)."""
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -7,9 +7,9 @@ from rostering.solver.model import SolverConfig
 
 
 def _app():
-    from rostering.streamlit_app.tabs import config_tab
+    from rostering.streamlit_app.tabs import solver_tab
 
-    config_tab.render()
+    solver_tab.render()
 
 
 @pytest.fixture

@@ -3,8 +3,8 @@
 A full Solve replaces every Assignment that isn't locked, so it asks first when
 that would throw hand work away ("N unlocked Assignments will be replaced") and
 stays silent when nothing would be lost (no Assignments yet, or all locked).
-Shared by the Roster tab's Solve button and the Buildings tab's "Save &
-solve". A Solve that had to drop locks (their Room or Building was removed)
+Shared by the Roster tab's Solve button and the "Save & solve" of the Buildings
+and Solver tabs. A Solve that had to drop locks (their Room or Building was removed)
 leaves a one-shot note for the Roster tab to show."""
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations
+from rostering.streamlit_app import mutations, session
 
 _NOTE_KEY = "_solve_note"
 
@@ -36,6 +36,21 @@ def request_solve(state: dict[str, Any], run: Callable[[], None]) -> None:
         _confirm(count, run)
     else:
         run()
+
+
+def solve_and_open_roster() -> None:
+    """Run a full Solve on the saved Season, then show the Roster tab. Shared by
+    the "Save & solve" buttons of the Buildings and Solver tabs."""
+    with st.spinner("Solving…"):
+        try:
+            solved = mutations.solve(session.get_workspace())
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        session.set_state(solved)
+        remember_dropped_locks(solved)
+        session.switch_tab("6. Roster")
+    st.rerun()
 
 
 def remember_dropped_locks(state: dict[str, Any]) -> None:
