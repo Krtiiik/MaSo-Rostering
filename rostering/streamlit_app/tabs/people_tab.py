@@ -5,6 +5,7 @@ about them is edited."""
 from __future__ import annotations
 
 import hashlib
+from html import escape
 
 import streamlit as st
 
@@ -155,9 +156,18 @@ def _row_cells(columns: list) -> list:
     return [column.container(height=_ROW_HEIGHT, border=False, vertical_alignment="center") for column in columns]
 
 
+_NOWRAP = "white-space:nowrap;"
+
+
+def _text(cell, text: str) -> None:
+    """A plain-text cell on one line: a cell has a fixed height, so wrapped text
+    would scroll vertically instead."""
+    cell.html(f'<div style="{_NOWRAP}">{escape(text)}</div>')
+
+
 def _pills(pills: dict | None) -> str:
     html = tag_pills.pills_html(pills["direct"], pills["implied"]) if pills else ""
-    return html or '<span style="opacity:.5">—</span>'  # st.html refuses an empty body
+    return f'<div style="{_NOWRAP}">{html}</div>' if html else '<span style="opacity:.5">—</span>'  # st.html refuses an empty body
 
 
 def _cant_attend_cell(cell, kind: str, person: dict) -> None:
@@ -185,7 +195,7 @@ def _render_organizers(state: dict) -> None:
             name_cell, placement_cell, absent_cell, tags_cell = _row_cells(columns)
             if name_cell.button(organizer["name"], key=f"open_organizer_{organizer['id']}", type="tertiary"):
                 person_dialog.open_person("organizer", organizer["id"])
-            placement_cell.write(" · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—")
+            _text(placement_cell, " · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—")
             _cant_attend_cell(absent_cell, "organizer", organizer)
             tags_cell.html(_pills(pills.get(organizer["id"])))
         if st.button("＋ Add organizer", key="add_organizer_open"):
@@ -210,14 +220,15 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
             mark = ("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "")
             if name_cell.button(mark + helper["name"], key=f"open_helper_{helper['id']}", type="tertiary"):
                 person_dialog.open_person("helper", helper["id"])
-            seasons_cell.write(", ".join(returning.get(helper["id"], [])) or "—")
-            buildings_cell.write(", ".join(helper["building_preferences"]) or "any")
-            equipment_cell.write(
+            _text(seasons_cell, ", ".join(returning.get(helper["id"], [])) or "—")
+            _text(buildings_cell, ", ".join(helper["building_preferences"]) or "any")
+            _text(
+                equipment_cell,
                 " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
                 or "—"
             )
-            size_cell.write(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE)
-            friends_cell.write(f"{unresolved} to match" if unresolved else str(len(helper["friends"])))
+            _text(size_cell, helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE)
+            _text(friends_cell, f"{unresolved} to match" if unresolved else str(len(helper["friends"])))
             _cant_attend_cell(absent_cell, "helper", helper)
             tags_cell.html(_pills(pills.get(helper["id"])))
         if st.button("＋ Add helper", key="add_helper_open"):

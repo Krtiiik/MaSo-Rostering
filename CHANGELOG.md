@@ -67,6 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The People tab's table cells (placement, earlier Seasons, Buildings, equipment,
+  T-shirt, friends and Tag pills) stay on one line instead of wrapping into a
+  vertical scrollbar.
 - On the Buildings tab, the "Remove building" button no longer overlaps the
   "+ Add room" button when its label wraps in a narrow column.
 
