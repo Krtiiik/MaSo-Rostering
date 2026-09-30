@@ -407,3 +407,122 @@ def make_forced(workspace: Workspace, helper_id: int, friend: Any) -> dict:
     if _same_group_exists(state, [helper["person_id"], person[0]], room_axes):
         raise RosteringError(f"A Room group of {helper['name']} and {person[1]} already exists.")
     return add_group(workspace, f"{helper['name']} + {person[1]}", [helper["person_id"], person[0]], room_axes)
+
+
+# -- Import from an earlier Season -------------------------------------------------
+#
+# The second section of the "Import from an earlier Season" offer, after Tags (see
+# ``mutations.ImportSection``; CONTEXT.md "Tag import" and "Forced friends
+# group"). A group belongs to the people in it, so what carries over is the group
+# with its Persons: one whose members include at least one Person recognized in
+# this Season (a confirmed link, or the same e-mail: an unreviewed same-name
+# match shares no ``person_id`` and so is not carried) is copied whole, the
+# members not registered here staying as ``not_registered`` placeholders that
+# turn live if they register later. The source Season is only read.
+
+IMPORT_KEY = "forced_groups"
+
+
+def _import_entries(context: mutations.ImportContext) -> list[dict]:
+    """One entry per group of the source Season: ``group_id`` (the source's),
+    ``name``, ``axes``, the ``returning`` members' names (as they are called in
+    this Season) and the ``missing`` ones' (as the source called them),
+    ``importable`` (at least one returning) and ``already_present`` (a group with
+    the same members and axes exists here already, whatever it is called)."""
+    entries = []
+    for group in context.source_state.get("forced_groups") or []:
+        resolved = [(m, _member_state(context.state, m)) for m in group.get("members") or []]
+        returning = [r["name"] for _, r in resolved if r["state"] != NOT_REGISTERED]
+        entries.append(
+            {
+                "group_id": group["id"],
+                "name": group["name"],
+                "axes": list(group["axes"]),
+                "returning": returning,
+                "missing": [m.get("name", "") for m, r in resolved if r["state"] == NOT_REGISTERED],
+                "importable": bool(returning),
+                "already_present": _same_group_exists(
+                    context.state, [m["person_id"] for m, _ in resolved], group["axes"]
+                ),
+            }
+        )
+    return entries
+
+
+def import_overview(context: mutations.ImportContext) -> dict[str, Any]:
+    """What the section offers to choose from: ``groups``, the entries of
+    :func:`_import_entries`, each with a tick in the UI (a group with no returning
+    member cannot be ticked)."""
+    return {"groups": _import_entries(context)}
+
+
+def _import_groups_section(context: mutations.ImportContext) -> dict[str, Any]:
+    """Copy the ticked groups (every one when nothing was ticked in
+    ``context.selections``) that have a returning member, as independent groups of
+    this Season with their own ids; skip one already present with the same members
+    and axes. A source group id nobody has is ignored."""
+    state = context.state
+    ticked = context.selections.get(IMPORT_KEY)
+    by_id = {g["id"]: g for g in context.source_state.get("forced_groups") or []}
+    imported: list[dict] = []
+    skipped: list[str] = []
+    left_out: list[str] = []
+    without: list[str] = []
+    for entry in _import_entries(context):
+        if not entry["importable"]:
+            without.append(entry["name"])
+        elif ticked is not None and entry["group_id"] not in ticked:
+            left_out.append(entry["name"])
+        elif entry["already_present"]:
+            skipped.append(entry["name"])
+        else:
+            members = [
+                {"person_id": m["person_id"], "name": _member_state(state, m)["name"] or m.get("name", "")}
+                for m in by_id[entry["group_id"]]["members"]
+            ]
+            record = {
+                "id": _next_group_id(state),
+                "name": entry["name"],
+                "axes": list(entry["axes"]),
+                "members": members,
+            }
+            _records(state).append(record)
+            imported.append(record)
+    names = [g["name"] for g in imported]
+    if imported:
+        _stale_if_rostered(state, f"Forced friends groups were imported ({', '.join(names)}): solve again to apply them")
+    inactive = [
+        g["name"]
+        for g in imported
+        if sum(1 for m in g["members"] if _member_state(state, m)["state"] == ACTIVE) < 2
+    ]
+    ids = {g["id"] for g in imported}
+    clashes = [c.message() for c in mutations._group_tag_clashes(state) if c.group.id in ids]
+
+    def listed(items: Sequence[str]) -> str:
+        return f" ({', '.join(items)})" if items else ""
+
+    lines = [f"Groups imported: {len(names)}{listed(names)}"]
+    if inactive:
+        lines.append(f"Inactive for now (fewer than two active members): {len(inactive)}{listed(inactive)}")
+    lines.append(f"Groups already in this Season, skipped: {len(skipped)}{listed(skipped)}")
+    if left_out:
+        lines.append(f"Groups left out by choice: {len(left_out)}{listed(left_out)}")
+    if without:
+        lines.append(f"Groups without a returning person, not imported: {len(without)}{listed(without)}")
+    if clashes:
+        lines.append(f"Imported, but their members' Tags leave nothing in common: {len(clashes)} ({'; '.join(clashes)})")
+    return {
+        "groups_imported": names,
+        "groups_inactive": inactive,
+        "groups_skipped": skipped,
+        "groups_left_out": left_out,
+        "groups_without_returning": without,
+        "tag_clashes": clashes,
+        "lines": lines,
+    }
+
+
+mutations.register_import_section(
+    mutations.ImportSection(IMPORT_KEY, "Forced friends groups", _import_groups_section, import_overview)
+)

@@ -139,7 +139,7 @@ def test_there_is_no_offer_source_for_the_first_season(workspace):
 
 def test_the_offer_is_section_based_and_starts_with_tags(workspace):
     _season(workspace, "2025-podzim", [("Anna Nováková", ANNA)])
-    assert [s["key"] for s in mutations.tag_import_offer(workspace)["sections"]] == ["tags"]
+    assert [s["key"] for s in mutations.tag_import_offer(workspace)["sections"]] == ["tags", "forced_groups"]
 
 
 def test_the_banner_shows_while_the_season_has_helpers_and_no_tags_and_an_earlier_season_has_tags(workspace):
@@ -567,12 +567,12 @@ def test_further_sections_plug_into_the_same_offer_and_import(workspace, monkeyp
 
     mutations.register_import_section(mutations.ImportSection("things", "Other things", run))
 
-    assert [s["key"] for s in mutations.tag_import_offer(workspace)["sections"]] == ["tags", "things"]
+    assert [s["key"] for s in mutations.tag_import_offer(workspace)["sections"]] == ["tags", "forced_groups", "things"]
     summary = mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
 
-    assert [s["key"] for s in summary["sections"]] == ["tags", "things"]
-    assert summary["sections"][1]["copied"] == 2
-    assert summary["sections"][1]["title"] == "Other things"
+    assert [s["key"] for s in summary["sections"]] == ["tags", "forced_groups", "things"]
+    assert summary["sections"][2]["copied"] == 2
+    assert summary["sections"][2]["title"] == "Other things"
     assert seen == [("2025-podzim", "2026-jaro", 3)]
     assert _tag_names(mutations.get_state(workspace), "Anna N.") == ["8.M"]  # the Tags section still ran
 

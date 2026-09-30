@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Forced friends groups carry over to a later Season in the "Import from an
+  earlier Season" offer, as its second section after Tags. The dialog lists every
+  group of the source Season with its returning and missing members and a tick
+  per group; each ticked group with at least one recognized person (a confirmed
+  link or the same e-mail, an Organizer included) is imported as an independent
+  copy, the members not registered this Season staying in it as dim "not
+  registered" placeholders that turn live when they register and are recognized
+  (a group left with fewer than two active members is imported inactive). Links
+  still awaiting review are not carried, a group already present with the same
+  members and axes is skipped on a repeat import, the source Season is never
+  edited, and an existing roster is marked stale. The import summary lists the
+  groups imported, skipped, left out and not imported next to the Tags.
 - Organizers can be members of a Forced friends group, and a friend request can
   be made forced. A placed Organizer anchors the group at their placement (their
   Building, and their Room when they hold one; a Room group with an Organizer who
