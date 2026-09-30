@@ -540,3 +540,18 @@ def test_a_flagged_helper_cannot_be_placed_by_hand(workspace):
         mutations.move_helper(workspace, 1, "B", "R1", "Zaloha")
 
     assert _assignment(mutations.get_state(workspace), 1) is None
+
+
+def test_the_people_tab_friend_count_leaves_out_friends_who_cant_attend(workspace):
+    _seed(workspace, helpers=[_helper(1, "Anna", friends=[2, 3, {"organizer_id": 7}]), _helper(2, "Petr"), _helper(3, "Jana")])
+    state = workspace.load()
+    state["organizers"] = [{"id": 7, "person_id": "o7", "name": "Org", "email": None, "building": None, "room": None}]
+    workspace.save(state)
+    anna = state["helpers"][0]
+    assert mutations.attending_friend_count(state, anna) == 3
+
+    state = mutations.set_cant_attend(workspace, 2, True)
+    assert mutations.attending_friend_count(state, anna) == 2
+
+    state["organizers"][0]["cant_attend"] = True
+    assert mutations.attending_friend_count(state, anna) == 1
