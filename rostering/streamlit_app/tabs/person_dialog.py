@@ -18,6 +18,11 @@ from rostering.streamlit_app.tabs import helper_forms, person_actions, person_li
 # gives the Tag picker a fresh widget so it shows what is saved again.
 _TAGS_ERROR = "_person_tags_error"
 _TAGS_NONCE = "_person_tags_nonce"
+# The same pair for the Friends tab's two pickers.
+_FRIENDS_ERROR = "_person_friends_error"
+_FRIENDS_NONCE = "_person_friends_nonce"
+_FORCED_ERROR = "_person_forced_error"
+_FORCED_NONCE = "_person_forced_nonce"
 
 _DISMISS_LABEL = "✕ Nezúčastní se"
 _UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
@@ -214,15 +219,14 @@ def _save_decision(helper_id: int, name: str, *args) -> None:
     except mutations.RosteringError as exc:
         st.error(str(exc))
         return
-    # The Details tab's Friends picker must show the new friends.
-    st.session_state[helper_forms.DETAILS_NONCE] = st.session_state.get(helper_forms.DETAILS_NONCE, 0) + 1
     person_actions.rerun_popup()
 
 
 def _render_friends(helper: dict) -> None:
     """The Friends tab: every survey name on top (when there are any), matched
     or not, in its original order so a decided name stays where it was and can
-    be changed, then every matched friend with the option to force the wish."""
+    be changed, then the Friends picker and, from those friends, the ones forced
+    into the same Room."""
     names = _friend_names(helper)
     if names:
         st.markdown("**K přiřazení**")
@@ -230,39 +234,77 @@ def _render_friends(helper: dict) -> None:
             "Jména z dotazníku a komu patří. Jméno může odpovídat více pomocníkům, pokud označuje skupinu lidí."
         )
         _render_name_matchers(helper, names)
-    _render_friend_list(helper, bool(names))
+        st.markdown("**Přiřazení kamarádi**")
+    _render_friend_picker(helper)
+    _render_forced_picker(helper)
 
 
-def _make_forced(helper_id: int, friend: object) -> None:
-    """Force one friend wish (a Room group of the two) and refresh the popup."""
-    try:
-        session.set_state(forced_groups.make_forced(session.get_workspace(), helper_id, friend))
-    except mutations.RosteringError as exc:
-        st.error(str(exc))
+def _render_friend_picker(helper: dict) -> None:
+    """The Helper's friends as a multiselect over every Helper and Organizer; a
+    pick saves at once."""
+    state = session.get_state()
+    saved = helper.get("friends", [])
+    nonce = st.session_state.get(_FRIENDS_NONCE, 0)
+    refused = st.session_state.pop(_FRIENDS_ERROR, None)
+    if refused:
+        st.error(refused)
+    # The saved friends are part of the key, so the picker starts afresh from
+    # them after the name matching changed them; the nonce does the same after
+    # a refused pick.
+    picked = helper_forms.friends_picker(
+        state,
+        helper["id"],
+        saved,
+        key=f"friends_{helper['id']}_{'-'.join(map(str, sorted(map(helper_forms.friend_key, saved))))}_{nonce}",
+    )
+    if {helper_forms.friend_key(f) for f in picked} == {helper_forms.friend_key(f) for f in saved}:
         return
+    try:
+        session.set_state(mutations.update_helper(session.get_workspace(), helper["id"], friends=picked))
+    except mutations.RosteringError as exc:
+        st.session_state[_FRIENDS_ERROR] = str(exc)
+        st.session_state[_FRIENDS_NONCE] = nonce + 1
     person_actions.rerun_popup()
 
 
-def _render_friend_list(helper: dict, after_unresolved: bool) -> None:
-    """Every friend this Helper has, with "Vynutit" (a Forced friends group of
-    the two who must share a Room, hence a Building) unless that group exists."""
+def _render_forced_picker(helper: dict) -> None:
+    """"Vynucení kamarádi v místnosti": a multiselect over this Helper's own
+    friends. Each one picked is a Forced friends group of the two who must share
+    a Room (hence a Building); unpicking one dissolves that group. The friend
+    wish itself is never touched."""
     requests = [r for r in forced_groups.friend_requests(session.get_state()) if r["helper_id"] == helper["id"]]
-    if after_unresolved:
-        st.markdown("**Přiřazení kamarádi**")
     if not requests:
-        st.caption("Tento pomocník zatím nemá žádného přiřazeného kamaráda.")
+        st.caption("Vynucení kamarádi v místnosti: tento pomocník zatím nemá žádného přiřazeného kamaráda.")
         return
-    st.caption(
-        "Přání být s kamarádem je jen přání. Jeho vynucením vznikne skupinka dvou lidí, kteří musí sdílet "
-        "místnost (a tedy i budovu); samotné přání zůstane, jak bylo. Skupinky najdete na záložce „Vynucené skupinky kamarádů“."
+    labels = {helper_forms.friend_key(r["friend"]): r["friend_name"] for r in requests}
+    by_key = {helper_forms.friend_key(r["friend"]): r["friend"] for r in requests}
+    forced = [helper_forms.friend_key(r["friend"]) for r in requests if r["forced"]]
+    nonce = st.session_state.get(_FORCED_NONCE, 0)
+    refused = st.session_state.pop(_FORCED_ERROR, None)
+    if refused:
+        st.error(refused)
+    picked = st.multiselect(
+        "Vynucení kamarádi v místnosti",
+        options=sorted(labels, key=lambda k: labels[k].lower()),
+        default=forced,
+        format_func=lambda k: labels[k],
+        key=f"forced_{helper['id']}_{'-'.join(sorted(forced))}_{nonce}",
+        placeholder="Nikdo není vynucen",
+        help="Přání být s kamarádem je jen přání. Vynucením vznikne skupinka dvou lidí, kteří musí sdílet "
+        "místnost (a tedy i budovu); samotné přání zůstane, jak bylo. Skupinky najdete na záložce „Vynucené skupinky kamarádů“.",
     )
-    for i, request in enumerate(requests):
-        name_col, action_col = st.columns([3, 2], vertical_alignment="center")
-        name_col.write(request["friend_name"])
-        if request["forced"]:
-            action_col.caption(":material/link: Vynuceno")
-        elif action_col.button("Vynutit", key=f"force_{helper['id']}_{i}"):
-            _make_forced(helper["id"], request["friend"])
+    if set(picked) == set(forced):
+        return
+    workspace = session.get_workspace()
+    try:
+        for key in (k for k in picked if k not in forced):
+            session.set_state(forced_groups.make_forced(workspace, helper["id"], by_key[key]))
+        for key in (k for k in forced if k not in picked):
+            session.set_state(forced_groups.unforce(workspace, helper["id"], by_key[key]))
+    except mutations.RosteringError as exc:
+        st.session_state[_FORCED_ERROR] = str(exc)
+        st.session_state[_FORCED_NONCE] = nonce + 1
+    person_actions.rerun_popup()
 
 
 def _render_name_matchers(helper: dict, names: list[str]) -> None:

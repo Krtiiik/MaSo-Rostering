@@ -1,12 +1,9 @@
 """The solver tab's role cost fields (rendered headlessly with Streamlit's AppTest)."""
-import io
-
-import pyarrow as pa
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from rostering.persistence.serialize import solver_config_from_dict
-from rostering.solver.model import SolverConfig
+from rostering.persistence.serialize import solver_config_from_dict, solver_config_to_dict
+from rostering.solver.model import MAX_PREFERENCE_COST, SolverConfig
 
 
 def _app():
@@ -38,7 +35,8 @@ def test_the_tab_shows_the_unit_and_six_costs_with_the_solver_defaults(tab):
     assert not tab.exception
     assert tab.number_input(key="w_role_cost_unit").value == defaults.weights.role_preference
     for field, key in _COST_KEYS.items():
-        assert tab.number_input(key=key).value == getattr(defaults.role_costs, field)
+        widget = tab.number_input(key=key) if field == "zaloha" else tab.slider(key=key)
+        assert widget.value == getattr(defaults.role_costs, field)
 
 
 def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab):
@@ -57,17 +55,27 @@ def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab
     assert tab.number_input(key="w_cost_zaloha").value == 4
 
 
-def test_the_bar_chart_shows_the_five_preference_costs_in_order_and_follows_edits(tab):
-    def chart(at):
-        dataset = at.get("vega_lite_chart")[0].proto.datasets[0]
-        return pa.ipc.open_stream(io.BytesIO(dataset.data.data)).read_all().to_pydict()
+def test_the_five_preference_costs_are_sliders_from_zero_to_the_fixed_maximum(tab):
+    for field in ("ano", "klidne", "nevadi", "spise_ne", "ne"):
+        slider = tab.slider(key=_COST_KEYS[field])
+        assert (slider.min, slider.max, slider.step) == (0, MAX_PREFERENCE_COST, 1)
+    assert MAX_PREFERENCE_COST == 20
+    assert not [n for n in tab.number_input if n.key in {_COST_KEYS[f] for f in _COST_KEYS if f != "zaloha"}]
 
-    defaults = SolverConfig().role_costs
-    assert chart(tab) == {
-        "Preference": ["Ano", "Klidně", "Nevadí", "Spíš ne", "Ne"],
-        "Cena": [defaults.ano, defaults.klidne, defaults.nevadi, defaults.spise_ne, defaults.ne],
+    tab.slider(key="w_cost_ne").set_value(20).run()
+
+    assert solver_config_from_dict(tab.session_state["solver_config_draft"]).role_costs.ne == 20
+
+
+def test_a_saved_cost_above_the_maximum_is_shown_at_the_top_instead_of_failing(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROSTERING_SEASONS_DIR", str(tmp_path / "seasons"))
+    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
+    at = AppTest.from_function(_app, default_timeout=30)
+    at.session_state["solver_config_draft"] = {
+        **solver_config_to_dict(SolverConfig()),
+        "role_costs": {**solver_config_to_dict(SolverConfig())["role_costs"], "ne": 99},
     }
+    at.run()
 
-    tab.number_input(key="w_cost_ne").set_value(20).run()
-
-    assert chart(tab)["Cena"][-1] == 20
+    assert not at.exception
+    assert at.slider(key="w_cost_ne").value == MAX_PREFERENCE_COST

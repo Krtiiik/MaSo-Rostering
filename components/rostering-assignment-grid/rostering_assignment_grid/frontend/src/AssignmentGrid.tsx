@@ -17,6 +17,11 @@ import type {
 } from "./types";
 
 const DRAG_ACTIVATION_DISTANCE = 6;
+// Preference level of "Nevadí" (rostering.domain.Preference): the lowest one the
+// Role satisfaction overlay counts as satisfied. Záloha (the solver's overflow
+// role, never on the form) is left unjudged.
+const NEUTRAL_LEVEL = 3;
+const RESERVE_ROLE = "Zaloha";
 
 export type AssignmentGridProps = Pick<
   FrontendRendererArgs<AssignmentGridState, AssignmentGridData>,
@@ -74,6 +79,8 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   // decoration without them.
   const friendsOn = overlays?.includes("friends") === true;
   const tagsOn = overlays?.includes("tags") === true;
+  const roleFitOn = overlays?.includes("role_fit") === true;
+  const buildingFitOn = overlays?.includes("building_fit") === true;
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
   // The Helper whose details card is open (opened by clicking a chip, never by
   // hovering, so it can't get in the way of a drag) and where it sits.
@@ -290,12 +297,26 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     }
     // Only a placed Helper is lockable (the Unassigned pool has no lock).
     const placed = assignmentByHelper.get(h.id);
+    // Satisfaction is judged for a placed Helper only. A role rated Nevadí or
+    // better (a blank answer counts as Nevadí) suits them; Záloha is nobody's
+    // choice, so it is left unjudged. The Building suits them when it is in
+    // their acceptable set.
+    const roleFit =
+      roleFitOn && placed && placed.role !== RESERVE_ROLE
+        ? (h.role_preferences[placed.role]?.level ?? NEUTRAL_LEVEL) >= NEUTRAL_LEVEL
+        : undefined;
+    const buildingFit =
+      buildingFitOn && placed
+        ? (h.acceptable_buildings ?? [placed.building]).includes(placed.building)
+        : undefined;
     return (
       <HelperChip
         key={h.id}
         helper={h}
         showTags={tagsOn}
         dimmed={dimmedIds.has(h.id)}
+        roleFit={roleFit}
+        buildingFit={buildingFit}
         locked={placed?.locked === true}
         onToggleLock={placed ? () => setTriggerValue("lock", { helper_id: h.id, locked: !placed.locked }) : undefined}
         unsatisfiedFriend={friendsOn && unsatisfiedHelperIds.has(h.id)}

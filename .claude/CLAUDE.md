@@ -264,17 +264,21 @@ pushing the tag, not just creating it locally.
   with `on_dismiss="rerun"` so the table is current once it closes): for a
   Helper the tabs Details (Can't attend, every field, Save / Promote / Delete,
   `helper_forms.render_details`), Tags, Friends (`person_dialog._render_friends`: every survey name, matched
-  or not, on top under "K přiřazení" (`resolve_friend`); then every matched
-  friend with a "Vynutit" button, or "Vynuceno" when that group exists) and Person links
+  or not, on top under "K přiřazení" (`resolve_friend`); then the "Kamarádi" multiselect
+  (`_render_friend_picker`, saves at once via `update_helper(friends=...)`), then
+  "Vynucení kamarádi v místnosti" (`_render_forced_picker`: a multiselect over
+  that Helper's own friends, a pick runs `make_forced`, an unpick
+  `forced_groups.unforce`)) and Person links
   (`person_links.render_helper_links`); for an Organizer Details and Tags. Edits
   that only change the popup (Tags, friend names, Can't attend) call
   `person_actions.rerun_popup` (a fragment rerun, the popup stays open); Save,
   Delete and Promote rerun the page, which closes it, and leave a one-shot
   message (`person_actions.flash`). An action needing confirmation is queued by
   `person_actions.attempt` and its dialog opens from `show_pending` on the next
-  page run. The page-level review lists stay in `person_links`. A Helper's
-  Details form gets a fresh widget key (`helper_forms.DETAILS_NONCE`) when the
-  friend matching changes their friends. The popup's bodies read the state fresh
+  page run. The page-level review lists stay in `person_links`. The friends
+  pickers key their widgets by the saved value (plus a nonce after a refused pick),
+  so they show what is saved after the name matching changes it; the Details form
+  has no friends picker (only the add form does). The popup's bodies read the state fresh
   (`session.get_state()`), never from arguments, since a fragment rerun re-passes
   the old ones.
 - Hand-added Helpers: `mutations.add_helper` / `update_helper` /
@@ -464,7 +468,7 @@ pushing the tag, not just creating it locally.
   `badges` of `list_groups` say `Role not applied to <name>`. The edit-time Tag
   check counts Helpers only. `forced_groups.friend_requests(state)` and
   `make_forced(workspace, helper_id, friend)` (friend: Helper id or
-  `{"organizer_id": n}`) back the "Vynutit" button on each matched friend in a Helper's popup (Friends tab; the Forced friends tab itself no longer has it):
+  `{"organizer_id": n}`) back the "Vynucení kamarádi v místnosti" multiselect in a Helper's popup (Friends tab; the Forced friends tab itself no longer has it; `unforce(workspace, helper_id, friend)` dissolves the exact two-person Room group again):
   a normal `add_group` named `Anna + Petr` with the Room axis, refused when that
   exact group exists; the request is not touched. The grid marks Helper chips
   only (`grid_forced_groups` counts a placed Organizer towards a group being in
@@ -620,6 +624,11 @@ pushing the tag, not just creating it locally.
   confused with the deprecated "Overlay role" term, see `CONTEXT.md`.)
   *Friends* gates the hover highlights and the persistent orange unsatisfied
   marker (off = neither); the details card's friend lists are not an overlay.
+  *Role satisfaction* (`role_fit`) gives a placed chip a thick left border and *Building satisfaction*
+  (`building_fit`) a thick top border, green/red (`HelperChip`, `.role-fit-*`/`.building-fit-*` in
+  `style.css`): a Role is satisfied at Nevadí or better (blank = Nevadí, Záloha unjudged), a Building when
+  it is in the helper's `acceptable_buildings` (`grid_tab._acceptable_buildings`, matched with
+  `building_keys`; empty Building preference = every Building).
   *Tags* stripes each chip (`HelperChip`, and Organizer chips in `ManualCell`)
   into equal segments, one per **direct** Tag in its colour (`tagStripes.ts`,
   tinted with `color-mix` so the normal text stays readable; Tag names incl.

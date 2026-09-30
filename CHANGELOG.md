@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Two more Zobrazení modes on the Roster tab: "Spokojenost s rolí" gives each placed
+  chip a thick left border (green when the Role is rated Nevadí or better, red for
+  Spíš ne / Ne; Záloha is not judged) and "Spokojenost s budovou" a thick top border
+  (green when the Building is one the Helper marked acceptable or they named none,
+  red otherwise). They combine with the other modes.
 - An "Obnovit výchozí budovy" button in the Buildings tab's bottom bar replaces the
   layout being edited with the default bundled with the app. Nothing is saved until
   "Uložit konfiguraci" is clicked, so it can still be dropped by reloading the page.
@@ -30,13 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Helper's popup. Its tab is now "Kamarádi": every friend name from the survey on
   top under "K přiřazení" (matched ones stay there, in their original order, and
   can be changed in place; there is no "Změnit přiřazení jmen z dotazníku"
-  expander), then every matched friend with a "Vynutit" button (or "Vynuceno"
-  when their Forced friends group already exists).
-- On the 5. Parametry rozřazování tab, the five Preference costs (Ano, Klidně, Nevadí,
-  Spíš ne, Ne) are number inputs stacked vertically, each labelled with its star
-  rating (Ano five stars down to Ne one), with a static horizontal bar chart of
-  their distribution beside them (values printed at the bar ends, no tooltip). The
-  role cost unit and the Záloha cost, which is not a Preference, sit in a row above.
+  expander), then the "Kamarádi" multiselect (moved here from the
+  Details tab; a pick saves at once), then a "Vynucení kamarádi v místnosti"
+  multiselect over that Helper's own friends (picking one makes the Forced friends
+  group of the two, unpicking dissolves it; replaces the per-friend "Vynutit"
+  buttons).
+- On the 5. Parametry rozřazování tab, each of the five Preference costs (Ano, Klidně,
+  Nevadí, Spíš ne, Ne) is a row with its label and star rating (Ano five stars down
+  to Ne one) on the left and a 0–20 slider on the right. 20 is a fixed maximum
+  (`MAX_PREFERENCE_COST`); a saved cost above it is shown at 20. The role cost unit
+  and the Záloha cost, which is not a Preference, stay number inputs in a row above.
 - The Tags tab's "who carries this Tag" section is now one multiselect over every
   Helper and Organizer (replacing the carrier list with per-person "Odebrat" buttons
   and the separate "add to other people" picker). Tick or untick people and press

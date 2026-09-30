@@ -1,16 +1,14 @@
 """Tab 5: solver settings (weights, role costs, time limit, friend scoring)."""
 from __future__ import annotations
 
-import altair as alt
-import pandas as pd
 import streamlit as st
 
 from rostering.persistence.serialize import solver_config_from_dict, solver_config_to_dict
-from rostering.solver.model import SolverConfig
+from rostering.solver.model import MAX_PREFERENCE_COST, SolverConfig
 from rostering.streamlit_app import labels, mutations, session, solve_prompt
 
-# The five Preference costs in the order the fields are shown, stacked beside
-# their bar chart: (RoleCosts field, label, widget key).
+# The five Preference costs in the order the fields are shown, one slider row
+# each: (RoleCosts field, label, widget key).
 _PREFERENCE_COST_FIELDS = [
     ("ano", "Ano", "w_cost_ano"),
     ("klidne", "Klidně", "w_cost_klidne"),
@@ -28,26 +26,6 @@ def _stars(count: int) -> str:
     """``count`` of the five stars filled, the rest outlined (Streamlit markdown
     colours, so it works inside a widget label)."""
     return f":orange[{'★' * count}]:gray[{'☆' * (len(_PREFERENCE_COST_FIELDS) - count)}]"
-
-
-def _label_colour() -> str:
-    """Text colour readable on the active theme (a mark's text does not pick it
-    up from the theme the way the axes do)."""
-    return "#fafafa" if st.context.theme.type == "dark" else "#31333f"
-
-
-def _cost_chart(costs: list[tuple[str, int]]) -> alt.Chart:
-    """Horizontal bars of the Preference costs, top to bottom in the given
-    order, with the value printed at each bar's end. Static: no tooltip, no
-    selection, so hovering or dragging does nothing."""
-    data = pd.DataFrame(costs, columns=["Preference", "Cena"])
-    base = alt.Chart(data).encode(
-        y=alt.Y("Preference:N", sort=[label for label, _cost in costs], title=None, axis=alt.Axis(labelLimit=200)),
-        x=alt.X("Cena:Q", title="Cena", axis=alt.Axis(tickMinStep=1)),
-    )
-    bars = base.mark_bar()
-    values = base.mark_text(align="left", dx=4, color=_label_colour()).encode(text="Cena:Q")
-    return (bars + values).properties(height=400)
 
 
 def _ensure_draft(state: dict) -> None:
@@ -97,7 +75,8 @@ def render() -> None:
     st.caption(
         "Kolik stojí zařazení pomocníka do role podle toho, jak ji ohodnotil (prázdná odpověď se počítá jako Nevadí; "
         "Záloha nemá hodnocení, má proto vlastní cenu). Jednotka škáluje všechny ceny; "
-        "zvyšte ji, aby preference rolí vážily víc než budova a přání kamarádů."
+        "zvyšte ji, aby preference rolí vážily víc než budova a přání kamarádů. "
+        f"Cena preference je 0 až {MAX_PREFERENCE_COST}."
     )
     role_costs = solver_config["role_costs"]
     unit_col, zaloha_col = st.columns(2)
@@ -113,19 +92,19 @@ def render() -> None:
         label, min_value=0, step=1, value=int(role_costs[field]), key=key
     )
 
-    input_col, chart_col = st.columns([1, 2])
-    with input_col:
-        for position, (field, label, key) in enumerate(_PREFERENCE_COST_FIELDS):
-            role_costs[field] = st.number_input(
-                f"{label} {_stars(len(_PREFERENCE_COST_FIELDS) - position)}",
-                min_value=0,
-                step=1,
-                value=int(role_costs[field]),
-                key=key,
-            )
-    with chart_col:
-        st.caption("Rozložení cen podle preferencí")
-        st.altair_chart(_cost_chart([(label, role_costs[field]) for field, label, _key in _PREFERENCE_COST_FIELDS]))
+    for position, (field, label, key) in enumerate(_PREFERENCE_COST_FIELDS):
+        label_col, slider_col = st.columns([1, 4], vertical_alignment="center")
+        label_col.markdown(f"**{label}** {_stars(len(_PREFERENCE_COST_FIELDS) - position)}")
+        # A cost saved above the slider's range is shown (and saved again) at the top.
+        role_costs[field] = slider_col.slider(
+            label,
+            min_value=0,
+            max_value=MAX_PREFERENCE_COST,
+            step=1,
+            value=min(int(role_costs[field]), MAX_PREFERENCE_COST),
+            key=key,
+            label_visibility="collapsed",
+        )
     st.button("Obnovit výchozí ceny rolí", on_click=_restore_role_cost_defaults, key="w_restore_role_costs")
 
     solver_config["time_limit_seconds"] = st.number_input(

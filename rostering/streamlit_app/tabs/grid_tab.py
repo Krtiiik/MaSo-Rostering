@@ -25,6 +25,7 @@ from rostering import tags as tag_tree
 from rostering import organizers as organizer_slots
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.czech import plural
+from rostering.ingest.mapping import building_keys
 from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
 from rostering.streamlit_app.tabs import upload_summary_ui
 from rostering_assignment_grid import assignment_grid
@@ -82,6 +83,16 @@ def _grid_role_preferences(role_preferences: dict[str, str]) -> dict[str, dict[s
         role: {"level": Preference[pref].value, "label": _PREFERENCE_LABELS[pref]}
         for role, pref in role_preferences.items()
     }
+
+
+def _acceptable_buildings(building_preferences: list[str], config: list[dict]) -> list[str]:
+    """The Season's Buildings a Helper's Building preference accepts (see
+    CONTEXT.md "Building preference"): every one when the set is empty, else those
+    matching an entry the way the solver matches them."""
+    if not building_preferences:
+        return [b["name"] for b in config]
+    wanted = frozenset().union(*(building_keys(p) for p in building_preferences))
+    return [b["name"] for b in config if not building_keys(b["name"]).isdisjoint(wanted)]
 
 
 def _flatten_rooms(config: list[dict]) -> list[dict]:
@@ -285,7 +296,12 @@ _MODE_LABELS = {tag_tree.ALL_OF: "Všechny", tag_tree.ANY_OF: "Kterýkoli"}
 # the grid component receives (``overlays``); a new overlay (Buildings, Roles)
 # is an entry here plus its drawing in the component. Friends is on to begin
 # with, as friend highlighting always was.
-OVERLAYS = {"friends": "Kamarádi", "tags": "Štítky"}
+OVERLAYS = {
+    "friends": "Kamarádi",
+    "tags": "Štítky",
+    "role_fit": "Spokojenost s rolí",
+    "building_fit": "Spokojenost s budovou",
+}
 DEFAULT_OVERLAYS = ["friends"]
 TAGS_OVERLAY = "tags"
 
@@ -301,7 +317,11 @@ def _render_overlay_controls(state: dict) -> tuple[list[str], list[int], str]:
         default=DEFAULT_OVERLAYS,
         format_func=OVERLAYS.__getitem__,
         key=OVERLAYS_KEY,
-        help="Kamarádi: zvýrazní přání být s kamarádem. Štítky: obarví blok každého člověka podle jeho štítků.",
+        help=(
+            "Kamarádi: zvýrazní přání být s kamarádem. Štítky: obarví blok každého člověka podle jeho štítků. "
+            "Spokojenost s rolí: svislý okraj vlevo, zelený = role mu nevadí nebo ji chce, červený = spíš ne nebo ne. "
+            "Spokojenost s budovou: vodorovný okraj nahoře, zelený = je v některé z přijatelných budov, červený = není."
+        ),
     )
     overlays = [key for key in OVERLAYS if key in (selected or [])]
     if TAGS_OVERLAY not in overlays:
@@ -469,6 +489,7 @@ def render() -> None:
             "can_bring_camera": h["can_bring_camera"],
             "role_preferences": _grid_role_preferences(h["role_preferences"]),
             "building_preferences": h["building_preferences"],
+            "acceptable_buildings": _acceptable_buildings(h["building_preferences"], state["config"]),
             # The grid draws Helper-to-Helper requests only; a request toward an
             # Organizer (a {"organizer_id": n} reference) is not shown.
             "friends": [f for f in h["friends"] if isinstance(f, int) and f not in absent_ids],
