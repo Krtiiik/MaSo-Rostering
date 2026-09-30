@@ -92,6 +92,7 @@ def render() -> None:
             )
         tag_import_ui.render_banner()
         tag_import_ui.render_summary("banner")
+        tag_import_ui.render_promotion_auto()
         tag_import_ui.render_late_link_prompt()
         _render_uncertain_matches(workspace)
         fix = fix_focus.render_callout(state, "helpers")

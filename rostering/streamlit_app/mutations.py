@@ -37,7 +37,7 @@ from rostering.export.excel import write_roster
 from rostering.ingest.preferences import parse_role_token
 from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
 from rostering.persistence import config_store
-from rostering.persistence.season_label import guess_label, label_sort_key
+from rostering.persistence.season_label import guess_label, label_sort_key, school_years_crossed
 from rostering.persistence.serialize import (
     assignment_from_dict,
     assignment_to_dict,
@@ -1399,8 +1399,9 @@ def _next_tag_id(state: dict[str, Any]) -> int:
 # register a second one), each run over the same source Season and saved
 # together. State kept in the open Season: a Tag copy's ``origins`` (source
 # Season id + source Tag id, surviving renames) and ``state["tag_imports"]``
-# (per source Season: its label and the source Tags whose imported copy was
-# deliberately deleted).
+# (per source Season: its label, the source Tags whose imported copy was
+# deliberately deleted, and Class promotion's records: ``promoted_years`` and
+# ``unpromoted_tag_ids``, see "Class promotion" below).
 
 
 @dataclass
@@ -1490,15 +1491,29 @@ def _origin(source_id: str, source_tag_id: int) -> dict[str, Any]:
     return {"season_id": source_id, "tag_id": source_tag_id}
 
 
-def _resolve_import_tag(tags: list[dict], source_id: str, source_tag: dict) -> Optional[dict]:
+def _imported_name(source_tag: dict, record: Optional[dict]) -> str:
+    """The name a source Season's Tag has in this Season: as it was there, moved
+    up by the Class promotion steps already applied for that source, unless the
+    Tag was deliberately left unpromoted (``record`` is the source's entry of
+    ``state["tag_imports"]``)."""
+    years = int((record or {}).get("promoted_years") or 0)
+    if years and source_tag["id"] not in (record.get("unpromoted_tag_ids") or []):
+        return tag_tree.promoted_class_name(source_tag["name"], years) or source_tag["name"]
+    return source_tag["name"]
+
+
+def _resolve_import_tag(
+    tags: list[dict], source_id: str, source_tag: dict, record: Optional[dict] = None
+) -> Optional[dict]:
     """The Tag of this Season that stands for a source Season's Tag: the one
     that remembers it as an origin (whatever it is called now), else the one
-    with the same name."""
+    named as the source Tag is called here (:func:`_imported_name`, so a
+    promoted class is found as "9.M" and no stray "8.M" is made)."""
     origin = _origin(source_id, source_tag["id"])
     by_origin = next((t for t in tags if origin in (t.get("origins") or [])), None)
     if by_origin is not None:
         return by_origin
-    key = tag_tree.name_key(source_tag["name"])
+    key = tag_tree.name_key(_imported_name(source_tag, record))
     return next((t for t in tags if tag_tree.name_key(t["name"]) == key), None)
 
 
@@ -1570,7 +1585,7 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
     mapping: dict[int, int] = {}  # source Tag id -> this Season's Tag id
     for source_def, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in source_tags]):
         source_tag = next(t for t in source_tags if t["id"] == source_def.id)
-        target = _resolve_import_tag(tags, source["id"], source_tag)
+        target = _resolve_import_tag(tags, source["id"], source_tag, record)
         origin = _origin(source["id"], source_tag["id"])
         if target is None:
             constraints = {}
@@ -1585,7 +1600,7 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
                 constraints[field] = kept
             target = {
                 "id": _next_tag_id(state),
-                "name": source_tag["name"],
+                "name": _imported_name(source_tag, record),
                 "colour": source_tag.get("colour") or tag_tree.PALETTE[0],
                 "note": source_tag.get("note") or "",
                 "parent_id": mapping.get(source_tag.get("parent_id")),
@@ -1658,9 +1673,11 @@ def import_from_season(workspace: Workspace, source_season_id: str) -> dict:
     section runs against the source (Tags first) and everything is saved
     together — or nothing, if any of it fails. Running it again, from this or
     another Season, is additive and never copies a Tag twice. The source Season
-    is only read. Returns ``{"source": {"id", "label"}, "sections": [...]}``,
-    each section its ``key``, ``title`` and own summary (the Tags section's is
-    described in :func:`_import_tags_section`)."""
+    is only read. Returns ``{"source": {"id", "label"}, "sections": [...],
+    "promotion_prompt": bool}``, each section its ``key``, ``title`` and own
+    summary (the Tags section's is described in :func:`_import_tags_section`);
+    ``promotion_prompt`` says the Class promotion dialog should open by itself
+    (the open Season is podzim and a school year turned since the source)."""
     season = workspace.open_season()
     if season is None:
         raise RosteringError("Open a Season (or upload responses to create one) before importing Tags.")
@@ -1677,7 +1694,8 @@ def import_from_season(workspace: Workspace, source_season_id: str) -> dict:
     context = ImportContext(state, source_state, identity, season, workspace.person_records())
     sections = [{"key": s.key, "title": s.title, **s.run(context)} for s in _IMPORT_SECTIONS]
     workspace.save(state)
-    return {"source": identity, "sections": sections}
+    prompt = season["label"].endswith("-podzim") and school_years_crossed(source["label"], season["label"]) >= 1
+    return {"source": identity, "sections": sections, "promotion_prompt": prompt}
 
 
 def _late_link_tags(workspace: Workspace, state: dict[str, Any], helper: dict) -> list[dict]:
@@ -1693,8 +1711,9 @@ def _late_link_tags(workspace: Workspace, state: dict[str, Any], helper: dict) -
         if source_state is None:
             continue
         by_id = {t["id"]: t for t in source_state["tags"]}
+        record = state["tag_imports"][source_id]
         for source_tag_id in _source_direct_tags_by_person(source_state).get(person_id, []):
-            target = _resolve_import_tag(state["tags"], source_id, by_id[source_tag_id])
+            target = _resolve_import_tag(state["tags"], source_id, by_id[source_tag_id], record)
             if target is not None and target["id"] not in direct:
                 found.setdefault(
                     target["id"],
@@ -1727,6 +1746,156 @@ def apply_late_link_tags(workspace: Workspace, helper_id: int) -> dict:
     added, skipped = _add_valid_tags(state, helper, [t["tag_id"] for t in offered])
     workspace.save(state)
     return {"applied": [t["name"] for t in offered if t["tag_id"] in added], "skipped": skipped}
+
+
+# -- Class promotion -------------------------------------------------------------
+#
+# Renaming school-class Tags one school year up per school year crossed since the
+# Season they were imported from (see CONTEXT.md "Class promotion"). The years
+# are counted from a Tag's newest origin. What the Season remembers, per source,
+# in ``state["tag_imports"][source id]``: ``promoted_years`` (the years applied to
+# that source's Tags) and ``unpromoted_tag_ids`` (source Tags the user left
+# unticked), which decide the name a Tag gets when a later import or a
+# late-confirmed link resolves it (:func:`_imported_name`).
+
+
+def _class_promotions(state: dict[str, Any], labels: dict[str, str], season_label: str) -> list[dict]:
+    """Every class Tag with an origin, with the years it still can move: ``tag``,
+    ``source_id``, ``source_tag_id``, ``crossed`` (school years since the source
+    Season) and ``remaining`` (what is left to apply, at least 0)."""
+    found = []
+    for tag in state.get("tags") or []:
+        if not tag_tree.is_class_name(tag["name"]):
+            continue
+        sources = []
+        for origin in tag.get("origins") or []:
+            record = (state.get("tag_imports") or {}).get(origin["season_id"])
+            label = labels.get(origin["season_id"]) or (record or {}).get("label")
+            if label:
+                sources.append((label_sort_key(label), origin, label, record or {}))
+        if not sources:
+            continue
+        _, origin, label, record = max(sources, key=lambda source: source[0])
+        crossed = school_years_crossed(label, season_label)
+        left_alone = origin["tag_id"] in (record.get("unpromoted_tag_ids") or [])
+        applied = 0 if left_alone else int(record.get("promoted_years") or 0)
+        found.append(
+            {
+                "tag": tag,
+                "source_id": origin["season_id"],
+                "source_tag_id": origin["tag_id"],
+                "crossed": crossed,
+                "remaining": max(0, crossed - applied),
+            }
+        )
+    return found
+
+
+def class_promotion_offer(workspace: Workspace) -> dict:
+    """What the Class promotion dialog shows: ``suggestions`` (each ``tag_id``,
+    ``name`` and ``target``: the class Tags imported from an earlier Season that a
+    school year has since passed), ``other_tags`` (every other Tag, which can be
+    added by hand: ``target`` is its exact current name, to be edited) and
+    ``nothing_to_promote`` (no suggestion). How many school years were crossed is
+    deliberately not part of it. Nothing is changed."""
+    season = workspace.open_season()
+    if season is None:
+        raise RosteringError("Open a Season before promoting classes.")
+    state = workspace.load()
+    labels = {s["id"]: s["label"] for s in workspace.list_seasons()}
+    suggestions = []
+    for item in _class_promotions(state, labels, season["label"]):
+        if item["remaining"]:
+            tag = item["tag"]
+            target = tag_tree.promoted_class_name(tag["name"], item["remaining"])
+            suggestions.append({"tag_id": tag["id"], "name": tag["name"], "target": target})
+    suggestions.sort(key=lambda s: (int(s["name"].split(".")[0]), tag_tree.name_key(s["name"])))
+    suggested = {s["tag_id"] for s in suggestions}
+    return {
+        "suggestions": suggestions,
+        "other_tags": [
+            {"tag_id": t["id"], "name": t["name"], "target": t["name"]}
+            for t in state.get("tags") or []
+            if t["id"] not in suggested
+        ],
+        "nothing_to_promote": not suggestions,
+    }
+
+
+def _class_promotion_changes(state: dict[str, Any], renames: dict[int, str]) -> dict[int, str]:
+    """The ticked renames that actually change a name (a typed target equal to
+    the current name is no rename), targets trimmed."""
+    changes = {}
+    for tag_id, target in renames.items():
+        record = _tag_record(state, tag_id)
+        target = (target or "").strip()
+        if target != record["name"]:
+            changes[tag_id] = target
+    return changes
+
+
+def _class_promotion_conflicts(state: dict[str, Any], changes: dict[int, str]) -> list[str]:
+    names = {t["id"]: t["name"] for t in state.get("tags") or []}
+    final = {tag_id: changes.get(tag_id, name) for tag_id, name in names.items()}
+    problems = []
+    for tag_id, target in changes.items():
+        if not target:
+            problems.append(f"The new name of {names[tag_id]} is empty.")
+            continue
+        for other_id, other in final.items():
+            if other_id == tag_id or tag_tree.name_key(other) != tag_tree.name_key(target):
+                continue
+            if other_id not in changes:
+                problems.append(
+                    f"{names[tag_id]} would become {target}, but a Tag named {names[other_id]} is not ticked "
+                    "and keeps its name. Tags are never merged."
+                )
+            elif other_id > tag_id:
+                problems.append(f"{names[tag_id]} and {names[other_id]} would both be named {target}.")
+    return problems
+
+
+def class_promotion_conflicts(workspace: Workspace, renames: dict[int, str]) -> list[str]:
+    """Why these ticked renames (Tag id -> target name) cannot be applied, one
+    line each: an empty target, or a target another Tag keeps or is renamed to
+    (names compare ignoring case). Empty means Apply is allowed."""
+    state = workspace.load()
+    return _class_promotion_conflicts(state, _class_promotion_changes(state, renames))
+
+
+def apply_class_promotion(workspace: Workspace, renames: dict[int, str]) -> dict:
+    """Apply the ticked renames (Tag id -> target name) in place, all at once so
+    a chain of classes shifts without trampling: only the name changes (parent,
+    children, constraints, colour, note, carriers stay). Refused, changing
+    nothing, if :func:`class_promotion_conflicts` finds any. Tags are never
+    merged and only the open Season is edited. Each suggestion left out of
+    ``renames`` is remembered as deliberately left unpromoted, and the source
+    Seasons of the ticked ones as promoted, so later imports and late-confirmed
+    links resolve the promoted name. Returns the new state."""
+    season = workspace.open_season()
+    if season is None:
+        raise RosteringError("Open a Season before promoting classes.")
+    state = workspace.load()
+    changes = _class_promotion_changes(state, renames)
+    problems = _class_promotion_conflicts(state, changes)
+    if problems:
+        raise RosteringError(" ".join(problems))
+    labels = {s["id"]: s["label"] for s in workspace.list_seasons()}
+    for item in _class_promotions(state, labels, season["label"]):
+        if not item["remaining"]:
+            continue
+        record = state["tag_imports"][item["source_id"]]
+        unpromoted = record.setdefault("unpromoted_tag_ids", [])
+        if item["tag"]["id"] in renames:
+            record["promoted_years"] = max(int(record.get("promoted_years") or 0), item["crossed"])
+            if item["source_tag_id"] in unpromoted:
+                unpromoted.remove(item["source_tag_id"])
+        elif item["source_tag_id"] not in unpromoted:
+            unpromoted.append(item["source_tag_id"])
+    for tag_id, target in changes.items():
+        _tag_record(state, tag_id)["name"] = target
+    workspace.save(state)
+    return state
 
 
 def tag_origin_labels(state: dict[str, Any], tag_id: int) -> list[str]:

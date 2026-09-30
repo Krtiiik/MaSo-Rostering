@@ -280,14 +280,32 @@ pushing the tag, not just creating it locally.
   is matched and gains one, without being changed), and the state gains
   `tag_imports`: source Season id -> `{label, deleted_tag_ids}` (`delete_tag`
   records a deleted imported Tag there, so an explicit re-import restores it and
-  reports it; Class promotion, when built, adds its per-source records to the
-  same entries). Tags are resolved origin first, then name (`_resolve_import_tag`),
-  by the import, and by the late-link step `late_link_tag_offer` /
+  reports it; Class promotion adds `promoted_years` and `unpromoted_tag_ids` to
+  the same entries). Tags are resolved origin first, then name (`_resolve_import_tag`),
+  the name being the source Tag's as promoted so far (`_imported_name`), by the
+  import, and by the late-link step `late_link_tag_offer` /
   `apply_late_link_tags` (the Person's direct Tags in every imported Season;
   never recreates a deleted Tag). Applying Tags to a Helper goes through
   `_add_valid_tags`, which skips (not refuses) what would newly strand them.
-  Not done yet: Organizers receiving Tags on import (they do not exist), and
-  Class promotion (#52).
+  Not done yet: Organizers receiving Tags on import (they do not exist).
+- Class promotion (`mutations.py`, "Class promotion" section; the pure name
+  rules `tags.is_class_name` / `promoted_class_name`, the year rule
+  `season_label.school_years_crossed`; UI in `tabs/tag_import_ui.py`):
+  `class_promotion_offer(workspace)` returns `suggestions` (class Tags with an
+  origin that are a school year behind: `tag_id`, `name`, `target`, from the
+  Tag's newest origin's Season label read fresh, so a rename of the source is
+  followed), `other_tags` (everything else, `target` = the exact current name,
+  for adding by hand) and `nothing_to_promote`; the years crossed are never
+  exposed. `apply_class_promotion(workspace, {tag_id: target})` renames all
+  ticked Tags at once in place (a target equal to the current name is no rename),
+  refusing with `RosteringError` on what `class_promotion_conflicts` lists (an
+  empty name, or a target another Tag keeps or is renamed to, case-insensitive;
+  no merging). It also records, per source in `tag_imports`, `promoted_years`
+  and `unpromoted_tag_ids` (source Tag ids of suggestions left unticked, still
+  suggested next time). `import_from_season` returns `promotion_prompt` (current
+  label podzim and a school year crossed), which makes the Upload/Tags tab open
+  the dialog by itself (`_class_promotion_auto`); the Tags tab has an
+  always-available "Promote classes" button.
 - Roster grid Tag pills and filter: `mutations.grid_tag_pills(state)` (each
   Helper's `{direct, implied}` pills as `{name, colour}`, from `helper_tags`) and
   `mutations.dimmed_helper_ids(state, tag_ids, mode)` (over the pure

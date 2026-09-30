@@ -281,3 +281,24 @@ def dead_ends(
             if universe and not allowed_values(tags, direct, axis, universe):
                 stranded.add((helper_id, axis))
     return stranded
+
+
+# School-class Tags (see CONTEXT.md "Class promotion"): one or more digits, a dot,
+# an optional single space, then letters (Czech ones included) -- "8.M", "8. M",
+# "10.M". The spacing is kept when the number moves.
+_CLASS_NAME = re.compile(r"(\d+)\.( ?)([^\W\d_]+)")
+
+
+def is_class_name(name: str) -> bool:
+    """Whether ``name`` is a school-class Tag name."""
+    return _CLASS_NAME.fullmatch(name or "") is not None
+
+
+def promoted_class_name(name: str, years: int) -> Optional[str]:
+    """A class Tag name with its number ``years`` higher and everything else as
+    it was (there is no top year), or None if ``name`` is not a class name."""
+    match = _CLASS_NAME.fullmatch(name or "")
+    if match is None:
+        return None
+    number, space, letters = match.groups()
+    return f"{int(number) + years}.{space}{letters}"
