@@ -37,6 +37,12 @@ def load_default_config(path: Path = DEFAULT_CONFIG_PATH) -> list[dict]:
     return config_to_list(load_buildings(path))
 
 
+def load_bundled_config() -> list[dict]:
+    """The buildings/rooms layout bundled with the package, read straight from
+    it; the persistent copy is left alone."""
+    return config_to_list(load_buildings(_BUNDLED_DEFAULT))
+
+
 def _capacity_to_yaml(cap: dict) -> int:
     return cap.get("minimum", 0)
 

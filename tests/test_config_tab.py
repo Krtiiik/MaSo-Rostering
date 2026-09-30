@@ -59,3 +59,23 @@ def test_editing_the_layout_after_saving_is_unsaved_again(tab):
     draft_rooms = len(tab.session_state["config_draft"][0]["rooms"])
     saved_rooms = len(tab.session_state["workspace_state"]["config"][0]["rooms"])
     assert draft_rooms == saved_rooms + 1
+
+
+def test_reset_button_restores_the_bundled_layout_as_an_unsaved_draft(tab):
+    from rostering.persistence import config_store
+    from rostering.streamlit_app.tabs.config_tab import _layout_key
+
+    bundled = config_store.load_bundled_config()
+    saved_before = _layout_key(tab.session_state["workspace_state"]["config"])
+    tab.button(key="add_building").click().run()
+    tab.text_input(key="bname_0").set_value("Přejmenováno").run()
+    assert _layout_key(tab.session_state["config_draft"]) != _layout_key(bundled)
+
+    tab.button(key="reset_config").click().run()
+
+    assert not tab.exception
+    # The fields fill in absent capacities as 0, so compare by meaning.
+    assert _layout_key(tab.session_state["config_draft"]) == _layout_key(bundled)
+    assert tab.text_input(key="bname_0").value == bundled[0]["name"]
+    # Only the draft was reset: the saved layout is untouched.
+    assert _layout_key(tab.session_state["workspace_state"]["config"]) == saved_before
