@@ -1,4 +1,7 @@
 """The solver tab's role cost fields (rendered headlessly with Streamlit's AppTest)."""
+import io
+
+import pyarrow as pa
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -52,3 +55,19 @@ def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab
     assert solver_config_from_dict(tab.session_state["solver_config_draft"]) == SolverConfig()
     assert tab.number_input(key="w_role_cost_unit").value == 1
     assert tab.number_input(key="w_cost_zaloha").value == 4
+
+
+def test_the_bar_chart_shows_the_five_preference_costs_in_order_and_follows_edits(tab):
+    def chart(at):
+        dataset = at.get("vega_lite_chart")[0].proto.datasets[0]
+        return pa.ipc.open_stream(io.BytesIO(dataset.data.data)).read_all().to_pydict()
+
+    defaults = SolverConfig().role_costs
+    assert chart(tab) == {
+        "Preference": ["Ano", "Klidně", "Nevadí", "Spíš ne", "Ne"],
+        "Cena": [defaults.ano, defaults.klidne, defaults.nevadi, defaults.spise_ne, defaults.ne],
+    }
+
+    tab.number_input(key="w_cost_ne").set_value(20).run()
+
+    assert chart(tab)["Cena"][-1] == 20
