@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "Find a helper" box above the "Add tag to others" picker when editing a Tag. The
   picker itself is searchable, so the extra filter was redundant.
 
+### Fixed
+
+- On the Buildings tab, the "Remove building" button no longer overlaps the
+  "+ Add room" button when its label wraps in a narrow column.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added

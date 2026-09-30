@@ -52,7 +52,7 @@ div[data-testid="stColumn"]:has(div[class*="st-key-add_room_col_"]) {
 }
 div[class*="st-key-add_room_col_"] {
     position: absolute !important;
-    top: 4.5rem !important;
+    top: 5rem !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
@@ -75,16 +75,19 @@ div[class*="st-key-add_room_col_"] button {
 }
 /* This column is narrow (it's the "1" share of the outer ratio), so
    "Remove building" needs to wrap instead of overflowing on one line —
-   Streamlit's own button label <p> is styled white-space: nowrap. */
+   Streamlit's own button label <p> is styled white-space: nowrap. The
+   button has a fixed height (and tight side padding so the label wraps to
+   at most two lines even in the narrowest column): "+ Add room" is
+   positioned at a fixed offset below it, so a button that grew with its
+   wrapped label would run into "+ Add room". */
 div[class*="st-key-remove_building_"] button {
-    height: auto !important;
-    min-height: 2.5rem !important;
-    padding-top: 0.4rem !important;
-    padding-bottom: 0.4rem !important;
+    height: 3.5rem !important;
+    padding: 0.25rem !important;
 }
 div[class*="st-key-remove_building_"] button p {
     white-space: normal !important;
     line-height: 1.2 !important;
+    font-size: 0.85rem !important;
 }
 </style>
 """
