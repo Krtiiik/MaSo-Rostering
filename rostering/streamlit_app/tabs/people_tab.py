@@ -138,12 +138,12 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     st.rerun()
 
 
-def _table_columns(labels: list[str], rows: list[list[str]]) -> list:
-    """One Streamlit column per label, created upfront with the header as its
-    first cell; the caller then appends each row's cell to its column. A column's
-    width follows its longest text (``rows`` holds every row's display texts)."""
-    widths = [max(len(text) for text in [label, *(row[i] for row in rows)]) + 4 for i, label in enumerate(labels)]
-    columns = st.columns(widths)
+def _table_columns(labels: list[str]) -> list:
+    """One content-width column per label, created upfront with the header as its
+    first cell; the caller then appends each row's cell to its column. A column
+    is as wide as its widest cell, so nothing is measured in advance."""
+    row = st.container(horizontal=True, wrap=False, gap="medium")
+    columns = [row.container(width="content") for _ in labels]
     for column, label in zip(columns, labels):
         column.markdown(f"**{label}**")
     return columns
@@ -158,11 +158,6 @@ def _row_cells(columns: list) -> list:
 def _pills(pills: dict | None) -> str:
     html = tag_pills.pills_html(pills["direct"], pills["implied"]) if pills else ""
     return html or '<span style="opacity:.5">—</span>'  # st.html refuses an empty body
-
-
-def _pills_text(pills: dict | None) -> str:
-    """What ``_pills`` shows, as plain text (for sizing a column)."""
-    return " ".join(tag["name"] for tag in [*pills["direct"], *pills["implied"]]) if pills else "—"
 
 
 def _cant_attend_cell(cell, kind: str, person: dict) -> None:
@@ -184,22 +179,13 @@ def _render_organizers(state: dict) -> None:
     organizers = sorted(state["organizers"], key=lambda o: o["name"].lower())
     st.subheader(f"Organizers ({len(organizers)})")
     pills = mutations.organizer_tag_pills(state)
-    texts = [
-        [
-            organizer["name"],
-            " · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—",
-            "",  # the Can't attend checkbox column (sized by its header)
-            _pills_text(pills.get(organizer["id"])),
-        ]
-        for organizer in organizers
-    ]
     with st.container(border=True):
-        columns = _table_columns(["Name", "Placement", "Can't attend", "Tags"], texts)
-        for organizer, (name, placement, _, _) in zip(organizers, texts):
+        columns = _table_columns(["Name", "Placement", "Can't attend", "Tags"])
+        for organizer in organizers:
             name_cell, placement_cell, absent_cell, tags_cell = _row_cells(columns)
-            if name_cell.button(name, key=f"open_organizer_{organizer['id']}", type="tertiary"):
+            if name_cell.button(organizer["name"], key=f"open_organizer_{organizer['id']}", type="tertiary"):
                 person_dialog.open_person("organizer", organizer["id"])
-            placement_cell.write(placement)
+            placement_cell.write(" · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—")
             _cant_attend_cell(absent_cell, "organizer", organizer)
             tags_cell.html(_pills(pills.get(organizer["id"])))
         if st.button("＋ Add organizer", key="add_organizer_open"):
@@ -212,38 +198,26 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     helpers = sorted(state["helpers"], key=lambda h: h["name"].lower())
     st.subheader(f"Helpers ({len(helpers)})")
     pills = mutations.grid_tag_pills(state)
-    texts = []
-    for helper in helpers:
-        unresolved = len(helper["unresolved_friend_names"])
-        mark = ("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "")
-        texts.append(
-            [
-                mark + helper["name"],
-                ", ".join(returning.get(helper["id"], [])) or "—",
-                ", ".join(helper["building_preferences"]) or "any",
-                " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
-                or "—",
-                helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
-                f"{unresolved} to match" if unresolved else str(len(helper["friends"])),
-                "",  # the Can't attend checkbox column (sized by its header)
-                _pills_text(pills.get(helper["id"])),
-            ]
-        )
     with st.container(border=True):
         columns = _table_columns(
-            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Can't attend", "Tags"], texts
+            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Can't attend", "Tags"]
         )
-        for helper, (name, seasons, buildings, equipment, size, friends, _, _) in zip(helpers, texts):
+        for helper in helpers:
             name_cell, seasons_cell, buildings_cell, equipment_cell, size_cell, friends_cell, absent_cell, tags_cell = (
                 _row_cells(columns)
             )
-            if name_cell.button(name, key=f"open_helper_{helper['id']}", type="tertiary"):
+            unresolved = len(helper["unresolved_friend_names"])
+            mark = ("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "")
+            if name_cell.button(mark + helper["name"], key=f"open_helper_{helper['id']}", type="tertiary"):
                 person_dialog.open_person("helper", helper["id"])
-            seasons_cell.write(seasons)
-            buildings_cell.write(buildings)
-            equipment_cell.write(equipment)
-            size_cell.write(size)
-            friends_cell.write(friends)
+            seasons_cell.write(", ".join(returning.get(helper["id"], [])) or "—")
+            buildings_cell.write(", ".join(helper["building_preferences"]) or "any")
+            equipment_cell.write(
+                " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
+                or "—"
+            )
+            size_cell.write(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE)
+            friends_cell.write(f"{unresolved} to match" if unresolved else str(len(helper["friends"])))
             _cant_attend_cell(absent_cell, "helper", helper)
             tags_cell.html(_pills(pills.get(helper["id"])))
         if st.button("＋ Add helper", key="add_helper_open"):
