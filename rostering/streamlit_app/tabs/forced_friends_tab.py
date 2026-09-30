@@ -80,7 +80,7 @@ def _people_picker(state: dict, key: str, group: dict | None):
 
 
 def render() -> None:
-    st.header("4. Forced friends")
+    st.header("3. Forced friends")
     workspace = session.get_workspace()
     if mutations.get_open_season(workspace) is None:
         st.info("Open a Season (or upload responses to create one) before adding Forced friends groups.")

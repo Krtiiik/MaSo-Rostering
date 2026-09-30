@@ -80,8 +80,8 @@ def render() -> None:
                     st.write(f"- {warning}")
 
         with st.bottom:
-            if st.button("Continue to buildings & rooms →", type="primary"):
-                session.switch_tab("2. Buildings")
+            if st.button("Continue to tags →", type="primary"):
+                session.switch_tab("2. Tags")
                 st.rerun()
 
         _show_pending_cant_attend_confirmation(state)

@@ -45,8 +45,9 @@ rostering serve
 ```
 
 Open http://127.0.0.1:8501 (Streamlit's default port; override with
-`--port`). Upload the raw survey export, then use the "Continue to buildings
-& rooms →" button to configure buildings/rooms, solve, then drag helpers
+`--port`). Upload the raw survey export, then use the "Continue to tags →"
+button, then work through the Tags, Forced friends and Buildings tabs
+(buildings/rooms), solve, then drag helpers
 between cells on the Roster tab to adjust. Save named versions, restore/
 delete them, and export the current roster to Excel from the sidebar/Roster
 tab.

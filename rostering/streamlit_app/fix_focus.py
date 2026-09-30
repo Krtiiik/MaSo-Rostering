@@ -19,10 +19,10 @@ _KEY = "_fix_focus"
 # Logical FixTarget.tab -> the tab strip's label (app.py's _TABS). A rule
 # family whose tab does not exist yet has no entry, hence no "Go fix" button.
 TAB_LABELS = {
-    "buildings": "2. Buildings",
+    "buildings": "4. Buildings",
     "helpers": "1. Upload",
-    "tags": "3. Tags",
-    "forced_friends": "4. Forced friends",
+    "tags": "2. Tags",
+    "forced_friends": "3. Forced friends",
 }
 
 

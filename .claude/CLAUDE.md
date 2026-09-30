@@ -349,7 +349,7 @@ pushing the tag, not just creating it locally.
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
 - Forced friends groups (`rostering/forced_friends.py`, the lifecycle in
   `streamlit_app/forced_groups.py`, UI in `tabs/forced_friends_tab.py` — the
-  "4. Forced friends" tab, Roster being "5. Roster"): a group is a dict in
+  "3. Forced friends" tab, between "2. Tags" and "4. Buildings"; Roster is "5. Roster"): a group is a dict in
   `state["forced_groups"]` (`id` from the high-water mark
   `next_forced_group_id`, `name`, canonical `axes` — Room implies Building —
   and `members`, each `{person_id, name}` with the last-known name), part of

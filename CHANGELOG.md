@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Buildings tab now comes after Tags and Forced friends, just before Roster
+  (tab order: Upload, Tags, Forced friends, Buildings, Roster). The Upload tab's
+  continue button now leads to Tags.
+
 ### Added
 
 - Tag import re-applies Tags to Organizers as well as Helpers. What a Person
