@@ -321,30 +321,13 @@ def render() -> None:
 
     locked = mutations.locked_count(state)
 
-    def run_solve() -> None:
-        with st.spinner("Solving…"):
-            try:
-                solved = mutations.solve(session.get_workspace())
-            except mutations.RosteringError as exc:
-                st.error(str(exc))
-                return
-            session.set_state(solved)
-            solve_prompt.remember_dropped_locks(solved)
-        st.rerun()
-
     def run_place_new() -> None:
         newcomers = len(mutations.unplaced_helpers(state))
-        with st.spinner("Placing…"):
-            try:
-                placed = mutations.place_new_registrants(session.get_workspace())
-            except mutations.RosteringError as exc:
-                st.error(str(exc))
-                return
-            session.set_state(placed)
-            solve_prompt.remember_dropped_locks(placed)
-            noun = "registrant" if newcomers == 1 else "registrants"
-            st.session_state[_PLACED_KEY] = f"Placed {newcomers} new {noun}; everyone else stayed where they were."
-        st.rerun()
+        placed = mutations.place_new_registrants(session.get_workspace())
+        session.set_state(placed)
+        solve_prompt.remember_dropped_locks(placed)
+        noun = "registrant" if newcomers == 1 else "registrants"
+        st.session_state[_PLACED_KEY] = f"Placed {newcomers} new {noun}; everyone else stayed where they were."
 
     def run_clear() -> None:
         session.set_state(mutations.clear_roster(session.get_workspace()))
@@ -372,7 +355,7 @@ def render() -> None:
         cols = st.columns([2, 2, 2, 2, 2, 1, 2], vertical_alignment="center")
         solve_label = f"Solve (keeps {locked} locked)" if locked else ("Re-solve" if state["assignments"] else "Solve")
         if cols[0].button(solve_label, type="primary"):
-            solve_prompt.request_solve(state, run_solve)
+            solve_prompt.request_solve(state, solve_prompt.run_solve)
 
         # Solves only the unassigned with every placed Assignment held fixed, so
         # no confirmation is needed: nothing placed can be lost. Touches no lock.
@@ -381,7 +364,7 @@ def render() -> None:
             disabled=not unplaced,
             help="Place only the unassigned Helpers; everyone already placed stays exactly where they are.",
         ):
-            run_place_new()
+            solve_prompt.request_place(run_place_new)
 
         # Bulk lock management; single locks are set on the chips themselves.
         if cols[2].button("Lock all placed", disabled=not state["assignments"] or locked == len(state["assignments"])):

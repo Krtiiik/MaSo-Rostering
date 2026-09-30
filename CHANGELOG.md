@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The People tab's tables now size each column to its widest cell in the browser
   instead of from a character count worked out beforehand.
+- Solving (Solve, Save & solve and Place new registrants) now runs in a modal
+  "Solving…" dialog with a spinner that can't be dismissed (no close button, Esc
+  or outside click) and closes itself when the roster is ready. Before, touching
+  any widget mid-solve could drop the result from the screen. If a solve fails,
+  the dialog shows the reason with a Close button instead.
 - Adding a Building on the Buildings tab is now a single full-width "+ Add
   building" button instead of a name form; the new Building starts as
   "Building N" and is renamed in its own "Building name" field.
