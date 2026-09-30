@@ -285,16 +285,27 @@ Person; link edits change only the Person link, never a Helper id. Phone
 number is never a key — shown on a candidate as a hint only. Anything else
 is treated as a new Person.
 
-#### Tag import and Class promotion *(planned, not yet implemented)*
+#### Tag import and Class promotion
 
 **Tag import**:
 Bringing an earlier Season's Tags into the current Season and re-applying
 them to Returning helpers who carried them then. Each Season keeps its own
 Tags, so an import copies the source Season's whole Tag tree (with its
 constraints) rather than sharing it, and an imported Tag remembers which
-earlier Tag it came from.
+earlier Tag it came from (its origin, surviving renames). One source Season
+per import, by default the most recent earlier stored one; importing again
+from another Season is additive. Offered by a button in the Tags tab and by a
+banner after the first upload while the Season has no Tags; the offer is made
+of sections (Tags first, so further importable things can join it). Only
+directly carried Tags are re-applied, to confidently linked Persons; an
+unreviewed uncertain match is not tagged until its link is confirmed, which
+then asks whether to apply their Tags. An assignment that would leave a Helper
+with no allowed Building or Role is skipped and constraint entries naming a
+Building the current Season lacks are dropped. A re-import and that late
+prompt find a Tag by origin first, then by name; a Tag deleted on purpose is
+recreated only by an explicit re-import, which says so.
 
-**Class promotion**:
+**Class promotion** *(planned, not yet implemented)*:
 Renaming school-class Tags — names of the form number, dot, optional space,
 letters, e.g. "8.M" or "8. M" — to the number one school year up per school
 year crossed since the imported Season (e.g. "8.M" → "9.M"). The school year

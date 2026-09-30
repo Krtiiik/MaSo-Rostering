@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tag import: bring an earlier Season's Tags into the open Season. An
+  "Import from an earlier Season" button in the Tags tab is always available,
+  and a banner on the Upload tab offers it while the Season has Helpers but no
+  Tags and an earlier Season has some (it does not wait for the possible
+  returning helpers review). One source Season per import, the most recent
+  earlier stored Season preselected with a picker for any earlier one; importing
+  again from another Season adds to what is there and never copies a Tag twice.
+  The source's whole Tag tree is copied as independent Tags (parents and unused
+  parents like GCHD included, with colour, note and constraints; entries naming
+  a Building missing from this Season are dropped, the Tag stays), each
+  remembering the Season and Tag it came from through renames. Directly carried
+  Tags are re-applied to every Helper linked to a Person who carried them (by
+  e-mail or a confirmed link); implied Tags stay computed, unreviewed possible
+  returning helpers are not tagged, and an assignment that would leave a Helper
+  with no allowed Building or Role is skipped. A summary lists the Tags created,
+  Helpers tagged, dropped constraint entries, skipped assignments and Helpers
+  awaiting review. Confirming a possible returning helper's link afterwards asks
+  "Apply their Tags?" (matched by origin first, then name). An imported Tag you
+  deleted comes back on an explicit re-import, noted in the summary. The offer
+  is section-based, so further importable things can plug into the same flow.
 - Roster grid Tag pills and Tag filter: a "Show tags" toggle above the grid
   (off by default) renders each Helper's Tags as pills under their name, direct
   Tags solid and Tags carried only by implication dashed. A "Filter by tags"

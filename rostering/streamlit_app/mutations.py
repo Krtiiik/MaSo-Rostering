@@ -11,7 +11,7 @@ from __future__ import annotations
 import functools
 import re
 import tempfile
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar
@@ -1370,6 +1370,14 @@ def delete_tag(workspace: Workspace, tag_id: int, confirmed: bool = False) -> di
             child["parent_id"] = record["parent_id"]
     state["tags"] = [t for t in state["tags"] if t["id"] != tag_id]
     state["next_tag_id"] = max(int(state.get("next_tag_id") or 1), tag_id + 1)
+    # An imported Tag deleted on purpose is remembered per source Season, so an
+    # explicit re-import brings it back and says so (see import_from_season).
+    for origin in record.get("origins") or []:
+        deleted = state.setdefault("tag_imports", {}).setdefault(
+            origin["season_id"], {"label": "", "deleted_tag_ids": []}
+        )["deleted_tag_ids"]
+        if origin["tag_id"] not in deleted:
+            deleted.append(origin["tag_id"])
     workspace.save(state)
     return state
 
@@ -1381,6 +1389,353 @@ def _next_tag_id(state: dict[str, Any]) -> int:
     new_id = max(int(state.get("next_tag_id") or 1), max((t["id"] for t in state.get("tags") or []), default=0) + 1)
     state["next_tag_id"] = new_id + 1
     return new_id
+
+
+# -- Tag import ------------------------------------------------------------------
+#
+# Bringing an earlier Season's Tags into the open Season (see CONTEXT.md "Tag
+# import"). The offer is section-based: every importable thing is an
+# ``ImportSection`` in ``_IMPORT_SECTIONS`` (Tags first; Forced-friends groups
+# register a second one), each run over the same source Season and saved
+# together. State kept in the open Season: a Tag copy's ``origins`` (source
+# Season id + source Tag id, surviving renames) and ``state["tag_imports"]``
+# (per source Season: its label and the source Tags whose imported copy was
+# deliberately deleted).
+
+
+@dataclass
+class ImportContext:
+    """What an import section works on: the open Season's ``state`` (changed in
+    place, saved once after every section ran), the earlier Season's
+    ``source_state`` (read only), the ``source`` and ``season`` identities
+    (``{"id", "label"}``) and the ``person_records`` of every stored Season."""
+
+    state: dict[str, Any]
+    source_state: dict[str, Any]
+    source: dict[str, str]
+    season: dict[str, str]
+    person_records: list
+
+
+@dataclass(frozen=True)
+class ImportSection:
+    """One importable thing: a ``key``, a ``title`` for the UI and ``run``, which
+    imports it and returns its summary (a dict; ``lines`` are shown as text)."""
+
+    key: str
+    title: str
+    run: Callable[[ImportContext], dict[str, Any]]
+
+
+_IMPORT_SECTIONS: list[ImportSection] = []
+
+
+def register_import_section(section: ImportSection) -> None:
+    """Add a section to the import offer, after the ones already there."""
+    if any(existing.key == section.key for existing in _IMPORT_SECTIONS):
+        raise ValueError(f"An import section {section.key!r} is already registered.")
+    _IMPORT_SECTIONS.append(section)
+
+
+def import_sources(workspace: Workspace) -> list[dict]:
+    """The Seasons the open Season can import from: every earlier stored Season
+    (it has a saved state by being stored), most recent first, as ``id``,
+    ``label``, ``helper_count`` and ``tag_count``. Empty with no Season open."""
+    season = workspace.open_season()
+    if season is None:
+        return []
+    now = label_sort_key(season["label"])
+    sources = []
+    for stored in workspace.list_seasons():
+        if label_sort_key(stored["label"]) >= now:
+            continue
+        saved = workspace.stored_state(stored["id"]) or {}
+        sources.append(
+            {
+                "id": stored["id"],
+                "label": stored["label"],
+                "helper_count": stored["helper_count"],
+                "tag_count": len(saved.get("tags") or []),
+            }
+        )
+    return sources
+
+
+def default_import_source(workspace: Workspace) -> Optional[dict]:
+    """The most recent earlier stored Season, or None if there is none."""
+    sources = import_sources(workspace)
+    return sources[0] if sources else None
+
+
+def tag_import_offer(workspace: Workspace) -> dict:
+    """What the import offer shows: ``sources`` (see :func:`import_sources`),
+    ``default_source_id``, the ``sections`` it will import (``key``, ``title``)
+    and ``banner`` — whether to nudge the user after the first upload: the
+    Season has Helpers but no Tags yet and some earlier Season has Tags to bring.
+    Nothing here waits for the uncertain-match review."""
+    sources = import_sources(workspace)
+    state = workspace.load() if workspace.open_season() is not None else None
+    banner = bool(
+        state is not None and state["helpers"] and not state["tags"] and any(s["tag_count"] for s in sources)
+    )
+    return {
+        "sources": sources,
+        "default_source_id": sources[0]["id"] if sources else None,
+        "sections": [{"key": s.key, "title": s.title} for s in _IMPORT_SECTIONS],
+        "banner": banner,
+    }
+
+
+def _origin(source_id: str, source_tag_id: int) -> dict[str, Any]:
+    return {"season_id": source_id, "tag_id": source_tag_id}
+
+
+def _resolve_import_tag(tags: list[dict], source_id: str, source_tag: dict) -> Optional[dict]:
+    """The Tag of this Season that stands for a source Season's Tag: the one
+    that remembers it as an origin (whatever it is called now), else the one
+    with the same name."""
+    origin = _origin(source_id, source_tag["id"])
+    by_origin = next((t for t in tags if origin in (t.get("origins") or [])), None)
+    if by_origin is not None:
+        return by_origin
+    key = tag_tree.name_key(source_tag["name"])
+    return next((t for t in tags if tag_tree.name_key(t["name"]) == key), None)
+
+
+def _source_direct_tags_by_person(source_state: dict[str, Any]) -> dict[str, list[int]]:
+    """Person id -> the Tags (ids of the source Season) its Helper records there
+    carry directly, in the order carried; only Tags that still exist."""
+    known = {t["id"] for t in source_state.get("tags") or []}
+    by_person: dict[str, list[int]] = {}
+    for helper in source_state["helpers"]:
+        person_id = helper.get("person_id")
+        if not person_id:
+            continue
+        carried = by_person.setdefault(person_id, [])
+        carried.extend(t for t in helper.get("tags") or [] if t in known and t not in carried)
+    return by_person
+
+
+def _add_valid_tags(state: dict[str, Any], helper: dict, tag_ids: Sequence[int]) -> tuple[list[int], list[dict]]:
+    """Give a Helper these Tags directly, one by one, skipping any that would
+    leave them with no allowed Building or Role they did not already lack (the
+    same test as :func:`_refuse_new_dead_ends`, but a skip instead of a refusal)
+    and any they carry already. Returns ``(added Tag ids, skipped)``; a skip is
+    ``helper_id``, ``helper``, ``tag_id``, ``tag`` and ``reason``."""
+    tags = _tag_definitions(state)
+    names = {t.id: t.name for t in tags}
+    universes = _tag_universes(state)
+    direct = _direct_tag_ids(helper)
+    before = tag_tree.dead_ends(tags, {helper["id"]: direct}, universes)
+    added: list[int] = []
+    skipped: list[dict] = []
+    for tag_id in dict.fromkeys(tag_ids):
+        if tag_id in direct:
+            continue
+        fresh = sorted(tag_tree.dead_ends(tags, {helper["id"]: [*direct, tag_id]}, universes) - before)
+        if fresh:
+            nouns = " or ".join("Role" if axis == tag_tree.ROLE else "Building" for _, axis in fresh)
+            skipped.append(
+                {
+                    "helper_id": helper["id"],
+                    "helper": helper["name"],
+                    "tag_id": tag_id,
+                    "tag": names[tag_id],
+                    "reason": f"would leave {helper['name']} with no allowed {nouns}",
+                }
+            )
+            continue
+        direct = [*direct, tag_id]
+        added.append(tag_id)
+    if added:
+        helper["tags"] = direct
+    return added, skipped
+
+
+def _import_tags_section(context: ImportContext) -> dict[str, Any]:
+    """The Tags section: copy the source's Tag tree (each Tag it lacks, matched
+    by origin then name), then re-apply the directly carried Tags to every
+    confidently linked Person."""
+    state, source_state, source = context.state, context.source_state, context.source
+    source_tags = source_state.get("tags") or []
+    tags = state.setdefault("tags", [])
+    universes = _tag_universes(state)
+    record = state["tag_imports"][source["id"]]
+    deleted = set(record["deleted_tag_ids"])
+
+    created: list[str] = []
+    restored: list[str] = []
+    reused: list[str] = []
+    dropped: list[dict] = []
+    mapping: dict[int, int] = {}  # source Tag id -> this Season's Tag id
+    for source_def, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in source_tags]):
+        source_tag = next(t for t in source_tags if t["id"] == source_def.id)
+        target = _resolve_import_tag(tags, source["id"], source_tag)
+        origin = _origin(source["id"], source_tag["id"])
+        if target is None:
+            constraints = {}
+            for field in _CONSTRAINT_FIELDS:
+                axis = field.split("_")[0]
+                kept = []
+                for entry in source_tag.get(field) or []:
+                    if tag_tree.entry_in_universe(axis, entry, universes[axis]):
+                        kept.append(entry)
+                    else:
+                        dropped.append({"tag": source_tag["name"], "field": field, "entry": entry})
+                constraints[field] = kept
+            target = {
+                "id": _next_tag_id(state),
+                "name": source_tag["name"],
+                "colour": source_tag.get("colour") or tag_tree.PALETTE[0],
+                "note": source_tag.get("note") or "",
+                "parent_id": mapping.get(source_tag.get("parent_id")),
+                **constraints,
+                "origins": [origin],
+            }
+            tags.append(target)
+            (restored if source_tag["id"] in deleted else created).append(target["name"])
+        else:
+            reused.append(target["name"])
+            if origin not in (target.get("origins") or []):
+                target.setdefault("origins", []).append(origin)
+        mapping[source_tag["id"]] = target["id"]
+        deleted.discard(source_tag["id"])
+    record["deleted_tag_ids"] = sorted(d for d in deleted if any(t["id"] == d for t in source_tags))
+
+    carried = _source_direct_tags_by_person(source_state)
+    tagged: list[str] = []
+    skipped: list[dict] = []
+    for helper in state["helpers"]:
+        wanted = [mapping[t] for t in carried.get(helper.get("person_id"), []) if t in mapping]
+        if not wanted:
+            continue
+        added, refused = _add_valid_tags(state, helper, wanted)
+        skipped.extend(refused)
+        if added:
+            tagged.append(helper["name"])
+
+    awaiting: list[str] = []
+    proposals = uncertain_candidates(context.person_records, context.season["id"])
+    for helper in sorted(state["helpers"], key=lambda h: h["id"]):
+        if any(carried.get(c.person_id) for c in proposals.get(helper["id"], [])):
+            awaiting.append(helper["name"])
+
+    def names(items: Sequence[str]) -> str:
+        return f" ({', '.join(items)})" if items else ""
+
+    lines = [f"Tags created: {len(created)}{names(created)}"]
+    if restored:
+        lines.append(f"Restored (deleted earlier, imported again): {len(restored)}{names(restored)}")
+    if reused:
+        lines.append(f"Already in this Season, not copied again: {len(reused)}{names(reused)}")
+    lines.append(f"Helpers tagged: {len(tagged)}{names(tagged)}")
+    lines.append(
+        f"Constraint entries dropped (not in this Season): {len(dropped)}"
+        + names([f"{d['tag']}: {d['entry']}" for d in dropped])
+    )
+    lines.append(
+        f"Assignments skipped (would leave no allowed Building or Role): {len(skipped)}"
+        + names([f"{s['helper']} - {s['tag']}" for s in skipped])
+    )
+    lines.append(f"Helpers awaiting review, not tagged: {len(awaiting)}{names(awaiting)}")
+    return {
+        "tags_created": created,
+        "tags_restored": restored,
+        "tags_reused": reused,
+        "helpers_tagged": tagged,
+        "dropped_constraint_entries": dropped,
+        "skipped_assignments": skipped,
+        "awaiting_review": awaiting,
+        "lines": lines,
+    }
+
+
+register_import_section(ImportSection("tags", "Tags", _import_tags_section))
+
+
+def import_from_season(workspace: Workspace, source_season_id: str) -> dict:
+    """Import from one earlier stored Season into the open one: every registered
+    section runs against the source (Tags first) and everything is saved
+    together — or nothing, if any of it fails. Running it again, from this or
+    another Season, is additive and never copies a Tag twice. The source Season
+    is only read. Returns ``{"source": {"id", "label"}, "sections": [...]}``,
+    each section its ``key``, ``title`` and own summary (the Tags section's is
+    described in :func:`_import_tags_section`)."""
+    season = workspace.open_season()
+    if season is None:
+        raise RosteringError("Open a Season (or upload responses to create one) before importing Tags.")
+    source = next((s for s in import_sources(workspace) if s["id"] == source_season_id), None)
+    if source is None:
+        raise RosteringError("Pick an earlier stored Season to import from.")
+    state = workspace.load()
+    source_state = workspace.stored_state(source["id"])
+    identity = {"id": source["id"], "label": source["label"]}
+    record = state.setdefault("tag_imports", {}).setdefault(
+        source["id"], {"label": source["label"], "deleted_tag_ids": []}
+    )
+    record["label"] = source["label"]
+    context = ImportContext(state, source_state, identity, season, workspace.person_records())
+    sections = [{"key": s.key, "title": s.title, **s.run(context)} for s in _IMPORT_SECTIONS]
+    workspace.save(state)
+    return {"source": identity, "sections": sections}
+
+
+def _late_link_tags(workspace: Workspace, state: dict[str, Any], helper: dict) -> list[dict]:
+    """The Tags a Helper's Person carried in an imported Season, resolved into
+    this Season by origin first and name second: ``tag_id``, ``name`` and
+    ``source`` (that Season's label). A Tag that no longer resolves (deleted on
+    purpose) is left out, and so is one the Helper already carries."""
+    person_id = helper.get("person_id")
+    direct = _direct_tag_ids(helper)
+    found: dict[int, dict] = {}
+    for source_id in state.get("tag_imports") or {}:
+        source_state = workspace.stored_state(source_id)
+        if source_state is None:
+            continue
+        by_id = {t["id"]: t for t in source_state["tags"]}
+        for source_tag_id in _source_direct_tags_by_person(source_state).get(person_id, []):
+            target = _resolve_import_tag(state["tags"], source_id, by_id[source_tag_id])
+            if target is not None and target["id"] not in direct:
+                found.setdefault(
+                    target["id"],
+                    {"tag_id": target["id"], "name": target["name"], "source": source_state["season"]["label"]},
+                )
+    return list(found.values())
+
+
+def late_link_tag_offer(workspace: Workspace, helper_id: int) -> Optional[dict]:
+    """After a Helper's link to an earlier Person is confirmed: the Tags that
+    Person carried in a Season already imported from, if any could be applied
+    ("apply their Tags?") — ``helper_id``, ``helper_name`` and ``tags`` (see
+    :func:`_late_link_tags`), or None when there is nothing to offer. Nothing is
+    applied and no Tag is created; a deliberately deleted Tag stays deleted."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    tags = _late_link_tags(workspace, state, helper)
+    if not tags:
+        return None
+    return {"helper_id": helper_id, "helper_name": helper["name"], "tags": tags}
+
+
+def apply_late_link_tags(workspace: Workspace, helper_id: int) -> dict:
+    """Give a late-linked Helper the Tags offered by :func:`late_link_tag_offer`,
+    skipping any that would leave them with no allowed Building or Role. Returns
+    ``applied`` (Tag names) and ``skipped`` (as in the import summary)."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    offered = _late_link_tags(workspace, state, helper)
+    added, skipped = _add_valid_tags(state, helper, [t["tag_id"] for t in offered])
+    workspace.save(state)
+    return {"applied": [t["name"] for t in offered if t["tag_id"] in added], "skipped": skipped}
+
+
+def tag_origin_labels(state: dict[str, Any], tag_id: int) -> list[str]:
+    """The Seasons (by label) an imported Tag was copied from, or matched to."""
+    imports = state.get("tag_imports") or {}
+    return [
+        (imports.get(origin["season_id"]) or {}).get("label") or "an earlier Season"
+        for origin in _tag_record(state, tag_id).get("origins") or []
+    ]
 
 
 def put_config(workspace: Workspace, buildings: list[dict], config_path: Optional[Path] = None) -> dict:
