@@ -58,3 +58,35 @@ def test_no_overlay_selected_means_plain_chips():
 
     assert not at.exception
     assert at.session_state["_result"][0] == []
+
+
+def test_the_satisfaction_modes_are_offered_and_switch_on():
+    at = _run(["role_fit", "building_fit"])
+
+    assert not at.exception
+    assert at.session_state["_result"][0] == ["role_fit", "building_fit"]
+
+
+def _acceptable_app():
+    import streamlit as st
+
+    from rostering.streamlit_app.tabs import grid_tab
+
+    config = [{"name": "Karlín", "rooms": []}, {"name": "Troja", "rooms": []}]
+    st.session_state["_result"] = (
+        grid_tab._acceptable_buildings([], config),
+        grid_tab._acceptable_buildings(["Troja"], config),
+        grid_tab._acceptable_buildings(["Impakt + Troja"], config),
+        grid_tab._acceptable_buildings(["Nowhere"], config),
+    )
+
+
+def test_acceptable_buildings_follow_the_building_preference_set():
+    at = AppTest.from_function(_acceptable_app, default_timeout=30).run()
+
+    assert not at.exception
+    everything, troja, merged_name, nowhere = at.session_state["_result"]
+    assert everything == ["Karlín", "Troja"]  # no preference expressed: every Building suits
+    assert troja == ["Troja"]
+    assert merged_name == ["Troja"]  # matched the way the solver matches names
+    assert nowhere == []

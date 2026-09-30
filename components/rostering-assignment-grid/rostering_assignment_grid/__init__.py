@@ -110,7 +110,13 @@ def assignment_grid(
     chips are plain): ``"friends"`` turns on the hover highlights of a Helper's
     friend requests and the persistent marker on a chip with an unsatisfied one;
     ``"tags"`` stripes each chip in its direct Tags' colours (equal segments, one
-    per Tag; the Tag names go in the tooltip). ``dimmed_helper_ids`` are the
+    per Tag; the Tag names go in the tooltip); ``"role_fit"`` and
+    ``"building_fit"`` give a placed chip a thick left (Role) or top (Building)
+    border, green when the placement suits the Helper and red when not: a Role
+    is fine when rated Nevadí or better (Záloha is not judged), a Building when
+    it is in the helper's ``acceptable_buildings`` (the Season's Buildings their
+    Building preference accepts, all of them when they named none).
+    ``dimmed_helper_ids`` are the
     Helpers the Tag filter fades: they are never hidden, stay where they are and
     remain draggable. Both are computed by the caller (which sends no dimmed ids
     while the ``"tags"`` overlay is off).

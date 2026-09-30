@@ -27,6 +27,10 @@ export interface Helper {
   can_bring_camera: boolean;
   role_preferences: Record<string, RolePreferenceInfo>;
   building_preferences: string[];
+  // The Season's Buildings the Building preference accepts (all of them when the
+  // set is empty), matched on the Python side; the Building satisfaction
+  // overlay checks the placed Building against it.
+  acceptable_buildings?: string[];
   // IDs of helpers this helper asked to share a room with.
   friends: number[];
   // The answers (e.g. "Building preference") a re-submitted survey row changed
@@ -171,7 +175,8 @@ export interface AssignmentGridData {
   helper_names: string[];
   organizer_names?: string[];
   broken_marks?: BrokenMarks;
-  // The Roster tab's active overlays (e.g. "friends", "tags"); none = plain chips.
+  // The Roster tab's active overlays ("friends", "tags", "role_fit",
+  // "building_fit"); none = plain chips.
   overlays?: string[];
   // Helpers the Tag filter dims (never hides): they stay in place and
   // draggable, just faded.
