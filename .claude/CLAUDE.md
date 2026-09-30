@@ -255,10 +255,10 @@ pushing the tag, not just creating it locally.
 - People tab (`tabs/people_tab.py`, "1. People"): the upload, the review lists
   and two hand-built table views (Streamlit's own tables can't hold a click
   target): Organizers above, Helpers below, one `st.columns` row per person
-  sorted by name (`_render_table`: a name button, one padded monospace `st.text`
-  with every other column, Tags as plain text last, and the Can't attend
-  checkbox; column ratios follow the text lengths. Keep rows to a few elements
-  and never one container per cell, which made the tab very slow), each table
+  sorted by name (`_render_table`: a name button, one `st.text` per field,
+  the Can't attend checkbox and the Tags as plain text, every cell a plain element
+  in its own `st.columns` column, ratios following the longest text of each
+  column; never one container per cell, which made the tab very slow), each table
   ending with a "＋ Add" button. A name is a button
   that opens that person's popup (`person_dialog.open_person`, an `st.dialog`
   with `on_dismiss="rerun"` so the table is current once it closes): for a

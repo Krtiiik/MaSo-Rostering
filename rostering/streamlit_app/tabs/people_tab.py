@@ -12,8 +12,6 @@ from rostering.domain import UNKNOWN_TSHIRT_SIZE
 from rostering.streamlit_app import fix_focus, mutations, session
 from rostering.streamlit_app import labels as ui_labels
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
-# Between the padded detail cells of a row (monospace, see ``_line``).
-_GAP = "  "
 # Bumped on every Can't attend tick so the checkboxes start afresh from the saved
 # state (a flag that was refused or is still awaiting confirmation must not stay ticked).
 _CANT_ATTEND_NONCE = "_people_cant_attend_nonce"
@@ -147,11 +145,6 @@ def _tag_text(pills: dict | None) -> str:
     return " ".join(names) or "—"
 
 
-def _line(cells: list[str], widths: list[int]) -> str:
-    """``cells`` padded to ``widths`` and joined, so the monospace ``st.text`` of every row lines up."""
-    return _GAP.join(cell.ljust(width) for cell, width in zip(cells, widths))
-
-
 def _cant_attend_cell(cell, kind: str, person: dict) -> None:
     """The row's Can't attend checkbox; a change is saved (flagging may first ask
     for confirmation, see ``person_actions``) and reruns the page."""
@@ -177,31 +170,31 @@ def _render_table(
     add_label: str,
     on_add,
 ) -> None:
-    """One row per person: the name as a button (opens the popup), every other
-    column (Tags last) as a single padded ``st.text``, then the Can't attend
-    checkbox. Three elements a row, no per-cell containers: the page renders
-    (and reruns) in proportion to its element count, which is what made the
-    earlier cell-per-container table slow. The columns' ratios follow the
-    text lengths, the same for every row, so the rows stay level."""
-    labels = [*detail_labels, "Štítky"]
-    rows = [[*row, tag_text] for row, tag_text in zip(details, tags)]
-    widths = [max(len(text) for text in [label, *(row[i] for row in rows)]) for i, label in enumerate(labels)]
-    widths[-1] = 0  # the last cell is not padded
+    """One ``st.columns`` row per person with one column per field: the name as a
+    button (opens the popup), each detail as a plain ``st.text``, the Can't attend
+    checkbox, then the Tags. No per-cell containers: the page renders (and
+    reruns) in proportion to its element count, which is what made the earlier
+    container-per-cell table slow. The columns' ratios follow the longest text of
+    each column, the same for every row, so the rows stay level."""
+    absent_label = "Nemůže se zúčastnit"
+    name_label, tags_label = "Jméno", "Štítky"
     ratios = [
-        max(len(text) for text in ["Jméno", *names]) + 6,
-        max(len(text) for text in [_line(labels, widths), *(_line(row, widths) for row in rows)]),
-        len("Nemůže se zúčastnit") + 2,
+        max(len(text) for text in [name_label, *names]) + 6,
+        *(max(len(text) for text in [label, *(row[i] for row in details)]) + 2 for i, label in enumerate(detail_labels)),
+        len(absent_label) + 2,
+        max(len(text) for text in [tags_label, *tags]),
     ]
     header = st.columns(ratios, vertical_alignment="center")
-    header[0].text("Jméno")
-    header[1].text(_line(labels, widths))
-    header[2].text("Nemůže se zúčastnit")
-    for person, name, row in zip(people, names, rows):
-        name_cell, details_cell, absent_cell = st.columns(ratios, vertical_alignment="center")
+    for column, label in zip(header, [name_label, *detail_labels, absent_label, tags_label]):
+        column.markdown(f"**{label}**")
+    for person, name, row, tag_text in zip(people, names, details, tags):
+        name_cell, *detail_cells, absent_cell, tags_cell = st.columns(ratios, vertical_alignment="center")
         if name_cell.button(name, key=f"open_{kind}_{person['id']}", type="tertiary"):
             person_dialog.open_person(kind, person["id"])
-        details_cell.text(_line(row, widths))
+        for cell, text in zip(detail_cells, row):
+            cell.text(text)
         _cant_attend_cell(absent_cell, kind, person)
+        tags_cell.text(tag_text)
     if st.button(add_label, key=f"add_{kind}_open"):
         on_add()
 
