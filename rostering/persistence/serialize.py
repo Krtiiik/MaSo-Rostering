@@ -98,6 +98,7 @@ def helper_to_dict(h: Helper) -> dict:
         "email": h.email,
         "phone": h.phone,
         "person_id": h.person_id,
+        "cant_attend": h.cant_attend,
     }
 
 
@@ -126,6 +127,8 @@ def helper_from_dict(data: dict) -> Helper:
         email=normalize_email(data.get("email")),
         phone=(data.get("phone") or "").strip() or None,
         person_id=data.get("person_id") or None,
+        # Absent from workspaces saved before Can't attend existed.
+        cant_attend=bool(data.get("cant_attend", False)),
     )
 
 

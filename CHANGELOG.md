@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Can't attend: a "Can't attend" checkbox on every Helper row of the Upload
+  tab's Helper list takes an absent person out of the picture. A flagged Helper
+  is left out of the solver, the roster grid, the Unassigned pool, the
+  Broken-rule check and the Excel export (roster sheet, T-shirt and per-Building
+  sheets), with no special look in the grid, and a Friend preference naming them
+  silently stops scoring (it is kept, so un-flagging restores it). Flagging a
+  Helper who has no Assignment or Manual role entry applies at once. Flagging
+  one who does asks first, naming what will be cleared; confirming clears their
+  Assignment (and its lock) and every Organizer role and Additional role entry
+  holding them, and cancelling changes nothing. Un-flagging only clears the flag:
+  it restores nothing and does not re-solve, so the Helper returns to the pool
+  for the next Solve. The flag is kept when the same Helper re-submits the
+  survey (matched by e-mail, like a Returning helper), is per Season, and is
+  saved with Versions. A flagged Helper can't be placed by hand.
+- Stale-roster banner: clearing a placed Helper this way marks the roster stale.
+  A banner with the reason appears next to the Solve button (and on the Upload
+  tab), Export to Excel is disabled while it is up, and the next full Solve
+  clears it. The flag is saved with Versions and reusable by any edit that
+  invalidates a roster without moving anyone.
 - Lock controls in the roster tab's bottom bar: "Lock all placed", "Clear all
   locks", a live "N locked" count, and a Solve button that reads "Solve (keeps N
   locked)" while any lock is set. A full Solve (also the Buildings tab's "Save &

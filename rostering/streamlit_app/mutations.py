@@ -22,7 +22,10 @@ from rostering.domain import (
     BrokenRule,
     Competition,
     ManualRoles,
+    OverlayRole,
+    Role,
     SolveResult,
+    StructuralRole,
     parse_tshirt_size,
 )
 from rostering.export.excel import write_roster
@@ -51,6 +54,16 @@ class RosteringError(Exception):
     """Raised for any user-facing error a mutation function hits (bad input,
     unknown id, infeasible precondition, ...). Tabs catch this and show
     ``st.error(str(exc))``."""
+
+
+class ConfirmationRequired(RosteringError):
+    """The edit would throw away hand work, so nothing was changed: ``lines``
+    name what would be cleared, and the caller asks the user and calls again
+    with ``confirmed=True`` (or drops the request to cancel)."""
+
+    def __init__(self, message: str, lines: list[str]):
+        super().__init__(message)
+        self.lines = lines
 
 
 class SeasonLabelRequired(RosteringError):
@@ -103,14 +116,17 @@ def _prune_cell_merges(config: list[dict], cell_merges: dict) -> dict:
 
 
 def _build_competition(state: dict[str, Any]) -> Competition:
+    """The Competition of the Helpers who are coming: those flagged Can't attend
+    are left out, so the solver, the Broken-rule check and the export never see
+    them."""
     buildings = config_from_list(state["config"])
-    helpers = [helper_from_dict(h) for h in state["helpers"]]
+    helpers = [helper_from_dict(h) for h in state["helpers"] if not h.get("cant_attend")]
     return Competition(buildings=buildings, helpers=helpers)
 
 
 def _recompute_friend_pairs(state: dict[str, Any]) -> tuple[list[list[int]], list[list[int]]]:
     """Return (satisfied, unsatisfied) friend pairs given the current assignments."""
-    helpers = [helper_from_dict(h) for h in state["helpers"]]
+    helpers = [helper_from_dict(h) for h in state["helpers"] if not h.get("cant_attend")]
     friend_scoring = solver_config_from_dict(state["solver_config"]).friend_scoring
     pairs = build_friend_pairs(helpers, friend_scoring)
     room_by_helper = {a["helper_id"]: (a["building"], a["room"]) for a in state["assignments"]}
@@ -265,6 +281,7 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
 
     state = workspace.load()
     _carry_over_link_decisions(state["helpers"], helper_dicts)
+    _carry_over_cant_attend(state["helpers"], helper_dicts)
     state["helpers"] = helper_dicts
     state["ingestion_warnings"] = result.warnings
     state["export_timestamps"] = [t.date().isoformat() for t in result.submission_timestamps]
@@ -302,6 +319,15 @@ def _carry_over_link_decisions(old_helpers: list[dict], new_helpers: list[dict])
             new["rejected_person_ids"] = kept
         if new["person_id"] in confirmed:
             new["link_confirmed"] = True
+
+
+def _carry_over_cant_attend(old_helpers: list[dict], new_helpers: list[dict]) -> None:
+    """Can't attend is set by hand, never by survey data, so a re-upload keeps
+    it on the new record that is the same Person as a flagged one."""
+    flagged = {h["person_id"] for h in old_helpers if h.get("cant_attend") and h.get("person_id")}
+    for new in new_helpers:
+        if new["person_id"] in flagged:
+            new["cant_attend"] = True
 
 
 # -- Persons ------------------------------------------------------------------
@@ -532,6 +558,97 @@ def resolve_friend(
     return state
 
 
+# -- Can't attend and the stale roster ------------------------------------------
+
+
+def stale_reasons(state: dict[str, Any]) -> list[str]:
+    """Why the roster is stale, one line per edit that raised it (empty when it
+    isn't). A stale roster no longer matches the Helpers and rules it was
+    solved for without anyone having been moved; Export is refused until the
+    next full Solve."""
+    return list(state.get("stale_reasons") or [])
+
+
+def _add_stale_reason(state: dict[str, Any], reason: str) -> None:
+    reasons = stale_reasons(state)
+    if reason not in reasons:
+        reasons.append(reason)
+    state["stale_reasons"] = reasons
+
+
+def mark_stale(workspace: Workspace, reason: str) -> dict:
+    """Raise the stale-roster flag with ``reason`` (shown as the banner near the
+    Solve button). The reusable mechanism for any edit that changes the roster's
+    validity without moving anyone; only a full Solve clears it."""
+    state = workspace.load()
+    _add_stale_reason(state, reason)
+    workspace.save(state)
+    return state
+
+
+def _manual_entry_label(entry: dict) -> str:
+    role = next((r.value for r in (*StructuralRole, *OverlayRole) if r.name == entry["role"]), entry["role"])
+    where = " · ".join(filter(None, [entry.get("building"), entry.get("room")]))
+    return f"{role} ({where})" if where else role
+
+
+def cant_attend_impact(state: dict[str, Any], helper_id: int) -> list[str]:
+    """What marking this Helper Can't attend would clear, one line each: their
+    Assignment (and its lock) and every Manual role entry holding them. Empty
+    when there is nothing to clear, in which case no confirmation is needed."""
+    lines = []
+    placed = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
+    if placed is not None:
+        where = f"{placed['building']} · {placed['room']} · {Role[placed['role']].value}"
+        lines.append(f"Assignment: {where}" + (" (locked)" if placed.get("locked") else ""))
+    for group in ("structural", "overlay"):
+        for entry in state["manual_roles"][group]:
+            if entry.get("helper_id") == helper_id:
+                lines.append(f"Manual role: {_manual_entry_label(entry)}")
+    return lines
+
+
+def set_cant_attend(workspace: Workspace, helper_id: int, cant_attend: bool, confirmed: bool = False) -> dict:
+    """Flag a Helper Can't attend, or clear the flag.
+
+    A Helper with an Assignment or Manual role entries is only flagged once
+    ``confirmed``; without it :class:`ConfirmationRequired` names what would be
+    cleared and nothing changes. Confirming removes their Assignment (and its
+    lock) and every Manual role entry holding them, and raises the stale-roster
+    flag. A Helper with nothing to clear is flagged at once and the roster
+    stays as it is. Clearing the flag only clears the flag: it restores nothing,
+    stales nothing and does not solve."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    if bool(helper.get("cant_attend")) == cant_attend:
+        return state
+    if not cant_attend:
+        helper.pop("cant_attend", None)
+        workspace.save(state)
+        return state
+
+    impact = cant_attend_impact(state, helper_id)
+    if impact and not confirmed:
+        raise ConfirmationRequired(
+            f"Marking {helper['name']} as Can't attend clears " + "; ".join(impact) + ". "
+            "Un-flagging them later does not restore these, and the roster is out of date until the next Solve.",
+            impact,
+        )
+    helper["cant_attend"] = True
+    if impact:
+        state["assignments"] = [a for a in state["assignments"] if a["helper_id"] != helper_id]
+        satisfied, unsatisfied = _recompute_friend_pairs(state)
+        state["diagnostics"]["satisfied_friend_pairs"] = satisfied
+        state["diagnostics"]["unsatisfied_friend_pairs"] = unsatisfied
+        state["manual_roles"] = {
+            group: [e for e in entries if e.get("helper_id") != helper_id]
+            for group, entries in state["manual_roles"].items()
+        }
+        _add_stale_reason(state, f"{helper['name']} can't attend: their Assignment and role entries were cleared")
+    workspace.save(state)
+    return state
+
+
 def set_tshirt_size(workspace: Workspace, helper_id: int, size: str) -> dict:
     """Set one helper's T-shirt size by hand (chiefly to resolve an Unknown
     flagged by the upload warnings). ``size`` must be one of
@@ -587,7 +704,7 @@ def _split_locks(state: dict[str, Any]) -> tuple[list[Assignment], list[str]]:
     exists is dropped (that Helper is re-solved as unlocked)."""
     rooms = {(b["name"], r["name"]) for b in state["config"] for r in b["rooms"]}
     buildings = {b["name"] for b in state["config"]}
-    helper_ids = {h["id"] for h in state["helpers"]}
+    helper_ids = {h["id"] for h in state["helpers"] if not h.get("cant_attend")}
     kept: list[Assignment] = []
     dropped: list[str] = []
     for data in state["assignments"]:
@@ -632,6 +749,8 @@ def solve(workspace: Workspace) -> dict:
     state = workspace.load()
     if not state["helpers"]:
         raise RosteringError("Upload a responses file first.")
+    if all(h.get("cant_attend") for h in state["helpers"]):
+        raise RosteringError("Every helper is marked Can't attend, so there is nobody to solve for.")
     if not state["config"]:
         raise RosteringError("Configure at least one building first.")
 
@@ -664,6 +783,8 @@ def solve(workspace: Workspace) -> dict:
         # gone (each Helper was re-solved unlocked); shown once after a solve.
         "dropped_locks": _dropped_locks_lines(dropped),
     }
+    # The roster is fresh again: whatever made it stale has been solved for.
+    state["stale_reasons"] = []
     workspace.save(state)
     return state
 
@@ -744,6 +865,8 @@ def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, 
     known_ids = {h["id"] for h in state["helpers"]}
     if helper_id not in known_ids:
         raise RosteringError(f"No such helper: {helper_id}")
+    if any(h["id"] == helper_id and h.get("cant_attend") for h in state["helpers"]):
+        raise RosteringError(f"Helper {helper_id} is marked Can't attend, so they can't be placed.")
     helper_name = next(h["name"] for h in state["helpers"] if h["id"] == helper_id)
 
     previous = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
@@ -833,6 +956,9 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
     state = workspace.load()
     if not state["assignments"]:
         raise RosteringError("Nothing to export yet — solve first.")
+    reasons = stale_reasons(state)
+    if reasons:
+        raise RosteringError("The roster is out of date: " + "; ".join(reasons) + ". Solve again before exporting.")
 
     comp = _build_competition(state)
     result = SolveResult(

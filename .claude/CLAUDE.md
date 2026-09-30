@@ -212,6 +212,23 @@ pushing the tag, not just creating it locally.
   dropped: Room X no longer exists"), which the Roster tab shows once after
   the solve. Locks live only in the Season's own `assignments`, so a new
   Season or a Tag import never carries them.
+- Can't attend: `cant_attend: true` on the Helper record in the Season's state
+  (`Helper.cant_attend`; absent = off), set only by
+  `mutations.set_cant_attend(workspace, helper_id, flag, confirmed=False)`.
+  The one rule for "who takes part" is `Competition.attending()`, applied by
+  `solve_competition`, `check_roster` and the export (`export/people.py`
+  `without_absent`), and by `mutations._build_competition`; the grid tab
+  filters its own helper list, name suggestions and friend ids. Flagging a
+  Helper with an Assignment or Manual role entries raises
+  `mutations.ConfirmationRequired` (`.lines` name what goes) unless
+  `confirmed=True`, then clears them and sets the stale flag. A re-upload
+  carries the flag over by `person_id` (`_carry_over_cant_attend`). The stale
+  flag is `state["stale_reasons"]` (list of lines; `mutations.stale_reasons`,
+  `mark_stale`), cleared by `solve`, refusing `export_xlsx_bytes`, snapshotted
+  by Versions like the rest of the state; the Roster tab shows it above the
+  Solve button and disables Export, the Upload tab shows it above the Helper
+  list. The Upload tab's confirmation opens on the rerun after the checkbox
+  edit (the table's widget key is bumped so it shows the saved state meanwhile).
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

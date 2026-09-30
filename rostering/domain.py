@@ -133,6 +133,10 @@ class Helper:
     # known to ingestion: it is assigned when the export is loaded into a
     # Season, by matching against the stored Seasons (rostering.persons).
     person_id: Optional[str] = None
+    # Can't attend (see CONTEXT.md): the Helper is unavailable for the Season
+    # and is left out of the solver, the grid and the export counts. Set by
+    # hand, never by survey data, and reversible.
+    cant_attend: bool = False
 
 
 @dataclass
@@ -159,6 +163,14 @@ class Building:
 class Competition:
     buildings: dict[str, Building]
     helpers: list[Helper]
+
+    def attending(self) -> "Competition":
+        """This Competition without the Helpers flagged Can't attend: the one
+        rule for who takes part, applied by the solver, the Broken-rule check
+        and the export."""
+        if not any(h.cant_attend for h in self.helpers):
+            return self
+        return Competition(buildings=self.buildings, helpers=[h for h in self.helpers if not h.cant_attend])
 
 
 @dataclass

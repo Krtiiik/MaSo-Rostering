@@ -159,7 +159,9 @@ def _resolve_manual_name(state: dict, name: str) -> dict:
     keep it as a free-text name for someone unregistered."""
     norm = normalize_name(name)
     for h in state["helpers"]:
-        if normalize_name(h["name"]) == norm:
+        # A Helper who can't attend is not on the roster, so their name is not
+        # matched: it stays free text rather than pointing a role at them.
+        if not h.get("cant_attend") and normalize_name(h["name"]) == norm:
             return {"helper_id": h["id"], "helper_name": None}
     return {"helper_id": None, "helper_name": name}
 
@@ -271,7 +273,15 @@ def render() -> None:
             solve_prompt.remember_dropped_locks(solved)
         st.rerun()
 
+    stale = mutations.stale_reasons(state)
     with st.bottom:
+        if stale:
+            # Right above the Solve button: what made the roster stale, and that
+            # Solving is what clears it.
+            st.warning(
+                "**Roster is out of date:** " + "; ".join(stale) + ". Solve again; Export is blocked until then.",
+                icon="⚠️",
+            )
         cols = st.columns([2, 2, 2, 1, 2], vertical_alignment="center")
         solve_label = f"Solve (keeps {locked} locked)" if locked else ("Re-solve" if state["assignments"] else "Solve")
         if cols[0].button(solve_label, type="primary"):
@@ -286,7 +296,9 @@ def render() -> None:
             st.rerun()
         cols[3].markdown(f"**{locked}** locked")
 
-        if state["assignments"]:
+        if state["assignments"] and stale:
+            cols[4].button("Export to Excel", disabled=True, help="The roster is out of date: solve again first.")
+        elif state["assignments"]:
             try:
                 export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
                 cols[4].download_button(
@@ -310,6 +322,11 @@ def render() -> None:
     broken_rules = mutations.broken_rules(state)
     _render_broken_banner(broken_rules, has_roster=bool(state["assignments"]))
 
+    # Helpers flagged Can't attend are not on the roster at all: not in the
+    # grid, not in the Unassigned pool, not in the name suggestions, and a
+    # friend request naming one is simply not shown.
+    attending = [h for h in state["helpers"] if not h.get("cant_attend")]
+    absent_ids = {h["id"] for h in state["helpers"] if h.get("cant_attend")}
     grid_helpers = [
         {
             "id": h["id"],
@@ -318,9 +335,9 @@ def render() -> None:
             "can_bring_camera": h["can_bring_camera"],
             "role_preferences": _grid_role_preferences(h["role_preferences"]),
             "building_preferences": h["building_preferences"],
-            "friends": h["friends"],
+            "friends": [f for f in h["friends"] if f not in absent_ids],
         }
-        for h in state["helpers"]
+        for h in attending
     ]
 
     event = assignment_grid(
@@ -330,7 +347,7 @@ def render() -> None:
         assignments=state["assignments"],
         manual_entries=_manual_entries(state),
         cell_merges=state.get("cell_merges", {}),
-        helper_names=sorted({h["name"] for h in state["helpers"]}, key=str.lower),
+        helper_names=sorted({h["name"] for h in attending}, key=str.lower),
         broken_marks=mutations.broken_rule_marks(broken_rules),
         key="assignment_grid",
     )
