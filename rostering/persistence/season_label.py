@@ -50,3 +50,16 @@ def guess_label(timestamps: Iterable[date | datetime]) -> Optional[str]:
         return None
     median = ordered[len(ordered) // 2]
     return f"{median.year:04d}-{half_of(median)}"
+
+
+def school_years_crossed(source_label: str, current_label: str) -> int:
+    """How many school years turned between two Seasons (normalized labels): the
+    school year turns at the jaro -> podzim boundary, so 2026-jaro is still the
+    school year 2025-podzim began, and 2026-jaro -> 2026-podzim crosses one.
+    Never negative."""
+
+    def school_year(label: str) -> int:
+        year, half = label_sort_key(label)
+        return year if half == HALVES.index("podzim") else year - 1
+
+    return max(0, school_year(current_label) - school_year(source_label))

@@ -8,7 +8,7 @@ import streamlit as st
 
 from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Role
 from rostering.streamlit_app import fix_focus, mutations, session
-from rostering.streamlit_app.tabs import helper_forms, helper_tags
+from rostering.streamlit_app.tabs import helper_forms, helper_tags, tag_import_ui
 
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
 _SIZE_COLUMN = "T-shirt size"
@@ -90,6 +90,10 @@ def render() -> None:
                 + ". Solve again in the Roster tab; Export is blocked until then.",
                 icon="⚠️",
             )
+        tag_import_ui.render_banner()
+        tag_import_ui.render_summary("banner")
+        tag_import_ui.render_promotion_auto()
+        tag_import_ui.render_late_link_prompt()
         _render_uncertain_matches(workspace)
         fix = fix_focus.render_callout(state, "helpers")
         helper_tags.render()
@@ -139,6 +143,9 @@ def _apply_link_edit(action, *args) -> None:
     except mutations.RosteringError as exc:
         st.error(str(exc))
         return
+    if action is mutations.link_helper:
+        # A confirmed link: offer the Person's Tags from an already-imported Season.
+        tag_import_ui.queue_late_link_offer(args[0])
     st.rerun()
 
 

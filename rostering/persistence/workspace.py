@@ -119,6 +119,11 @@ class Workspace:
             # ids in its record's "tags"; effective Tags are computed, never
             # stored. Part of every Version and cleared by Start over.
             "tags": [],
+            # Which earlier Seasons' Tags were imported into this one (see
+            # mutations.import_from_season): source Season id -> {"label",
+            # "deleted_tag_ids"} (the source Tags whose imported copy was
+            # deliberately deleted). Part of every Version, cleared by Start over.
+            "tag_imports": {},
             "diagnostics": {
                 "status": None,
                 "objective_value": None,
@@ -141,6 +146,7 @@ class Workspace:
         state = _read_json(path)
         # A state saved before Tags existed has none.
         state.setdefault("tags", [])
+        state.setdefault("tag_imports", {})
         if ensure_person_ids(state):
             _write_json(path, state)
         return state
@@ -154,6 +160,13 @@ class Workspace:
         for season_dir, identity in self._scan():
             records.extend(records_from_state(identity, self._read_state(season_dir)))
         return records
+
+    def stored_state(self, season_id: str) -> Optional[dict[str, Any]]:
+        """The saved state of any stored Season by id (the open one included),
+        read only: nothing is opened, changed or written back. None when there
+        is no such Season."""
+        found = self._find_dir(season_id)
+        return None if found is None else self._read_state(found[0])
 
     def save(self, state: dict[str, Any]) -> None:
         open_season = self._resolve_open()
