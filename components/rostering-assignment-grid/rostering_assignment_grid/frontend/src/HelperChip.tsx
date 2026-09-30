@@ -1,29 +1,11 @@
 import { useDraggable } from "@dnd-kit/core";
 import type { MouseEvent } from "react";
-import type { Helper, TagPill } from "./types";
-
-// Black or white, whichever reads better on the given "#rrggbb" fill (the same
-// rule as rostering.streamlit_app.tag_pills).
-function pillTextColour(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#000000" : "#ffffff";
-}
-
-export function TagPillView({ pill, implied }: { pill: TagPill; implied: boolean }) {
-  const colour = /^#[0-9a-fA-F]{6}$/.test(pill.colour) ? pill.colour : "#888888";
-  const style = implied
-    ? { borderColor: colour, color: colour }
-    : { borderColor: colour, background: colour, color: pillTextColour(colour) };
-  return (
-    <span className={`tag-pill ${implied ? "tag-pill-implied" : "tag-pill-direct"}`} style={style}>
-      {pill.name}
-    </span>
-  );
-}
+import type { Helper } from "./types";
+import { tagStripeStyle, tagTitle } from "./tagStripes";
 
 interface Props {
   helper: Helper;
-  // Show the Helper's Tag pills under their name.
+  // The Tags overlay is on: stripe the chip in the Helper's direct Tag colours.
   showTags?: boolean;
   // Faded by the Tag filter (still in place, still draggable).
   dimmed?: boolean;
@@ -56,12 +38,20 @@ export function HelperChip({
     id: String(helper.id),
   });
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 }
-    : undefined;
-
   const titleText =
-    [...(broken ?? []), ...(unsatisfiedFriend ? ["Has an unsatisfied friend request"] : [])].join("\n") || undefined;
+    [
+      ...(broken ?? []),
+      ...(unsatisfiedFriend ? ["Has an unsatisfied friend request"] : []),
+      ...(showTags ? [tagTitle(helper.tags) ?? ""] : []),
+    ]
+      .filter(Boolean)
+      .join("\n") || undefined;
+  const stripes = showTags ? tagStripeStyle(helper.tags) : undefined;
+
+  const style = {
+    ...stripes,
+    ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 } : undefined),
+  };
 
   const highlightClass = friendHighlight ? ` friend-highlight-${friendHighlight}` : "";
 
@@ -85,7 +75,7 @@ export function HelperChip({
       style={style}
       {...listeners}
       {...attributes}
-      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${dimmed ? " dimmed" : ""}${highlightClass}`}
+      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${dimmed ? " dimmed" : ""}${stripes ? " tag-striped" : ""}${highlightClass}`}
       title={titleText}
       onClick={handleClick}
       onMouseEnter={() => onHoverChange?.(true)}
@@ -115,16 +105,6 @@ export function HelperChip({
       {helper.name}
       {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}
       {helper.can_bring_camera && <span title="Can bring a camera"> 📷</span>}
-      {showTags && helper.tags && (helper.tags.direct.length > 0 || helper.tags.implied.length > 0) && (
-        <div className="helper-chip-tags">
-          {helper.tags.direct.map((pill) => (
-            <TagPillView key={`d:${pill.name}`} pill={pill} implied={false} />
-          ))}
-          {helper.tags.implied.map((pill) => (
-            <TagPillView key={`i:${pill.name}`} pill={pill} implied={true} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

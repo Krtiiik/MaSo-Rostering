@@ -595,21 +595,31 @@ pushing the tag, not just creating it locally.
   label podzim and a school year crossed), which makes the People/Tags tab open
   the dialog by itself (`_class_promotion_auto`); the Tags tab has an
   always-available "Promote classes" button.
-- Roster grid Tag pills and filter: `mutations.grid_tag_pills(state)` (each
-  Helper's `{direct, implied}` pills as `{name, colour}`, from `helper_tags`) and
+- Roster grid Overlays, Tag colouring and filter: the Roster tab's "Overlays"
+  multi-select pills (`grid_tab.OVERLAYS`, key -> label; widget state under
+  `_grid_overlays`, Friends on to begin with) switch on decorations; the
+  component receives the active keys as `overlays`. A future overlay (Buildings,
+  Roles) is one entry in `OVERLAYS` plus its drawing in the component. (Not to be
+  confused with the deprecated "Overlay role" term, see `CONTEXT.md`.)
+  *Friends* gates the hover highlights and the persistent orange unsatisfied
+  marker (off = neither); the details card's friend lists are not an overlay.
+  *Tags* stripes each chip (`HelperChip`, and Organizer chips in `ManualCell`)
+  into equal segments, one per **direct** Tag in its colour (`tagStripes.ts`,
+  tinted with `color-mix` so the normal text stays readable; Tag names incl.
+  inherited ones go in the tooltip), and is the only thing that shows the Tag
+  filter. `mutations.grid_tag_pills(state)` (each Helper's `{direct, implied}`
+  pills as `{name, colour}`, from `helper_tags`) feeds the stripes and
   `mutations.dimmed_helper_ids(state, tag_ids, mode)` (over the pure
   `tags.matches_filter`: all-of / any-of, inherited Tags count, an empty filter
-  or an unknown Tag id matches everyone) feed `grid_tab._render_tag_controls`
-  (the "Show tags" toggle, the "Filter by tags" multiselect in tree order and
-  the All of / Any of radio; the widget state lives under `_grid_show_tags` /
-  `_grid_tag_filter` / `_grid_tag_mode`, pruned of deleted Tags on each run and
-  dropped when another Season opens). The component takes each helper's `tags`,
-  `show_tags` and `dimmed_helper_ids`: pills render inside `HelperChip` (Roster
-  cells and the Unassigned pool, not the typed Manual role chips), dimming is a
-  `dimmed` class (opacity, restored on hover so the details card stays readable).
-  The controls are always shown, the filter merely disabled while the Season has
-  no Tags. Covered by `tests/test_grid_tags.py` and the smoke script
-  (`scripts/e2e/smoke.mjs`).
+  or an unknown Tag id matches everyone) feeds `dimmed_helper_ids`;
+  `grid_tab._render_overlay_controls` renders the pills and, with Tags on,
+  `_render_tag_filter` (the "Filter by tags" multiselect in tree order and the
+  All of / Any of radio; `_grid_tag_filter` / `_grid_tag_mode`, pruned of deleted
+  Tags on each run). With Tags off the filter is not rendered (Streamlit drops
+  its state) and dims no one. All three keys are dropped when another Season
+  opens. Dimming is a `dimmed` class (opacity, restored on hover so the details
+  card stays readable). Covered by `tests/test_grid_tags.py`,
+  `tests/test_grid_overlays.py` and the smoke script (`scripts/e2e/smoke.mjs`).
 - Tag constraints: a Tag record also carries `building_allow`, `building_deny`,
   `role_allow`, `role_deny` (lists of Building names / `Role.name`s, absent =
   empty; `Tag` in `rostering/tags.py` holds them as tuples). The single source

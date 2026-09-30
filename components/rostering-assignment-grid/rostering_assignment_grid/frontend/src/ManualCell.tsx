@@ -2,7 +2,7 @@ import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { useId, useState } from "react";
 import type { MouseEvent } from "react";
 import type { ManualEntry } from "./types";
-import { TagPillView } from "./HelperChip";
+import { tagStripeStyle, tagTitle } from "./tagStripes";
 
 interface HelperLocation {
   building: string;
@@ -19,7 +19,7 @@ interface Props {
   // name; the add-input is hidden once a name is set, so replacing it
   // requires removing the existing one first.
   singleEntry?: boolean;
-  // Show an Organizer's Tag pills next to their name (the grid's "Show tags").
+  // The Tags overlay is on: stripe an Organizer's chip in their direct Tag colours.
   showTags?: boolean;
   onChange: (names: string[]) => void;
   // When set, this cell also accepts dropping a helper's existing chip —
@@ -134,8 +134,9 @@ export function ManualCell({
         {entries.map((entry) => (
           <span
             key={entry.name}
-            title={entry.broken?.length ? entry.broken.join("\n") : undefined}
-            className={`manual-chip${entry.dimmed ? " dimmed" : ""}${entry.broken?.length ? " broken" : ""}${
+            title={[...(entry.broken ?? []), ...(showTags ? [tagTitle(entry.tags) ?? ""] : [])].filter(Boolean).join("\n") || undefined}
+            style={showTags ? tagStripeStyle(entry.tags) : undefined}
+            className={`manual-chip${showTags && tagStripeStyle(entry.tags) ? " tag-striped" : ""}${entry.dimmed ? " dimmed" : ""}${entry.broken?.length ? " broken" : ""}${
               entry.legacy
                 ? " manual-chip-new"
                 : entry.organizer_id != null
@@ -148,16 +149,6 @@ export function ManualCell({
             }`}
           >
             {entry.name}
-            {showTags && entry.tags && (entry.tags.direct.length > 0 || entry.tags.implied.length > 0) && (
-              <span className="manual-chip-tags">
-                {entry.tags.direct.map((pill) => (
-                  <TagPillView key={`d:${pill.name}`} pill={pill} implied={false} />
-                ))}
-                {entry.tags.implied.map((pill) => (
-                  <TagPillView key={`i:${pill.name}`} pill={pill} implied={true} />
-                ))}
-              </span>
-            )}
             {entry.legacy && (
               <span className="manual-chip-badge" title="Not yet a tracked Organizer — remove it and pick or add an Organizer to replace it">
                 not tracked

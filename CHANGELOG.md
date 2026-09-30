@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Roster tab's "Show tags" toggle is replaced by an "Overlays" multi-select
+  (Friends, Tags; more to come). Friends is on to begin with and is what turns
+  on the friend-request highlights (hover outlines and the orange marker on a
+  person with an unsatisfied request); with it off, chips are plain. Tags
+  colours each person's block by their tags, split into equal segments, one per
+  tag (Organizers in leadership slots too), instead of showing pills under the
+  name; hover a block for the tag names. The "Filter by tags" controls now
+  appear only while Tags is on, and dim no one while it is off.
 - The People tab's tables now size each column to its widest cell in the browser
   instead of from a character count worked out beforehand.
 - Solving (Solve, Save & solve and Place new registrants) now runs in a modal
