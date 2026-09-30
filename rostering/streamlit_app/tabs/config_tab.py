@@ -102,10 +102,7 @@ def _render_building_table(buildings: list[dict], bi: int) -> None:
         building["name"] = st.text_input("Building name", value=building["name"], key=f"bname_{bi}")
 
         counts_cols = st.columns([1, n_units])
-        counts_cols[1].markdown(
-            '<div style="text-align:center;font-weight:600;border-bottom:1px solid currentColor">Counts</div>',
-            unsafe_allow_html=True,
-        )
+        counts_cols[1].markdown("**Counts**", text_alignment="center")
 
         header_cols = st.columns([1] + [1] * n_units)
         header_cols[0].write("")
