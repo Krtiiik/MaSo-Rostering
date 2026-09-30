@@ -42,7 +42,7 @@ clears it, or the Helper is marked Can't attend, or becomes an Organizer, or
 their Room or Building no longer exists at the next Solve.
 
 **Can't attend**:
-A per-Helper flag marking them unavailable for the Season: excluded from the
+A per-Helper (or per-Organizer, see Organizer) flag marking them unavailable for the Season: excluded from the
 solver and absent from the roster grid entirely, for as long as it's set.
 Reversible at any time. Flagging a Helper who already has an Assignment or
 Manual role entries asks for confirmation, then clears the Assignment (and its
@@ -113,8 +113,14 @@ Helper-to-Helper request, against the Organizer's placement (a Room match if
 placed in a Room, a Building match if only placed at Building level), can't be
 satisfied against an unplaced Organizer, and never counts under `mutual` mode
 since an Organizer can't reciprocate. The solver treats a placed Organizer as
-a fixed anchor that never moves. *Planned, not yet implemented*: Organizers
-carry Tags, same as Helpers.
+a fixed anchor that never moves. Organizers carry Tags exactly as Helpers do
+(same Tag constraints, on the Building axis only since they have no solved
+Role; a hand placement is never blocked, and one outside their allowed set is a
+Broken rule) and can be flagged Can't attend like a Helper (their slot entries
+and so their placement are cleared, and while flagged they cannot be given a
+slot, are left out of the check and the export, and a Friend preference naming
+them stops counting). Promotion does not carry a Helper's Can't attend flag
+over: promoting is a deliberate act, so the Organizer attends.
 
 **Building**:
 A venue hosting part of the competition. The set of Buildings is not stable

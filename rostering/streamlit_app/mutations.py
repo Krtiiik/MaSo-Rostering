@@ -1612,7 +1612,11 @@ def _place_organizer(
     """Put an Organizer in a slot cell. They hold exactly one placement, so any
     entry of theirs elsewhere is removed (the placement moves); entries of theirs
     at this same Building/Room in other slots stay. A single-holder cell drops
-    its previous holder, an untracked legacy entry included."""
+    its previous holder, an untracked legacy entry included. An Organizer flagged
+    Can't attend holds nothing (like a Helper, they are not on the roster)."""
+    record = _organizer_record(state, organizer_id)
+    if record.get("cant_attend"):
+        raise RosteringError(f"{record['name']} is marked Can't attend: untick it before giving them a slot.")
     kept = []
     for entry in state["manual_roles"]["structural"]:
         if entry.get("organizer_id") == organizer_id and not _same_place(entry, building, room):
@@ -1805,6 +1809,56 @@ def delete_organizer(workspace: Workspace, organizer_id: int, confirmed: bool = 
     return state
 
 
+def organizer_cant_attend_impact(state: dict[str, Any], organizer_id: int) -> list[str]:
+    """What marking this Organizer Can't attend would clear, one line each: every
+    slot entry holding them (and with the last one, their placement). Empty when
+    there is nothing to clear, in which case no confirmation is needed."""
+    _organizer_record(state, organizer_id)
+    return _organizer_impact(state, organizer_id)
+
+
+def set_organizer_cant_attend(
+    workspace: Workspace, organizer_id: int, cant_attend: bool, confirmed: bool = False
+) -> dict:
+    """Flag an Organizer Can't attend, or clear the flag (:func:`set_cant_attend`
+    for an Organizer).
+
+    An Organizer holding a slot is only flagged once ``confirmed``; without it
+    :class:`ConfirmationRequired` names the slot entries that would be cleared
+    and nothing changes. Confirming removes every slot entry holding them, which
+    clears their placement, and raises the stale-roster flag. One holding no slot
+    is flagged at once and the roster stays as it is. Clearing the flag only
+    clears the flag: it restores nothing, stales nothing and does not solve. While
+    flagged an Organizer is left out of the Broken-rule check, the export and
+    friend scoring (a request naming them stops counting, silently), and cannot
+    be given a slot."""
+    state = workspace.load()
+    record = _organizer_record(state, organizer_id)
+    if bool(record.get("cant_attend")) == cant_attend:
+        return state
+    if not cant_attend:
+        record.pop("cant_attend", None)
+        workspace.save(state)
+        return state
+
+    impact = _organizer_impact(state, organizer_id)
+    if impact and not confirmed:
+        raise ConfirmationRequired(
+            f"Marking {record['name']} as Can't attend clears " + "; ".join(impact) + ". "
+            "Un-flagging them later does not restore these, and the roster is out of date until the next Solve.",
+            impact,
+        )
+    record["cant_attend"] = True
+    if impact:
+        state["manual_roles"]["structural"] = [
+            e for e in state["manual_roles"]["structural"] if e.get("organizer_id") != organizer_id
+        ]
+        _sync_placements(state)
+        _add_stale_reason(state, f"{record['name']} can't attend: their role entries were cleared")
+    workspace.save(state)
+    return state
+
+
 def assign_organizer(
     workspace: Workspace, organizer_id: int, role: str, building: str, room: Optional[str] = None
 ) -> dict:
@@ -1895,7 +1949,10 @@ def set_slot_holders(
         if key in legacy_in_cell:
             desired.append(("legacy", legacy_in_cell[key]))
             continue
-        matches = sorted((o for o in state["organizers"] if normalize_name(o["name"]) == key), key=lambda o: o["id"])
+        matches = sorted(
+            (o for o in state["organizers"] if normalize_name(o["name"]) == key),
+            key=lambda o: (bool(o.get("cant_attend")), o["id"]),
+        )
         picked = next((o for o in matches if o["id"] in in_cell), matches[0] if matches else None)
         if picked is None:
             picked = _new_organizer(workspace, state, name, None)
@@ -2016,40 +2073,45 @@ def _group_tag_clashes(state: dict[str, Any]) -> list[forced_friends.TagClash]:
     )
 
 
-def _stranded(state: dict[str, Any]) -> set[tuple]:
-    """Every dead end of the Tag constraints: ``(helper id, axis)`` for a Helper
-    with no allowed Building or no allowed Role, and ``(group id, axis,
-    "group")`` for a Forced friends group whose members share no allowed
-    Building or Role."""
+def _stranded(state: dict[str, Any]) -> set[tuple[str, int, str]]:
+    """Every ``(kind, id, axis)`` that currently has no allowed Building or no
+    allowed Role: a Helper (``kind`` ``"helper"``) on either axis, an Organizer
+    (``"organizer"``) on the Building axis only, since they have no solved Role,
+    and a Forced friends group (``"group"``) whose members share no allowed
+    Building or Role on an axis the group shares."""
+    definitions = _tag_definitions(state)
+    universes = _tag_universes(state)
     direct = {h["id"]: _direct_tag_ids(h) for h in state["helpers"]}
-    stranded: set[tuple] = tag_tree.dead_ends(_tag_definitions(state), direct, _tag_universes(state))
-    stranded |= {(clash.group.id, clash.axis, "group") for clash in _group_tag_clashes(state)}
+    stranded = {("helper", hid, axis) for hid, axis in tag_tree.dead_ends(definitions, direct, universes)}
+    direct_organizers = {o["id"]: _direct_tag_ids(o) for o in state["organizers"]}
+    building_only = {tag_tree.BUILDING: universes[tag_tree.BUILDING]}
+    stranded |= {("organizer", oid, axis) for oid, axis in tag_tree.dead_ends(definitions, direct_organizers, building_only)}
+    stranded |= {("group", clash.group.id, clash.axis) for clash in _group_tag_clashes(state)}
     return stranded
 
 
-def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple]) -> None:
+def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[str, int, str]]) -> None:
     """The one validation behind every Tag entry point (the Tags tab and the
     Helper list's inline multiselect alike): refuse an edit, already applied to
     the in-memory ``state`` but not yet saved, that leaves a Helper with no
-    allowed Building or no allowed Role, or a Forced friends group whose members
-    then share no allowed Building or Role. Only what the edit newly strands
-    counts, so a Helper or group already stranded (say, by a later configuration
-    change) never blocks an unrelated edit."""
+    allowed Building or no allowed Role, an Organizer with no allowed Building,
+    or a Forced friends group whose members then share no allowed Building or
+    Role. Only what the edit newly strands counts, so one already stranded
+    (say, by a later configuration change) never blocks an unrelated edit."""
     fresh = sorted(_stranded(state) - before)
     if not fresh:
         return
     tags = _tag_definitions(state)
     universes = _tag_universes(state)
-    names = {h["id"]: h["name"] for h in state["helpers"]}
     problems = []
-    for helper_id, axis in (f for f in fresh if len(f) == 2):
-        record = next(h for h in state["helpers"] if h["id"] == helper_id)
+    for kind, person_id, axis in (f for f in fresh if f[0] != "group"):
+        record = next(p for p in state["helpers" if kind == "helper" else "organizers"] if p["id"] == person_id)
         found = tag_tree.restrictions(tags, _direct_tag_ids(record), axis, universes[axis])
         display = (lambda v: Role[v].value) if axis == tag_tree.ROLE else str
         why = "; ".join(tag_tree.describe_restriction(r, axis, display) for r in found)
         noun = "Role" if axis == tag_tree.ROLE else "Building"
-        problems.append(f"{names[helper_id]} would be left with no allowed {noun} ({why})")
-    fresh_groups = {f[:2] for f in fresh if len(f) == 3}
+        problems.append(f"{record['name']} would be left with no allowed {noun} ({why})")
+    fresh_groups = {(group_id, axis) for kind, group_id, axis in fresh if kind == "group"}
     problems += [c.message() for c in _group_tag_clashes(state) if (c.group.id, c.axis) in fresh_groups]
     shown, hidden = problems[:3], len(problems) - 3
     raise RosteringError("Refused: " + "; ".join(shown) + (f"; and {hidden} more" if hidden > 0 else "") + ".")
@@ -2199,17 +2261,21 @@ def set_helper_tags(workspace: Workspace, helper_id: int, tag_ids: list[int]) ->
     return state
 
 
-def add_tag_to_helpers(workspace: Workspace, tag_id: int, helper_ids: list[int]) -> dict:
-    """Give one Tag directly to each of these Helpers, keeping whatever else
-    they carry (the Tags tab's "Add N to <tag>" and the Helper list's bulk
-    apply). All or nothing: an unknown Helper or Tag, or one Helper the Tag
-    would leave with no allowed Building or Role, changes nobody."""
+def add_tag_to_helpers(
+    workspace: Workspace, tag_id: int, helper_ids: list[int], organizer_ids: Sequence[int] = ()
+) -> dict:
+    """Give one Tag directly to each of these Helpers (and Organizers, who carry
+    Tags the same way), keeping whatever else they carry (the Tags tab's "Add N
+    to <tag>" and the Helper list's bulk apply). All or nothing: an unknown
+    Helper, Organizer or Tag, or one person the Tag would leave with no allowed
+    Building (or, for a Helper, Role), changes nobody."""
     state = workspace.load()
     _tag_record(state, tag_id)
-    helpers = [_helper_record(state, helper_id) for helper_id in helper_ids]
+    people = [_helper_record(state, helper_id) for helper_id in helper_ids]
+    people += [_organizer_record(state, organizer_id) for organizer_id in organizer_ids]
     before = _stranded(state)
-    for helper in helpers:
-        _assign_tags(state, helper, [*_direct_tag_ids(helper), tag_id])
+    for person in people:
+        _assign_tags(state, person, [*_direct_tag_ids(person), tag_id])
     _refuse_new_dead_ends(state, before)
     workspace.save(state)
     return state
@@ -2223,6 +2289,79 @@ def remove_tag_from_helper(workspace: Workspace, tag_id: int, helper_id: int) ->
     _assign_tags(state, helper, [t for t in _direct_tag_ids(helper) if t != tag_id])
     workspace.save(state)
     return state
+
+
+def organizer_tags(state: dict[str, Any], organizer_id: int) -> dict[str, list[int]]:
+    """An Organizer's Tags as Tag ids (:func:`helper_tags` for an Organizer):
+    ``direct``, ``implied`` and ``effective``, the last two computed live from
+    the Tag tree."""
+    tags = _tag_definitions(state)
+    direct = [
+        t for t in dict.fromkeys(_direct_tag_ids(_organizer_record(state, organizer_id))) if any(x.id == t for x in tags)
+    ]
+    implied = tag_tree.implied_tag_ids(tags, direct)
+    return {"direct": direct, "implied": implied, "effective": [*direct, *implied]}
+
+
+def organizer_allowed(state: dict[str, Any], organizer_id: int) -> dict[str, list[str]]:
+    """An Organizer's allowed Buildings from their effective Tag constraints
+    (:func:`helper_allowed`, minus the Role axis: an Organizer has no solved
+    Role), in configuration order. The live checker judges their placement
+    through the same rule."""
+    universe = _tag_universes(state)[tag_tree.BUILDING]
+    direct = _direct_tag_ids(_organizer_record(state, organizer_id))
+    return {"buildings": tag_tree.allowed_values(_tag_definitions(state), direct, tag_tree.BUILDING, universe)}
+
+
+def set_organizer_tags(workspace: Workspace, organizer_id: int, tag_ids: list[int]) -> dict:
+    """Replace the Tags assigned directly to one Organizer (:func:`set_helper_tags`
+    for an Organizer). Refused, with the reason, if it would leave them no
+    allowed Building; a hand placement they already have is never touched."""
+    state = workspace.load()
+    before = _stranded(state)
+    _assign_tags(state, _organizer_record(state, organizer_id), list(tag_ids))
+    _refuse_new_dead_ends(state, before)
+    workspace.save(state)
+    return state
+
+
+def remove_tag_from_organizer(workspace: Workspace, tag_id: int, organizer_id: int) -> dict:
+    """Take a directly assigned Tag off an Organizer."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    _assign_tags(state, organizer, [t for t in _direct_tag_ids(organizer) if t != tag_id])
+    workspace.save(state)
+    return state
+
+
+def tag_organizer_carriers(state: dict[str, Any], tag_id: int) -> list[dict]:
+    """Every Organizer who carries a Tag, directly or by implication, by name:
+    ``organizer_id``, ``name`` and ``via`` (:func:`tag_carriers` for Organizers)."""
+    _tag_record(state, tag_id)
+    tags = _tag_definitions(state)
+    carriers = []
+    for organizer in state["organizers"]:
+        direct = organizer_tags(state, organizer["id"])["direct"]
+        if tag_id in direct:
+            carriers.append({"organizer_id": organizer["id"], "name": organizer["name"], "via": None})
+        elif tag_id in tag_tree.effective_tag_ids(tags, direct):
+            carriers.append(
+                {
+                    "organizer_id": organizer["id"],
+                    "name": organizer["name"],
+                    "via": tag_tree.via_tag_id(tags, direct, tag_id),
+                }
+            )
+    return sorted(carriers, key=lambda c: c["name"].lower())
+
+
+def tag_organizer_counts(state: dict[str, Any]) -> dict[int, int]:
+    """Tag id -> how many Organizers carry it, directly or by implication."""
+    counts = {t["id"]: 0 for t in state.get("tags") or []}
+    for organizer in state["organizers"]:
+        for tag_id in organizer_tags(state, organizer["id"])["effective"]:
+            counts[tag_id] += 1
+    return counts
 
 
 def tag_carriers(state: dict[str, Any], tag_id: int) -> list[dict]:
@@ -2271,6 +2410,35 @@ def grid_tag_pills(state: dict[str, Any]) -> dict[int, dict[str, list[dict[str, 
     return pills
 
 
+def organizer_tag_pills(state: dict[str, Any]) -> dict[int, dict[str, list[dict[str, str]]]]:
+    """Each Organizer's Tag pills for the roster grid, by Organizer id
+    (:func:`grid_tag_pills` for Organizers, whose chips sit in their slot cells)."""
+    by_id = {t["id"]: t for t in state.get("tags") or []}
+
+    def pill(tag_id: int) -> dict[str, str]:
+        return {"name": by_id[tag_id]["name"], "colour": by_id[tag_id]["colour"]}
+
+    pills = {}
+    for organizer in state["organizers"]:
+        found = organizer_tags(state, organizer["id"])
+        pills[organizer["id"]] = {
+            "direct": [pill(t) for t in found["direct"]],
+            "implied": [pill(t) for t in found["implied"]],
+        }
+    return pills
+
+
+def dimmed_organizer_ids(state: dict[str, Any], tag_ids: list[int], mode: str) -> list[int]:
+    """The Organizers the roster grid's Tag filter dims (:func:`dimmed_helper_ids`
+    for Organizers): everyone who does not match ``tag_ids``."""
+    tags = _tag_definitions(state)
+    return [
+        organizer["id"]
+        for organizer in state["organizers"]
+        if not tag_tree.matches_filter(tags, organizer_tags(state, organizer["id"])["direct"], tag_ids, mode)
+    ]
+
+
 def dimmed_helper_ids(state: dict[str, Any], tag_ids: list[int], mode: str) -> list[int]:
     """The Helpers the roster grid's Tag filter dims: everyone who does not match
     ``tag_ids`` (all-of or any-of, ``mode`` ``"all"``/``"any"``; inherited Tags
@@ -2284,13 +2452,16 @@ def dimmed_helper_ids(state: dict[str, Any], tag_ids: list[int], mode: str) -> l
 
 
 def tag_delete_impact(state: dict[str, Any], tag_id: int) -> dict[str, list[str]]:
-    """What deleting a Tag would change, by name: ``helpers`` it would be
-    stripped from (those who carry it directly) and ``children`` that would be
-    re-parented. Both empty means the delete needs no confirmation."""
+    """What deleting a Tag would change, by name: ``helpers`` and ``organizers``
+    it would be stripped from (those who carry it directly) and ``children`` that
+    would be re-parented. All empty means the delete needs no confirmation."""
     record = _tag_record(state, tag_id)
     return {
         "helpers": sorted(
             (h["name"] for h in state["helpers"] if tag_id in _direct_tag_ids(h)), key=str.lower
+        ),
+        "organizers": sorted(
+            (o["name"] for o in state["organizers"] if tag_id in _direct_tag_ids(o)), key=str.lower
         ),
         "children": sorted(
             (t["name"] for t in state["tags"] if t["parent_id"] == record["id"]), key=str.lower
@@ -2307,10 +2478,12 @@ def delete_tag(workspace: Workspace, tag_id: int, confirmed: bool = False) -> di
     state = workspace.load()
     record = _tag_record(state, tag_id)
     impact = tag_delete_impact(state, tag_id)
-    if (impact["helpers"] or impact["children"]) and not confirmed:
+    if (impact["helpers"] or impact["organizers"] or impact["children"]) and not confirmed:
         lines = []
         if impact["helpers"]:
             lines.append("Removed from: " + ", ".join(impact["helpers"]))
+        if impact["organizers"]:
+            lines.append("Removed from Organizers: " + ", ".join(impact["organizers"]))
         if impact["children"]:
             parent = next((t["name"] for t in state["tags"] if t["id"] == record["parent_id"]), None)
             lines.append(
@@ -2318,9 +2491,9 @@ def delete_tag(workspace: Workspace, tag_id: int, confirmed: bool = False) -> di
                 + (f"move up to {parent}" if parent else "become top-level tags")
             )
         raise ConfirmationRequired(f"Deleting the tag {record['name']} changes: " + "; ".join(lines) + ".", lines)
-    for helper in state["helpers"]:
-        if tag_id in _direct_tag_ids(helper):
-            helper["tags"] = [t for t in helper["tags"] if t != tag_id]
+    for person in (*state["helpers"], *state["organizers"]):
+        if tag_id in _direct_tag_ids(person):
+            person["tags"] = [t for t in person["tags"] if t != tag_id]
     for child in state["tags"]:
         if child["parent_id"] == tag_id:
             child["parent_id"] = record["parent_id"]
@@ -3041,12 +3214,13 @@ def place_new_registrants(workspace: Workspace) -> dict:
 def broken_rules(state: dict[str, Any]) -> list[BrokenRule]:
     """The Broken rules of the roster in ``state`` as it stands right now
     (see CONTEXT.md "Broken rule"): judged live on every call from the current
-    Assignments and configuration, never stored. Nothing is judged before the
-    first solve — an empty roster is not a roster that breaks its minimums."""
-    if not state["assignments"]:
-        return []
+    Assignments and configuration, never stored. Nothing about the Helpers is
+    judged before the first solve — an empty roster is not a roster that breaks
+    its minimums — but an Organizer's placement is, since they are placed by
+    hand whether or not anything has been solved."""
     assignments = [assignment_from_dict(a) for a in state["assignments"]]
-    return check_roster(_build_competition(state), assignments)
+    broken = check_roster(_build_competition(state), assignments)
+    return broken if assignments else [b for b in broken if b.organizer_ids]
 
 
 def newly_broken_rules(before: dict[str, Any], after: dict[str, Any]) -> list[BrokenRule]:
@@ -3064,7 +3238,8 @@ def move_toast_lines(before: dict[str, Any], after: dict[str, Any]) -> list[str]
 def broken_rule_marks(broken: list[BrokenRule]) -> dict[str, list[dict]]:
     """What the grid marks for these Broken rules: ``cells`` are ``{building,
     room, role, line}`` (a ``None`` role marks the whole Room), ``helpers`` are
-    ``{helper_id, line}`` chips."""
+    ``{helper_id, line}`` chips and ``organizers`` the ``{organizer_id, line}``
+    chips of Organizers in their slot cells."""
     return {
         "cells": [
             {"building": b, "room": r, "role": role, "line": rule.line}
@@ -3072,6 +3247,7 @@ def broken_rule_marks(broken: list[BrokenRule]) -> dict[str, list[dict]]:
             for b, r, role in rule.cells
         ],
         "helpers": [{"helper_id": hid, "line": rule.line} for rule in broken for hid in rule.helper_ids],
+        "organizers": [{"organizer_id": oid, "line": rule.line} for rule in broken for oid in rule.organizer_ids],
     }
 
 

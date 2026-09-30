@@ -11,7 +11,7 @@ function pillTextColour(hex: string): string {
   return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#000000" : "#ffffff";
 }
 
-function TagPillView({ pill, implied }: { pill: TagPill; implied: boolean }) {
+export function TagPillView({ pill, implied }: { pill: TagPill; implied: boolean }) {
   const colour = /^#[0-9a-fA-F]{6}$/.test(pill.colour) ? pill.colour : "#888888";
   const style = implied
     ? { borderColor: colour, color: colour }

@@ -199,6 +199,8 @@ def organizer_to_dict(o: Organizer) -> dict:
     }
     if o.tags:  # a missing key means no direct Tags
         data["tags"] = list(o.tags)
+    if o.cant_attend:  # a missing key means attending
+        data["cant_attend"] = True
     return data
 
 
@@ -211,6 +213,7 @@ def organizer_from_dict(data: dict) -> Organizer:
         building=data.get("building"),
         room=data.get("room"),
         tags=[int(t) for t in data.get("tags") or []],
+        cant_attend=bool(data.get("cant_attend", False)),
     )
 
 
