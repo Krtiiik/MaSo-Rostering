@@ -297,6 +297,22 @@ pushing the tag, not just creating it locally.
   and Roster tabs), the Roster tab's warning above Solve. A same-name row with
   no e-mail match is a new registrant plus a review-list entry, so re-uploading
   an export with no e-mail column duplicates every Helper as one to review.
+- Place new registrants (`mutations.place_new_registrants`; Roster tab bottom
+  bar button, enabled while `unplaced_reason` is set): `solve_competition` with
+  *every* standing Assignment as `fixed_assignments` (`_standing_assignments`,
+  the shared filter behind `_split_locks`: it skips one whose Helper, Building or
+  Room is gone), then only the newcomers' Assignments are taken from the result
+  and appended, so every existing record stays byte-for-byte as it was (lock
+  flag included). Never reads or writes a lock beyond reporting, in
+  `diagnostics["dropped_locks"]`, a lock on a vanished Room (that Helper has no
+  usable Assignment, so is placed afresh with the newcomers and its
+  `answers_changed` marker cleared). Unlike `solve` it leaves `stale_reasons`
+  alone, needs no confirmation (nothing placed can be lost) and raises
+  `RosteringError` when there is no roster yet or nobody is unassigned.
+  `diagnostics` come from the shared `_solve_diagnostics`, and the Broken-rule
+  banner judges the result live like after any solve. Forced-friend groups
+  need no code here: once that rule family exists it applies to the newcomers
+  through the same fixed-Assignment solve.
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
   Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
   `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never

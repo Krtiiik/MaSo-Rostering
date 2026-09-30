@@ -202,6 +202,7 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
 
 
 _TOAST_KEY = "_move_toast"
+_PLACED_KEY = "_placed_new_note"
 
 # How the Broken-rule banner names each rule family, in tier order. A family
 # not listed (added later through rostering.solver.rules.register_rule_family)
@@ -317,6 +318,20 @@ def render() -> None:
             solve_prompt.remember_dropped_locks(solved)
         st.rerun()
 
+    def run_place_new() -> None:
+        newcomers = len(mutations.unplaced_helpers(state))
+        with st.spinner("Placing…"):
+            try:
+                placed = mutations.place_new_registrants(session.get_workspace())
+            except mutations.RosteringError as exc:
+                st.error(str(exc))
+                return
+            session.set_state(placed)
+            solve_prompt.remember_dropped_locks(placed)
+            noun = "registrant" if newcomers == 1 else "registrants"
+            st.session_state[_PLACED_KEY] = f"Placed {newcomers} new {noun}; everyone else stayed where they were."
+        st.rerun()
+
     stale = mutations.stale_reasons(state)
     unplaced = mutations.unplaced_reason(state)
     blockers = mutations.export_blockers(state)
@@ -330,32 +345,41 @@ def render() -> None:
             )
         if unplaced:
             # Registrants nobody has placed yet (e.g. new in a re-upload): drag
-            # them into the grid from the Unassigned pool, or Solve.
+            # them into the grid from the Unassigned pool, place only them, or Solve.
             st.warning(
-                f"**{unplaced}.** Drag them into the grid from the Unassigned pool, or Solve; Export is blocked "
-                "until everyone is placed.",
+                f"**{unplaced}.** Drag them into the grid from the Unassigned pool, use Place new registrants "
+                "(everyone placed stays put), or Solve; Export is blocked until everyone is placed.",
                 icon="⚠️",
             )
-        cols = st.columns([2, 2, 2, 1, 2], vertical_alignment="center")
+        cols = st.columns([2, 2, 2, 2, 1, 2], vertical_alignment="center")
         solve_label = f"Solve (keeps {locked} locked)" if locked else ("Re-solve" if state["assignments"] else "Solve")
         if cols[0].button(solve_label, type="primary"):
             solve_prompt.request_solve(state, run_solve)
 
+        # Solves only the unassigned with every placed Assignment held fixed, so
+        # no confirmation is needed: nothing placed can be lost. Touches no lock.
+        if cols[1].button(
+            "Place new registrants",
+            disabled=not unplaced,
+            help="Place only the unassigned Helpers; everyone already placed stays exactly where they are.",
+        ):
+            run_place_new()
+
         # Bulk lock management; single locks are set on the chips themselves.
-        if cols[1].button("Lock all placed", disabled=not state["assignments"] or locked == len(state["assignments"])):
+        if cols[2].button("Lock all placed", disabled=not state["assignments"] or locked == len(state["assignments"])):
             session.set_state(mutations.lock_all_placed(session.get_workspace()))
             st.rerun()
-        if cols[2].button("Clear all locks", disabled=not locked):
+        if cols[3].button("Clear all locks", disabled=not locked):
             session.set_state(mutations.clear_all_locks(session.get_workspace()))
             st.rerun()
-        cols[3].markdown(f"**{locked}** locked")
+        cols[4].markdown(f"**{locked}** locked")
 
         if state["assignments"] and blockers:
-            cols[4].button("Export to Excel", disabled=True, help="Export is blocked: " + "; ".join(blockers))
+            cols[5].button("Export to Excel", disabled=True, help="Export is blocked: " + "; ".join(blockers))
         elif state["assignments"]:
             try:
                 export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
-                cols[4].download_button(
+                cols[5].download_button(
                     "Export to Excel",
                     data=export_bytes,
                     file_name="roster.xlsx",
@@ -365,6 +389,9 @@ def render() -> None:
                 pass
 
     solve_prompt.show_dropped_locks()
+    placed_note = st.session_state.pop(_PLACED_KEY, None)
+    if placed_note:
+        st.success(placed_note, icon="✅")
 
     # The toast for the previous run's drop (emitted after the rerun that
     # follows it, since a toast issued right before st.rerun() can be lost).

@@ -2329,17 +2329,17 @@ def put_solver_config(workspace: Workspace, solver_config: dict) -> dict:
     return state
 
 
-def _split_locks(state: dict[str, Any]) -> tuple[list[Assignment], list[str]]:
-    """The Locked Assignments a full Solve holds fixed, and the reason for each
-    lock it drops instead: a lock whose Helper, Building or Room no longer
-    exists is dropped (that Helper is re-solved as unlocked)."""
+def _standing_assignments(state: dict[str, Any], *, only_locked: bool) -> tuple[list[Assignment], list[str]]:
+    """The Assignments (only the locked ones when ``only_locked``) a Solve can
+    hold fixed, and the reason for each it can't: one whose Helper, Building or
+    Room no longer exists is dropped (that Helper is re-solved as unplaced)."""
     rooms = {(b["name"], r["name"]) for b in state["config"] for r in b["rooms"]}
     buildings = {b["name"] for b in state["config"]}
     helper_ids = {h["id"] for h in state["helpers"] if not h.get("cant_attend")}
     kept: list[Assignment] = []
     dropped: list[str] = []
     for data in state["assignments"]:
-        if not data.get("locked"):
+        if only_locked and not data.get("locked"):
             continue
         assignment = assignment_from_dict(data)
         if assignment.helper_id not in helper_ids:
@@ -2351,6 +2351,13 @@ def _split_locks(state: dict[str, Any]) -> tuple[list[Assignment], list[str]]:
         else:
             kept.append(assignment)
     return kept, dropped
+
+
+def _split_locks(state: dict[str, Any]) -> tuple[list[Assignment], list[str]]:
+    """The Locked Assignments a full Solve holds fixed, and the reason for each
+    lock it drops instead: a lock whose Helper, Building or Room no longer
+    exists is dropped (that Helper is re-solved as unlocked)."""
+    return _standing_assignments(state, only_locked=True)
 
 
 def _dropped_locks_lines(reasons: list[str]) -> list[str]:
@@ -2374,6 +2381,26 @@ def unlocked_assignments_replaced(state: dict[str, Any]) -> int:
     confirmation is needed — when nothing is placed yet or all are locked."""
     kept, _ = _split_locks(state)
     return len(state["assignments"]) - len(kept)
+
+
+def _solve_diagnostics(result: SolveResult, dropped_locks: list[str]) -> dict[str, Any]:
+    """The saved-state ``diagnostics`` of a solve (a full Solve or Place new
+    registrants), with ``dropped_locks`` the reasons of the locks it dropped."""
+    return {
+        "status": result.status,
+        "objective_value": result.objective_value,
+        "unsatisfied_friend_pairs": [list(p) for p in result.unsatisfied_friend_pairs],
+        "satisfied_friend_pairs": [list(p) for p in result.satisfied_friend_pairs],
+        # What the solver had to bend, as of this solve — later hand edits do
+        # not update it. Not shown: the banner judges the roster live
+        # (``broken_rules``).
+        "broken_rules": [
+            {"family": b.family, "amount": b.amount, "line": b.line} for b in result.broken_rules
+        ],
+        # The locks this solve dropped because their Helper/Room/Building is
+        # gone (each Helper was re-solved unlocked); shown once after a solve.
+        "dropped_locks": _dropped_locks_lines(dropped_locks),
+    }
 
 
 def solve(workspace: Workspace) -> dict:
@@ -2401,23 +2428,51 @@ def solve(workspace: Workspace) -> dict:
     state["assignments"] = [
         assignment_to_dict(replace(a, locked=a.helper_id in locked_ids)) for a in result.assignments
     ]
-    state["diagnostics"] = {
-        "status": result.status,
-        "objective_value": result.objective_value,
-        "unsatisfied_friend_pairs": [list(p) for p in result.unsatisfied_friend_pairs],
-        "satisfied_friend_pairs": [list(p) for p in result.satisfied_friend_pairs],
-        # What the solver had to bend, as of this solve — later hand edits do
-        # not update it. Not shown: the banner judges the roster live
-        # (``broken_rules``).
-        "broken_rules": [
-            {"family": b.family, "amount": b.amount, "line": b.line} for b in result.broken_rules
-        ],
-        # The locks this solve dropped because their Helper/Room/Building is
-        # gone (each Helper was re-solved unlocked); shown once after a solve.
-        "dropped_locks": _dropped_locks_lines(dropped),
-    }
+    state["diagnostics"] = _solve_diagnostics(result, dropped)
     # The roster is fresh again: whatever made it stale has been solved for.
     state["stale_reasons"] = []
+    workspace.save(state)
+    return state
+
+
+def place_new_registrants(workspace: Workspace) -> dict:
+    """Place only the unassigned Helpers, holding every existing Assignment
+    fixed (locked or not): the fixed Helpers still count toward Room/Building
+    minimums, Friend preferences and Forced-friend groups, but nobody placed is
+    moved, repaired or re-solved, even when a hand move breaks a rule. Locks are
+    neither created nor cleared, and the stale flag is left as it is (only a
+    full Solve clears it). If not every rule can hold the roster still comes
+    back with the Broken rules reported, like any solve. An Assignment whose Room
+    or Building no longer exists cannot be held, so that Helper is placed afresh
+    with the newcomers (its lock, if any, is dropped and reported as in a full
+    Solve). Raises when there is no roster yet or nobody is unassigned."""
+    state = workspace.load()
+    if not state["config"]:
+        raise RosteringError("Configure at least one building first.")
+    if not state["assignments"]:
+        raise RosteringError("There is no roster yet: run a full Solve first.")
+    fixed, _ = _standing_assignments(state, only_locked=False)
+    _, dropped_locks = _split_locks(state)
+    held = {a.helper_id for a in fixed}
+    newcomers = {h["id"] for h in state["helpers"] if not h.get("cant_attend") and h["id"] not in held}
+    if not newcomers:
+        raise RosteringError("Everyone is already placed, so there is nobody to place.")
+
+    comp = _build_competition(state)
+    solver_config = solver_config_from_dict(state["solver_config"])
+    try:
+        result = solve_competition(comp, solver_config, fixed_assignments=fixed)
+    except NoRosterFound as exc:
+        # Nothing to store: the roster as it was is left untouched.
+        raise RosteringError(str(exc)) from exc
+
+    # Every held Assignment stays the record it was (lock and all); only the
+    # newcomers' Assignments come from the solve.
+    state["assignments"] = [a for a in state["assignments"] if a["helper_id"] in held] + [
+        assignment_to_dict(a) for a in result.assignments if a.helper_id in newcomers
+    ]
+    _clear_answers_changed(state, newcomers)  # placed anew
+    state["diagnostics"] = _solve_diagnostics(result, dropped_locks)
     workspace.save(state)
     return state
 
