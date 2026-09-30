@@ -30,6 +30,19 @@ named roles belong to each. Implementation details not in the glossary:
   other two (Uvaděči účastníků, Focení předávání cen) are scoped by **room**
   (stricter) — so a helper can only be tagged into the slot for their own
   building/room, not a different one.
+- A manual role's cell in the grid is the same `Cell` as a solver role's
+  (`ManualCell` wraps it): names are chips, and a click on the cell opens a name
+  field. The row label marks the row as "Manuální role" (italic, with the Material
+  `link_2` icon inlined as an SVG, `Link2Icon.tsx`). Organizer rows and Helper rows
+  (solver roles, Additional roles) are separated by a heavy `row-side-start` line.
+- Organizers are draggable (`OrganizerChip`; drag data `{kind: "organizer"}`, a
+  Helper's is `{kind: "helper"}`). `Cell.accepts` (`"organizer"` for the four
+  leadership-slot rows, `"helper"` otherwise) refuses a drag of the other kind, and
+  the grid uses `pointerWithin` collision detection so a refused cell never hands
+  the drop to a neighbour. A drop is the `organizer_drop` trigger, handled by
+  `mutations.move_organizer` (`assign_organizer`, plus leaving the slot cell the
+  chip came from); Organizers holding no slot and not flagged Can't attend are the
+  "Organizátoři" list of the Nezařazení area (`grid_tab._grid_organizers`).
 - In the roster grid, all three Additional roles can be filled either by
   drag-and-dropping a helper's existing chip onto their own building's/room's
   overlay cell (which duplicates them into that slot without moving their

@@ -117,6 +117,25 @@ export interface GridRow {
   allowDuplicateDrop?: boolean;
 }
 
+// The slot cell an Organizer's chip was dragged out of.
+export interface OrganizerSource {
+  key: string;
+  building: string;
+  room: string | null;
+}
+
+// A tracked Organizer who attends: the grid draws a chip for each one that holds
+// no slot (`placed` false) in the Nezařazení area. The same Tag/dimmed/Broken-rule
+// extras a slot chip carries on its ManualEntry.
+export interface OrganizerInfo {
+  id: number;
+  name: string;
+  placed: boolean;
+  tags?: HelperTags | null;
+  dimmed?: boolean;
+  broken?: string[];
+}
+
 export interface ManualEntry {
   key: string;
   building: string | null;
@@ -174,6 +193,7 @@ export interface AssignmentGridData {
   cell_merges: CellMerges;
   helper_names: string[];
   organizer_names?: string[];
+  organizers?: OrganizerInfo[];
   broken_marks?: BrokenMarks;
   // The Roster tab's active overlays ("friends", "tags", "role_fit",
   // "building_fit"); none = plain chips.
@@ -188,6 +208,17 @@ export interface DropEvent {
   building: string;
   room: string;
   role: string;
+}
+
+// Fired when an Organizer's chip is dropped on an Organizer row's slot cell;
+// `source` is the cell it was dragged out of (null from the Nezařazení list).
+// `room` is null for a Building-scoped slot.
+export interface OrganizerDropEvent {
+  organizer_id: number;
+  key: string;
+  building: string;
+  room: string | null;
+  source: OrganizerSource | null;
 }
 
 // Fired by ctrl/cmd-clicking a placed chip or pressing the hover card's
@@ -217,7 +248,7 @@ export interface CellMergeEvent {
   merged: boolean;
 }
 
-// The trigger key(s) this component reports back to Python. All four fire
+// The trigger key(s) this component reports back to Python. All five fire
 // once per completed edit and are consumed by Streamlit after the
 // resulting rerun (CCv2 triggers reset automatically — no manual dedup
 // bookkeeping needed on either side).
@@ -227,4 +258,5 @@ export interface AssignmentGridState {
   manual_set: ManualSetEvent;
   cell_merge: CellMergeEvent;
   lock: LockEvent;
+  organizer_drop: OrganizerDropEvent;
 }

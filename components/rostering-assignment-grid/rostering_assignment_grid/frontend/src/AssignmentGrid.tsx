@@ -1,11 +1,13 @@
 import { FrontendRendererArgs } from "@streamlit/component-v2-lib";
 import { FC, ReactElement, ReactNode, useEffect, useId, useMemo, useState } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { Cell } from "./Cell";
 import { HelperCard, computeCardPosition } from "./HelperCard";
 import { HelperChip } from "./HelperChip";
+import { Link2Icon } from "./Link2Icon";
 import { ManualCell } from "./ManualCell";
+import { OrganizerChip } from "./OrganizerChip";
 import type {
   Assignment,
   AssignmentGridData,
@@ -14,6 +16,7 @@ import type {
   Helper,
   HelperCardData,
   ManualEntry,
+  OrganizerSource,
 } from "./types";
 
 const DRAG_ACTIVATION_DISTANCE = 6;
@@ -70,6 +73,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   cell_merges,
   helper_names,
   organizer_names,
+  organizers,
   broken_marks,
   overlays,
   dimmed_helper_ids,
@@ -174,6 +178,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
 
   const unassignedHelpers = helpers
     .filter((h) => !assignmentByHelper.has(h.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "cs"));
+
+  // Organizers holding no slot wait next to the unplaced Helpers, in a list of their own.
+  const unplacedOrganizers = (organizers ?? [])
+    .filter((o) => !o.placed)
     .sort((a, b) => a.name.localeCompare(b.name, "cs"));
 
   // Every friend-relation signal below is derived directly from each
@@ -411,8 +420,26 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     if (!over) return;
 
     const overData = over.data.current as
-      | { type?: string; key?: string; building?: string | null; rooms?: string[] | null }
+      | { type?: string; key?: string; building?: string | null; room?: string | null; rooms?: string[] | null }
       | undefined;
+    const dragData = active.data.current as { kind?: string; organizerId?: number; source?: OrganizerSource | null } | undefined;
+
+    // An Organizer's chip goes onto an Organizer row's slot cell only, and a
+    // Helper's chip anywhere but there (the cells refuse the wrong kind while
+    // dragging; this guards the same rule).
+    if (dragData?.kind === "organizer") {
+      if (overData?.type !== "organizer_slot" || !overData.key || !overData.building) return;
+      setTriggerValue("organizer_drop", {
+        organizer_id: dragData.organizerId,
+        key: overData.key,
+        building: overData.building,
+        room: overData.room ?? null,
+        source: dragData.source ?? null,
+      });
+      return;
+    }
+    if (overData?.type === "organizer_slot") return;
+
     if (overData?.type === "duplicate" && overData.key) {
       const helperId = Number(active.id);
       const loc = assignmentByHelper.get(helperId);
@@ -460,7 +487,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     datalist: string | undefined,
     singleEntry: boolean,
     allowDuplicateDrop: boolean,
+    organizerRow: boolean,
   ): ReactNode {
+    // An Organizer row's cells take Organizers' chips; the Additional roles' take
+    // Helpers' (`allowDuplicateDrop`). Either way the cell is a drop target.
+    const droppable = allowDuplicateDrop || organizerRow;
     if (scope === "room") {
       const groups = groupsForRow(key);
       return groups.map((group, idx) => {
@@ -475,10 +506,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             singleEntry={singleEntry}
             showTags={tagsOn}
             onChange={(names) => setTriggerValue("manual_set", { key, building: group.building, room: group.rooms[0], names })}
-            dropId={allowDuplicateDrop ? `duplicate::${key}::${group.building}::${group.rooms[0]}` : undefined}
+            dropId={droppable ? `${organizerRow ? "organizer" : "duplicate"}::${key}::${group.building}::${group.rooms[0]}` : undefined}
             manualKey={key}
+            organizerSlot={organizerRow}
             building={group.building}
-            rooms={allowDuplicateDrop ? group.rooms : null}
+            rooms={droppable ? group.rooms : null}
             helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
             onMergeRight={canMergeRight ? () => mergeCellRight(key, group.building, group.rooms[group.rooms.length - 1], next!.rooms[0]) : undefined}
             onUnmerge={group.rooms.length > 1 ? () => unmergeCell(key, group.building, group.rooms) : undefined}
@@ -508,8 +540,9 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         singleEntry={singleEntry}
         showTags={tagsOn}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
-        dropId={allowDuplicateDrop ? `duplicate::${key}::${g.building}` : undefined}
+        dropId={droppable ? `${organizerRow ? "organizer" : "duplicate"}::${key}::${g.building}` : undefined}
         manualKey={key}
+        organizerSlot={organizerRow}
         building={g.building}
         rooms={null}
         helperLocations={allowDuplicateDrop ? assignmentByHelper : undefined}
@@ -533,11 +566,36 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           <option key={name} value={name} />
         ))}
       </datalist>
-      <DndContext sensors={sensors} onDragStart={() => setOpenCard(null)} onDragEnd={handleDragEnd}>
-        {unassignedHelpers.length > 0 && (
+      {/* A drop lands on the cell under the pointer, never on a neighbour that merely
+          overlaps the dragged chip: a cell refusing the chip's kind (see Cell.accepts)
+          must not hand the drop to the allowed cell next to it. */}
+      <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={() => setOpenCard(null)} onDragEnd={handleDragEnd}>
+        {(unassignedHelpers.length > 0 || unplacedOrganizers.length > 0) && (
           <div className="unassigned-pool">
-            <strong>Nezařazení:</strong>{" "}
-            {unassignedHelpers.map((h) => renderChip(h))}
+            <strong>Nezařazení:</strong>
+            {unassignedHelpers.length > 0 && (
+              <div className="unassigned-group">
+                <span className="unassigned-group-label">Pomocníci</span>
+                {unassignedHelpers.map((h) => renderChip(h))}
+              </div>
+            )}
+            {unplacedOrganizers.length > 0 && (
+              <div className="unassigned-group unassigned-organizers">
+                <span className="unassigned-group-label">Organizátoři</span>
+                {unplacedOrganizers.map((o) => (
+                  <OrganizerChip
+                    key={o.id}
+                    organizerId={o.id}
+                    name={o.name}
+                    source={null}
+                    showTags={tagsOn}
+                    tags={o.tags}
+                    dimmed={o.dimmed}
+                    broken={o.broken}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -568,9 +626,21 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             </tr>
           </thead>
           <tbody>
-            {rows.map((rowDef) => (
-              <tr key={`${rowDef.kind}::${rowDef.key}`}>
-                <th className="row-label">{rowDef.label}</th>
+            {rows.map((rowDef, rowIdx) => (
+              // The Organizer rows and the Helper rows (solver roles, Additional
+              // roles) are set apart by a heavy line wherever one kind follows the other.
+              <tr
+                key={`${rowDef.kind}::${rowDef.key}`}
+                className={rowIdx > 0 && (rows[rowIdx - 1].organizer ?? false) !== (rowDef.organizer ?? false) ? "row-side-start" : undefined}
+              >
+                <th className="row-label">
+                  {rowDef.label}
+                  {rowDef.kind === "manual" && (
+                    <span className="row-label-note">
+                      <Link2Icon /> Manuální role
+                    </span>
+                  )}
+                </th>
                 {rowDef.kind === "role"
                   ? groupsForRow(rowDef.key).map((group, idx, groups) => {
                       const next = groups[idx + 1];
@@ -598,6 +668,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                       rowDef.organizer ? organizerDatalistId : rowDef.plain_text ? undefined : datalistId,
                       rowDef.single_entry ?? false,
                       rowDef.allowDuplicateDrop ?? false,
+                      rowDef.organizer ?? false,
                     )}
               </tr>
             ))}

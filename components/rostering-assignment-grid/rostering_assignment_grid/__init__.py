@@ -50,6 +50,7 @@ def assignment_grid(
     cell_merges: dict[str, dict[str, list[list[str]]]],
     helper_names: list[str],
     organizer_names: Optional[list[str]] = None,
+    organizers: Optional[list[dict[str, Any]]] = None,
     broken_marks: Optional[dict[str, list[dict[str, Any]]]] = None,
     overlays: Optional[list[str]] = None,
     dimmed_helper_ids: Optional[list[int]] = None,
@@ -88,6 +89,14 @@ def assignment_grid(
     and a ``manual_entries`` item may carry ``organizer_id`` (a tracked Organizer)
     or ``legacy`` (an untracked Helper/typed entry, shown with a badge).
 
+    Organizers are draggable like Helpers, but only between Organizer rows: an
+    Organizer's chip cannot be dropped on a solver-role or Additional-role cell,
+    and a Helper's chip cannot be dropped on an Organizer row. ``organizers`` lists
+    the Organizers who attend (``{"id", "name", "placed", "tags", "dimmed",
+    "broken"}``); those not ``placed`` (holding no slot) are shown as draggable
+    chips in their own list of the "Nezařazení" area. The Organizer rows are set
+    apart from the Helper rows by a heavier line.
+
     Each ``helpers`` entry's ``friends`` (raw, resolved-to-id friend
     requests straight from ingestion) is what drives the grid's own
     orange/green/red/purple friend-request highlighting client-side —
@@ -125,7 +134,10 @@ def assignment_grid(
     as ``"Rodina (same Building, Room)"``, see CONTEXT.md "Forced friends group"):
     the chip shows a link mark whose tooltip lists them. Purely visual.
 
-    Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
+    Returns ``{"type": "organizer_drop", "organizer_id", "key", "building",
+    "room", "source"}`` when an Organizer's chip is dropped on a slot cell
+    (``source`` is the ``{"key", "building", "room"}`` cell the chip was dragged out
+    of, ``None`` when it came from the Nezařazení list), ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
     a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
     "room", "names"}`` for an edited manual-role cell (``names`` is the
     cell's full new list of names), ``{"type": "cell_merge", "key",
@@ -148,6 +160,7 @@ def assignment_grid(
             "cell_merges": cell_merges,
             "helper_names": helper_names,
             "organizer_names": organizer_names or [],
+            "organizers": organizers or [],
             "broken_marks": broken_marks or {"cells": [], "helpers": []},
             "overlays": overlays or [],
             "dimmed_helper_ids": dimmed_helper_ids or [],
@@ -156,6 +169,7 @@ def assignment_grid(
         on_manual_set_change=_noop,
         on_cell_merge_change=_noop,
         on_lock_change=_noop,
+        on_organizer_drop_change=_noop,
     )
     if result.drop:
         return {"type": "drop", **result.drop}
@@ -165,4 +179,6 @@ def assignment_grid(
         return {"type": "cell_merge", **result.cell_merge}
     if result.lock:
         return {"type": "lock", **result.lock}
+    if result.organizer_drop:
+        return {"type": "organizer_drop", **result.organizer_drop}
     return None

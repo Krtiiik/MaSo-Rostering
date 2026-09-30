@@ -1888,6 +1888,42 @@ def assign_organizer(
     return state
 
 
+def move_organizer(
+    workspace: Workspace,
+    organizer_id: int,
+    role: str,
+    building: str,
+    room: Optional[str] = None,
+    source: Optional[dict[str, Any]] = None,
+) -> dict:
+    """Drag an Organizer's chip into a slot cell: :func:`assign_organizer`, and
+    when the chip came out of another slot cell (``source``: its ``role``,
+    ``building`` and ``room``) that slot is given up too, so the drag moves them
+    instead of adding a second slot at the same Building/Room. A chip dropped back
+    on its own cell changes nothing."""
+    state = workspace.load()
+    _organizer_record(state, organizer_id)
+    slot = _checked_slot(state, role, building, room)
+    room = room or None
+    if source:
+        source_slot = _slot_role(source["role"])
+        source_room = source.get("room") or None
+        if (source_slot, source["building"], source_room) == (slot, building, room):
+            return state
+        state["manual_roles"]["structural"] = [
+            e
+            for e in state["manual_roles"]["structural"]
+            if not (
+                e.get("organizer_id") == organizer_id
+                and e["role"] == source_slot.name
+                and _same_place(e, source["building"], source_room)
+            )
+        ]
+    _place_organizer(state, organizer_id, slot, building, room)
+    workspace.save(state)
+    return state
+
+
 def unassign_organizer(
     workspace: Workspace, organizer_id: int, role: str, building: str, room: Optional[str] = None
 ) -> dict:

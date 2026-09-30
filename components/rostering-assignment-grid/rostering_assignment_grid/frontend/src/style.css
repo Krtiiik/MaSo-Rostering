@@ -8,6 +8,30 @@
   overflow-x: auto;
 }
 
+.unassigned-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.unassigned-group-label {
+  margin-right: 6px;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+/* An unplaced Organizer's chip is a manual chip that can be picked up. */
+.organizer-chip {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.organizer-chip.dragging {
+  opacity: 0.6;
+}
+
 .unassigned-pool {
   margin-bottom: 0.75rem;
   padding: 0.5rem;
@@ -233,9 +257,25 @@
   border-top-color: var(--st-red-color, #dc3545);
 }
 
-.manual-cell {
-  position: relative;
-  min-width: 140px;
+/* A manual-role cell is an ordinary grid cell; a click on its background opens
+   the name field, so it shows a text cursor while it can still take a name. */
+.manual-cell-editable {
+  cursor: text;
+}
+
+/* "Manuální role" under a manual row's label: what tells it from a solver role. */
+.row-label-note {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.8em;
+  font-style: italic;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.link-2-icon {
+  flex: none;
 }
 
 .manual-chip {
@@ -290,7 +330,7 @@
   display: block;
   margin: 2px;
   min-width: 90px;
-  border: 1px dashed var(--st-widget-border-color, #d5dae1);
+  border: 1px solid var(--st-widget-border-color, #d5dae1);
   border-radius: var(--st-button-radius, 10px);
   padding: 2px 6px;
   font: inherit;
@@ -406,4 +446,11 @@
 
 .helper-card-lock:hover {
   border-color: var(--st-primary-color, #ff4b4b);
+}
+
+/* Where the Organizer rows meet the Helper rows (either way round), a heavy line
+   across the whole row keeps the two kinds of role visibly apart. */
+.roster-grid tr.row-side-start > th,
+.roster-grid tr.row-side-start > td {
+  border-top: 3px solid color-mix(in srgb, var(--st-text-color, #262730) 70%, transparent);
 }
