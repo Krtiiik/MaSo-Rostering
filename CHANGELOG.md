@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Can't attend and Tags for Organizers. The Upload tab lists the Season's
+  Organizers (name, placement) with the same Can't attend checkbox as a Helper:
+  flagging one who holds a leadership slot asks first, then clears their slot
+  entries (so their placement) and makes the roster stale; an absent Organizer
+  can't be given a slot, is left out of the Broken-rule check and the export, and
+  a Helper's friend request naming them silently stops counting. Un-flagging
+  restores nothing. Organizers are tagged like Helpers, in the Tags tab (they
+  appear among a Tag's carriers and in "Others") and in the Upload tab's inline
+  "Tag helpers" list (bulk apply included), carry effective Tags, and take Tag
+  constraints on the Building axis (no Role, since they have none): an edit
+  that leaves an Organizer no allowed Building is refused, and an Organizer
+  placed outside their allowed set is reported as a Tag-restriction Broken rule
+  (with a "Go fix" to the Tag), even before the first solve; a hand placement is
+  never blocked. The Roster grid shows Organizers' Tag pills under "Show tags",
+  dims them with the Tag filter and marks their chip when their placement breaks
+  a rule. Deleting a Tag now also warns about and strips Organizers who carry it.
+  Promoting a Helper does not carry over their Can't attend flag. Re-applying an
+  Organizer's Tags in a later Season waits for Tag import.
 - Friend preferences toward Organizers, and promoting a Helper to Organizer. A
   Helper's friends can now name an Organizer as well as another Helper: survey
   friend names are matched against the Season's Organizers too (same matching;

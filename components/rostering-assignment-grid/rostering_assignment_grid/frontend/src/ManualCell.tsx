@@ -2,6 +2,7 @@ import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { useId, useState } from "react";
 import type { MouseEvent } from "react";
 import type { ManualEntry } from "./types";
+import { TagPillView } from "./HelperChip";
 
 interface HelperLocation {
   building: string;
@@ -18,6 +19,8 @@ interface Props {
   // name; the add-input is hidden once a name is set, so replacing it
   // requires removing the existing one first.
   singleEntry?: boolean;
+  // Show an Organizer's Tag pills next to their name (the grid's "Show tags").
+  showTags?: boolean;
   onChange: (names: string[]) => void;
   // When set, this cell also accepts dropping a helper's existing chip —
   // only while the dragged helper's own solved-role location matches
@@ -59,6 +62,7 @@ export function ManualCell({
   colSpan,
   datalistId,
   singleEntry = false,
+  showTags = false,
   onChange,
   dropId,
   manualKey,
@@ -130,7 +134,8 @@ export function ManualCell({
         {entries.map((entry) => (
           <span
             key={entry.name}
-            className={`manual-chip${
+            title={entry.broken?.length ? entry.broken.join("\n") : undefined}
+            className={`manual-chip${entry.dimmed ? " dimmed" : ""}${entry.broken?.length ? " broken" : ""}${
               entry.legacy
                 ? " manual-chip-new"
                 : entry.organizer_id != null
@@ -143,6 +148,16 @@ export function ManualCell({
             }`}
           >
             {entry.name}
+            {showTags && entry.tags && (entry.tags.direct.length > 0 || entry.tags.implied.length > 0) && (
+              <span className="manual-chip-tags">
+                {entry.tags.direct.map((pill) => (
+                  <TagPillView key={`d:${pill.name}`} pill={pill} implied={false} />
+                ))}
+                {entry.tags.implied.map((pill) => (
+                  <TagPillView key={`i:${pill.name}`} pill={pill} implied={true} />
+                ))}
+              </span>
+            )}
             {entry.legacy && (
               <span className="manual-chip-badge" title="Not yet a tracked Organizer — remove it and pick or add an Organizer to replace it">
                 not tracked

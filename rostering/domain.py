@@ -194,13 +194,13 @@ class Competition:
         """This Competition without the Helpers flagged Can't attend: the one
         rule for who takes part, applied by the solver, the Broken-rule check
         and the export."""
-        if not any(h.cant_attend for h in self.helpers):
+        if not any(h.cant_attend for h in self.helpers) and not any(o.cant_attend for o in self.organizers):
             return self
         return Competition(
             buildings=self.buildings,
             helpers=[h for h in self.helpers if not h.cant_attend],
             tags=self.tags,
-            organizers=self.organizers,
+            organizers=[o for o in self.organizers if not o.cant_attend],
         )
 
 
@@ -241,6 +241,7 @@ class FixTarget:
     role: Optional[str] = None
     helper_id: Optional[int] = None
     tag_id: Optional[int] = None
+    organizer_id: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -253,7 +254,8 @@ class BrokenRule:
     The rest is filled only by the live checker (the solver's report leaves
     it empty): ``cells`` the grid cells affected, as ``(building, room, role
     name)`` — a role of ``None`` means the whole Room —, ``helper_ids`` the
-    Helper chips affected and ``fix`` the "Go fix" target, if any."""
+    Helper chips affected (``organizer_ids`` the Organizers' slot chips) and
+    ``fix`` the "Go fix" target, if any."""
 
     instance: RuleInstance
     family: str
@@ -262,6 +264,7 @@ class BrokenRule:
     cells: tuple[tuple[str, str, Optional[str]], ...] = ()
     helper_ids: tuple[int, ...] = ()
     fix: Optional[FixTarget] = None
+    organizer_ids: tuple[int, ...] = ()
 
 
 @dataclass
@@ -296,6 +299,9 @@ class Organizer:
     room: Optional[str] = None
     # Ids of the Tags assigned to this Organizer directly (see rostering.tags).
     tags: list[int] = field(default_factory=list)
+    # Can't attend (see CONTEXT.md), as for a Helper: the Organizer is left out
+    # of the Broken-rule check, the export and friend scoring while it is set.
+    cant_attend: bool = False
 
 
 @dataclass

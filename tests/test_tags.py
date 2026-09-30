@@ -330,7 +330,11 @@ def test_deleting_a_tag_nobody_uses_needs_no_confirmation(workspace):
     state = mutations.delete_tag(workspace, other)
 
     assert [t["name"] for t in state["tags"]] == ["GCHD", "8.M", "8.M-lab"]
-    assert mutations.tag_delete_impact(mutations.get_state(workspace), lab) == {"helpers": [], "children": []}
+    assert mutations.tag_delete_impact(mutations.get_state(workspace), lab) == {
+        "helpers": [],
+        "organizers": [],
+        "children": [],
+    }
 
 
 def test_deleting_a_tag_in_use_warns_first_naming_the_helpers_and_child_tags(workspace):
