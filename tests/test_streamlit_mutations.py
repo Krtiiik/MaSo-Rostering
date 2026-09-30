@@ -6,7 +6,10 @@ import openpyxl
 import pandas as pd
 import pytest
 
+from rostering.domain import Building, Competition, Helper, Preference, Role, RoleCapacity, Room
+from rostering.persistence.serialize import solver_config_from_dict
 from rostering.persistence.workspace import Workspace
+from rostering.solver.model import RoleCosts, SolverConfig, SolverWeights, solve_competition
 from rostering.streamlit_app import mutations
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -126,6 +129,69 @@ def test_config_round_trip(workspace):
 def test_config_rejects_invalid_shape(workspace):
     with pytest.raises(mutations.RosteringError):
         mutations.put_config(workspace, [{"rooms": []}])  # missing "name"
+
+
+def test_solver_config_round_trips_the_unit_and_role_costs(workspace):
+    mutations.put_solver_config(
+        workspace,
+        {
+            "weights": {"role_cost_unit": 3, "building_mismatch": 7, "friend_unsatisfied": 9},
+            "role_costs": {"ano": 1, "klidne": 2, "nevadi": 3, "zaloha": 9, "spise_ne": 5, "ne": 20},
+        },
+    )
+    config = solver_config_from_dict(mutations.get_state(workspace)["solver_config"])
+
+    assert config.weights == SolverWeights(role_preference=3, building_mismatch=7, friend_unsatisfied=9)
+    assert config.role_costs == RoleCosts(ano=1, klidne=2, nevadi=3, zaloha=9, spise_ne=5, ne=20)
+
+
+def test_a_fresh_workspace_saves_the_solver_defaults(workspace):
+    saved = mutations.get_state(workspace)["solver_config"]
+
+    assert solver_config_from_dict(saved) == SolverConfig()
+
+
+def test_a_saved_legacy_role_preference_weight_is_ignored():
+    config = solver_config_from_dict({"weights": {"role_preference": 4, "building_mismatch": 3}})
+
+    assert config.weights.role_preference == 1
+    assert config.weights.building_mismatch == 3
+
+
+def test_missing_solver_config_keys_load_as_the_solver_defaults():
+    defaults = SolverConfig()
+
+    assert solver_config_from_dict({}) == defaults
+    assert solver_config_from_dict(None) == defaults
+    assert solver_config_from_dict({"weights": {}, "role_costs": {}, "friend_scoring": {}}) == defaults
+    assert solver_config_from_dict({"role_costs": {"zaloha": 8}}).role_costs == RoleCosts(zaloha=8)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"weights": {"role_cost_unit": -1}},
+        {"role_costs": {"ne": -2}},
+        {"role_costs": {"ano": "many"}},
+    ],
+)
+def test_solver_config_rejects_negative_or_non_integer_costs(workspace, bad):
+    with pytest.raises(mutations.RosteringError):
+        mutations.put_solver_config(workspace, bad)
+
+
+def test_a_saved_zaloha_cost_above_spise_ne_changes_the_solved_landing_spot(workspace):
+    building = Building(name="B", rooms=[Room(name="R1", capacities={Role.Zaloha: RoleCapacity(minimum=0)})])
+    helper = Helper(id=1, name="H", role_preferences={role: Preference.Spise_ne for role in Role if role is not Role.Zaloha})
+    comp = Competition(buildings={"B": building}, helpers=[helper])
+
+    def landing_spot(solver_config: dict) -> Role:
+        mutations.put_solver_config(workspace, {"time_limit_seconds": 5, **solver_config})
+        config = solver_config_from_dict(mutations.get_state(workspace)["solver_config"])
+        return solve_competition(comp, config).assignments[0].role
+
+    assert landing_spot({}) == Role.Zaloha
+    assert landing_spot({"role_costs": {"zaloha": 8}}) != Role.Zaloha
 
 
 def test_solve_requires_helpers_and_config(workspace):
