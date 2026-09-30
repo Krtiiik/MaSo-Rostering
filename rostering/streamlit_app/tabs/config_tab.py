@@ -25,6 +25,9 @@ _ROLE_COST_FIELDS = [
 ]
 _ROLE_COST_UNIT_KEY = "w_role_cost_unit"
 
+# Width of one grid column, in rem: room for a number input with its steppers.
+_GRID_SHARE_REM = 8
+
 _ADD_ROOM_COL_CSS = """
 <style>
 div[data-testid="stHorizontalBlock"]:has(div[class*="st-key-add_room_col_"]) {
@@ -197,7 +200,17 @@ def render() -> None:
         if fix is not None and fix.building == building["name"]:
             title = f"▶ {title}"  # the "Go fix" target
         with st.expander(title, expanded=True):
-            _render_building_table(buildings, bi)
+            # Every column of the grid (the label column, the building-wide
+            # unit, one per room, and the button column) is an equal share, so
+            # the grid takes a fixed width per share instead of the whole page.
+            shares = 1 + 1 + len(building["rooms"]) + 1
+            st.markdown(
+                f'<style>.st-key-building_grid_{bi} '
+                f'{{ width: {shares * _GRID_SHARE_REM}rem; max-width: 100%; }}</style>',
+                unsafe_allow_html=True,
+            )
+            with st.container(key=f"building_grid_{bi}"):
+                _render_building_table(buildings, bi)
 
     with st.form(key="add_building_form", clear_on_submit=True):
         new_building_name = st.text_input("New building name")

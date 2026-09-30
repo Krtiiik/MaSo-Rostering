@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The Tags tab's "Others (N)" section in the Tag edit menu is now titled
   "Add tag to others", saying what it does instead of showing a count.
+- On the Buildings tab, each building's grid takes only the width its columns
+  need instead of spanning the whole page.
 
 ### Removed
 
