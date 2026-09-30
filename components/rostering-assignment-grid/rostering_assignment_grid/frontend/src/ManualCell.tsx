@@ -159,14 +159,14 @@ export function ManualCell({
               </span>
             )}
             {entry.legacy && (
-              <span className="manual-chip-badge" title="Not yet a tracked Organizer — remove it and pick or add an Organizer to replace it">
-                not tracked
+              <span className="manual-chip-badge" title="Zatím to není evidovaný organizátor — odeberte ho a vyberte nebo přidejte organizátora, který ho nahradí">
+                neevidován
               </span>
             )}
             <button
               type="button"
               className="manual-chip-remove"
-              aria-label={`Remove ${entry.name}`}
+              aria-label={`Odebrat ${entry.name}`}
               onClick={() => removeName(entry.name)}
             >
               ×
@@ -178,7 +178,7 @@ export function ManualCell({
             className="manual-cell-input"
             list={datalistId}
             value={draft}
-            placeholder="+ add name"
+            placeholder="+ přidat jméno"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -191,13 +191,13 @@ export function ManualCell({
         )}
       </div>
       {onMergeRight && (
-        <div className="cell-merge-handle" title="Click to merge with the next cell" onClick={stop(onMergeRight)} />
+        <div className="cell-merge-handle" title="Kliknutím sloučíte s další buňkou" onClick={stop(onMergeRight)} />
       )}
       {onUnmerge && (
         <button
           type="button"
           className="cell-unmerge-handle"
-          title="Click to split this merged cell back apart"
+          title="Kliknutím sloučenou buňku opět rozdělíte"
           onClick={stop(onUnmerge)}
         >
           ⊟

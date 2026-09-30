@@ -85,9 +85,9 @@ def test_the_people_tab_lists_organizers_and_helpers_as_name_buttons(seasons):
     at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
 
     assert not at.exception
-    assert any(s.value == "Organizers (1)" for s in at.subheader)
-    assert any(s.value == "Helpers (1)" for s in at.subheader)
-    assert {b.label for b in at.button} >= {"Boss", "Anna", "＋ Add organizer", "＋ Add helper"}
+    assert any(s.value == "Organizátoři (1)" for s in at.subheader)
+    assert any(s.value == "Pomocníci (1)" for s in at.subheader)
+    assert {b.label for b in at.button} >= {"Boss", "Anna", "＋ Přidat organizátora", "＋ Přidat pomocníka"}
 
 
 def _cant_attend_box(at, label):
@@ -98,20 +98,20 @@ def test_the_people_tab_has_a_cant_attend_checkbox_per_person(seasons):
     at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
 
     assert not at.exception
-    assert {c.label for c in at.checkbox} == {"Can't attend: Boss", "Can't attend: Anna"}
+    assert {c.label for c in at.checkbox} == {"Nemůže se zúčastnit: Boss", "Nemůže se zúčastnit: Anna"}
     assert not any(c.value for c in at.checkbox)
 
 
 def test_ticking_a_helpers_checkbox_flags_them(seasons):
     at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
 
-    _cant_attend_box(at, "Can't attend: Anna").check().run()
+    _cant_attend_box(at, "Nemůže se zúčastnit: Anna").check().run()
 
     assert not at.exception
     assert mutations.get_state(seasons)["helpers"][0]["cant_attend"] is True
-    assert _cant_attend_box(at, "Can't attend: Anna").value is True
+    assert _cant_attend_box(at, "Nemůže se zúčastnit: Anna").value is True
 
-    _cant_attend_box(at, "Can't attend: Anna").uncheck().run()
+    _cant_attend_box(at, "Nemůže se zúčastnit: Anna").uncheck().run()
 
     assert not at.exception
     assert not mutations.get_state(seasons)["helpers"][0].get("cant_attend")
@@ -120,20 +120,20 @@ def test_ticking_a_helpers_checkbox_flags_them(seasons):
 def test_ticking_a_placed_organizers_checkbox_waits_for_confirmation(seasons):
     at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
 
-    _cant_attend_box(at, "Can't attend: Boss").check().run()
+    _cant_attend_box(at, "Nemůže se zúčastnit: Boss").check().run()
 
     assert not at.exception
     assert not mutations.get_state(seasons)["organizers"][0].get("cant_attend")
-    assert any(b.label == "Mark as Can't attend" for b in at.button)  # the confirmation dialog
+    assert any(b.label == "Označit jako Nemůže se zúčastnit" for b in at.button)  # the confirmation dialog
     # The table shows what is saved, not the refused tick.
-    assert _cant_attend_box(at, "Can't attend: Boss").value is False
+    assert _cant_attend_box(at, "Nemůže se zúčastnit: Boss").value is False
 
 
 def test_tagging_an_organizer_in_their_popup_saves(seasons):
     at = AppTest.from_function(_organizer_popup_app, default_timeout=30).run()
     assert not at.exception
 
-    next(m for m in at.multiselect if m.label == "Tags (directly)").set_value([1]).run()
+    next(m for m in at.multiselect if m.label == "Štítky (přímé)").set_value([1]).run()
 
     assert not at.exception
     saved = mutations.get_state(seasons)
@@ -145,8 +145,8 @@ def test_editing_a_helper_in_their_popup_saves(seasons):
     at = AppTest.from_function(_helper_popup_app, default_timeout=30).run()
     assert not at.exception
 
-    next(t for t in at.text_input if t.label == "Name").set_value("Anna K.").run()
-    next(b for b in at.button if b.label == "Save changes").click().run()
+    next(t for t in at.text_input if t.label == "Jméno").set_value("Anna K.").run()
+    next(b for b in at.button if b.label == "Uložit změny").click().run()
 
     assert not at.exception
     assert mutations.get_state(seasons)["helpers"][0]["name"] == "Anna K."
@@ -159,8 +159,8 @@ def test_the_add_organizer_form_creates_one(seasons):
         person_dialog._add_organizer_body()
 
     at = AppTest.from_function(app, default_timeout=30).run()
-    next(t for t in at.text_input if t.label == "Name (required)").set_value("Nova").run()
-    next(b for b in at.button if b.label == "Add organizer").click().run()
+    next(t for t in at.text_input if t.label == "Jméno (povinné)").set_value("Nova").run()
+    next(b for b in at.button if b.label == "Přidat organizátora").click().run()
 
     assert not at.exception
     assert [o["name"] for o in mutations.get_state(seasons)["organizers"]] == ["Boss", "Nova"]
@@ -173,9 +173,9 @@ def test_the_add_helper_form_creates_one(seasons):
         helper_forms.render_add_form()
 
     at = AppTest.from_function(app, default_timeout=30).run()
-    next(t for t in at.text_input if t.label == "Name (required)").set_value("Nova Helper").run()
-    next(t for t in at.text_input if t.label == "Contact (required)").set_value("nova@example.com").run()
-    next(b for b in at.button if b.label == "Add helper").click().run()
+    next(t for t in at.text_input if t.label == "Jméno (povinné)").set_value("Nova Helper").run()
+    next(t for t in at.text_input if t.label == "Kontakt (povinný)").set_value("nova@example.com").run()
+    next(b for b in at.button if b.label == "Přidat pomocníka").click().run()
 
     assert not at.exception
     assert [h["name"] for h in mutations.get_state(seasons)["helpers"]] == ["Anna", "Nova Helper"]
@@ -183,7 +183,7 @@ def test_the_add_helper_form_creates_one(seasons):
 
 def test_deleting_a_helper_in_their_popup_removes_them(seasons):
     at = AppTest.from_function(_helper_popup_app, default_timeout=30).run()
-    next(b for b in at.button if b.label == "Delete helper").click().run()
+    next(b for b in at.button if b.label == "Smazat pomocníka").click().run()
 
     assert not at.exception
     assert mutations.get_state(seasons)["helpers"] == []
@@ -206,5 +206,5 @@ def test_the_tags_tab_lists_an_organizer_who_carries_the_tag(seasons):
     at = AppTest.from_function(_tags_tab_app, default_timeout=30).run()
 
     assert not at.exception
-    assert any(s.value == "Has this tag (1)" for s in at.subheader)
-    assert any("Boss (Organizer)" in w.value for w in at.markdown)
+    assert any(s.value == "Mají tento štítek (1)" for s in at.subheader)
+    assert any("Boss (organizátor)" in w.value for w in at.markdown)

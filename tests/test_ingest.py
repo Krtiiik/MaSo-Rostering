@@ -129,7 +129,7 @@ def test_tshirt_size_unrecognized_value_is_unknown_with_warning_naming_helper_an
     by_name = {h.name: h for h in result.helpers}
     assert by_name["Anna Nováková"].tshirt_size == "Unknown"
     assert by_name["Petr"].tshirt_size == "M"
-    size_warnings = [w for w in result.warnings if "T-shirt" in w]
+    size_warnings = [w for w in result.warnings if "trička" in w]
     assert len(size_warnings) == 1
     assert "Anna Nováková" in size_warnings[0]
     assert "'?'" in size_warnings[0]
@@ -139,7 +139,7 @@ def test_tshirt_size_free_text_and_blank_are_unknown_with_warning(tmp_path):
     path = _write_survey(tmp_path, ["Anna", "Petr", "Klara"], ["dámské M", None, "XXXL"])
     result = parse_raw_survey(path)
     assert [h.tshirt_size for h in result.helpers] == ["Unknown", "Unknown", "Unknown"]
-    size_warnings = [w for w in result.warnings if "T-shirt" in w]
+    size_warnings = [w for w in result.warnings if "trička" in w]
     assert len(size_warnings) == 3
     assert "Anna" in size_warnings[0] and "dámské M" in size_warnings[0]
     assert "Petr" in size_warnings[1]

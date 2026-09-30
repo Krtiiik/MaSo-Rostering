@@ -6,7 +6,7 @@ import copy
 import streamlit as st
 
 from rostering.domain import Role
-from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
+from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
 _ROLE_ORDER = [r.name for r in Role]
@@ -82,7 +82,7 @@ div[class*="st-key-remove_building_"] button p {
 def _capacity_cell(min_col, capacities: dict, role_name: str, key: str) -> None:
     cap = capacities.get(role_name, {"minimum": 0})
     minimum = min_col.number_input(
-        "Count",
+        "Počet",
         value=int(cap.get("minimum") or 0),
         min_value=0,
         step=1,
@@ -99,18 +99,18 @@ def _render_building_table(buildings: list[dict], bi: int) -> None:
 
     outer = st.columns([1 + n_units, 1])
     with outer[0]:
-        building["name"] = st.text_input("Building name", value=building["name"], key=f"bname_{bi}")
+        building["name"] = st.text_input("Název budovy", value=building["name"], key=f"bname_{bi}")
 
         counts_cols = st.columns([1, n_units])
-        counts_cols[1].markdown("**Counts**", text_alignment="center")
+        counts_cols[1].markdown("**Počty**", text_alignment="center")
 
         header_cols = st.columns([1] + [1] * n_units)
         header_cols[0].write("")
-        header_cols[1].markdown(f"**{building['name'] or 'Building'} (overall)**")
+        header_cols[1].markdown(f"**{building['name'] or 'Budova'} (celkem)**")
         for ri, room in enumerate(rooms):
             with header_cols[2 + ri]:
                 room["name"] = st.text_input(
-                    "Room name", value=room["name"], key=f"rname_{bi}_{id(room)}", label_visibility="collapsed"
+                    "Název místnosti", value=room["name"], key=f"rname_{bi}_{id(room)}", label_visibility="collapsed"
                 )
 
         for role_name in _ROLE_ORDER:
@@ -129,18 +129,18 @@ def _render_building_table(buildings: list[dict], bi: int) -> None:
         remove_cols[0].write("")
         remove_cols[1].write("")
         for ri, room in enumerate(rooms):
-            if remove_cols[2 + ri].button("Remove room", key=f"remove_room_{bi}_{id(room)}", width="stretch"):
+            if remove_cols[2 + ri].button("Odebrat místnost", key=f"remove_room_{bi}_{id(room)}", width="stretch"):
                 rooms.pop(ri)
                 st.rerun()
 
     with outer[1]:
         st.markdown(_ADD_ROOM_COL_CSS, unsafe_allow_html=True)
-        if st.button("Remove building", key=f"remove_building_{bi}", width="stretch"):
+        if st.button("Odebrat budovu", key=f"remove_building_{bi}", width="stretch"):
             buildings.pop(bi)
             st.rerun()
         with st.container(key=f"add_room_col_{bi}"):
-            if st.button("+ Add room", key=f"add_room_{bi}", width="stretch"):
-                rooms.append({"name": f"Room {len(rooms) + 1}", "capacities": {}})
+            if st.button("+ Přidat místnost", key=f"add_room_{bi}", width="stretch"):
+                rooms.append({"name": f"Místnost {len(rooms) + 1}", "capacities": {}})
                 st.rerun()
 
 
@@ -184,8 +184,8 @@ def clear_drafts() -> None:
 
 
 def render() -> None:
-    st.header("4. Buildings & rooms")
-    st.write("Define the buildings, their rooms, and how many of each role each can hold this season.")
+    st.header(labels.TAB_BUILDINGS)
+    st.write("Určete budovy, jejich místnosti a kolik pomocníků v každé roli musí každá z nich v tomto ročníku mít.")
 
     state = session.get_state()
     _ensure_drafts(state)
@@ -194,7 +194,7 @@ def render() -> None:
     fix = fix_focus.render_callout(state, "buildings")
 
     for bi, building in enumerate(buildings):
-        title = building["name"] or f"Building {bi + 1}"
+        title = building["name"] or f"Budova {bi + 1}"
         if fix is not None and fix.building == building["name"]:
             title = f"▶ {title}"  # the "Go fix" target
         with st.expander(title, expanded=True):
@@ -210,28 +210,28 @@ def render() -> None:
             with st.container(key=f"building_grid_{bi}"):
                 _render_building_table(buildings, bi)
 
-    if st.button("+ Add building", key="add_building", width="stretch"):
-        # Named afterwards in the building's own "Building name" field.
+    if st.button("+ Přidat budovu", key="add_building", width="stretch"):
+        # Named afterwards in the building's own "Název budovy" field.
         taken = {b["name"] for b in buildings}
         number = len(buildings) + 1
-        while f"Building {number}" in taken:
+        while f"Budova {number}" in taken:
             number += 1
-        buildings.append({"name": f"Building {number}", "rooms": [], "capacities": {}})
+        buildings.append({"name": f"Budova {number}", "rooms": [], "capacities": {}})
         st.rerun()
 
     with st.bottom:
         # Filled in after the buttons ran, so it reflects a save just made.
         unsaved_note = st.empty()
         action_cols = st.columns(2)
-        if action_cols[0].button("Save config", key="save_config"):
+        if action_cols[0].button("Uložit konfiguraci", key="save_config"):
             try:
                 _save_draft(buildings)
-                st.success("Config saved.")
+                st.success("Konfigurace uložena.")
             except mutations.RosteringError as exc:
                 st.error(str(exc))
 
         disabled = not state["helpers"]
-        if action_cols[1].button("Save & solve", type="primary", disabled=disabled):
+        if action_cols[1].button("Uložit a sestavit rozdělení", type="primary", disabled=disabled):
             try:
                 # Saved first, so the confirmation counts against the new
                 # layout (a removed Room drops its locks). Removing a Room that
@@ -242,9 +242,9 @@ def render() -> None:
             else:
                 solve_prompt.request_solve(saved, solve_prompt.solve_and_open_roster)
         if disabled:
-            st.caption("Upload helper responses first.")
+            st.caption("Nejdřív nahrajte odpovědi pomocníků.")
         if has_unsaved_changes(session.get_state(), buildings):
             unsaved_note.caption(
-                "⚠ Unsaved changes: the layout here is not saved until you click Save config "
-                "(or Save & solve). Reloading the page discards it."
+                "⚠ Neuložené změny: rozložení zde se uloží, až kliknete na Uložit konfiguraci "
+                "(nebo Uložit a sestavit rozdělení). Znovunačtení stránky je zahodí."
             )

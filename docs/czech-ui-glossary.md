@@ -10,17 +10,18 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | English (code) | Czech (UI) |
 |---|---|
 | Page title / app name | Rozdělování pomocníků |
-| 1. Upload responses | 1. Nahrání odpovědí |
-| 2. Buildings & rooms | 2. Budovy a místnosti |
-| 3. Tags | 3. Štítky |
-| 4. Forced friends | 4. Vynucené skupinky kamarádů |
-| 5. Roster | 5. Rozdělení pomocníků |
+| 1. People | 1. Lidé |
+| 2. Tags | 2. Štítky |
+| 3. Forced friends | 3. Vynucené skupinky kamarádů |
+| 4. Buildings | 4. Budovy |
+| 5. Solver | 5. Parametry rozřazování |
+| 6. Roster | 6. Rozdělení pomocníků |
 | Seasons (sidebar) | Ročníky |
 | Versions (sidebar) | Verze |
 | Organizers (list) | Organizátoři |
 | Person links | Propojení osob |
 | Possible returning helpers | Možní vracející se pomocníci |
-| Solver weights | Parametry rozřazování |
+| Solver weights / Solver settings | Váhy / Parametry rozřazování |
 
 ## Actions
 

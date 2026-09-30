@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The web app's front end is now Czech: tabs, sidebar panels, buttons, dialogs,
+  the roster grid and the messages it shows (errors, confirmations, Broken rule
+  lines, import summaries, ingestion warnings) all use the agreed terms from
+  `CONTEXT.md` and `docs/czech-ui-glossary.md` (e.g. Season → ročník, Roster →
+  rozdělení pomocníků, Tag → štítek). Code, identifiers, the CLI and developer
+  docs stay English, and the Excel export was already Czech. Counted text
+  follows Czech plural forms (`rostering.czech.plural`). Stored data is
+  unchanged; stale-roster reasons and dropped-lock notes already saved keep the
+  English wording they were written with.
 - The People tab's tables now size each column to its widest cell in the browser
   instead of from a character count worked out beforehand.
 - Solving (Solve, Save & solve and Place new registrants) now runs in a modal

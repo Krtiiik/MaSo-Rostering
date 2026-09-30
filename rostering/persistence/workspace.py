@@ -267,10 +267,10 @@ class Workspace:
     def _validated_label(self, label: Optional[str], ignore_id: Optional[str] = None) -> str:
         normalized = normalize_label(label)
         if normalized is None:
-            raise SeasonError(f"A Season label is {LABEL_FORMAT_HINT}.")
+            raise SeasonError(f"Označení ročníku je {LABEL_FORMAT_HINT}.")
         for _, identity in self._scan():
             if identity["label"] == normalized and identity["id"] != ignore_id:
-                raise SeasonError(f"A Season labelled {normalized} already exists.")
+                raise SeasonError(f"Ročník s označením {normalized} již existuje.")
         return normalized
 
     def list_seasons(self) -> list[dict[str, Any]]:
@@ -308,7 +308,7 @@ class Workspace:
         """Open a stored Season into the Workspace and return its state."""
         found = self._find_dir(season_id)
         if found is None:
-            raise SeasonError("No such Season.")
+            raise SeasonError("Takový ročník neexistuje.")
         _, identity = found
         self._write_pointer(identity["id"], identity["label"])
         self._draft = None
@@ -327,7 +327,7 @@ class Workspace:
         hand-placed files) are untouched."""
         found = self._find_dir(season_id)
         if found is None:
-            raise SeasonError("No such Season.")
+            raise SeasonError("Takový ročník neexistuje.")
         old_dir, identity = found
         label = self._validated_label(label, ignore_id=season_id)
         if label == identity["label"]:
@@ -335,7 +335,7 @@ class Workspace:
         new_dir = self.root / label
         if new_dir.exists():
             raise SeasonError(
-                f"Can't rename to {label}: a folder with that name already exists in the Seasons directory."
+                f"Nelze přejmenovat na {label}: složka s tímto názvem už v adresáři ročníků existuje."
             )
         old_dir.rename(new_dir)
         state = _read_json(new_dir / "state.json")
@@ -353,9 +353,9 @@ class Workspace:
         the directory itself goes only if that leaves it empty."""
         found = self._find_dir(season_id)
         if found is None:
-            raise SeasonError("No such Season.")
+            raise SeasonError("Takový ročník neexistuje.")
         if (self.open_season() or {}).get("id") == season_id:
-            raise SeasonError("The open Season can't be deleted — open another Season or start a new one first.")
+            raise SeasonError("Otevřený ročník nelze smazat — nejdřív otevřete jiný ročník nebo začněte nový.")
         season_dir, _ = found
         (season_dir / "state.json").unlink()
         shutil.rmtree(season_dir / "versions", ignore_errors=True)
@@ -392,7 +392,7 @@ class Workspace:
         named ``label`` and open it."""
         state_path = self.legacy_state_path()
         if state_path is None:
-            raise SeasonError("There is no earlier saved state to migrate.")
+            raise SeasonError("Není žádný dřívější uložený stav k převedení.")
         label = self._validated_label(label)
         identity = {"id": uuid.uuid4().hex, "label": label}
         season_dir = self.root / label
@@ -412,7 +412,7 @@ class Workspace:
     def _versions_dir(self) -> Path:
         open_season = self._resolve_open()
         if open_season is None:
-            raise SeasonError("No Season is open — upload responses to create one first.")
+            raise SeasonError("Není otevřen žádný ročník — nejdřív nahráním odpovědí nějaký vytvořte.")
         path = open_season["dir"] / "versions"
         path.mkdir(exist_ok=True)
         return path

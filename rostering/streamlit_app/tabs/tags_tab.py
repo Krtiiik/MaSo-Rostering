@@ -7,7 +7,8 @@ import streamlit as st
 
 from rostering import tags as tag_tree
 from rostering.domain import Role
-from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
+from rostering.czech import count_helpers, plural
+from rostering.streamlit_app import fix_focus, labels, mutations, session, tag_pills
 from rostering.streamlit_app.tabs import tag_import_ui
 
 # Session-state keys: the Tag being edited (a Tag id, or _NEW for the create
@@ -29,18 +30,18 @@ def focus_tag(tag_id: int) -> None:
 
 
 def render() -> None:
-    st.header("2. Tags")
+    st.header(labels.TAB_TAGS)
     workspace = session.get_workspace()
     if mutations.get_open_season(workspace) is None:
-        st.info("Open a Season (or upload responses to create one) before adding Tags.")
+        st.info("Než přidáte štítky, otevřete ročník (nebo nahráním odpovědí nějaký vytvořte).")
         return
     state = session.get_state()
     message = st.session_state.pop(_FLASH, None)
     if message:
         st.success(message)
     st.caption(
-        "A Tag labels Helpers; it can imply one parent Tag, so everyone who carries it also carries that "
-        "parent (and its parents), computed live. Tags belong to this Season."
+        "Štítek označuje pomocníky; může odvozovat jeden nadřazený štítek, takže každý, kdo ho nese, nese i "
+        "ten nadřazený (a jeho nadřazené), počítáno průběžně. Štítky patří k tomuto ročníku."
     )
 
     # A "Go fix" from a Broken rule: says what to fix here, for as long as it is
@@ -70,7 +71,7 @@ def render() -> None:
             _render_others(state, tag)
         else:
             st.session_state.pop(_SELECTED, None)
-            st.info("Pick a Tag to edit it or see who carries it, or create a new one.")
+            st.info("Vyberte štítek, abyste ho upravili nebo viděli, kdo ho nese, nebo vytvořte nový.")
 
 
 def _apply(action, *args, **kwargs) -> bool:
@@ -89,12 +90,12 @@ def _render_tree(state: dict) -> None:
     records = {t["id"]: t for t in state["tags"]}
     counts = mutations.tag_helper_counts(state)
     organizer_counts = mutations.tag_organizer_counts(state)
-    if st.button("New tag", icon=":material/add:", type="primary", key="tags_new"):
+    if st.button("Nový štítek", icon=":material/add:", type="primary", key="tags_new"):
         st.session_state[_SELECTED] = _NEW
         st.session_state.pop(_PENDING_DELETE, None)
         st.rerun()
     if not tags:
-        st.caption("No Tags yet.")
+        st.caption("Zatím žádné štítky.")
         return
     selected = st.session_state.get(_SELECTED)
     for tag, depth in tag_tree.tree_order(tags):
@@ -103,11 +104,16 @@ def _render_tree(state: dict) -> None:
         marker = "font-weight:700;" if tag.id == selected else ""
         pill_col.html(f'<div style="margin-left:{depth * 1.5}rem;{marker}">{"↳ " if depth else ""}{pill}</div>')
         count_col.caption(
-            f"{counts[tag.id]} helper{'s' if counts[tag.id] != 1 else ''}"
-            + (f" + {organizer_counts[tag.id]} org." if organizer_counts[tag.id] else "")
+            count_helpers(counts[tag.id])
+            + (
+                f" + {organizer_counts[tag.id]} "
+                + plural(organizer_counts[tag.id], "organizátor", "organizátoři", "organizátorů")
+                if organizer_counts[tag.id]
+                else ""
+            )
         )
         if edit_col.button(
-            "", icon=":material/edit:", type="tertiary", key=f"tags_edit_{tag.id}", help=f"Edit {records[tag.id]['name']}"
+            "", icon=":material/edit:", type="tertiary", key=f"tags_edit_{tag.id}", help=f"Upravit {records[tag.id]['name']}"
         ):
             st.session_state[_SELECTED] = tag.id
             st.session_state.pop(_PENDING_DELETE, None)
@@ -127,43 +133,43 @@ def _parent_options(state: dict, tag: dict | None) -> list[int | None]:
 def _render_form(state: dict, tag: dict | None) -> None:
     names = {t["id"]: t["name"] for t in state["tags"]}
     prefix = f"tag_form_{tag['id'] if tag else 'new'}"
-    st.subheader("New tag" if tag is None else f"Edit {tag['name']}")
+    st.subheader("Nový štítek" if tag is None else f"Upravit {tag['name']}")
     if tag is not None and tag.get("origins"):
-        st.caption("Imported from " + ", ".join(mutations.tag_origin_labels(state, tag["id"])) + ".")
+        st.caption("Importováno z: " + ", ".join(mutations.tag_origin_labels(state, tag["id"])) + ".")
     with st.form(key=prefix):
-        name = st.text_input("Name", value=tag["name"] if tag else "", key=f"{prefix}_name")
+        name = st.text_input("Název", value=tag["name"] if tag else "", key=f"{prefix}_name")
         colour_col, parent_col = st.columns(2)
         colour = colour_col.color_picker(
-            "Colour",
+            "Barva",
             value=tag["colour"] if tag else tag_tree.PALETTE[len(state["tags"]) % len(tag_tree.PALETTE)],
             key=f"{prefix}_colour",
         )
         options = _parent_options(state, tag)
         current_parent = tag["parent_id"] if tag and tag["parent_id"] in options else _NO_PARENT
         parent_id = parent_col.selectbox(
-            "Implies (parent tag)",
+            "Odvozuje (nadřazený štítek)",
             options=options,
             index=options.index(current_parent),
-            format_func=lambda tid: "— none —" if tid is None else names[tid],
+            format_func=lambda tid: "— žádný —" if tid is None else names[tid],
             key=f"{prefix}_parent",
-            help="Everyone with this Tag also carries the parent Tag and its parents.",
+            help="Každý, kdo má tento štítek, nese i nadřazený štítek a jeho nadřazené.",
         )
-        note = st.text_area("Note", value=tag["note"] if tag else "", key=f"{prefix}_note")
+        note = st.text_area("Poznámka", value=tag["note"] if tag else "", key=f"{prefix}_note")
         constraints = _constraint_pickers(state, tag, prefix)
-        submitted = st.form_submit_button("Create tag" if tag is None else "Save changes", type="primary")
+        submitted = st.form_submit_button("Vytvořit štítek" if tag is None else "Uložit změny", type="primary")
     if not submitted:
         return
     if tag is None:
         if _apply(mutations.add_tag, name, colour=colour, note=note, parent_id=parent_id, **constraints):
             st.session_state[_SELECTED] = session.get_state()["tags"][-1]["id"]
-            st.session_state[_FLASH] = f"Created {name.strip()}."
+            st.session_state[_FLASH] = f"Vytvořeno: {name.strip()}."
             st.rerun()
     elif _apply(mutations.update_tag, tag["id"], name=name, colour=colour, note=note, parent_id=parent_id, **constraints):
-        st.session_state[_FLASH] = f"Saved changes to {name.strip()}."
+        st.session_state[_FLASH] = f"Změny uloženy: {name.strip()}."
         st.rerun()
 
 
-_NOT_IN_SEASON = " — not in this Season"
+_NOT_IN_SEASON = " — není v tomto ročníku"
 
 
 def _constraint_pickers(state: dict, tag: dict | None, prefix: str) -> dict[str, list[str]]:
@@ -175,17 +181,18 @@ def _constraint_pickers(state: dict, tag: dict | None, prefix: str) -> dict[str,
     buildings = [b["name"] for b in state["config"]]
     roles = [role.name for role in Role]
     st.caption(
-        "Where this Tag's Helpers may go. An allow-list limits them to it (a Tag with none does not narrow); "
-        "a deny-list always wins. Leaving a Helper with no allowed Building or Role is refused."
+        "Kam smějí pomocníci s tímto štítkem. Seznam povolených je omezuje jen na něj (štítek bez něj nic "
+        "nezužuje); seznam zakázaných vždy vyhrává. Nastavení, po kterém by pomocník neměl žádnou povolenou "
+        "budovu ani roli, se odmítne."
     )
     picked: dict[str, list[str]] = {}
     for column, (field, label, axis_options) in zip(
         st.columns(2) + st.columns(2),
         [
-            ("building_allow", "Allow only Buildings", buildings),
-            ("building_deny", "Deny Buildings", buildings),
-            ("role_allow", "Allow only Roles", roles),
-            ("role_deny", "Deny Roles", roles),
+            ("building_allow", "Povolit jen budovy", buildings),
+            ("building_deny", "Zakázat budovy", buildings),
+            ("role_allow", "Povolit jen role", roles),
+            ("role_deny", "Zakázat role", roles),
         ],
     ):
         current = entries.get(field, [])
@@ -202,7 +209,7 @@ def _constraint_pickers(state: dict, tag: dict | None, prefix: str) -> dict[str,
             default=[e["name"] for e in current],
             format_func=show,
             key=f"{prefix}_{field}",
-            placeholder="None" if options else "Configure a Building first",
+            placeholder="Žádné" if options else "Nejdřív nastavte budovu",
         )
     return picked
 
@@ -212,35 +219,35 @@ def _delete_lines(state: dict, tag: dict) -> list[str]:
     parent = next((t["name"] for t in state["tags"] if t["id"] == tag["parent_id"]), None)
     lines = []
     if impact["helpers"]:
-        lines.append(f"Removed from {len(impact['helpers'])} helper(s): " + ", ".join(impact["helpers"]))
+        lines.append(f"Odebráno pomocníkům ({len(impact['helpers'])}): " + ", ".join(impact["helpers"]))
     if impact["organizers"]:
-        lines.append(f"Removed from {len(impact['organizers'])} Organizer(s): " + ", ".join(impact["organizers"]))
+        lines.append(f"Odebráno organizátorům ({len(impact['organizers'])}): " + ", ".join(impact["organizers"]))
     if impact["children"]:
         lines.append(
-            "Child tags " + ", ".join(impact["children"]) + (f" move up to {parent}" if parent else " become top-level tags")
+            "Podřízené štítky " + ", ".join(impact["children"]) + (f" se přesunou pod {parent}" if parent else " se stanou štítky nejvyšší úrovně")
         )
     return lines
 
 
 def _render_delete_panel(state: dict, tag: dict) -> None:
-    with st.expander("Delete this tag"):
+    with st.expander("Smazat tento štítek"):
         if st.session_state.get(_PENDING_DELETE) == tag["id"]:
-            st.warning(f"Deleting **{tag['name']}** changes:")
+            st.warning(f"Smazáním štítku **{tag['name']}** se změní:")
             for line in _delete_lines(state, tag):
                 st.write(f"- {line}")
             confirm_col, cancel_col = st.columns(2)
-            if confirm_col.button("Delete tag", type="primary", key=f"tag_delete_confirm_{tag['id']}"):
+            if confirm_col.button("Smazat štítek", type="primary", key=f"tag_delete_confirm_{tag['id']}"):
                 if _apply(mutations.delete_tag, tag["id"], confirmed=True):
                     st.session_state.pop(_PENDING_DELETE, None)
                     st.session_state.pop(_SELECTED, None)
-                    st.session_state[_FLASH] = f"Deleted {tag['name']}."
+                    st.session_state[_FLASH] = f"Smazáno: {tag['name']}."
                     st.rerun()
-            if cancel_col.button("Cancel", key=f"tag_delete_cancel_{tag['id']}"):
+            if cancel_col.button("Zrušit", key=f"tag_delete_cancel_{tag['id']}"):
                 st.session_state.pop(_PENDING_DELETE, None)
                 st.rerun()
             return
-        st.caption("A Tag that is carried directly or has child Tags asks first.")
-        if st.button("Delete this tag", key=f"tag_delete_{tag['id']}"):
+        st.caption("Štítek, který někdo nese přímo nebo který má podřízené štítky, se před smazáním zeptá.")
+        if st.button("Smazat tento štítek", key=f"tag_delete_{tag['id']}"):
             try:
                 session.set_state(mutations.delete_tag(session.get_workspace(), tag["id"]))
             except mutations.ConfirmationRequired:
@@ -250,7 +257,7 @@ def _render_delete_panel(state: dict, tag: dict) -> None:
                 st.error(str(exc))
                 return
             st.session_state.pop(_SELECTED, None)
-            st.session_state[_FLASH] = f"Deleted {tag['name']}."
+            st.session_state[_FLASH] = f"Smazáno: {tag['name']}."
             st.rerun()
 
 
@@ -260,32 +267,32 @@ def _render_carriers(
     carriers = mutations.tag_carriers(state, tag["id"])
     organizer_carriers = mutations.tag_organizer_carriers(state, tag["id"])
     names = {t["id"]: t["name"] for t in state["tags"]}
-    st.subheader(f"Has this tag ({len(carriers) + len(organizer_carriers)})")
+    st.subheader(f"Mají tento štítek ({len(carriers) + len(organizer_carriers)})")
     if not carriers and not organizer_carriers:
-        st.caption("Nobody carries this Tag yet.")
+        st.caption("Tento štítek zatím nikdo nenese.")
     for carrier in carriers:
         name_col, action_col = st.columns([5, 3], vertical_alignment="center")
         name_col.write(("⚠ " if carrier["helper_id"] == fixing_helper_id else "") + carrier["name"])
         if carrier["via"] is None:
             if action_col.button(
-                "Remove", icon=":material/close:", type="tertiary", key=f"tag_remove_{tag['id']}_{carrier['helper_id']}"
+                "Odebrat", icon=":material/close:", type="tertiary", key=f"tag_remove_{tag['id']}_{carrier['helper_id']}"
             ) and _apply(mutations.remove_tag_from_helper, tag["id"], carrier["helper_id"]):
                 st.rerun()
         else:
-            action_col.caption(f"via {names[carrier['via']]}")
+            action_col.caption(f"přes {names[carrier['via']]}")
     for carrier in organizer_carriers:
         name_col, action_col = st.columns([5, 3], vertical_alignment="center")
-        name_col.write(("⚠ " if carrier["organizer_id"] == fixing_organizer_id else "") + carrier["name"] + " (Organizer)")
+        name_col.write(("⚠ " if carrier["organizer_id"] == fixing_organizer_id else "") + carrier["name"] + " (organizátor)")
         if carrier["via"] is None:
             if action_col.button(
-                "Remove",
+                "Odebrat",
                 icon=":material/close:",
                 type="tertiary",
                 key=f"tag_remove_{tag['id']}_organizer_{carrier['organizer_id']}",
             ) and _apply(mutations.remove_tag_from_organizer, tag["id"], carrier["organizer_id"]):
                 st.rerun()
         else:
-            action_col.caption(f"via {names[carrier['via']]}")
+            action_col.caption(f"přes {names[carrier['via']]}")
 
 
 def _render_others(state: dict, tag: dict) -> None:
@@ -294,20 +301,20 @@ def _render_others(state: dict, tag: dict) -> None:
     # Options are "h<id>" (a Helper) or "o<id>" (an Organizer).
     others = {f"h{h['id']}": h["name"] for h in state["helpers"] if h["id"] not in carrier_ids}
     others.update(
-        {f"o{o['id']}": f"{o['name']} (Organizer)" for o in state["organizers"] if o["id"] not in organizer_carrier_ids}
+        {f"o{o['id']}": f"{o['name']} (organizátor)" for o in state["organizers"] if o["id"] not in organizer_carrier_ids}
     )
-    st.subheader("Add tag to others")
+    st.subheader("Přidat štítek dalším lidem")
     if not others:
-        st.caption("Every Helper and Organizer already carries this Tag.")
+        st.caption("Tento štítek už nese každý pomocník i organizátor.")
         return
     nonce = st.session_state.get(_OTHERS_NONCE, 0)
     pick_key = f"tag_others_pick_{tag['id']}_{nonce}"
     options = sorted(others, key=lambda hid: others[hid].lower())
     picked = st.multiselect(
-        "Helpers to add", options=options, format_func=lambda hid: others[hid], key=pick_key, placeholder="Pick helpers"
+        "Pomocníci k přidání", options=options, format_func=lambda hid: others[hid], key=pick_key, placeholder="Vyberte pomocníky"
     )
     if st.button(
-        f"Add {len(picked)} to {tag['name']}", type="primary", disabled=not picked, key=f"tag_others_add_{tag['id']}"
+        f"Přidat ({len(picked)}) ke štítku {tag['name']}", type="primary", disabled=not picked, key=f"tag_others_add_{tag['id']}"
     ) and _apply(
         mutations.add_tag_to_helpers,
         tag["id"],

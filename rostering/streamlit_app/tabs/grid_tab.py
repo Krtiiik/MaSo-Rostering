@@ -24,7 +24,8 @@ import streamlit as st
 from rostering import tags as tag_tree
 from rostering import organizers as organizer_slots
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
-from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
+from rostering.czech import plural
+from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
 from rostering.streamlit_app.tabs import upload_summary_ui
 from rostering_assignment_grid import assignment_grid
 
@@ -222,10 +223,10 @@ _PLACED_KEY = "_placed_new_note"
 # not listed (added later through rostering.solver.rules.register_rule_family)
 # falls back to its own name.
 _FAMILY_LABELS = {
-    "minimums": "Room and Building limits",
-    "tag_restrictions": "Tag restrictions",
-    "forced_friends": "Forced-friend groups",
-    "equipment": "Equipment",
+    "minimums": "Počty v místnostech a budovách",
+    "tag_restrictions": "Omezení štítků",
+    "forced_friends": "Vynucené skupinky kamarádů",
+    "equipment": "Vybavení",
 }
 
 # A family with more broken instances than this collapses into an expandable
@@ -238,7 +239,7 @@ def _render_broken_line(broken: BrokenRule) -> None:
     cols[0].markdown(f"- {broken.line}")
     if fix_focus.can_go_fix(broken):
         key = f"go_fix_{broken.instance.kind}_{'_'.join(map(str, broken.instance.entity))}"
-        if cols[1].button("Go fix", key=key):
+        if cols[1].button("Opravit", key=key):
             fix_focus.go_fix(broken)
             st.rerun()
 
@@ -249,17 +250,21 @@ def _render_broken_banner(broken_rules: list[BrokenRule], has_roster: bool) -> N
     button; a family above about ten instances collapses into an expander."""
     if not broken_rules:
         if has_roster:
-            st.caption("✓ No broken rules")
+            st.caption("✓ Žádná porušená pravidla")
         return
     by_family: dict[str, list[BrokenRule]] = {}
     for broken in broken_rules:
         by_family.setdefault(broken.family, []).append(broken)
     with st.container(border=True):
-        st.markdown(f"**⚠ {len(broken_rules)} broken rule{'s' if len(broken_rules) != 1 else ''}**")
+        st.markdown(
+            f"**⚠ {len(broken_rules)} "
+            + plural(len(broken_rules), "porušené pravidlo", "porušená pravidla", "porušených pravidel")
+            + "**"
+        )
         for family, instances in by_family.items():
             label = _FAMILY_LABELS.get(family, family)
             if len(instances) > _COLLAPSE_ABOVE:
-                with st.expander(f"{label}: {len(instances)} broken"):
+                with st.expander(f"{label}: porušeno {len(instances)}"):
                     for broken in instances:
                         _render_broken_line(broken)
             else:
@@ -274,7 +279,7 @@ def _render_broken_banner(broken_rules: list[BrokenRule], has_roster: bool) -> N
 SHOW_TAGS_KEY = "_grid_show_tags"
 TAG_FILTER_KEY = "_grid_tag_filter"
 TAG_MODE_KEY = "_grid_tag_mode"
-_MODE_LABELS = {tag_tree.ALL_OF: "All of", tag_tree.ANY_OF: "Any of"}
+_MODE_LABELS = {tag_tree.ALL_OF: "Všechny", tag_tree.ANY_OF: "Kterýkoli"}
 
 
 def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
@@ -288,18 +293,18 @@ def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
     names = {t["id"]: t["name"] for t in tags}
     ordered = [t.id for t, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in tags])]
     toggle_col, filter_col, mode_col = st.columns([2, 6, 3], vertical_alignment="bottom")
-    show_tags = toggle_col.toggle("Show tags", key=SHOW_TAGS_KEY)
+    show_tags = toggle_col.toggle("Zobrazit štítky", key=SHOW_TAGS_KEY)
     chosen = filter_col.multiselect(
-        "Filter by tags",
+        "Filtrovat podle štítků",
         ordered,
         format_func=names.__getitem__,
         key=TAG_FILTER_KEY,
-        placeholder="Dim helpers without these tags" if tags else "No tags yet",
+        placeholder="Ztlumit pomocníky bez těchto štítků" if tags else "Zatím žádné štítky",
         disabled=not tags,
-        help="Helpers and Organizers who do not match are dimmed, never hidden. Inherited tags count.",
+        help="Pomocníci a organizátoři, kteří neodpovídají, se ztlumí, nikdy nezmizí. Odvozené štítky se počítají.",
     )
     mode = mode_col.radio(
-        "Match",
+        "Shoda",
         list(_MODE_LABELS),
         format_func=_MODE_LABELS.__getitem__,
         key=TAG_MODE_KEY,
@@ -310,13 +315,13 @@ def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
 
 
 def render() -> None:
-    st.header("6. Roster")
+    st.header(labels.TAB_ROSTER)
     state = session.get_state()
     rooms = _flatten_rooms(state["config"])
     upload_summary_ui.render("roster")
 
     if not rooms:
-        st.info("Configure at least one building with a room first.")
+        st.info("Nejdřív nastavte alespoň jednu budovu s místností.")
         return
 
     locked = mutations.locked_count(state)
@@ -326,8 +331,8 @@ def render() -> None:
         placed = mutations.place_new_registrants(session.get_workspace())
         session.set_state(placed)
         solve_prompt.remember_dropped_locks(placed)
-        noun = "registrant" if newcomers == 1 else "registrants"
-        st.session_state[_PLACED_KEY] = f"Placed {newcomers} new {noun}; everyone else stayed where they were."
+        noun = plural(newcomers, "nového zájemce", "nové zájemce", "nových zájemců")
+        st.session_state[_PLACED_KEY] = f"Zařazeno: {newcomers} {noun}; všichni ostatní zůstali, kde byli."
 
     def run_clear() -> None:
         session.set_state(mutations.clear_roster(session.get_workspace()))
@@ -341,53 +346,57 @@ def render() -> None:
             # Right above the Solve button: what made the roster stale, and that
             # Solving is what clears it.
             st.warning(
-                "**Roster is out of date:** " + "; ".join(stale) + ". Solve again; Export is blocked until then.",
+                "**Rozdělení pomocníků je neaktuální:** " + "; ".join(stale) + ". Sestavte rozdělení znovu; do té doby je export zablokovaný.",
                 icon="⚠️",
             )
         if unplaced:
             # Registrants nobody has placed yet (e.g. new in a re-upload): drag
             # them into the grid from the Unassigned pool, place only them, or Solve.
             st.warning(
-                f"**{unplaced}.** Drag them into the grid from the Unassigned pool, use Place new registrants "
-                "(everyone placed stays put), or Solve; Export is blocked until everyone is placed.",
+                f"**{unplaced}.** Přetáhněte je do mřížky z oblasti Nezařazení, použijte Zařadit nové registrované "
+                "(všichni zařazení zůstanou na místě), nebo sestavte rozdělení; export je zablokovaný, dokud nejsou všichni zařazeni.",
                 icon="⚠️",
             )
         cols = st.columns([2, 2, 2, 2, 2, 1, 2], vertical_alignment="center")
-        solve_label = f"Solve (keeps {locked} locked)" if locked else ("Re-solve" if state["assignments"] else "Solve")
+        solve_label = (
+            f"Sestavit rozdělení (zachová uzamčených: {locked})"
+            if locked
+            else ("Sestavit znovu" if state["assignments"] else "Sestavit rozdělení")
+        )
         if cols[0].button(solve_label, type="primary"):
             solve_prompt.request_solve(state, solve_prompt.run_solve)
 
         # Solves only the unassigned with every placed Assignment held fixed, so
         # no confirmation is needed: nothing placed can be lost. Touches no lock.
         if cols[1].button(
-            "Place new registrants",
+            "Zařadit nové registrované",
             disabled=not unplaced,
-            help="Place only the unassigned Helpers; everyone already placed stays exactly where they are.",
+            help="Zařadí jen nezařazené pomocníky; všichni už zařazení zůstanou přesně tam, kde jsou.",
         ):
             solve_prompt.request_place(run_place_new)
 
         # Bulk lock management; single locks are set on the chips themselves.
-        if cols[2].button("Lock all placed", disabled=not state["assignments"] or locked == len(state["assignments"])):
+        if cols[2].button("Uzamknout všechny zařazené", disabled=not state["assignments"] or locked == len(state["assignments"])):
             session.set_state(mutations.lock_all_placed(session.get_workspace()))
             st.rerun()
-        if cols[3].button("Clear all locks", disabled=not locked):
+        if cols[3].button("Zrušit všechny zámky", disabled=not locked):
             session.set_state(mutations.clear_all_locks(session.get_workspace()))
             st.rerun()
         if cols[4].button(
-            "Clear roster",
+            "Vymazat rozdělení",
             disabled=not state["assignments"],
-            help="Remove every Assignment (locked ones too) and reset the solver result.",
+            help="Odstraní všechna přiřazení (i uzamčená) a vynuluje výsledek řešení.",
         ):
             solve_prompt.request_clear(state, run_clear)
-        cols[5].markdown(f"**{locked}** locked")
+        cols[5].markdown(f"**{locked}** uzamčeno")
 
         if state["assignments"] and blockers:
-            cols[6].button("Export to Excel", disabled=True, help="Export is blocked: " + "; ".join(blockers))
+            cols[6].button("Export do Excelu", disabled=True, help="Export je zablokovaný: " + "; ".join(blockers))
         elif state["assignments"]:
             try:
                 export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
                 cols[6].download_button(
-                    "Export to Excel",
+                    "Export do Excelu",
                     data=export_bytes,
                     file_name="roster.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -428,7 +437,7 @@ def render() -> None:
             "id": h["id"],
             "name": h["name"],
             "tags": helper_pills[h["id"]],
-            "answers_changed": answers_changed.get(h["id"], []),
+            "answers_changed": [labels.answer_label(a) for a in answers_changed.get(h["id"], [])],
             "forced_groups": forced_marks.get(h["id"], []),
             "can_bring_notebook": h["can_bring_notebook"],
             "can_bring_camera": h["can_bring_camera"],

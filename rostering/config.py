@@ -41,7 +41,7 @@ def _parse_capacity(value: CapacityInput, context: str) -> RoleCapacityModel:
     try:
         return RoleCapacityModel(minimum=int(value))
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid capacity value for {context}: {value!r}") from exc
+        raise ValueError(f"Neplatná hodnota kapacity pro {context}: {value!r}") from exc
 
 
 def _parse_role(role_name: str) -> Optional[Role]:

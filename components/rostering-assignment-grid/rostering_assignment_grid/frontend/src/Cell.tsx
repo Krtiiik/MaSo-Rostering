@@ -35,13 +35,13 @@ export function Cell({ id, children, colSpan = 1, onMergeRight, onUnmerge, broke
     >
       <div className="grid-cell-inner">{children}</div>
       {onMergeRight && (
-        <div className="cell-merge-handle" title="Click to merge with the next cell" onClick={stop(onMergeRight)} />
+        <div className="cell-merge-handle" title="Kliknutím sloučíte s další buňkou" onClick={stop(onMergeRight)} />
       )}
       {onUnmerge && (
         <button
           type="button"
           className="cell-unmerge-handle"
-          title="Click to split this merged cell back apart"
+          title="Kliknutím sloučenou buňku opět rozdělíte"
           onClick={stop(onUnmerge)}
         >
           ⊟

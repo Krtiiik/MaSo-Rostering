@@ -19,8 +19,8 @@ from rostering.streamlit_app.tabs import helper_forms, person_actions, person_li
 _TAGS_ERROR = "_person_tags_error"
 _TAGS_NONCE = "_person_tags_nonce"
 
-_DISMISS_LABEL = "✕ Not attending"
-_UNRESOLVED_PLACEHOLDER = "Unresolved / Unmatched / Unknown"
+_DISMISS_LABEL = "✕ Nezúčastní se"
+_UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
 
 
 def open_person(kind: str, person_id: int) -> None:
@@ -34,11 +34,11 @@ def open_person(kind: str, person_id: int) -> None:
 
 
 def open_add_helper() -> None:
-    st.dialog("Add a helper", width="large")(helper_forms.render_add_form)()
+    st.dialog("Přidat pomocníka", width="large")(helper_forms.render_add_form)()
 
 
 def open_add_organizer() -> None:
-    st.dialog("Add an organizer")(_add_organizer_body)()
+    st.dialog("Přidat organizátora")(_add_organizer_body)()
 
 
 def _find(kind: str, person_id: int) -> dict | None:
@@ -49,10 +49,10 @@ def _find(kind: str, person_id: int) -> dict | None:
 def _cant_attend_checkbox(kind: str, person: dict) -> None:
     saved = bool(person.get("cant_attend"))
     flag = st.checkbox(
-        "Can't attend",
+        "Nemůže se zúčastnit",
         value=saved,
         key=f"person_{kind}_{person['id']}_cant_attend",
-        help="Leaves them out of the solve and the roster; untick to bring them back at the next Solve.",
+        help="Vyřadí ho z řešení i z rozdělení; po odškrtnutí se vrátí při dalším sestavení rozdělení.",
     )
     if flag != saved:
         person_actions.set_cant_attend(kind, person["id"], flag)
@@ -61,9 +61,9 @@ def _cant_attend_checkbox(kind: str, person: dict) -> None:
 def _helper_body(helper_id: int) -> None:
     helper = _find("helper", helper_id)
     if helper is None:
-        st.info("This helper no longer exists.")
+        st.info("Tento pomocník už neexistuje.")
         return
-    details, tags, friends, links = st.tabs(["Details", "Tags", "Friend names", "Person links"])
+    details, tags, friends, links = st.tabs(["Podrobnosti", "Štítky", "Jména kamarádů", "Propojení osob"])
     with details:
         _cant_attend_checkbox("helper", helper)
         helper_forms.render_details(helper)
@@ -78,9 +78,9 @@ def _helper_body(helper_id: int) -> None:
 def _organizer_body(organizer_id: int) -> None:
     organizer = _find("organizer", organizer_id)
     if organizer is None:
-        st.info("This organizer no longer exists.")
+        st.info("Tento organizátor už neexistuje.")
         return
-    details, tags = st.tabs(["Details", "Tags"])
+    details, tags = st.tabs(["Podrobnosti", "Štítky"])
     with details:
         _render_organizer_details(organizer)
     with tags:
@@ -90,17 +90,17 @@ def _organizer_body(organizer_id: int) -> None:
 def _render_organizer_details(organizer: dict) -> None:
     organizer_id = organizer["id"]
     prefix = f"edit_organizer_{organizer_id}"
-    placement = " · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "— (no slot)"
+    placement = " · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "— (bez místa)"
     st.caption(
-        f"Placement: {placement}. An Organizer is placed by the leadership slot they hold in the Roster tab. "
-        "Can't attend clears their slots; unticking brings them back (their slots are not restored)."
+        f"Zařazení: {placement}. Organizátor je zařazen vedoucím místem, které drží na záložce Rozdělení pomocníků. "
+        "Nemůže se zúčastnit vymaže jeho místa; po odškrtnutí se vrátí (místa se neobnoví)."
     )
     _cant_attend_checkbox("organizer", organizer)
     name_col, email_col = st.columns(2)
-    name = name_col.text_input("Name", value=organizer["name"], key=f"{prefix}_name")
+    name = name_col.text_input("Jméno", value=organizer["name"], key=f"{prefix}_name")
     email = email_col.text_input("E-mail", value=organizer.get("email") or "", key=f"{prefix}_email")
     save_col, delete_col = st.columns(2)
-    if save_col.button("Save changes", type="primary", key=f"{prefix}_save"):
+    if save_col.button("Uložit změny", type="primary", key=f"{prefix}_save"):
         try:
             session.set_state(
                 mutations.update_organizer(session.get_workspace(), organizer_id, name=name, email=email)
@@ -108,28 +108,28 @@ def _render_organizer_details(organizer: dict) -> None:
         except mutations.RosteringError as exc:
             st.error(str(exc))
             return
-        person_actions.flash(f"Saved changes to {name.strip()}")
+        person_actions.flash(f"Změny uloženy: {name.strip()}")
         st.rerun()
-    if delete_col.button("Delete organizer", key=f"{prefix}_delete"):
+    if delete_col.button("Smazat organizátora", key=f"{prefix}_delete"):
         person_actions.attempt("organizer", organizer_id, "delete")
 
 
 def _add_organizer_body() -> None:
     name_col, email_col = st.columns(2)
-    name = name_col.text_input("Name (required)", key="add_organizer_name")
+    name = name_col.text_input("Jméno (povinné)", key="add_organizer_name")
     email = email_col.text_input(
-        "E-mail (optional)",
+        "E-mail (volitelný)",
         key="add_organizer_email",
-        help="An e-mail address recorded in an earlier Season links them to that Person.",
+        help="E-mailová adresa zaznamenaná v dřívějším ročníku ho propojí s touto osobou.",
     )
-    if st.button("Add organizer", type="primary", key="add_organizer_submit"):
+    if st.button("Přidat organizátora", type="primary", key="add_organizer_submit"):
         try:
             new_state = mutations.add_organizer(session.get_workspace(), name, email)
         except mutations.RosteringError as exc:
             st.error(str(exc))
             return
         session.set_state(new_state)
-        person_actions.flash(f"Added {new_state['organizers'][-1]['name']}.")
+        person_actions.flash(f"Přidán organizátor: {new_state['organizers'][-1]['name']}.")
         st.rerun()
 
 
@@ -139,7 +139,7 @@ def _render_tags(kind: str, person: dict) -> None:
     state = session.get_state()
     tags = {t["id"]: t for t in state["tags"]}
     if not tags:
-        st.caption("No Tags in this Season yet. Create some in the Tags tab.")
+        st.caption("V tomto ročníku zatím nejsou žádné štítky. Vytvořte je na záložce Štítky.")
         return
     refused = st.session_state.pop(_TAGS_ERROR, None)
     if refused:
@@ -150,7 +150,7 @@ def _render_tags(kind: str, person: dict) -> None:
     nonce = st.session_state.get(_TAGS_NONCE, 0)
     direct = tags_of(state, person["id"])["direct"]
     picked = st.multiselect(
-        "Tags (directly)",
+        "Štítky (přímé)",
         options=list(tags),
         default=direct,
         format_func=lambda tid: tags[tid]["name"],
@@ -158,7 +158,7 @@ def _render_tags(kind: str, person: dict) -> None:
         # them after any other edit instead of keeping a stale selection; the
         # nonce does the same after a refused pick.
         key=f"{kind}_tags_{person['id']}_{'-'.join(map(str, direct))}_{nonce}",
-        placeholder="No tags",
+        placeholder="Žádné štítky",
     )
     if set(picked) != set(direct):
         try:
@@ -174,7 +174,7 @@ def _render_tags(kind: str, person: dict) -> None:
         tag_pills.pills_html(
             (tags[t] for t in own["direct"] if t in tags), (tags[t] for t in own["implied"] if t in tags)
         )
-        or '<span style="opacity:.5">No tags</span>'
+        or '<span style="opacity:.5">Žádné štítky</span>'
     )
 
 
@@ -218,17 +218,17 @@ def _render_friend_names(helper: dict) -> None:
     can match more than one helper if it refers to a group."""
     names = _friend_names(helper)
     if not names:
-        st.caption("This helper named no friends that need matching.")
+        st.caption("Tento pomocník neuvedl žádné kamarády, které by bylo třeba přiřadit.")
         return
     state = session.get_state()
-    st.caption("A name can match more than one helper if it refers to a group of people.")
+    st.caption("Jméno může odpovídat více pomocníkům, pokud označuje skupinu lidí.")
     decisions = helper.get("friend_name_decisions", {})
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
     candidates = sorted((hid for hid in other_helpers if hid != helper["id"]), key=lambda hid: other_helpers[hid].lower())
     helper_id_by_name = {other_helpers[hid]: hid for hid in candidates}
     # An Organizer can be named too; their option carries a suffix so a Helper
     # with the same name stays distinguishable.
-    organizer_labels = {o["id"]: f"{o['name']} (Organizer)" for o in state["organizers"]}
+    organizer_labels = {o["id"]: f"{o['name']} (organizátor)" for o in state["organizers"]}
     organizer_id_by_label = {label: oid for oid, label in organizer_labels.items()}
     options = [_DISMISS_LABEL, *(other_helpers[hid] for hid in candidates), *organizer_id_by_label]
 
@@ -261,7 +261,7 @@ def _render_friend_names(helper: dict) -> None:
 
         if _DISMISS_LABEL in choice:
             if len(choice) > 1:
-                select_col.warning(f"“{_DISMISS_LABEL}” can't be combined with other matches.")
+                select_col.warning(f"„{_DISMISS_LABEL}“ nelze kombinovat s dalšími shodami.")
                 continue
             if was_decided and decided_ids is None:
                 continue
@@ -282,7 +282,7 @@ def _render_friend_names(helper: dict) -> None:
                 unknown.append(picked)
         if unknown:
             names_str = ", ".join(f"“{u}”" for u in unknown)
-            select_col.warning(f"{names_str} doesn't match any known helper.")
+            select_col.warning(f"{names_str}: žádný známý pomocník nesedí.")
             continue
         if was_decided and decided_ids == [*resolved_ids, *({"organizer_id": o} for o in resolved_organizer_ids)]:
             continue

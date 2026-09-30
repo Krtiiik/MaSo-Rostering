@@ -91,10 +91,10 @@ def _describe(group: dict, violations: Sequence[str]) -> dict[str, Any]:
     active = sum(1 for m in members if m["state"] == ACTIVE)
     reason = None
     if active < 2:
-        notes = [f"{m['name']} can't attend" for m in members if m["state"] == CANT_ATTEND]
-        notes += [f"{m['name']} is an unplaced Organizer" for m in members if m["state"] == UNPLACED]
-        notes += [f"{m['name']} is not registered this Season" for m in members if m["state"] == NOT_REGISTERED]
-        reason = f"Fewer than two active members ({active} of {len(members)})" + (
+        notes = [f"{m['name']} se nemůže zúčastnit" for m in members if m["state"] == CANT_ATTEND]
+        notes += [f"{m['name']} je nezařazený organizátor" for m in members if m["state"] == UNPLACED]
+        notes += [f"{m['name']} není v tomto ročníku registrován(a)" for m in members if m["state"] == NOT_REGISTERED]
+        reason = f"Méně než dva aktivní členové ({active} z {len(members)})" + (
             f": {'; '.join(notes)}" if notes else ""
         )
     # A dormant group constrains nothing, so the roster cannot violate it.
@@ -102,7 +102,7 @@ def _describe(group: dict, violations: Sequence[str]) -> dict[str, Any]:
     status = DORMANT if active < 2 else VIOLATED if violations else ACTIVE
     # An Organizer has no solved Role, so a group sharing Role never applies it to them.
     badges = (
-        [f"Role not applied to {m['name']}" for m in members if m["kind"] == "organizer"]
+        [f"Role se na {m['name']} neuplatní" for m in members if m["kind"] == "organizer"]
         if forced_friends.ROLE in group["axes"]
         else []
     )
@@ -172,7 +172,7 @@ def _next_group_id(state: dict[str, Any]) -> int:
 def _validated_name(name: Optional[str]) -> str:
     name = (name or "").strip()
     if not name:
-        raise RosteringError("A Forced friends group needs a name.")
+        raise RosteringError("Vynucená skupinka kamarádů musí mít název.")
     return name
 
 
@@ -196,7 +196,7 @@ def _validated_members(state: dict[str, Any], person_ids: Sequence[str], kept: S
         elif person_id in known:
             members.append(dict(known[person_id]))
         else:
-            raise RosteringError("Pick only people who are registered this Season.")
+            raise RosteringError("Vybírejte jen lidi, kteří jsou v tomto ročníku registrováni.")
     return members
 
 
@@ -226,7 +226,7 @@ def _refuse_organizer_on_role(
     names = _organizer_names(state, newly)
     if names:
         raise RosteringError(
-            f"An Organizer has no Role to share: {', '.join(names)} can't be in a group that shares Role."
+            f"Organizátor nemá roli, kterou by sdílel: {', '.join(names)} nemůže být ve skupince, která sdílí roli."
         )
 
 
@@ -240,7 +240,7 @@ def _record(state: dict[str, Any], group_id: int) -> dict:
     for record in _records(state):
         if record["id"] == group_id:
             return record
-    raise RosteringError(f"No such Forced friends group: {group_id}")
+    raise RosteringError(f"Taková vynucená skupinka neexistuje: {group_id}")
 
 
 def _refuse_tag_clash(state: dict[str, Any], group_id: int) -> None:
@@ -266,7 +266,7 @@ def add_group(workspace: Workspace, name: str, person_ids: Sequence[str], axes: 
     group_id = _next_group_id(state)
     _records(state).append({"id": group_id, "name": name, "axes": canonical, "members": members})
     _refuse_tag_clash(state, group_id)
-    _stale_if_rostered(state, f"Forced friends group {name} was created: solve again to apply it")
+    _stale_if_rostered(state, f"Vynucená skupinka {name} byla vytvořena: sestavte rozdělení znovu, aby se uplatnila")
     workspace.save(state)
     return state
 
@@ -307,7 +307,7 @@ def update_group(
         record["members"] = members
     if changed:
         _refuse_tag_clash(state, group_id)
-        _stale_if_rostered(state, f"Forced friends group {record['name']} was changed: solve again to apply it")
+        _stale_if_rostered(state, f"Vynucená skupinka {record['name']} byla změněna: sestavte rozdělení znovu, aby se uplatnila")
     workspace.save(state)
     return state
 
@@ -341,7 +341,7 @@ def dissolve_group(workspace: Workspace, group_id: int) -> dict:
     state["forced_groups"] = [g for g in _records(state) if g["id"] != group_id]
     if pulling:
         mutations._add_stale_reason(
-            state, f"Forced friends group {record['name']} was dissolved: solve again to release its members"
+            state, f"Vynucená skupinka {record['name']} byla rozpuštěna: sestavte rozdělení znovu, aby se její členové uvolnili"
         )
     workspace.save(state)
     return state
@@ -366,7 +366,7 @@ def _same_group_exists(state: dict[str, Any], person_ids: Sequence[str], axes: S
 def friend_requests(state: dict[str, Any]) -> list[dict]:
     """The resolved soft friend requests "make forced" can harden, one per
     ``helper_id`` and ``friend`` reference (a Helper id, or ``{"organizer_id":
-    n}``), with both names (an Organizer marked ``(Organizer)``) and whether a
+    n}``), with both names (an Organizer marked ``(organizátor)``) and whether a
     Room group of those two people already exists (``forced``)."""
     room_axes = list(forced_friends.normalize_axes([forced_friends.ROOM]))
     requests: list[dict] = []
@@ -382,7 +382,7 @@ def friend_requests(state: dict[str, Any]) -> list[dict]:
                     "helper_id": helper["id"],
                     "helper_name": helper["name"],
                     "friend": friend,
-                    "friend_name": person[1] + (" (Organizer)" if isinstance(friend, dict) else ""),
+                    "friend_name": person[1] + (" (organizátor)" if isinstance(friend, dict) else ""),
                     "forced": _same_group_exists(state, [helper["person_id"], person[0]], room_axes),
                 }
             )
@@ -402,10 +402,10 @@ def make_forced(workspace: Workspace, helper_id: int, friend: Any) -> dict:
     wanted = OrganizerRef(friend["organizer_id"]) if isinstance(friend, dict) else friend
     person = _friend_person(state, friend) if helper is not None and wanted in refs else None
     if helper is None or person is None or not helper.get("person_id"):
-        raise RosteringError("That is not a resolved friend request.")
+        raise RosteringError("Toto není přiřazené přání být s kamarádem.")
     room_axes = list(forced_friends.normalize_axes([forced_friends.ROOM]))
     if _same_group_exists(state, [helper["person_id"], person[0]], room_axes):
-        raise RosteringError(f"A Room group of {helper['name']} and {person[1]} already exists.")
+        raise RosteringError(f"Skupinka v místnosti pro {helper['name']} a {person[1]} už existuje.")
     return add_group(workspace, f"{helper['name']} + {person[1]}", [helper["person_id"], person[0]], room_axes)
 
 
@@ -490,7 +490,7 @@ def _import_groups_section(context: mutations.ImportContext) -> dict[str, Any]:
             imported.append(record)
     names = [g["name"] for g in imported]
     if imported:
-        _stale_if_rostered(state, f"Forced friends groups were imported ({', '.join(names)}): solve again to apply them")
+        _stale_if_rostered(state, f"Vynucené skupinky kamarádů byly importovány ({', '.join(names)}): sestavte rozdělení znovu, aby se uplatnily")
     inactive = [
         g["name"]
         for g in imported
@@ -502,16 +502,16 @@ def _import_groups_section(context: mutations.ImportContext) -> dict[str, Any]:
     def listed(items: Sequence[str]) -> str:
         return f" ({', '.join(items)})" if items else ""
 
-    lines = [f"Groups imported: {len(names)}{listed(names)}"]
+    lines = [f"Importované skupinky: {len(names)}{listed(names)}"]
     if inactive:
-        lines.append(f"Inactive for now (fewer than two active members): {len(inactive)}{listed(inactive)}")
-    lines.append(f"Groups already in this Season, skipped: {len(skipped)}{listed(skipped)}")
+        lines.append(f"Zatím neaktivní (méně než dva aktivní členové): {len(inactive)}{listed(inactive)}")
+    lines.append(f"Skupinky už v tomto ročníku, přeskočeno: {len(skipped)}{listed(skipped)}")
     if left_out:
-        lines.append(f"Groups left out by choice: {len(left_out)}{listed(left_out)}")
+        lines.append(f"Skupinky vynechané na vlastní přání: {len(left_out)}{listed(left_out)}")
     if without:
-        lines.append(f"Groups without a returning person, not imported: {len(without)}{listed(without)}")
+        lines.append(f"Skupinky bez vracející se osoby, neimportovány: {len(without)}{listed(without)}")
     if clashes:
-        lines.append(f"Imported, but their members' Tags leave nothing in common: {len(clashes)} ({'; '.join(clashes)})")
+        lines.append(f"Importováno, ale štítky jejich členů nemají nic společného: {len(clashes)} ({'; '.join(clashes)})")
     return {
         "groups_imported": names,
         "groups_inactive": inactive,
@@ -524,5 +524,5 @@ def _import_groups_section(context: mutations.ImportContext) -> dict[str, Any]:
 
 
 mutations.register_import_section(
-    mutations.ImportSection(IMPORT_KEY, "Forced friends groups", _import_groups_section, import_overview)
+    mutations.ImportSection(IMPORT_KEY, "Vynucené skupinky kamarádů", _import_groups_section, import_overview)
 )

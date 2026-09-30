@@ -49,7 +49,7 @@ def test_a_split_room_group_names_its_members_and_the_rooms_they_are_split_acros
     comp, result = _solve_pinned([_building("A", "N4", "N6")], helpers, group, pins)
 
     (broken,) = result.broken_rules
-    assert broken.line == "Group Rodina [Anna, Petr, Jana] is split across rooms N4 and N6"
+    assert broken.line == "Skupinka Rodina [Anna, Petr, Jana] je rozdělena mezi místnosti N4 a N6"
     assert check_roster(comp, result.assignments)[0].line == broken.line
 
 
@@ -61,7 +61,7 @@ def test_the_line_lists_every_place_the_group_is_split_across():
     _comp, result = _solve_pinned([_building("A", "A1"), _building("B", "B1"), _building("C", "C1")], helpers, group, pins)
 
     (broken,) = result.broken_rules
-    assert broken.line == "Group Rodina [Anna, Petr, Jana] is split across buildings A, B and C"
+    assert broken.line == "Skupinka Rodina [Anna, Petr, Jana] je rozdělena mezi budovy A, B a C"
 
 
 def test_a_role_group_line_names_the_roles():
@@ -72,7 +72,7 @@ def test_a_role_group_line_names_the_roles():
     _comp, result = _solve_pinned([_building("A", "A1")], helpers, group, pins)
 
     (broken,) = result.broken_rules
-    assert broken.line == "Group Tým [Anna, Petr] is split across roles Skenovač and Měnič"
+    assert broken.line == "Skupinka Tým [Anna, Petr] je rozdělena mezi role Skenovač a Měnič"
 
 
 def test_two_rooms_of_one_name_in_different_buildings_are_told_apart():
@@ -83,7 +83,7 @@ def test_two_rooms_of_one_name_in_different_buildings_are_told_apart():
     _comp, result = _solve_pinned([_building("A", "N4"), _building("B", "N4")], helpers, group, pins)
 
     (broken,) = result.broken_rules
-    assert broken.line == "Group Rodina [Anna, Petr] is split across rooms N4 (A) and N4 (B)"
+    assert broken.line == "Skupinka Rodina [Anna, Petr] je rozdělena mezi místnosti N4 (A) a N4 (B)"
 
 
 # -- the status badge --------------------------------------------------------------
@@ -97,7 +97,7 @@ def test_a_group_with_two_active_members_is_active_and_a_group_short_of_them_is_
     assert _group_named(state, "Rodina")["status"] == "active"
     dormant = _group_named(state, "Sám")
     assert dormant["status"] == "dormant"
-    assert "fewer than two" in dormant["reason"].lower()
+    assert "méně než dva" in dormant["reason"].lower()
     assert dormant["violations"] == []
 
 
@@ -111,7 +111,7 @@ def test_a_group_the_roster_splits_is_violated_with_its_line_and_active_again_on
 
     group = _group_named(state, "Rodina")
     assert group["status"] == "violated"
-    assert group["violations"] == ["Group Rodina [Anna, Petr] is split across rooms A1 and B1"]
+    assert group["violations"] == ["Skupinka Rodina [Anna, Petr] je rozdělena mezi místnosti A1 a B1"]
     assert group["active"] is True  # a violated group is still in force
 
     state = mutations.move_helper(workspace, 2, "A", "A1", "Skenovac")
@@ -147,7 +147,7 @@ def test_the_live_checker_reports_a_violated_group_with_go_fix_to_its_editor_and
     after = mutations.move_helper(workspace, 2, "B", "B2", "Skenovac")
 
     (broken,) = mutations.broken_rules(after)
-    assert broken.line == "Group Rodina [Anna, Petr] is split across rooms A1 and B2"
+    assert broken.line == "Skupinka Rodina [Anna, Petr] je rozdělena mezi místnosti A1 a B2"
     assert broken.fix.tab == "forced_friends" and broken.fix.group_id == gid
     assert mutations.move_toast_lines(before, after) == [broken.line]
     assert {a["helper_id"]: a["building"] for a in after["assignments"]} == {1: "A", 2: "B"}  # still applied
@@ -164,9 +164,9 @@ def test_the_grid_marks_the_members_of_a_group_in_force_with_the_groups_that_bin
     marks = mutations.grid_forced_groups(state)
 
     assert marks == {
-        1: ["Rodina (same Building, Room)"],
-        2: ["Rodina (same Building, Room)", "Tým (same Role)"],
-        3: ["Tým (same Role)"],
+        1: ["Rodina (shodné: budova, místnost)"],
+        2: ["Rodina (shodné: budova, místnost)", "Tým (shodné: role)"],
+        3: ["Tým (shodné: role)"],
     }
 
 
@@ -178,8 +178,8 @@ def test_the_grid_does_not_mark_a_dormant_group_nor_a_member_who_cant_attend(wor
     state = mutations.set_cant_attend(workspace, 3, True)
 
     assert mutations.grid_forced_groups(state) == {
-        1: ["Rodina (same Building)"],
-        2: ["Rodina (same Building)"],
+        1: ["Rodina (shodné: budova)"],
+        2: ["Rodina (shodné: budova)"],
     }
 
 
@@ -201,7 +201,7 @@ def test_creating_a_group_is_refused_when_its_members_allowed_buildings_do_not_i
         forced_groups.add_group(workspace, "Rodina", ["p1", "p2"], ["building"])
 
     message = str(refused.value)
-    assert "Rodina" in message and "Building" in message and "Anna" in message and "Petr" in message
+    assert "Rodina" in message and "budovu" in message and "Anna" in message and "Petr" in message
     assert forced_groups.list_groups(mutations.get_state(workspace)) == []
 
 
@@ -212,7 +212,7 @@ def test_a_room_group_is_checked_on_its_implied_building_axis(workspace):
     mutations.set_helper_tags(workspace, 1, [only_a])
     mutations.set_helper_tags(workspace, 2, [only_b])
 
-    with pytest.raises(mutations.RosteringError, match="Building"):
+    with pytest.raises(mutations.RosteringError, match="budovu"):
         forced_groups.add_group(workspace, "Rodina", ["p1", "p2"], ["room"])
 
 
@@ -223,7 +223,7 @@ def test_creating_a_group_is_refused_on_the_role_axis_too(workspace):
     mutations.set_helper_tags(workspace, 1, [scans])
     mutations.set_helper_tags(workspace, 2, [draws])
 
-    with pytest.raises(mutations.RosteringError, match="Role"):
+    with pytest.raises(mutations.RosteringError, match="roli"):
         forced_groups.add_group(workspace, "Tým", ["p1", "p2"], ["role"])
 
 
@@ -278,7 +278,7 @@ def test_editing_a_groups_people_or_axes_is_refused_on_an_empty_intersection_but
     mutations.set_helper_tags(workspace, 2, [only_b])
     gid = _group_named(forced_groups.add_group(workspace, "Tým", ["p1", "p2"], ["role"]), "Tým")["id"]
 
-    with pytest.raises(mutations.RosteringError, match="Building"):
+    with pytest.raises(mutations.RosteringError, match="budovu"):
         forced_groups.update_group(workspace, gid, axes=["building"])
     state = mutations.get_state(workspace)
     assert _group_named(state, "Tým")["axes"] == ["role"]  # nothing changed

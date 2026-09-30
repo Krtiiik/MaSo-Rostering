@@ -173,7 +173,7 @@ def _collapse_duplicate_emails(
         if count > 1:
             kept_name = str(df[name_col].iloc[winner_by_email[email]]).strip()
             warnings.append(
-                f"{kept_name}: {count} submissions with e-mail {email} — kept only the latest"
+                f"{kept_name}: {count} odeslání s e-mailem {email} — ponecháno jen nejnovější"
             )
     if len(keep) == len(df):
         return df
@@ -220,7 +220,7 @@ def _resolve_buildings(raw: object, warnings: list[str], row_label: str) -> froz
         return frozenset()
     resolved = resolve_building_aliases(text)
     if not resolved:
-        warnings.append(f"{row_label}: unrecognized building preference {text!r}")
+        warnings.append(f"{row_label}: nerozpoznaná preference budovy {text!r}")
     return frozenset(resolved)
 
 
@@ -242,7 +242,7 @@ def _resolve_tshirt_size(raw: object, warnings: list[str], row_label: str) -> st
     text = _cell_str(raw)
     size = parse_tshirt_size(text)
     if size is None:
-        warnings.append(f"{row_label}: unrecognized T-shirt size {text or ''!r}")
+        warnings.append(f"{row_label}: nerozpoznaná velikost trička {text or ''!r}")
         return UNKNOWN_TSHIRT_SIZE
     return size
 
@@ -334,7 +334,7 @@ def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> 
     name_col = columns.get("name")
     if name_col is None:
         raise ValueError(
-            f"Could not find a name column in {path} — headers were: {headers}"
+            f"V souboru {path} se nepodařilo najít sloupec se jménem — hlavičky byly: {headers}"
         )
 
     df = df[df[name_col].notna() & (df[name_col].astype(str).str.strip() != "")]
@@ -409,6 +409,6 @@ def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> 
         f for f in ("email", "building_preference", "friends", "equipment", "tshirt_size") if f not in columns
     ]
     for field in missing_important:
-        warnings.append(f"Column for {field!r} not found in {path} — feature left empty for all helpers")
+        warnings.append(f"Sloupec pro {field!r} nebyl v souboru {path} nalezen — údaj zůstal prázdný u všech pomocníků")
 
     return RawSurveyResult(helpers=helpers, warnings=warnings, submission_timestamps=submission_timestamps)

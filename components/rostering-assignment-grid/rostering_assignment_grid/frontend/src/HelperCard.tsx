@@ -63,25 +63,25 @@ export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
         <button
           type="button"
           className="helper-card-lock"
-          title="A full Solve keeps a locked Assignment (ctrl/cmd-click on the chip toggles it too)"
+          title="Celé sestavení rozdělení uzamčené přiřazení zachová (přepíná se i ctrl/cmd-kliknutím na štítek pomocníka)"
           onClick={(e) => {
             e.stopPropagation();
             onToggleLock();
           }}
         >
-          {locked ? "Unlock" : "Lock"}
+          {locked ? "Odemknout" : "Zamknout"}
         </button>
       )}
 
       <div className="helper-card-section">
-        <div className="helper-card-label">Preferred building</div>
+        <div className="helper-card-label">Preferované budovy</div>
         <div>
-          {helper.building_preferences.length > 0 ? helper.building_preferences.join(", ") : "No preference"}
+          {helper.building_preferences.length > 0 ? helper.building_preferences.join(", ") : "Žádná preference"}
         </div>
       </div>
 
       <div className="helper-card-section">
-        <div className="helper-card-label">Role preferences</div>
+        <div className="helper-card-label">Preference rolí</div>
         <ul className="helper-card-roles">
           {roleOrder.map((role) => {
             const pref = helper.role_preferences[role];
@@ -93,7 +93,7 @@ export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
                     {stars(pref.level)}
                   </span>
                 ) : (
-                  <span className="helper-card-stars helper-card-stars-empty">not rated</span>
+                  <span className="helper-card-stars helper-card-stars-empty">nehodnoceno</span>
                 )}
               </li>
             );
@@ -103,7 +103,7 @@ export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
 
       {hasFriendInfo && (
         <div className="helper-card-section">
-          <div className="helper-card-label">Friend requests</div>
+          <div className="helper-card-label">Přání být s kamarádem</div>
           <ul className="helper-card-friends">
             {sharedFriends.map((f) => (
               <li key={`shared-${f.id}`} className="friend-shared">
@@ -117,7 +117,7 @@ export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
             ))}
             {requestedBy.map((f) => (
               <li key={`req-${f.id}`} className="friend-requested-by">
-                {f.name} (requested them)
+                {f.name} (chce být s ním/ní)
               </li>
             ))}
           </ul>

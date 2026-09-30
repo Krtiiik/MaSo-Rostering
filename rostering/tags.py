@@ -192,7 +192,8 @@ def tree_order(tags: Iterable[Tag]) -> list[tuple[Tag, int]]:
 BUILDING = "building"
 ROLE = "role"
 AXES = (BUILDING, ROLE)
-_NOUNS = {BUILDING: "Building", ROLE: "Role"}
+# (singular, plural) accusative, as in "povoluje jen budovu" / "zakazuje budovy".
+_NOUNS = {BUILDING: ("budovu", "budovy"), ROLE: ("roli", "role")}
 
 
 @dataclass(frozen=True)
@@ -257,10 +258,11 @@ def allowed_values(tags: Iterable[Tag], direct: Iterable[int], axis: str, univer
 
 
 def describe_restriction(r: Restriction, axis: str, display: Callable[[str], str] = str) -> str:
-    """``Tag 8.M, allows only Building Karlín`` / ``Tag GCHD, denies Roles A, B``."""
-    noun = _NOUNS[axis] + ("s" if len(r.values) > 1 else "")
-    verb = "allows only" if r.kind == "allow" else "denies"
-    return f"Tag {r.tag.name}, {verb} {noun} {', '.join(display(v) for v in r.values)}"
+    """``Štítek 8.M, povoluje jen budovu Karlín`` / ``Štítek GCHD, zakazuje role A, B``."""
+    many = len(r.values) > 1
+    noun = _NOUNS[axis][1 if many else 0]
+    verb = "povoluje jen" if r.kind == "allow" else "zakazuje"
+    return f"Štítek {r.tag.name}, {verb} {noun} {', '.join(display(v) for v in r.values)}"
 
 
 def dead_ends(

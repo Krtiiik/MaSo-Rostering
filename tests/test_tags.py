@@ -95,7 +95,7 @@ def test_a_tag_gets_a_colour_of_its_own_when_none_is_given(workspace):
 def test_a_tag_needs_a_name(workspace):
     _seed(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="name"):
+    with pytest.raises(mutations.RosteringError, match="název"):
         mutations.add_tag(workspace, "   ")
 
     assert mutations.get_state(workspace)["tags"] == []
@@ -105,7 +105,7 @@ def test_tag_names_are_unique_ignoring_case_and_surrounding_spaces(workspace):
     _seed(workspace)
     mutations.add_tag(workspace, "GCHD")
 
-    with pytest.raises(mutations.RosteringError, match="already"):
+    with pytest.raises(mutations.RosteringError, match="už existuje"):
         mutations.add_tag(workspace, "  gchd ")
 
     assert len(mutations.get_state(workspace)["tags"]) == 1
@@ -114,7 +114,7 @@ def test_tag_names_are_unique_ignoring_case_and_surrounding_spaces(workspace):
 def test_a_tag_colour_must_be_a_hex_colour(workspace):
     _seed(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="colour"):
+    with pytest.raises(mutations.RosteringError, match="Barva"):
         mutations.add_tag(workspace, "GCHD", colour="blue")
 
 
@@ -134,7 +134,7 @@ def test_a_tag_may_imply_one_parent_tag(workspace):
 def test_a_parent_must_be_an_existing_tag(workspace):
     _seed(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="No such tag"):
+    with pytest.raises(mutations.RosteringError, match="Takový štítek neexistuje"):
         mutations.add_tag(workspace, "8.M", parent_id=99)
 
 
@@ -161,7 +161,7 @@ def test_renaming_a_tag_keeps_names_unique_but_lets_it_keep_its_own(workspace):
     gchd = _new_tag(workspace, "GCHD")
     _new_tag(workspace, "8.M")
 
-    with pytest.raises(mutations.RosteringError, match="already"):
+    with pytest.raises(mutations.RosteringError, match="už existuje"):
         mutations.update_tag(workspace, gchd, name="8.m")
 
     mutations.update_tag(workspace, gchd, name="gchd")  # its own name in another case is fine
@@ -172,7 +172,7 @@ def test_a_tag_cannot_imply_itself(workspace):
     _seed(workspace)
     gchd = _new_tag(workspace, "GCHD")
 
-    with pytest.raises(mutations.RosteringError, match="ancestor"):
+    with pytest.raises(mutations.RosteringError, match="předkem"):
         mutations.update_tag(workspace, gchd, parent_id=gchd)
 
 
@@ -182,7 +182,7 @@ def test_a_tag_cannot_be_given_one_of_its_own_descendants_as_parent(workspace):
     b = _new_tag(workspace, "B", parent_id=a)
     c = _new_tag(workspace, "C", parent_id=b)
 
-    with pytest.raises(mutations.RosteringError, match="ancestor"):
+    with pytest.raises(mutations.RosteringError, match="předkem"):
         mutations.update_tag(workspace, a, parent_id=c)
 
     assert _tag(mutations.get_state(workspace), a)["parent_id"] is None  # nothing changed
@@ -264,9 +264,9 @@ def test_tagging_refuses_an_unknown_helper_or_tag_and_changes_nothing(workspace)
     _seed(workspace)
     gchd, *_ = _tree(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="No such helper"):
+    with pytest.raises(mutations.RosteringError, match="Takový pomocník neexistuje"):
         mutations.set_helper_tags(workspace, 99, [gchd])
-    with pytest.raises(mutations.RosteringError, match="No such tag"):
+    with pytest.raises(mutations.RosteringError, match="Takový štítek neexistuje"):
         mutations.set_helper_tags(workspace, 1, [gchd, 99])
 
     assert _direct(mutations.get_state(workspace), 1) == []
@@ -395,7 +395,7 @@ def test_a_deleted_tags_id_is_not_handed_to_a_new_tag(workspace):
 def test_deleting_an_unknown_tag_is_refused(workspace):
     _seed(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="No such tag"):
+    with pytest.raises(mutations.RosteringError, match="Takový štítek neexistuje"):
         mutations.delete_tag(workspace, 42)
 
 

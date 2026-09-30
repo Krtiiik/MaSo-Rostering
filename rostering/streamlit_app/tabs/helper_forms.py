@@ -47,33 +47,33 @@ def _preference_inputs(prefix: str, current: dict[str, str]) -> dict[str, str]:
 def _optional_inputs(state: dict, prefix: str, helper: dict | None, own_id: int | None) -> dict:
     """The optional Helper fields, prefilled from ``helper`` when editing."""
     helper = helper or {}
-    st.caption("Role preferences (left at the dash, a Role counts as Nevadí)")
+    st.caption("Preference rolí (role ponechaná na pomlčce se počítá jako Nevadí)")
     role_preferences = _preference_inputs(prefix, helper.get("role_preferences", {}))
     buildings = [b["name"] for b in state["config"]]
     building_preferences = st.multiselect(
-        "Acceptable buildings (none picked: any)",
+        "Přijatelné budovy (nevybráno nic: libovolná)",
         options=buildings,
         default=[b for b in helper.get("building_preferences", []) if b in buildings],
         key=f"{prefix}_buildings",
     )
     notebook_col, camera_col, size_col = st.columns(3)
     can_bring_notebook = notebook_col.checkbox(
-        "Can bring a notebook", value=bool(helper.get("can_bring_notebook")), key=f"{prefix}_notebook"
+        "Může přinést notebook", value=bool(helper.get("can_bring_notebook")), key=f"{prefix}_notebook"
     )
     can_bring_camera = camera_col.checkbox(
-        "Can bring a camera", value=bool(helper.get("can_bring_camera")), key=f"{prefix}_camera"
+        "Může přinést fotoaparát", value=bool(helper.get("can_bring_camera")), key=f"{prefix}_camera"
     )
     tshirt_size = size_col.selectbox(
-        "T-shirt size",
+        "Velikost trička",
         options=_SIZE_OPTIONS,
         index=_SIZE_OPTIONS.index(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE),
         key=f"{prefix}_size",
     )
     # A friend is a Helper or an Organizer: options are "h<id>" / "o<id>" keys.
     names = {f"h{h['id']}": h["name"] for h in state["helpers"] if h["id"] != own_id}
-    names.update({f"o{o['id']}": f"{o['name']} (Organizer)" for o in state["organizers"]})
+    names.update({f"o{o['id']}": f"{o['name']} (organizátor)" for o in state["organizers"]})
     picked = st.multiselect(
-        "Friends (Helpers or Organizers to share a Room with)",
+        "Kamarádi (pomocníci nebo organizátoři, se kterými chce sdílet místnost)",
         options=sorted(names, key=lambda key: names[key].lower()),
         default=[
             key
@@ -102,25 +102,25 @@ def render_add_form() -> None:
     state = session.get_state()
     prefix = "add_helper"
     name_col, contact_col = st.columns(2)
-    name = name_col.text_input("Name (required)", key=f"{prefix}_name")
+    name = name_col.text_input("Jméno (povinné)", key=f"{prefix}_name")
     contact = contact_col.text_input(
-        "Contact (required)",
+        "Kontakt (povinný)",
         key=f"{prefix}_contact",
-        help="An e-mail address lets a later survey answer from the same address link to this person; "
-        "anything else (a phone number, say) is kept for display and matching falls back to the name.",
+        help="E-mailová adresa umožní propojit s touto osobou pozdější odpověď ankety ze stejné adresy; "
+        "cokoli jiného (třeba telefon) se uchová jen pro zobrazení a párování se vrátí ke jménu.",
     )
     if name.strip() or contact.strip():
         for line in mutations.helper_collisions(state, name, contact):
             st.warning(line, icon="⚠️")
     optional = _optional_inputs(state, prefix, None, None)
-    if st.button("Add helper", type="primary", key=f"{prefix}_submit"):
+    if st.button("Přidat pomocníka", type="primary", key=f"{prefix}_submit"):
         try:
             new_state = mutations.add_helper(session.get_workspace(), name, contact, **optional)
         except mutations.RosteringError as exc:
             st.error(str(exc))
             return
         session.set_state(new_state)
-        person_actions.flash(f"Added {new_state['helpers'][-1]['name']}.")
+        person_actions.flash(f"Přidán pomocník: {new_state['helpers'][-1]['name']}.")
         st.rerun()
 
 
@@ -130,14 +130,14 @@ def render_details(helper: dict) -> None:
     helper_id = helper["id"]
     prefix = f"edit_helper_{helper_id}_{st.session_state.get(DETAILS_NONCE, 0)}"
     name_col, email_col, phone_col = st.columns(3)
-    name = name_col.text_input("Name", value=helper["name"], key=f"{prefix}_name")
+    name = name_col.text_input("Jméno", value=helper["name"], key=f"{prefix}_name")
     email = email_col.text_input("E-mail", value=helper.get("email") or "", key=f"{prefix}_email")
-    phone = phone_col.text_input("Phone / other contact", value=helper.get("phone") or "", key=f"{prefix}_phone")
+    phone = phone_col.text_input("Telefon / jiný kontakt", value=helper.get("phone") or "", key=f"{prefix}_phone")
     for line in mutations.helper_collisions(state, name, email, exclude_helper_id=helper_id):
         st.warning(line, icon="⚠️")
     optional = _optional_inputs(state, prefix, helper, helper_id)
     save_col, promote_col, delete_col = st.columns(3)
-    if save_col.button("Save changes", type="primary", key=f"{prefix}_save"):
+    if save_col.button("Uložit změny", type="primary", key=f"{prefix}_save"):
         try:
             new_state = mutations.update_helper(
                 session.get_workspace(), helper_id, name=name, email=email, phone=phone, **optional
@@ -146,14 +146,14 @@ def render_details(helper: dict) -> None:
             st.error(str(exc))
             return
         session.set_state(new_state)
-        person_actions.flash(f"Saved changes to {name.strip()}")
+        person_actions.flash(f"Změny uloženy: {name.strip()}")
         st.rerun()
     if promote_col.button(
-        "Promote to Organizer",
+        "Povýšit na organizátora",
         key=f"{prefix}_promote",
-        help="Moves them out of the Helper pool: they keep their name, e-mail, Tags and Person link but "
-        "receive no solved Role, and are placed by giving them a leadership slot on the Roster grid.",
+        help="Vyřadí je z množiny pomocníků: zachovají si jméno, e-mail, štítky i propojení osoby, ale "
+        "nedostanou žádnou sestavenou roli; zařadí se tím, že jim v rozdělení přidělíte vedoucí místo.",
     ):
         person_actions.attempt("helper", helper_id, "promote")
-    if delete_col.button("Delete helper", key=f"{prefix}_delete"):
+    if delete_col.button("Smazat pomocníka", key=f"{prefix}_delete"):
         person_actions.attempt("helper", helper_id, "delete")

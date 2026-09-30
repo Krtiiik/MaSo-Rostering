@@ -234,7 +234,7 @@ def test_solve_of_an_over_constrained_competition_returns_a_roster_and_the_bent_
     assert len(state["assignments"]) == 2
     assert state["diagnostics"]["status"] in ("OPTIMAL", "FEASIBLE")
     assert state["diagnostics"]["broken_rules"] == [
-        {"family": "minimums", "amount": 1, "line": "Room R1 · Skenovač: 2 of 3 required (needs 1 more)"}
+        {"family": "minimums", "amount": 1, "line": "Místnost R1 · Skenovač: 2 z 3 požadovaných (chybí 1)"}
     ]
     # A roster with a bent rule is still exportable.
     assert mutations.export_xlsx_bytes(workspace)[:2] == b"PK"
@@ -264,7 +264,7 @@ def test_solve_with_no_roster_within_the_time_limit_says_so_and_keeps_the_old_ro
         mutations.solve(workspace)
 
     message = str(excinfo.value)
-    assert message.startswith("No roster found within 0 seconds.")
+    assert message.startswith("Rozdělení se nepodařilo najít do 0 s.")
     assert "INFEASIBLE" not in message
     state = mutations.get_state(workspace)
     assert len(state["assignments"]) == 2

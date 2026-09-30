@@ -159,10 +159,10 @@ def test_an_organizer_who_cant_attend_cannot_be_put_in_a_slot(workspace):
     boss = _create(workspace, "Boss")
     mutations.set_organizer_cant_attend(workspace, boss, True)
 
-    with pytest.raises(mutations.RosteringError, match="Can't attend"):
+    with pytest.raises(mutations.RosteringError, match="Nemůže se zúčastnit"):
         mutations.assign_organizer(workspace, boss, "VedouciBudovy", "Karlín")
     # Nor by typing their name into a slot cell.
-    with pytest.raises(mutations.RosteringError, match="Can't attend"):
+    with pytest.raises(mutations.RosteringError, match="Nemůže se zúčastnit"):
         mutations.set_slot_holders(workspace, "VedouciBudovy", "Karlín", None, ["Boss"])
 
     assert mutations.get_state(workspace)["manual_roles"]["structural"] == []
@@ -263,7 +263,7 @@ def test_an_unknown_tag_is_refused_for_an_organizer(workspace):
     _seed(workspace)
     boss = _create(workspace, "Boss")
 
-    with pytest.raises(mutations.RosteringError, match="No such tag"):
+    with pytest.raises(mutations.RosteringError, match="Takový štítek neexistuje"):
         mutations.set_organizer_tags(workspace, boss, [99])
 
 

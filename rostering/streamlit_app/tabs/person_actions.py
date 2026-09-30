@@ -21,8 +21,8 @@ _PENDING = "_pending_person_action"
 _FLASH = "_person_flash"
 
 _CANT_ATTEND_CAPTION = (
-    "Un-ticking Can't attend later does not restore these. The roster is out of date until the next Solve, "
-    "and Export is blocked until then."
+    "Pozdější odškrtnutí Nemůže se zúčastnit to neobnoví. Rozdělení pomocníků je neaktuální do dalšího "
+    "sestavení a do té doby je export zablokovaný."
 )
 
 
@@ -38,45 +38,45 @@ class _Action:
 
 _ACTIONS: dict[tuple[str, str], _Action] = {
     ("helper", "cant_attend"): _Action(
-        "Mark as Can't attend?",
-        "Marking **{name}** as Can't attend clears:",
+        "Označit jako Nemůže se zúčastnit?",
+        "Označením pomocníka **{name}** jako Nemůže se zúčastnit se vymaže:",
         _CANT_ATTEND_CAPTION,
-        "Mark as Can't attend",
+        "Označit jako Nemůže se zúčastnit",
         lambda ws, i, c: mutations.set_cant_attend(ws, i, True, confirmed=c),
         None,
     ),
     ("organizer", "cant_attend"): _Action(
-        "Mark as Can't attend?",
-        "Marking **{name}** as Can't attend clears:",
+        "Označit jako Nemůže se zúčastnit?",
+        "Označením organizátora **{name}** jako Nemůže se zúčastnit se vymaže:",
         _CANT_ATTEND_CAPTION,
-        "Mark as Can't attend",
+        "Označit jako Nemůže se zúčastnit",
         lambda ws, i, c: mutations.set_organizer_cant_attend(ws, i, True, confirmed=c),
         None,
     ),
     ("helper", "delete"): _Action(
-        "Delete this helper?",
-        "Deleting **{name}** clears:",
-        "This can't be undone. The roster is out of date until the next Solve, and Export is blocked until then.",
-        "Delete helper",
+        "Smazat tohoto pomocníka?",
+        "Smazáním pomocníka **{name}** se vymaže:",
+        "Nelze vrátit zpět. Rozdělení pomocníků je neaktuální do dalšího sestavení a do té doby je export zablokovaný.",
+        "Smazat pomocníka",
         lambda ws, i, c: mutations.delete_helper(ws, i, confirmed=c),
-        "Deleted {name}.",
+        "Smazán pomocník: {name}.",
     ),
     ("organizer", "delete"): _Action(
-        "Delete this organizer?",
-        "Deleting **{name}** clears:",
-        "This can't be undone.",
-        "Delete organizer",
+        "Smazat tohoto organizátora?",
+        "Smazáním organizátora **{name}** se vymaže:",
+        "Nelze vrátit zpět.",
+        "Smazat organizátora",
         lambda ws, i, c: mutations.delete_organizer(ws, i, confirmed=c),
-        "Deleted {name}.",
+        "Smazán organizátor: {name}.",
     ),
     ("helper", "promote"): _Action(
-        "Promote this helper to Organizer?",
-        "Promoting **{name}** to Organizer clears:",
-        "They leave the Helper pool and get no solved Role. The roster is out of date until the next Solve, "
-        "and Export is blocked until then.",
-        "Promote to Organizer",
+        "Povýšit tohoto pomocníka na organizátora?",
+        "Povýšením pomocníka **{name}** na organizátora se vymaže:",
+        "Opustí množinu pomocníků a nedostanou žádnou sestavenou roli. Rozdělení pomocníků je neaktuální do "
+        "dalšího sestavení a do té doby je export zablokovaný.",
+        "Povýšit na organizátora",
         lambda ws, i, c: mutations.promote_helper(ws, i, confirmed=c),
-        "{name} is now an Organizer.",
+        "{name} je nyní organizátor.",
     ),
 }
 
@@ -104,7 +104,7 @@ def render_flash() -> None:
 
 def _name_of(state: dict, kind: str, person_id: int) -> str:
     people = state["organizers" if kind == "organizer" else "helpers"]
-    return next((p["name"] for p in people if p["id"] == person_id), "this person")
+    return next((p["name"] for p in people if p["id"] == person_id), "tato osoba")
 
 
 def attempt(kind: str, person_id: int, action: str) -> None:
@@ -158,7 +158,7 @@ def _confirm_body(spec: _Action, kind: str, person_id: int, name: str, lines: li
         if spec.done:
             flash(spec.done.format(name=name))
         st.rerun()
-    if cancel_col.button("Cancel", key="person_action_cancel"):
+    if cancel_col.button("Zrušit", key="person_action_cancel"):
         st.rerun()
 
 
@@ -169,6 +169,6 @@ def show_pending(state: dict) -> None:
         return
     spec = _ACTIONS[(pending["kind"], pending["action"])]
     name = _name_of(state, pending["kind"], pending["id"])
-    if name == "this person":  # they are gone already
+    if name == "tato osoba":  # they are gone already
         return
     st.dialog(spec.title)(_confirm_body)(spec, pending["kind"], pending["id"], name, pending["lines"])
