@@ -12,8 +12,6 @@ import streamlit as st
 
 from rostering import forced_friends
 from rostering.czech import count_helpers
-from rostering import forced_friends
-from rostering.czech import count_helpers
 from rostering.streamlit_app import mutations, session
 
 # Session-state keys: the last import's result and the tab that showed its

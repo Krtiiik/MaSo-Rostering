@@ -2878,7 +2878,7 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
     }
 
 
-register_import_section(ImportSection("tags", "Tags", _import_tags_section))
+register_import_section(ImportSection("tags", "Štítky", _import_tags_section))
 
 
 def _import_context(
