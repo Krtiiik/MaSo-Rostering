@@ -88,7 +88,7 @@ def test_the_people_tab_lists_organizers_and_helpers_with_an_open_button_per_row
     assert any(s.value == "Organizátoři (1)" for s in at.subheader)
     assert any(s.value == "Pomocníci (1)" for s in at.subheader)
     labels = [b.label for b in at.button]
-    assert labels.count("Otevřít") == 2
+    assert labels.count("⚙️") == 2
     assert {"＋ Přidat organizátora", "＋ Přidat pomocníka"} <= set(labels)
     assert not {"Boss", "Anna"} & set(labels)  # a name is plain text, not a button
     assert {"Boss", "Anna"} <= {t.value for t in at.text}
