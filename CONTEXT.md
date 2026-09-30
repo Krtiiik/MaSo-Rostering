@@ -81,7 +81,7 @@ registrant is unassigned.
 An action that solves only for the unassigned Helpers (new registrants of a
 Re-upload, a Hand-added Helper, someone no longer Can't attend) while every
 existing Assignment, locked or not, is held fixed: the fixed Helpers still
-count toward Room/Building minimums and Friend preferences, and nobody placed
+count toward Room minimums, Building limits and Friend preferences, and nobody placed
 is moved, repaired or re-solved even when a hand move of theirs breaks a rule.
 It neither creates nor clears locks. If not every rule can hold, it still
 returns a roster with Broken rules reported, like any solve. A full Solve
@@ -247,7 +247,8 @@ The solver's output for one Helper: the Building, Room, and Role they're
 placed into.
 
 **Broken rule**:
-A hard rule the current roster fails to satisfy: a Room or Building minimum,
+A hard rule the current roster fails to satisfy: a Room minimum or a Building
+limit (an exact count, so too many breaks it as much as too few),
 a Tag constraint, a Forced-friend group, or Equipment eligibility. A solve
 never fails outright because of one — it returns a full roster with as few
 Broken rules as it can manage and lists what it had to bend. Rules bend in a

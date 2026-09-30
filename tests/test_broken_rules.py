@@ -53,7 +53,7 @@ def test_unmeetable_room_minimum_returns_a_full_roster_and_the_broken_rule():
     assert broken[instance].line == "Room R1 · Skenovač: 2 of 3 required (needs 1 more)"
 
 
-def test_unmeetable_building_minimum_is_reported():
+def test_unmeetable_building_limit_is_reported():
     building = Building(
         name="B",
         rooms=[_room("R1"), _room("R2")],
@@ -63,10 +63,43 @@ def test_unmeetable_building_minimum_is_reported():
 
     result = solve_competition(comp, _config())
 
-    instance = RuleInstance("building_minimum", ("B", "Menic"))
+    instance = RuleInstance("building_exact", ("B", "Menic"))
     broken = _broken(result)
     assert list(broken) == [instance]
     assert broken[instance].line == "Building B · Měnič: 1 of 2 required (needs 1 more)"
+
+
+def test_a_building_limit_is_exact_so_the_solver_never_overfills_it():
+    building = Building(
+        name="B",
+        rooms=[_room("R1"), _room("R2")],
+        capacities={Role.Skenovac: RoleCapacity(minimum=2)},
+    )
+    helpers = [
+        Helper(id=i, name=f"H{i}", role_preferences={Role.Skenovac: Preference.Ano}) for i in range(1, 6)
+    ]
+
+    result = solve_competition(Competition(buildings={"B": building}, helpers=helpers), _config())
+
+    assert result.broken_rules == []
+    assert sum(1 for a in result.assignments if a.role is Role.Skenovac) == 2
+
+
+def test_an_unmeetable_building_limit_reports_the_overshoot():
+    building = Building(
+        name="B",
+        rooms=[_room("R1", Skenovac=3)],
+        capacities={Role.Skenovac: RoleCapacity(minimum=2)},
+    )
+    helpers = [Helper(id=i, name=f"H{i}") for i in range(1, 5)]
+
+    result = solve_competition(Competition(buildings={"B": building}, helpers=helpers), _config())
+
+    broken = _broken(result)
+    instance = RuleInstance("building_exact", ("B", "Skenovac"))
+    assert instance in broken
+    assert broken[instance].amount == 1
+    assert broken[instance].line == "Building B · Skenovač: 3 of 2 required (1 too many)"
 
 
 def test_achievable_competition_has_no_broken_rules():

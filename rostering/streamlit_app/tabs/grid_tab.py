@@ -222,7 +222,7 @@ _PLACED_KEY = "_placed_new_note"
 # not listed (added later through rostering.solver.rules.register_rule_family)
 # falls back to its own name.
 _FAMILY_LABELS = {
-    "minimums": "Room and Building minimums",
+    "minimums": "Room minimums and Building limits",
     "tag_restrictions": "Tag restrictions",
     "forced_friends": "Forced-friend groups",
     "equipment": "Equipment",
