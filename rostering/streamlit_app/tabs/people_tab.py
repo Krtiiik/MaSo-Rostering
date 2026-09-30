@@ -167,6 +167,7 @@ def _render_table(
     add_label: str,
     on_add,
     detail_actions: list[dict[int, str]] | None = None,
+    next_step: tuple[str, str] | None = None,
 ) -> None:
     """One ``st.columns`` row per person with one column per field: the name as
     plain text, each detail as a plain ``st.text``, the Can't attend checkbox,
@@ -176,7 +177,8 @@ def _render_table(
     The columns' ratios follow the longest text of each column, the same for
     every row, so the rows stay level. ``detail_actions`` (one dict per person)
     turns a detail cell, by its index, into a button that opens the person's
-    popup on the named tab."""
+    popup on the named tab. ``next_step`` (a button label and a tab) adds a
+    primary button to the right of the add button that switches to that tab."""
     detail_actions = detail_actions or [{} for _ in people]
     absent_label = "Nemůže se zúčastnit"
     name_label, tags_label = "Jméno", "Štítky"
@@ -207,8 +209,16 @@ def _render_table(
         tags_cell.html(_tag_html(person_tags))
         if open_cell.button(_OPEN_LABEL, key=f"open_{kind}_{person['id']}", help=f"Otevřít: {person['name']}"):
             person_dialog.open_person(kind, person["id"])
-    if st.button(add_label, key=f"add_{kind}_open"):
+    if next_step is None:
+        if st.button(add_label, key=f"add_{kind}_open"):
+            on_add()
+        return
+    add_cell, next_cell, _ = st.columns([len(add_label) + 4, len(next_step[0]) + 4, 40])
+    if add_cell.button(add_label, key=f"add_{kind}_open"):
         on_add()
+    if next_cell.button(next_step[0], type="primary", key=f"next_step_{kind}"):
+        session.switch_tab(next_step[1])
+        st.rerun()
 
 
 def _render_organizers(state: dict) -> None:
@@ -224,6 +234,7 @@ def _render_organizers(state: dict) -> None:
         [pills.get(o["id"]) for o in organizers],
         "＋ Přidat organizátora",
         person_dialog.open_add_organizer,
+        next_step=("Přejít k zařazení", ui_labels.TAB_ROSTER),
     )
 
 

@@ -94,6 +94,18 @@ def test_the_people_tab_lists_organizers_and_helpers_with_an_open_button_per_row
     assert {"Boss", "Anna"} <= {t.value for t in at.text}
 
 
+def test_the_organizers_table_has_a_primary_button_that_goes_to_the_roster_tab(seasons):
+    at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
+
+    button = next(b for b in at.button if b.label == "Přejít k zařazení")
+    assert button.proto.type == "primary"
+    assert [b.label for b in at.button].count("Přejít k zařazení") == 1  # not on the Helpers table
+
+    button.click().run()
+
+    assert at.session_state["_pending_tab"] == "6. Rozdělení pomocníků"
+
+
 def test_unmatched_friend_names_are_a_button_that_opens_the_popup_on_the_friends_tab(seasons):
     state = mutations.get_state(seasons)
     state["helpers"][0]["unresolved_friend_names"] = ["Terka"]

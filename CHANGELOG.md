@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Organizers table on the People tab has a primary "Přejít k zařazení" button to
+  the right of "＋ Přidat organizátora" that opens the Roster tab, where the
+  Organizers are assigned to their roles.
 - Organizers can be dragged on the Roster tab. Those holding no slot wait in their
   own "Organizátoři" list inside the "Nezařazení" area and are dropped onto the
   Organizer rows (Vedoucí budovy, Pravá ruka, Vedoucí místností, Technická podpora);
