@@ -440,7 +440,7 @@ def test_deleting_a_placed_helper_asks_for_confirmation_and_changes_nothing(work
         mutations.delete_helper(workspace, 1)
 
     assert any(line.startswith("Přiřazení:") and "(uzamčeno)" in line for line in raised.value.lines)
-    assert any(line.startswith("Manuální role:") for line in raised.value.lines)
+    assert any(line.startswith("Organizátorská role:") for line in raised.value.lines)
     assert mutations.get_state(workspace) == before
 
 

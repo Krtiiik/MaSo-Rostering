@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The confirmation lines for a person or Organizer who holds a leadership slot now read
+  "Organizátorská role: …" instead of "Manuální role: …".
 - Each group in the Forced friends tab is now one line: the bold group name, its
   members and the status badge, with the "Upravit skupinku" editor folded directly
   under it (the big heading and the separate members list are gone).

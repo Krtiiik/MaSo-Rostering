@@ -1166,10 +1166,10 @@ def cant_attend_impact(state: dict[str, Any], helper_id: int) -> list[str]:
     if placed is not None:
         where = f"{placed['building']} · {placed['room']} · {Role[placed['role']].value}"
         lines.append(f"Přiřazení: {where}" + (" (uzamčeno)" if placed.get("locked") else ""))
-    for group in ("structural", "overlay"):
+    for group, label in (("structural", "Organizátorská role"), ("overlay", "Manuální role")):
         for entry in state["manual_roles"][group]:
             if entry.get("helper_id") == helper_id:
-                lines.append(f"Manuální role: {_manual_entry_label(entry)}")
+                lines.append(f"{label}: {_manual_entry_label(entry)}")
     return lines
 
 
@@ -1792,7 +1792,7 @@ def update_organizer(
 
 def _organizer_impact(state: dict[str, Any], organizer_id: int) -> list[str]:
     return [
-        f"Manuální role: {_manual_entry_label(entry)}"
+        f"Organizátorská role: {_manual_entry_label(entry)}"
         for entry in state["manual_roles"]["structural"]
         if entry.get("organizer_id") == organizer_id
     ]
