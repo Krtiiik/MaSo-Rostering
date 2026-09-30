@@ -66,6 +66,7 @@ def test_reset_button_restores_the_bundled_layout_as_an_unsaved_draft(tab):
     from rostering.streamlit_app.tabs.config_tab import _layout_key
 
     bundled = config_store.load_bundled_config()
+    saved_before = _layout_key(tab.session_state["workspace_state"]["config"])
     tab.button(key="add_building").click().run()
     tab.text_input(key="bname_0").set_value("Přejmenováno").run()
     assert _layout_key(tab.session_state["config_draft"]) != _layout_key(bundled)
@@ -77,4 +78,4 @@ def test_reset_button_restores_the_bundled_layout_as_an_unsaved_draft(tab):
     assert _layout_key(tab.session_state["config_draft"]) == _layout_key(bundled)
     assert tab.text_input(key="bname_0").value == bundled[0]["name"]
     # Only the draft was reset: the saved layout is untouched.
-    assert _layout_key(tab.session_state["workspace_state"]["config"]) == _layout_key(bundled)
+    assert _layout_key(tab.session_state["workspace_state"]["config"]) == saved_before
