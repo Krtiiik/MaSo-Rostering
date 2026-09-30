@@ -125,7 +125,7 @@ export interface ManualEntry {
   // hand-typed text): still shown, marked as not yet a tracked Organizer,
   // until it is replaced by picking one.
   legacy?: boolean;
-  // An Organizer's Tag pills (shown under "Show tags"), whether the Tag filter
+  // An Organizer's Tags (striped onto the chip by the Tags overlay), whether the Tag filter
   // dims them, and the Broken-rule lines their placement is part of — the same
   // things a Helper's chip carries.
   tags?: HelperTags | null;
@@ -171,8 +171,8 @@ export interface AssignmentGridData {
   helper_names: string[];
   organizer_names?: string[];
   broken_marks?: BrokenMarks;
-  // Render each Helper's Tag pills under their name (hidden by default).
-  show_tags?: boolean;
+  // The Roster tab's active overlays (e.g. "friends", "tags"); none = plain chips.
+  overlays?: string[];
   // Helpers the Tag filter dims (never hides): they stay in place and
   // draggable, just faded.
   dimmed_helper_ids?: number[];

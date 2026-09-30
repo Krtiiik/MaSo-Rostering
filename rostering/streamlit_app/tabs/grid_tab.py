@@ -273,18 +273,45 @@ def _render_broken_banner(broken_rules: list[BrokenRule], has_roster: bool) -> N
                     _render_broken_line(broken)
 
 
-# Session-state keys of the grid's Tag controls (dropped when another Season
-# opens, see session.workspace_replaced): the "Show tags" toggle, the Tag filter's
-# Tag ids and its all-of / any-of mode. The filter only dims; it never hides.
-SHOW_TAGS_KEY = "_grid_show_tags"
+# Session-state keys of the grid's controls (dropped when another Season opens,
+# see session.workspace_replaced): the Overlays pills, the Tag filter's Tag ids
+# and its all-of / any-of mode. The filter only dims; it never hides.
+OVERLAYS_KEY = "_grid_overlays"
 TAG_FILTER_KEY = "_grid_tag_filter"
 TAG_MODE_KEY = "_grid_tag_mode"
 _MODE_LABELS = {tag_tree.ALL_OF: "Všechny", tag_tree.ANY_OF: "Kterýkoli"}
 
+# The decorations the Overlays pills switch on, key -> label. The keys are what
+# the grid component receives (``overlays``); a new overlay (Buildings, Roles)
+# is an entry here plus its drawing in the component. Friends is on to begin
+# with, as friend highlighting always was.
+OVERLAYS = {"friends": "Kamarádi", "tags": "Štítky"}
+DEFAULT_OVERLAYS = ["friends"]
+TAGS_OVERLAY = "tags"
 
-def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
-    """The "Show tags" toggle and the Tag filter above the grid; returns
-    ``(show_tags, filter_tag_ids, mode)``. The two are independent."""
+
+def _render_overlay_controls(state: dict) -> tuple[list[str], list[int], str]:
+    """The Overlays pills above the grid and, while the Tags overlay is on, the
+    Tag filter; returns ``(overlays, filter_tag_ids, mode)``. With Tags off the
+    filter is hidden and dims no one."""
+    selected = st.pills(
+        "Zobrazení",
+        list(OVERLAYS),
+        selection_mode="multi",
+        default=DEFAULT_OVERLAYS,
+        format_func=OVERLAYS.__getitem__,
+        key=OVERLAYS_KEY,
+        help="Kamarádi: zvýrazní přání být s kamarádem. Štítky: obarví blok každého člověka podle jeho štítků.",
+    )
+    overlays = [key for key in OVERLAYS if key in (selected or [])]
+    if TAGS_OVERLAY not in overlays:
+        return overlays, [], tag_tree.ALL_OF
+    chosen, mode = _render_tag_filter(state)
+    return overlays, chosen, mode
+
+
+def _render_tag_filter(state: dict) -> tuple[list[int], str]:
+    """The Tag filter (Tags overlay only); returns ``(filter_tag_ids, mode)``."""
     tags = state.get("tags") or []
     known = {t["id"] for t in tags}
     # A Tag deleted (or a Season swapped) since the filter was chosen.
@@ -292,8 +319,7 @@ def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
         st.session_state[TAG_FILTER_KEY] = [t for t in st.session_state[TAG_FILTER_KEY] if t in known]
     names = {t["id"]: t["name"] for t in tags}
     ordered = [t.id for t, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in tags])]
-    toggle_col, filter_col, mode_col = st.columns([2, 6, 3], vertical_alignment="bottom")
-    show_tags = toggle_col.toggle("Zobrazit štítky", key=SHOW_TAGS_KEY)
+    filter_col, mode_col = st.columns([8, 3], vertical_alignment="bottom")
     chosen = filter_col.multiselect(
         "Filtrovat podle štítků",
         ordered,
@@ -311,7 +337,7 @@ def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
         horizontal=True,
         disabled=not tags,
     )
-    return show_tags, chosen, mode
+    return chosen, mode
 
 
 def render() -> None:
@@ -424,7 +450,7 @@ def render() -> None:
     # friend request naming one is simply not shown.
     attending = [h for h in state["helpers"] if not h.get("cant_attend")]
     absent_ids = {h["id"] for h in state["helpers"] if h.get("cant_attend")}
-    show_tags, filter_tags, filter_mode = _render_tag_controls(state)
+    overlays, filter_tags, filter_mode = _render_overlay_controls(state)
     helper_pills = mutations.grid_tag_pills(state)
     answers_changed = mutations.answers_changed_since_placed(state)
     forced_marks = mutations.grid_forced_groups(state)
@@ -466,7 +492,7 @@ def render() -> None:
         # An Organizer who can't attend is not offered for a slot.
         organizer_names=sorted({o["name"] for o in state["organizers"] if not o.get("cant_attend")}, key=str.lower),
         broken_marks=broken_marks,
-        show_tags=show_tags,
+        overlays=overlays,
         dimmed_helper_ids=mutations.dimmed_helper_ids(state, filter_tags, filter_mode),
         key="assignment_grid",
     )

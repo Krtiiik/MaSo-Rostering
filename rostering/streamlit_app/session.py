@@ -45,7 +45,7 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
     solver_tab.clear_drafts()
     if keep_view:
         return
-    # (The last three are the roster grid's Tag controls, see grid_tab.)
+    # (The last four are the roster grid's overlay and Tag controls, see grid_tab.)
     for key in (
         "_confirm_reset",
         "_last_upload_hash",
@@ -54,7 +54,7 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
         "_fix_focus",
         "_ff_focus",
         "_ff_flash",
-        "_grid_show_tags",
+        "_grid_overlays",
         "_grid_tag_filter",
         "_grid_tag_mode",
         "_tag_import_summary",

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Lists worktree-bridge-* branches not yet merged into main, newest first.
-# Run from anywhere inside the repo. Verified this session against a repo
-# with 10-15 concurrent worktree-bridge-* branches.
+# Lists session branches (claude/*, and the older worktree-bridge-*) not yet
+# merged into main, newest first. Other unmerged branches (backup/*,
+# research/*) are not session work and are left out on purpose.
+# Run from anywhere inside the repo.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-for b in $(git branch --list 'worktree-bridge-*' --format='%(refname:short)'); do
+for b in $(git branch --list 'claude/*' 'worktree-bridge-*' --format='%(refname:short)'); do
   if ! git merge-base --is-ancestor "$b" main 2>/dev/null; then
     ts=$(git log -1 --format='%ct' "$b")
     echo "$ts $b"

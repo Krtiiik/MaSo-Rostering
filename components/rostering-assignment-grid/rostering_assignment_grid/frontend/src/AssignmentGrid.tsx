@@ -66,10 +66,14 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   helper_names,
   organizer_names,
   broken_marks,
-  show_tags,
+  overlays,
   dimmed_helper_ids,
   setTriggerValue,
 }): ReactElement => {
+  // Which overlays the Roster tab has switched on; chips carry no friend or Tag
+  // decoration without them.
+  const friendsOn = overlays?.includes("friends") === true;
+  const tagsOn = overlays?.includes("tags") === true;
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
   // The Helper whose details card is open (opened by clicking a chip, never by
   // hovering, so it can't get in the way of a drag) and where it sits.
@@ -276,7 +280,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
 
   function renderChip(h: Helper) {
     let friendHighlight: "satisfied" | "unsatisfied" | "requester" | undefined;
-    if (hoveredHelperId !== null && hoveredHelperId !== h.id) {
+    if (friendsOn && hoveredHelperId !== null && hoveredHelperId !== h.id) {
       const status = friendsOf.get(hoveredHelperId)?.get(h.id);
       if (status !== undefined) {
         friendHighlight = status ? "satisfied" : "unsatisfied";
@@ -290,11 +294,11 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
       <HelperChip
         key={h.id}
         helper={h}
-        showTags={show_tags === true}
+        showTags={tagsOn}
         dimmed={dimmedIds.has(h.id)}
         locked={placed?.locked === true}
         onToggleLock={placed ? () => setTriggerValue("lock", { helper_id: h.id, locked: !placed.locked }) : undefined}
-        unsatisfiedFriend={unsatisfiedHelperIds.has(h.id)}
+        unsatisfiedFriend={friendsOn && unsatisfiedHelperIds.has(h.id)}
         broken={brokenByHelper.get(h.id)}
         friendHighlight={friendHighlight}
         onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
@@ -448,7 +452,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             colSpan={group.rooms.length}
             datalistId={datalist}
             singleEntry={singleEntry}
-            showTags={show_tags === true}
+            showTags={tagsOn}
             onChange={(names) => setTriggerValue("manual_set", { key, building: group.building, room: group.rooms[0], names })}
             dropId={allowDuplicateDrop ? `duplicate::${key}::${group.building}::${group.rooms[0]}` : undefined}
             manualKey={key}
@@ -469,7 +473,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
           colSpan={rooms.length}
           datalistId={datalist}
           singleEntry={singleEntry}
-          showTags={show_tags === true}
+          showTags={tagsOn}
           onChange={(names) => setTriggerValue("manual_set", { key, building: null, room: null, names })}
         />
       );
@@ -481,7 +485,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         colSpan={g.count}
         datalistId={datalist}
         singleEntry={singleEntry}
-        showTags={show_tags === true}
+        showTags={tagsOn}
         onChange={(names) => setTriggerValue("manual_set", { key, building: g.building, room: null, names })}
         dropId={allowDuplicateDrop ? `duplicate::${key}::${g.building}` : undefined}
         manualKey={key}

@@ -20,8 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The People tab marks a Helper with unmatched friend names with a coloured ⚠️
+  emoji (before their name and in the Friends column) instead of the small
+  monochrome ⚠ glyph.
+- The People tab's Tags column shows coloured pills (solid for direct Tags,
+  dashed for inherited ones) instead of plain text. The Equipment column shows
+  💻 / 📷 icons instead of text.
 - The People tab's Organizers and Helpers tables no longer open a person's popup
-  from their name: the name is plain text and an "Otevřít" button in a new last
+  from their name: the name is plain text and a ⚙️ button in a new last
   column opens the same popup.
 - The web app's front end is now Czech: tabs, sidebar panels, buttons, dialogs,
   the roster grid and the messages it shows (errors, confirmations, Broken rule
@@ -37,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text per field, the Can't attend checkbox) instead of a fixed-height container
   per cell. Tags show as plain text (implied ones in brackets) rather than
   coloured pills.
+- The Roster tab's "Zobrazit štítky" toggle is replaced by a "Zobrazení" multi-select
+  (Kamarádi, Štítky; more to come). Kamarádi is on to begin with and is what turns
+  on the friend-request highlights (hover outlines and the orange marker on a
+  person with an unsatisfied request); with it off, chips are plain. Štítky
+  colours each person's block by their tags, split into equal segments, one per
+  tag (Organizers in leadership slots too), instead of showing pills under the
+  name; hover a block for the tag names. The "Filtrovat podle štítků" controls
+  now appear only while Štítky is on, and dim no one while it is off.
 - The People tab's tables now size each column to its widest cell in the browser
   instead of from a character count worked out beforehand.
 - Solving (Solve, Save & solve and Place new registrants) now runs in a modal
