@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Class promotion: a "Promote classes" button in the Tags tab moves school-class
+  Tags (names like "8.M", "8. M" or "10.M": number, dot, optional space,
+  letters) up one school year per school year crossed since the Season they were
+  imported from; the school year turns at the jaro to podzim boundary, there is
+  no top year and any other Tag ("GCHD") is never touched. The dialog lists one
+  checkbox per suggested rename (the number of years is not shown, and it says
+  there is nothing to promote when none was crossed), lets you add any other Tag
+  by hand with a target name that starts as its exact current name, and writes
+  nothing until Apply. It also opens by itself after an import when the open
+  Season is podzim and a school year was crossed. Apply renames in place, all
+  ticked Tags together so "8.M, 9.M, 10.M" become "9.M, 10.M, 11.M"; a name that
+  an unticked Tag already has blocks Apply, and Tags are never merged. The Season
+  remembers what was promoted and what was left alone, so a re-import or a
+  late-confirmed link gets the promoted name.
 - Tag import: bring an earlier Season's Tags into the open Season. An
   "Import from an earlier Season" button in the Tags tab is always available,
   and a banner on the Upload tab offers it while the Season has Helpers but no

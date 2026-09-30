@@ -3,7 +3,9 @@ always-available button) and the Upload tab (a banner while the Season has no
 Tags yet, and the "apply their Tags?" prompt after an uncertain link is
 confirmed). The dialog lists the sections the import will bring (Tags today; the
 offer is section-based) and the result summary is shown once in the tab that
-started the import."""
+started the import. Class promotion (see CONTEXT.md) shares the module: its
+dialog opens from a button in the Tags tab and by itself after an import that
+crossed a school year into podzim."""
 from __future__ import annotations
 
 import streamlit as st
@@ -17,6 +19,10 @@ _SUMMARY = "_tag_import_summary"
 _BANNER_DISMISSED = "_tag_import_banner_dismissed"
 _LATE_LINK = "_tag_import_late_link_helper"
 _LATE_RESULT = "_tag_import_late_link_result"
+# Class promotion: set after an import that should open the dialog by itself, and
+# the line saying what an Apply renamed (shown once).
+_PROMOTE_AUTO = "_class_promotion_auto"
+_PROMOTE_NOTICE = "_class_promotion_notice"
 
 
 def _season_id() -> str | None:
@@ -59,6 +65,8 @@ def _import_dialog(where: str) -> None:
             return
         session.set_state(mutations.get_state(workspace))
         st.session_state[_SUMMARY] = {"where": where, "summary": summary}
+        if summary["promotion_prompt"]:
+            st.session_state[_PROMOTE_AUTO] = True
         st.rerun()
 
 
@@ -158,3 +166,76 @@ def render_late_link_prompt() -> None:
         if skip_col.button("No thanks", key="tag_import_late_skip"):
             st.session_state.pop(_LATE_LINK, None)
             st.rerun()
+
+
+@st.dialog("Promote classes", width="large")
+def _promotion_dialog() -> None:
+    workspace = session.get_workspace()
+    try:
+        offer = mutations.class_promotion_offer(workspace)
+    except mutations.RosteringError as exc:
+        st.error(str(exc))
+        return
+    season_id = _season_id()
+    renames: dict[int, str] = {}
+    if offer["nothing_to_promote"]:
+        st.info("Nothing to promote right now: no class Tag is a school year behind.")
+    else:
+        st.caption(
+            "Class Tags move up one school year. Tick the ones to rename; nothing changes until you press Apply."
+        )
+    for suggestion in offer["suggestions"]:
+        key = f"class_promotion_tick_{season_id}_{suggestion['tag_id']}_{suggestion['target']}"
+        if st.checkbox(f"{suggestion['name']}  →  {suggestion['target']}", value=True, key=key):
+            renames[suggestion["tag_id"]] = suggestion["target"]
+
+    others = {t["tag_id"]: t for t in offer["other_tags"]}
+    if others:
+        picked = st.multiselect(
+            "Rename other Tags too",
+            options=list(others),
+            format_func=lambda tag_id: others[tag_id]["name"],
+            key=f"class_promotion_extra_{season_id}",
+            placeholder="Pick a Tag to give it a new name",
+            help="For a class the name pattern does not recognize (or that has no earlier Season to count from). "
+            "The new name starts as the current one.",
+        )
+        for tag_id in picked:
+            renames[tag_id] = st.text_input(
+                f"New name for {others[tag_id]['name']}",
+                value=others[tag_id]["target"],
+                key=f"class_promotion_target_{season_id}_{tag_id}",
+            )
+
+    problems = mutations.class_promotion_conflicts(workspace, renames)
+    for problem in problems:
+        st.error(problem)
+    apply_col, skip_col, _ = st.columns([1.5, 2, 4])
+    can_apply = not problems and bool(offer["suggestions"] or renames)
+    if apply_col.button("Apply", type="primary", disabled=not can_apply, key="class_promotion_apply"):
+        try:
+            state = mutations.apply_class_promotion(workspace, renames)
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        session.set_state(state)
+        st.session_state[_PROMOTE_NOTICE] = f"Renamed {len(renames)} Tag{'s' if len(renames) != 1 else ''}."
+        st.rerun()
+    if skip_col.button("Skip for now", key="class_promotion_skip"):
+        st.rerun()
+
+
+def render_promotion_button(where: str) -> None:
+    """The always-available "Promote classes" button."""
+    if st.button("Promote classes", icon=":material/arrow_upward:", key=f"class_promotion_open_{where}"):
+        _promotion_dialog()
+
+
+def render_promotion_auto() -> None:
+    """What Apply renamed, once, and the dialog itself right after an import that
+    asked for it (see ``mutations.import_from_season``'s ``promotion_prompt``)."""
+    notice = st.session_state.pop(_PROMOTE_NOTICE, None)
+    if notice:
+        st.success(notice)
+    if st.session_state.pop(_PROMOTE_AUTO, False):
+        _promotion_dialog()

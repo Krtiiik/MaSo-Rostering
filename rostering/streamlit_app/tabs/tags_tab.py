@@ -48,7 +48,12 @@ def render() -> None:
     fix = fix_focus.render_callout(state, "tags")
 
     tag_import_ui.render_summary("tags")
-    tag_import_ui.render_button("tags")
+    tag_import_ui.render_promotion_auto()
+    import_col, promote_col, _ = st.columns([2, 2, 6])
+    with import_col:
+        tag_import_ui.render_button("tags")
+    with promote_col:
+        tag_import_ui.render_promotion_button("tags")
 
     tree_col, edit_col = st.columns([5, 6], gap="large")
     with tree_col:

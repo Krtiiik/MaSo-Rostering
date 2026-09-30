@@ -305,12 +305,25 @@ Building the current Season lacks are dropped. A re-import and that late
 prompt find a Tag by origin first, then by name; a Tag deleted on purpose is
 recreated only by an explicit re-import, which says so.
 
-**Class promotion** *(planned, not yet implemented)*:
+**Class promotion**:
 Renaming school-class Tags — names of the form number, dot, optional space,
 letters, e.g. "8.M" or "8. M" — to the number one school year up per school
 year crossed since the imported Season (e.g. "8.M" → "9.M"). The school year
 turns at the jaro → podzim boundary. There is no top year: a class keeps
 counting up, since former students keep helping as "the same class" ("10.M").
+Any other Tag is never suggested. The number of years crossed is never shown,
+only the suggested renames, one checkbox each; with none crossed the dialog
+says there is nothing to promote. The dialog opens from an always-available
+button and by itself after an import when the current Season is podzim and a
+school year was crossed; a Tag can also be added by hand with an editable
+target name that starts as its exact current name. Nothing is written until
+Apply, and skipping can be re-prompted. Apply renames in place (parent,
+children, constraints, colour, note and spacing stay), all ticked Tags at once
+so a chain of classes shifts without trampling; a target that an unticked Tag
+already has blocks Apply, and Tags are never merged. Only the current Season is
+edited. The Season records, per source, the promotion applied and which Tags
+were deliberately left unpromoted, so a later import or a late-confirmed link
+resolves the promoted name.
 
 ### Application
 
