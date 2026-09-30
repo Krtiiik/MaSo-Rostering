@@ -132,28 +132,11 @@
   padding: 1px 5px;
 }
 
-/* Tag pills under a Helper's name (shown by the "Show tags" toggle): a direct
-   Tag is a solid pill, one carried only by implication is dashed and outlined
-   (the same look as the Tags tab's pills, see rostering.streamlit_app.tag_pills). */
-.helper-chip-tags {
-  display: block;
-  margin-top: 2px;
-  line-height: 1.3;
-}
-
-.tag-pill {
-  display: inline-block;
-  margin: 1px 3px 1px 0;
-  padding: 0 7px;
-  border-radius: 999px;
-  border: 1px solid;
-  font-size: 0.75em;
-  white-space: nowrap;
-}
-
-.tag-pill-implied {
-  border-style: dashed;
-  background: transparent;
+/* The Tags overlay stripes a chip in its person's direct Tag colours (inline
+   background, see tagStripes.ts); the tint keeps the normal text colour readable. */
+.helper-chip.tag-striped,
+.manual-chip.tag-striped {
+  background-clip: padding-box;
 }
 
 /* Marks a placed Helper whose re-submitted answers changed since they were
@@ -192,13 +175,6 @@
 
 .manual-chip.broken {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--st-red-color, #dc3545) 45%, transparent);
-}
-
-.manual-chip-tags {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  line-height: 1.3;
 }
 
 .helper-chip.dragging {

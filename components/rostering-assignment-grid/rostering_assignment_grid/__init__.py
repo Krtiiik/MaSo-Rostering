@@ -51,7 +51,7 @@ def assignment_grid(
     helper_names: list[str],
     organizer_names: Optional[list[str]] = None,
     broken_marks: Optional[dict[str, list[dict[str, Any]]]] = None,
-    show_tags: bool = False,
+    overlays: Optional[list[str]] = None,
     dimmed_helper_ids: Optional[list[int]] = None,
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
@@ -105,11 +105,15 @@ def assignment_grid(
     or reroutes a drop.
 
     Tags (see CONTEXT.md "Tag"): a ``helpers`` entry may carry ``tags``
-    (``{"direct": [{"name", "colour"}], "implied": [...]}``), which
-    ``show_tags`` renders as pills under the Helper's name (direct solid,
-    implied dashed); off by default. ``dimmed_helper_ids`` are the Helpers the
-    Tag filter fades: they are never hidden, stay where they are and remain
-    draggable. The two are independent. Both are computed by the caller.
+    (``{"direct": [{"name", "colour"}], "implied": [...]}``). ``overlays`` lists
+    the decorations switched on (``"friends"``, ``"tags"``; none by default, so
+    chips are plain): ``"friends"`` turns on the hover highlights of a Helper's
+    friend requests and the persistent marker on a chip with an unsatisfied one;
+    ``"tags"`` stripes each chip in its direct Tags' colours (equal segments, one
+    per Tag; the Tag names go in the tooltip). ``dimmed_helper_ids`` are the
+    Helpers the Tag filter fades: they are never hidden, stay where they are and
+    remain draggable. Both are computed by the caller (which sends no dimmed ids
+    while the ``"tags"`` overlay is off).
 
     A ``helpers`` entry may also carry ``forced_groups`` (a list of wordings such
     as ``"Rodina (same Building, Room)"``, see CONTEXT.md "Forced friends group"):
@@ -139,7 +143,7 @@ def assignment_grid(
             "helper_names": helper_names,
             "organizer_names": organizer_names or [],
             "broken_marks": broken_marks or {"cells": [], "helpers": []},
-            "show_tags": show_tags,
+            "overlays": overlays or [],
             "dimmed_helper_ids": dimmed_helper_ids or [],
         },
         on_drop_change=_noop,

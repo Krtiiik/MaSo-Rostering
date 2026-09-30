@@ -15,7 +15,7 @@
 // switches to Buildings, solves, switches to Roster, drags one helper chip
 // into a grid cell (exercising the CCv2 assignment_grid component, which
 // renders in a shadow root — not an iframe, since CCv2 doesn't use iframes),
-// checks the Roster tab's "Show tags" toggle and Tag filter (creating one Tag
+// checks the Roster tab's Overlays pills (Tags stripes, Friends) and Tag filter (creating one Tag
 // and tagging one Helper first), and clicks Export.
 //
 // Screenshots land next to this script in ./screenshots/.
@@ -118,10 +118,10 @@ if (xlsxPath) {
   }
   await page.screenshot({ path: path.join(SHOT_DIR, "05-after-drag.png"), fullPage: true });
 
-  // Tag pills and the Tag filter. Create one Tag in the Tags tab and give it to
-  // one Helper, then on the Roster tab check that the "Show tags" toggle renders
-  // pills (hidden by default), and that the filter dims every other Helper
-  // without hiding anyone, whether or not the pills are shown.
+  // Tag stripes and the Tag filter. Create one Tag in the Tags tab and give it to
+  // one Helper, then on the Roster tab check that the Tags overlay renders
+  // stripes (hidden by default), and that the filter (shown with the Tags
+  // overlay only) dims every other Helper without hiding anyone.
   // A multiselect toggles on click and the app may still be rerunning under
   // the first one, so click until its option list is really open.
   const openMultiselect = async (label) => {
@@ -159,19 +159,24 @@ if (xlsxPath) {
       console.log(`ok: ${message}`);
     }
   };
-  expect((await page.locator(".tag-pill").count()) === 0, "tag pills are hidden by default");
+  expect((await page.locator(".tag-striped").count()) === 0, "chips are not tag-coloured by default");
+  const filterShown = async () => (await page.locator('[data-testid="stMultiSelect"]').filter({ hasText: "Filtrovat podle štítků" }).count()) > 0;
+  expect(!(await filterShown()), "the Tag filter is hidden while the Tags overlay is off");
 
-  // Idempotent: click the toggle until it is in the wanted state.
-  const setShowTags = async (on) => {
-    const toggle = page.getByRole("switch", { name: "Zobrazit štítky" });
-    for (let attempt = 0; attempt < 5 && (await toggle.isChecked()) !== on; attempt++) {
-      await page.getByText("Zobrazit štítky", { exact: true }).click();
+  // The Overlays pills: click a pill until it is in the wanted state.
+  const setOverlay = async (name, on) => {
+    const pill = page.locator('[data-testid="stButtonGroup"] button[data-variant="pills"]').filter({ hasText: new RegExp(`^${name}$`) });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const active = (await pill.getAttribute("aria-pressed")) === "true";
+      if (active === on) return;
+      await pill.click();
       await page.waitForTimeout(700);
     }
   };
-  await setShowTags(true);
-  await page.waitForSelector(".tag-pill", { timeout: 10000 });
-  expect((await page.locator(".tag-pill-direct").count()) === 1, "Show tags renders the direct pill under one Helper");
+  await setOverlay("Štítky", true);
+  await page.waitForSelector(".tag-striped", { timeout: 10000 });
+  expect((await page.locator(".tag-striped").count()) === 1, "the Tags overlay colours the one tagged Helper's chip");
+  expect(await filterShown(), "the Tag filter shows while the Tags overlay is on");
   expect((await page.locator("div.helper-chip.dimmed").count()) === 0, "no filter dims nobody");
 
   await openMultiselect("Filtrovat podle štítků");
@@ -183,14 +188,21 @@ if (xlsxPath) {
   expect((await page.locator("div.helper-chip.dimmed").count()) === chipCount - 1, "the filter dims every non-matching Helper");
   expect((await page.locator("div.helper-chip").count()) === chipCount, "the filter never hides a Helper");
 
-  await setShowTags(false);
-  await page.waitForFunction(() => document.querySelectorAll(".tag-pill").length === 0, null, { timeout: 10000 }).catch(() => {});
-  expect((await page.locator(".tag-pill").count()) === 0, "pills hide again when toggled off");
-  expect(
-    (await page.locator("div.helper-chip.dimmed").count()) === chipCount - 1,
-    "the filter still dims with the pills hidden",
-  );
   await page.screenshot({ path: path.join(SHOT_DIR, "06-tag-filter.png"), fullPage: true });
+
+  await setOverlay("Štítky", false);
+  await page.waitForFunction(() => document.querySelectorAll(".tag-striped").length === 0, null, { timeout: 10000 }).catch(() => {});
+  expect((await page.locator(".tag-striped").count()) === 0, "the colouring goes away when the Tags overlay is switched off");
+  expect(!(await filterShown()), "the Tag filter hides again with the Tags overlay");
+  expect((await page.locator("div.helper-chip.dimmed").count()) === 0, "the hidden filter dims no one");
+
+  // Friends: on to begin with; off means neither hover outlines nor the unsatisfied marker.
+  await setOverlay("Kamarádi", false);
+  await page.waitForFunction(() => document.querySelectorAll("div.helper-chip.unsatisfied").length === 0, null, {
+    timeout: 10000,
+  }).catch(() => {});
+  expect((await page.locator("div.helper-chip.unsatisfied").count()) === 0, "no unsatisfied marker with the Friends overlay off");
+  await setOverlay("Kamarádi", true);
 
   // The details card opens on a click, never on a hover, and a drag never opens it.
   const cardNames = () => page.locator(".helper-card .helper-card-name").allTextContents();
