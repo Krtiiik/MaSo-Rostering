@@ -301,14 +301,8 @@ def _render_others(state: dict, tag: dict) -> None:
         st.caption("Every Helper and Organizer already carries this Tag.")
         return
     nonce = st.session_state.get(_OTHERS_NONCE, 0)
-    find_key, pick_key = f"tag_others_find_{tag['id']}_{nonce}", f"tag_others_pick_{tag['id']}_{nonce}"
-    find = st.text_input("Find a helper", key=find_key, placeholder="Type part of a name")
-    picked = [hid for hid in st.session_state.get(pick_key, []) if hid in others]
-    needle = find.strip().casefold()
-    # A Helper already picked stays listed even when the find box hides them.
-    options = sorted(
-        (hid for hid in others if hid in picked or needle in others[hid].casefold()), key=lambda hid: others[hid].lower()
-    )
+    pick_key = f"tag_others_pick_{tag['id']}_{nonce}"
+    options = sorted(others, key=lambda hid: others[hid].lower())
     picked = st.multiselect(
         "Helpers to add", options=options, format_func=lambda hid: others[hid], key=pick_key, placeholder="Pick helpers"
     )

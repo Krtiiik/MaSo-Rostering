@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Tags tab's "Others (N)" section in the Tag edit menu is now titled
   "Add tag to others", saying what it does instead of showing a count.
 
+### Removed
+
+- The "Find a helper" box above the "Add tag to others" picker when editing a Tag. The
+  picker itself is searchable, so the extra filter was redundant.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added
