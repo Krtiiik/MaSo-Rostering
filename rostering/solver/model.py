@@ -67,19 +67,17 @@ class SolverWeights:
     friend_unsatisfied: int = 5
 
 
-# The largest cost the solver tab offers for a Preference rating (its sliders
-# run 0 to this). Fixed, not configurable: it keeps the five ratings on one
-# scale the user can read at a glance. The unit and the Záloha cost are not
-# bounded by it.
-MAX_PREFERENCE_COST = 20
+# The largest cost the solver tab offers for a Preference rating or for Záloha
+# (their sliders run 0 to this). Fixed, not configurable: it keeps the costs on
+# one scale the user can read at a glance. The unit is not bounded by it.
+MAX_ROLE_COST = 20
 
 
 @dataclass
 class RoleCosts:
     """Cost of placing a Helper in a Role, by how they rated it. Záloha is not
-    a Preference option, so it has its own entry. Non-negative integers; the
-    five Preference costs are set on the solver tab within
-    ``0..MAX_PREFERENCE_COST``."""
+    a Preference option, so it has its own entry. Non-negative integers; all
+    six are set on the solver tab within ``0..MAX_ROLE_COST``."""
 
     ano: int = 0
     klidne: int = 1

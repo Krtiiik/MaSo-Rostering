@@ -3,7 +3,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from rostering.persistence.serialize import solver_config_from_dict, solver_config_to_dict
-from rostering.solver.model import MAX_PREFERENCE_COST, SolverConfig
+from rostering.solver.model import MAX_ROLE_COST, SolverConfig
 
 
 def _app():
@@ -29,19 +29,18 @@ _COST_KEYS = {
 }
 
 
-def test_the_tab_shows_the_unit_and_six_costs_with_the_solver_defaults(tab):
+def test_the_tab_shows_the_unit_and_six_cost_sliders_with_the_solver_defaults(tab):
     defaults = SolverConfig()
 
     assert not tab.exception
     assert tab.number_input(key="w_role_cost_unit").value == defaults.weights.role_preference
     for field, key in _COST_KEYS.items():
-        widget = tab.number_input(key=key) if field == "zaloha" else tab.slider(key=key)
-        assert widget.value == getattr(defaults.role_costs, field)
+        assert tab.slider(key=key).value == getattr(defaults.role_costs, field)
 
 
 def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab):
     tab.number_input(key="w_role_cost_unit").set_value(3).run()
-    tab.number_input(key="w_cost_zaloha").set_value(9).run()
+    tab.slider(key="w_cost_zaloha").set_value(9).run()
     tab.slider(key="w_cost_ne").set_value(3).run()
 
     edited = solver_config_from_dict(tab.session_state["solver_config_draft"])
@@ -54,16 +53,16 @@ def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab
     assert not tab.exception
     assert solver_config_from_dict(tab.session_state["solver_config_draft"]) == SolverConfig()
     assert tab.number_input(key="w_role_cost_unit").value == 1
-    assert tab.number_input(key="w_cost_zaloha").value == 4
+    assert tab.slider(key="w_cost_zaloha").value == 4
     assert tab.slider(key="w_cost_ne").value == 12
 
 
-def test_the_five_preference_costs_are_sliders_from_zero_to_the_fixed_maximum(tab):
-    for field in ("ano", "klidne", "nevadi", "spise_ne", "ne"):
-        slider = tab.slider(key=_COST_KEYS[field])
-        assert (slider.min, slider.max, slider.step) == (0, MAX_PREFERENCE_COST, 1)
-    assert MAX_PREFERENCE_COST == 20
-    assert not [n for n in tab.number_input if n.key in {_COST_KEYS[f] for f in _COST_KEYS if f != "zaloha"}]
+def test_every_cost_is_a_slider_from_zero_to_the_fixed_maximum(tab):
+    for key in _COST_KEYS.values():
+        slider = tab.slider(key=key)
+        assert (slider.min, slider.max, slider.step) == (0, MAX_ROLE_COST, 1)
+    assert MAX_ROLE_COST == 20
+    assert [n.key for n in tab.number_input if n.key in _COST_KEYS.values()] == []
 
     tab.slider(key="w_cost_ne").set_value(20).run()
 
@@ -81,4 +80,4 @@ def test_a_saved_cost_above_the_maximum_is_shown_at_the_top_instead_of_failing(t
     at.run()
 
     assert not at.exception
-    assert at.slider(key="w_cost_ne").value == MAX_PREFERENCE_COST
+    assert at.slider(key="w_cost_ne").value == MAX_ROLE_COST

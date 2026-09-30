@@ -45,9 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   buttons).
 - On the 5. Parametry rozřazování tab, each of the five Preference costs (Ano, Klidně,
   Nevadí, Spíš ne, Ne) is a row with its label and star rating (Ano five stars down
-  to Ne one) on the left and a 0–20 slider on the right. 20 is a fixed maximum
-  (`MAX_PREFERENCE_COST`); a saved cost above it is shown at 20. The role cost unit
-  and the Záloha cost, which is not a Preference, stay number inputs in a row above.
+  to Ne one) on the left and a 0–20 slider on the right, followed by a Záloha row
+  (no stars) in the same form. 20 is a fixed maximum (`MAX_ROLE_COST`); a saved cost
+  above it is shown at 20. The role cost unit stays a number input above the rows.
 - The Tags tab's "who carries this Tag" section is now one multiselect over every
   Helper and Organizer (replacing the carrier list with per-person "Odebrat" buttons
   and the separate "add to other people" picker). Tick or untick people and press
