@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The People tab's Organizers and Helpers tables no longer open a person's popup
-  from their name: the name is plain text and an "Otevřít" button in a new last
+  from their name: the name is plain text and a ⚙️ button in a new last
   column opens the same popup.
 - The web app's front end is now Czech: tabs, sidebar panels, buttons, dialogs,
   the roster grid and the messages it shows (errors, confirmations, Broken rule

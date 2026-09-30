@@ -1,6 +1,6 @@
 """Tab 1: the people of the Season. Upload the raw survey export, review the
 matches it raised, and see every Organizer and Helper in one table-like view;
-the "Otevřít" button on a row opens that person's popup (``person_dialog``), where
+the ⚙️ button on a row opens that person's popup (``person_dialog``), where
 everything about them is edited."""
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from rostering.domain import UNKNOWN_TSHIRT_SIZE
 from rostering.streamlit_app import fix_focus, mutations, session
 from rostering.streamlit_app import labels as ui_labels
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
-_OPEN_LABEL = "Otevřít"
+_OPEN_LABEL = "⚙️"
 # Bumped on every Can't attend tick so the checkboxes start afresh from the saved
 # state (a flag that was refused or is still awaiting confirmation must not stay ticked).
 _CANT_ATTEND_NONCE = "_people_cant_attend_nonce"
@@ -162,7 +162,7 @@ def _render_table(
 ) -> None:
     """One ``st.columns`` row per person with one column per field: the name as
     plain text, each detail as a plain ``st.text``, the Can't attend checkbox,
-    the Tags, then an "Otevřít" button (opens the popup) in the last column. No
+    the Tags, then a ⚙️ button (opens the popup) in the last column. No
     per-cell containers: the page renders (and reruns) in proportion to its
     element count, which is what made the earlier container-per-cell table slow.
     The columns' ratios follow the longest text of each column, the same for
@@ -174,7 +174,7 @@ def _render_table(
         *(max(len(text) for text in [label, *(row[i] for row in details)]) + 2 for i, label in enumerate(detail_labels)),
         len(absent_label) + 2,
         max(len(text) for text in [tags_label, *tags]),
-        len(_OPEN_LABEL) + 4,
+        6,
     ]
     header = st.columns(ratios, vertical_alignment="center")
     for column, label in zip(header, [name_label, *detail_labels, absent_label, tags_label]):
