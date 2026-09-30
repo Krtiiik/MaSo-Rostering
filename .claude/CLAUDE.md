@@ -190,6 +190,18 @@ pushing the tag, not just creating it locally.
   holds. `move_helper` has no validation gate. `diagnostics["broken_rules"]`
   in the saved state is only the solver's report as of the last solve and is
   not shown anywhere.
+- Locked Assignments: the lock is an optional `locked: true` on an entry of
+  `state["assignments"]` (missing = unlocked; `Assignment.locked`, carried by
+  `assignment_to_dict`/`assignment_from_dict`), so Versions snapshot it for free.
+  `mutations.set_lock` (placed Helpers only), `move_helper` (a lock moves with
+  its Helper; a move never creates one) and `solve` (passes the locked
+  Assignments as `fixed_assignments`, re-flags them in the result, and drops a
+  lock whose Helper or Room no longer exists) are the only code that reads or
+  writes it. The grid component reports a toggle as the `lock` trigger
+  (`{helper_id, locked}`, from ctrl/cmd-click on a placed chip or the hover
+  card's Lock/Unlock button); its drag needs a 6px activation distance so a
+  click stays a click. The hover card is interactive (`pointer-events: auto`)
+  and closes after a short grace period so the cursor can reach its button.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

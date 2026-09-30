@@ -130,13 +130,16 @@ def helper_from_dict(data: dict) -> Helper:
 
 
 def assignment_to_dict(a: Assignment) -> dict:
-    return {
+    data = {
         "helper_id": a.helper_id,
         "helper_name": a.helper_name,
         "building": a.building,
         "room": a.room,
         "role": a.role.name,
     }
+    if a.locked:  # a missing flag means unlocked
+        data["locked"] = True
+    return data
 
 
 def assignment_from_dict(data: dict) -> Assignment:
@@ -149,6 +152,7 @@ def assignment_from_dict(data: dict) -> Assignment:
         building=data["building"],
         room=data["room"],
         role=role,
+        locked=bool(data.get("locked", False)),
     )
 
 

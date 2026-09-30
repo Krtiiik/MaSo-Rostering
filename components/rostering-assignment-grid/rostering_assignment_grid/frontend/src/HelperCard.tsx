@@ -4,6 +4,9 @@ interface Props {
   data: HelperCardData;
   top: number;
   left: number;
+  // Present only for a placed Helper (the Unassigned pool has no lock).
+  locked?: boolean;
+  onToggleLock?: () => void;
 }
 
 const STAR_FILLED = "★";
@@ -21,13 +24,31 @@ function stars(level: number): string {
  * by HelperChip from the chip's bounding rect) so it escapes the grid's
  * scroll-container clipping regardless of where the chip sits in the table.
  */
-export function HelperCard({ data, top, left }: Props) {
+export function HelperCard({ data, top, left, locked, onToggleLock }: Props) {
   const { helper, roleOrder, roleLabels, sharedFriends, differentFriends, requestedBy } = data;
   const hasFriendInfo = sharedFriends.length > 0 || differentFriends.length > 0 || requestedBy.length > 0;
 
   return (
-    <div className="helper-card" style={{ top, left }}>
+    // The card sits inside the draggable chip: a press on it must not start a drag.
+    <div className="helper-card" style={{ top, left }} onPointerDown={(e) => e.stopPropagation()}>
       <div className="helper-card-name">{helper.name}</div>
+
+      {onToggleLock && (
+        <button
+          type="button"
+          className="helper-card-lock"
+          title="A full Solve keeps a locked Assignment (ctrl/cmd-click on the chip toggles it too)"
+          // The card sits inside the draggable chip: keep a press on the
+          // button from starting a drag.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleLock();
+          }}
+        >
+          {locked ? "Unlock" : "Lock"}
+        </button>
+      )}
 
       <div className="helper-card-section">
         <div className="helper-card-label">Preferred building</div>

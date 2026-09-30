@@ -18,6 +18,7 @@ from typing import Any, Callable, Optional, TypeVar
 from rostering.domain import (
     TSHIRT_SIZES,
     UNKNOWN_TSHIRT_SIZE,
+    Assignment,
     BrokenRule,
     Competition,
     ManualRoles,
@@ -580,6 +581,15 @@ def put_solver_config(workspace: Workspace, solver_config: dict) -> dict:
     return state
 
 
+def _locked_assignments(state: dict[str, Any], comp: Competition) -> list[Assignment]:
+    """The Locked Assignments a full Solve holds fixed. A lock whose Helper or
+    Room no longer exists is dropped (that Helper is re-solved as unlocked)."""
+    rooms = {(b.name, room.name) for b in comp.buildings.values() for room in b.rooms}
+    helper_ids = {h.id for h in comp.helpers}
+    locked = [assignment_from_dict(a) for a in state["assignments"] if a.get("locked")]
+    return [a for a in locked if a.helper_id in helper_ids and (a.building, a.room) in rooms]
+
+
 def solve(workspace: Workspace) -> dict:
     state = workspace.load()
     if not state["helpers"]:
@@ -589,13 +599,18 @@ def solve(workspace: Workspace) -> dict:
 
     comp = _build_competition(state)
     solver_config = solver_config_from_dict(state["solver_config"])
+    fixed = _locked_assignments(state, comp)
     try:
-        result = solve_competition(comp, solver_config)
+        result = solve_competition(comp, solver_config, fixed_assignments=fixed)
     except NoRosterFound as exc:
         # Nothing to store: the previous roster (if any) is left untouched.
         raise RosteringError(str(exc)) from exc
 
-    state["assignments"] = [assignment_to_dict(a) for a in result.assignments]
+    # A full Solve keeps the locked Assignments and replaces every other one.
+    locked_ids = {a.helper_id for a in fixed}
+    state["assignments"] = [
+        assignment_to_dict(replace(a, locked=a.helper_id in locked_ids)) for a in result.assignments
+    ]
     state["diagnostics"] = {
         "status": result.status,
         "objective_value": result.objective_value,
@@ -649,6 +664,22 @@ def broken_rule_marks(broken: list[BrokenRule]) -> dict[str, list[dict]]:
     }
 
 
+def set_lock(workspace: Workspace, helper_id: int, locked: bool) -> dict:
+    """Lock or unlock a placed Helper's whole Assignment. Only placed Helpers
+    are lockable; a lock never blocks anything and does not affect the
+    Broken-rule check."""
+    state = workspace.load()
+    for assignment in state["assignments"]:
+        if assignment["helper_id"] == helper_id:
+            if locked:
+                assignment["locked"] = True
+            else:
+                assignment.pop("locked", None)
+            workspace.save(state)
+            return state
+    raise RosteringError(f"Helper {helper_id} is not placed, so there is nothing to lock.")
+
+
 def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, role: str) -> dict:
     state = workspace.load()
     known_ids = {h["id"] for h in state["helpers"]}
@@ -656,10 +687,12 @@ def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, 
         raise RosteringError(f"No such helper: {helper_id}")
     helper_name = next(h["name"] for h in state["helpers"] if h["id"] == helper_id)
 
+    previous = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
     assignments = [a for a in state["assignments"] if a["helper_id"] != helper_id]
-    assignments.append(
-        {"helper_id": helper_id, "helper_name": helper_name, "building": building, "room": room, "role": role}
-    )
+    moved = {"helper_id": helper_id, "helper_name": helper_name, "building": building, "room": room, "role": role}
+    if previous is not None and previous.get("locked"):
+        moved["locked"] = True  # a lock moves with its Helper
+    assignments.append(moved)
     state["assignments"] = assignments
     satisfied, unsatisfied = _recompute_friend_pairs(state)
     state["diagnostics"]["satisfied_friend_pairs"] = satisfied
