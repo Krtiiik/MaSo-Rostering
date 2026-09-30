@@ -42,10 +42,12 @@ def test_the_tab_shows_the_unit_and_six_costs_with_the_solver_defaults(tab):
 def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab):
     tab.number_input(key="w_role_cost_unit").set_value(3).run()
     tab.number_input(key="w_cost_zaloha").set_value(9).run()
+    tab.slider(key="w_cost_ne").set_value(3).run()
 
     edited = solver_config_from_dict(tab.session_state["solver_config_draft"])
     assert edited.weights.role_preference == 3
     assert edited.role_costs.zaloha == 9
+    assert edited.role_costs.ne == 3
 
     tab.button(key="w_restore_role_costs").click().run()
 
@@ -53,6 +55,7 @@ def test_editing_the_fields_updates_the_draft_and_restore_defaults_undoes_it(tab
     assert solver_config_from_dict(tab.session_state["solver_config_draft"]) == SolverConfig()
     assert tab.number_input(key="w_role_cost_unit").value == 1
     assert tab.number_input(key="w_cost_zaloha").value == 4
+    assert tab.slider(key="w_cost_ne").value == 12
 
 
 def test_the_five_preference_costs_are_sliders_from_zero_to_the_fixed_maximum(tab):
