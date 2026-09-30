@@ -265,8 +265,23 @@ pushing the tag, not just creating it locally.
   re-upload (`_carry_over_tags`, matched by `person_id`); `Workspace` gives a
   state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
   (the "3. Tags" tab) and `tabs/helper_tags.py` (a fragment above the Upload
-  tab's Helper table), both drawing pills through `tag_pills.py`. The grid's
-  Tag pills and filter, and Tag import are separate tickets and not built yet.
+  tab's Helper table), both drawing pills through `tag_pills.py`. Tag import is
+  a separate ticket and not built yet.
+- Roster grid Tag pills and filter: `mutations.grid_tag_pills(state)` (each
+  Helper's `{direct, implied}` pills as `{name, colour}`, from `helper_tags`) and
+  `mutations.dimmed_helper_ids(state, tag_ids, mode)` (over the pure
+  `tags.matches_filter`: all-of / any-of, inherited Tags count, an empty filter
+  or an unknown Tag id matches everyone) feed `grid_tab._render_tag_controls`
+  (the "Show tags" toggle, the "Filter by tags" multiselect in tree order and
+  the All of / Any of radio; the widget state lives under `_grid_show_tags` /
+  `_grid_tag_filter` / `_grid_tag_mode`, pruned of deleted Tags on each run and
+  dropped when another Season opens). The component takes each helper's `tags`,
+  `show_tags` and `dimmed_helper_ids`: pills render inside `HelperChip` (Roster
+  cells and the Unassigned pool, not the typed Manual role chips), dimming is a
+  `dimmed` class (opacity, restored on hover so the hover card stays readable).
+  The controls are always shown, the filter merely disabled while the Season has
+  no Tags. Covered by `tests/test_grid_tags.py` and the smoke script
+  (`scripts/e2e/smoke.mjs`).
 - Tag constraints: a Tag record also carries `building_allow`, `building_deny`,
   `role_allow`, `role_deny` (lists of Building names / `Role.name`s, absent =
   empty; `Tag` in `rostering/tags.py` holds them as tuples). The single source

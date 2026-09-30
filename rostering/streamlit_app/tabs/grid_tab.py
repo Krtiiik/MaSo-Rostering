@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from rostering import tags as tag_tree
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.streamlit_app import fix_focus, mutations, session, solve_prompt
 from rostering_assignment_grid import assignment_grid
@@ -251,6 +252,47 @@ def _render_broken_banner(broken_rules: list[BrokenRule], has_roster: bool) -> N
                     _render_broken_line(broken)
 
 
+# Session-state keys of the grid's Tag controls (dropped when another Season
+# opens, see session.workspace_replaced): the "Show tags" toggle, the Tag filter's
+# Tag ids and its all-of / any-of mode. The filter only dims; it never hides.
+SHOW_TAGS_KEY = "_grid_show_tags"
+TAG_FILTER_KEY = "_grid_tag_filter"
+TAG_MODE_KEY = "_grid_tag_mode"
+_MODE_LABELS = {tag_tree.ALL_OF: "All of", tag_tree.ANY_OF: "Any of"}
+
+
+def _render_tag_controls(state: dict) -> tuple[bool, list[int], str]:
+    """The "Show tags" toggle and the Tag filter above the grid; returns
+    ``(show_tags, filter_tag_ids, mode)``. The two are independent."""
+    tags = state.get("tags") or []
+    known = {t["id"] for t in tags}
+    # A Tag deleted (or a Season swapped) since the filter was chosen.
+    if TAG_FILTER_KEY in st.session_state:
+        st.session_state[TAG_FILTER_KEY] = [t for t in st.session_state[TAG_FILTER_KEY] if t in known]
+    names = {t["id"]: t["name"] for t in tags}
+    ordered = [t.id for t, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in tags])]
+    toggle_col, filter_col, mode_col = st.columns([2, 6, 3], vertical_alignment="bottom")
+    show_tags = toggle_col.toggle("Show tags", key=SHOW_TAGS_KEY)
+    chosen = filter_col.multiselect(
+        "Filter by tags",
+        ordered,
+        format_func=names.__getitem__,
+        key=TAG_FILTER_KEY,
+        placeholder="Dim helpers without these tags" if tags else "No tags yet",
+        disabled=not tags,
+        help="Helpers who do not match are dimmed, never hidden. Inherited tags count.",
+    )
+    mode = mode_col.radio(
+        "Match",
+        list(_MODE_LABELS),
+        format_func=_MODE_LABELS.__getitem__,
+        key=TAG_MODE_KEY,
+        horizontal=True,
+        disabled=not tags,
+    )
+    return show_tags, chosen, mode
+
+
 def render() -> None:
     st.header("4. Roster")
     state = session.get_state()
@@ -327,10 +369,13 @@ def render() -> None:
     # friend request naming one is simply not shown.
     attending = [h for h in state["helpers"] if not h.get("cant_attend")]
     absent_ids = {h["id"] for h in state["helpers"] if h.get("cant_attend")}
+    show_tags, filter_tags, filter_mode = _render_tag_controls(state)
+    helper_pills = mutations.grid_tag_pills(state)
     grid_helpers = [
         {
             "id": h["id"],
             "name": h["name"],
+            "tags": helper_pills[h["id"]],
             "can_bring_notebook": h["can_bring_notebook"],
             "can_bring_camera": h["can_bring_camera"],
             "role_preferences": _grid_role_preferences(h["role_preferences"]),
@@ -349,6 +394,8 @@ def render() -> None:
         cell_merges=state.get("cell_merges", {}),
         helper_names=sorted({h["name"] for h in attending}, key=str.lower),
         broken_marks=mutations.broken_rule_marks(broken_rules),
+        show_tags=show_tags,
+        dimmed_helper_ids=mutations.dimmed_helper_ids(state, filter_tags, filter_mode),
         key="assignment_grid",
     )
     if event:

@@ -140,6 +140,27 @@ def via_tag_id(tags: Iterable[Tag], direct: Iterable[int], tag_id: int) -> Optio
     return next((d for d in direct if tag_id in ancestors(tags, d)), None)
 
 
+ALL_OF = "all"
+ANY_OF = "any"
+
+
+def matches_filter(tags: Iterable[Tag], direct: Iterable[int], wanted: Iterable[int], mode: str = ALL_OF) -> bool:
+    """Whether a Helper carrying ``direct`` passes a Tag filter (the roster
+    grid's): inherited Tags count, so a Helper with "8.M" matches "GCHD". With
+    ``mode`` all-of every wanted Tag must be carried, with any-of at least one.
+    An empty filter matches everyone, and a wanted Tag that no longer exists is
+    ignored rather than making the filter unsatisfiable."""
+    if mode not in (ALL_OF, ANY_OF):
+        raise ValueError(f"Unknown Tag filter mode: {mode!r}")
+    tags = list(tags)
+    known = {t.id for t in tags}
+    wanted_ids = [t for t in dict.fromkeys(wanted) if t in known]
+    if not wanted_ids:
+        return True
+    carried = set(effective_tag_ids(tags, direct))
+    return all(t in carried for t in wanted_ids) if mode == ALL_OF else any(t in carried for t in wanted_ids)
+
+
 def tree_order(tags: Iterable[Tag]) -> list[tuple[Tag, int]]:
     """The Tags depth-first as ``(tag, depth)``: roots first, every Tag right
     before the Tags that imply it, siblings alphabetical."""

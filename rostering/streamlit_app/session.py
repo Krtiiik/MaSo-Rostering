@@ -44,7 +44,17 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
     config_tab.clear_drafts()
     if keep_view:
         return
-    for key in ("_confirm_reset", "_last_upload_hash", "_active_tab", "_pending_tab", "_fix_focus"):
+    # (The last three are the roster grid's Tag controls, see grid_tab.)
+    for key in (
+        "_confirm_reset",
+        "_last_upload_hash",
+        "_active_tab",
+        "_pending_tab",
+        "_fix_focus",
+        "_grid_show_tags",
+        "_grid_tag_filter",
+        "_grid_tag_mode",
+    ):
         st.session_state.pop(key, None)
     # A new key gives the upload tab a fresh, empty file picker, so a file
     # picked for the previous Season isn't silently loaded into this one.

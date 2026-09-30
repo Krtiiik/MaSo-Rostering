@@ -50,6 +50,8 @@ def assignment_grid(
     cell_merges: dict[str, dict[str, list[list[str]]]],
     helper_names: list[str],
     broken_marks: Optional[dict[str, list[dict[str, Any]]]] = None,
+    show_tags: bool = False,
+    dimmed_helper_ids: Optional[list[int]] = None,
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Render the grid, including any non-droppable manual-role rows.
@@ -96,6 +98,13 @@ def assignment_grid(
     the banner's wording, shown as a tooltip. Purely visual — it never blocks
     or reroutes a drop.
 
+    Tags (see CONTEXT.md "Tag"): a ``helpers`` entry may carry ``tags``
+    (``{"direct": [{"name", "colour"}], "implied": [...]}``), which
+    ``show_tags`` renders as pills under the Helper's name (direct solid,
+    implied dashed); off by default. ``dimmed_helper_ids`` are the Helpers the
+    Tag filter fades: they are never hidden, stay where they are and remain
+    draggable. The two are independent. Both are computed by the caller.
+
     Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
     a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
     "room", "names"}`` for an edited manual-role cell (``names`` is the
@@ -119,6 +128,8 @@ def assignment_grid(
             "cell_merges": cell_merges,
             "helper_names": helper_names,
             "broken_marks": broken_marks or {"cells": [], "helpers": []},
+            "show_tags": show_tags,
+            "dimmed_helper_ids": dimmed_helper_ids or [],
         },
         on_drop_change=_noop,
         on_manual_set_change=_noop,

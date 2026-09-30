@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Roster grid Tag pills and Tag filter: a "Show tags" toggle above the grid
+  (off by default) renders each Helper's Tags as pills under their name, direct
+  Tags solid and Tags carried only by implication dashed. A "Filter by tags"
+  multiselect with an "All of" / "Any of" selector dims every Helper who does
+  not match, never hiding anyone or moving the layout; inherited Tags count as
+  matches (filtering by "GCHD" finds every 8.M Helper). The filter works with or
+  without the pills, and hovering a dimmed Helper restores it to full strength.
+  Drag and drop, locks and Broken-rule marks are unchanged.
 - Tag constraints: a Tag can restrict where its Helpers go with allow-lists and
   deny-lists on Building and Role (not Room), chosen in the Tags tab's edit form
   from the Season's configuration; an entry naming a Building the configuration

@@ -5,9 +5,24 @@ export interface RolePreferenceInfo {
   label: string;
 }
 
+// One Tag pill (see CONTEXT.md "Tag"), computed live on the Python side.
+export interface TagPill {
+  name: string;
+  colour: string; // "#rrggbb"
+}
+
+// A Helper's Tags: the ones assigned directly (solid pills) and the ones only
+// implied through a direct Tag's ancestors (dashed pills).
+export interface HelperTags {
+  direct: TagPill[];
+  implied: TagPill[];
+}
+
 export interface Helper {
   id: number;
   name: string;
+  // Absent when the Season has no Tags.
+  tags?: HelperTags;
   can_bring_notebook: boolean;
   can_bring_camera: boolean;
   role_preferences: Record<string, RolePreferenceInfo>;
@@ -127,6 +142,11 @@ export interface AssignmentGridData {
   cell_merges: CellMerges;
   helper_names: string[];
   broken_marks?: BrokenMarks;
+  // Render each Helper's Tag pills under their name (hidden by default).
+  show_tags?: boolean;
+  // Helpers the Tag filter dims (never hides): they stay in place and
+  // draggable, just faded.
+  dimmed_helper_ids?: number[];
 }
 
 export interface DropEvent {
