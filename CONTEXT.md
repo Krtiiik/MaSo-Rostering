@@ -215,7 +215,10 @@ Czech: Omezení štítku.
 A Helper's 5-point ordinal rating of one Role, from most to least willing:
 Ano ("yes") → Klidně ("sure") → Nevadí ("don't mind") → Spíš ne ("rather
 not") → Ne ("no"). A blank answer counts as Nevadí, so a Helper who left all
-five blank has no preference between Roles.
+five blank has no preference between Roles. The solver scores each rating with
+a cost, set per rating on the solver tab as a whole number from 0 to 20 (the
+fixed maximum, `MAX_PREFERENCE_COST`; the unit that scales all costs and the
+Záloha cost are not bounded by it).
 Czech: Preference rolí.
 
 **Friend preference**:
