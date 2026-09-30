@@ -230,6 +230,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A solve now scores each Helper's role Preferences by a cost per rating
+  instead of the old linear penalty: Ano 0, Klidně 1, Nevadí 2, Záloha 4,
+  Spíš ne 6, Ne 12, times a unit (the "Role preference" weight, default now 1).
+  A Role left blank counts as Nevadí, so a blank is no longer as good as an
+  "Ano" (the survey upload and preview still show it as blank), and Záloha is
+  no longer a free landing spot: a Helper who does not mind a real Role gets it
+  rather than Záloha, while one who rated every open Role Spíš ne or Ne is
+  still placed in Záloha. Every objective term is scaled internally and the
+  reported objective stays in the old scale. The cost table is a solver
+  setting with these defaults; editing and saving it comes separately.
 - A solve that finds no roster before the time limit now says "No roster found
   within N seconds" with a hint to raise the limit or solve again, keeps the
   existing roster, and is no longer reported as INFEASIBLE.

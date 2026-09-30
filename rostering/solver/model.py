@@ -10,10 +10,16 @@ each rule carries a slack penalized in strict priority tiers, and the rules
 the solver had to bend come back as ``SolveResult.broken_rules``.
 
 Soft (minimized) objective terms, dominated by any rule penalty:
-- role-preference mismatch (weighted by how far from the helper's top choice);
+- role Preference cost: each Role (Záloha included) costs what the helper's
+  rating of it costs in ``RoleCosts`` (Ano 0, Klidně 1, Nevadí 2, Záloha 4,
+  Spíš ne 6, Ne 12 by default; a blank rating counts as Nevadí), times the
+  ``role_preference`` weight as the unit;
 - being placed in a building outside the helper's acceptable set (see
   CLAUDE.md "Building preference is a SET, not a single choice");
 - unsatisfied friend requests, scored via ``rostering.solver.scoring``.
+
+Every soft term is scaled by ``OBJECTIVE_SCALE`` inside the model; the reported
+``objective_value`` divides it back out, so it stays in the unscaled units.
 
 The only failure left is the time limit expiring before any roster is found
 (``NoRosterFound``).
@@ -49,14 +55,45 @@ from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs
 
 @dataclass
 class SolverWeights:
-    role_preference: int = 4
+    # ``role_preference`` is the unit ``u`` scaling the whole role cost (see
+    # ``RoleCosts``); the other two weigh a Building mismatch and an
+    # unsatisfied friend request.
+    role_preference: int = 1
     building_mismatch: int = 3
     friend_unsatisfied: int = 5
 
 
 @dataclass
+class RoleCosts:
+    """Cost of placing a Helper in a Role, by how they rated it. Záloha is not
+    a Preference option, so it has its own entry. Non-negative integers."""
+
+    ano: int = 0
+    klidne: int = 1
+    nevadi: int = 2
+    zaloha: int = 4
+    spise_ne: int = 6
+    ne: int = 12
+
+    def for_preference(self, pref: Preference) -> int:
+        return {
+            Preference.Ano: self.ano,
+            Preference.Klidne: self.klidne,
+            Preference.Nevadi: self.nevadi,
+            Preference.Spise_ne: self.spise_ne,
+            Preference.Ne: self.ne,
+        }[pref]
+
+
+# Every objective term is multiplied by this so the CP-SAT costs stay integers
+# once a cost is scaled by a fraction; the reported objective divides it out.
+OBJECTIVE_SCALE = 60
+
+
+@dataclass
 class SolverConfig:
     weights: SolverWeights = field(default_factory=SolverWeights)
+    role_costs: RoleCosts = field(default_factory=RoleCosts)
     friend_scoring: FriendScoringConfig = field(default_factory=FriendScoringConfig)
     time_limit_seconds: float = 60.0
 
@@ -174,15 +211,21 @@ def solve_competition(
 
     penalty_terms: list[cp_model.LinearExprT] = []
     ordinary_max = 0  # upper bound of the ordinary objective, for the tier weights
-    max_pref = max(p.value for p in Preference)
+    scale = OBJECTIVE_SCALE
 
     # Season configs and the survey spell buildings differently (diacritics,
     # "Troja" vs "Impakt + Troja"), so preferences are matched by key.
     room_building_keys = [building_keys(bname) for bname, _room in rooms]
 
     for h in helpers:
-        for role, pref in h.role_preferences.items():
-            weight = (max_pref - int(pref)) * config.weights.role_preference
+        # A Role the Helper left blank counts as Nevadí; Záloha is scored like
+        # a Role, from its own table entry.
+        for role in roles:
+            if role is Role.Zaloha:
+                cost = config.role_costs.zaloha
+            else:
+                cost = config.role_costs.for_preference(h.role_preferences.get(role, Preference.Nevadi))
+            weight = cost * config.weights.role_preference * scale
             if weight:
                 penalty_terms.append(weight * assign_role[h.id, role])
                 ordinary_max += weight
@@ -191,8 +234,9 @@ def solve_competition(
             preferred_keys = frozenset().union(*(building_keys(p) for p in h.building_preferences))
             for room_id, keys in enumerate(room_building_keys):
                 if keys.isdisjoint(preferred_keys):
-                    penalty_terms.append(config.weights.building_mismatch * assign_room[h.id, room_id])
-                    ordinary_max += config.weights.building_mismatch
+                    weight = config.weights.building_mismatch * scale
+                    penalty_terms.append(weight * assign_room[h.id, room_id])
+                    ordinary_max += weight
 
     # Friends: soft, scored per rostering.solver.scoring's configured mode.
     friend_pairs = build_friend_pairs(helpers, config.friend_scoring)
@@ -208,7 +252,7 @@ def solve_competition(
         satisfied = model.NewBoolVar(f"friendsat_{a_id}_{b_id}")
         model.Add(satisfied == sum(colocated_terms))
         satisfied_vars[a_id, b_id] = satisfied
-        weighted = weight * config.weights.friend_unsatisfied
+        weighted = weight * config.weights.friend_unsatisfied * scale
         if weighted:
             penalty_terms.append(weighted * (1 - satisfied))
             ordinary_max += weighted
@@ -254,7 +298,7 @@ def solve_competition(
     return SolveResult(
         assignments=assignments,
         status=status_name,
-        objective_value=solver.Value(ordinary_objective),
+        objective_value=solver.Value(ordinary_objective) / scale,
         unsatisfied_friend_pairs=unsatisfied_pairs,
         satisfied_friend_pairs=satisfied_pairs,
         broken_rules=broken_rules,

@@ -8,7 +8,12 @@ from rostering.domain import (
     RoleCapacity,
     Room,
 )
-from rostering.solver.model import SolverConfig, solve_competition
+from rostering.solver.model import RoleCosts, SolverConfig, SolverWeights, solve_competition
+
+
+# An "Ano" makes one Role free, so a lone Helper's role cost is 0 and the
+# objective isolates the Building term (a blank Role counts as Nevadí, not 0).
+CONTENT = {Role.Opravovatel: Preference.Ano}
 
 
 def _room(name, **role_caps):
@@ -103,7 +108,7 @@ def test_building_preference_is_a_set_not_a_single_choice():
         "B": Building(name="B", rooms=[room_b]),
     }
     # Accepts either building -> no penalty regardless of which is chosen.
-    helper = Helper(id=1, name="Flexible", building_preferences=frozenset({"A", "B"}))
+    helper = Helper(id=1, name="Flexible", building_preferences=frozenset({"A", "B"}), role_preferences=CONTENT)
     comp = Competition(buildings=buildings, helpers=[helper])
 
     result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
@@ -134,7 +139,7 @@ def test_building_preference_matches_config_name_without_diacritics():
         "Mala Strana": _zero_cap_building("Mala Strana"),
         "Karlov": _zero_cap_building("Karlov"),
     }
-    helper = Helper(id=1, name="H", building_preferences=frozenset({"Malá Strana"}))
+    helper = Helper(id=1, name="H", building_preferences=frozenset({"Malá Strana"}), role_preferences=CONTENT)
     comp = Competition(buildings=buildings, helpers=[helper])
 
     result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
@@ -151,7 +156,7 @@ def test_building_preference_matches_config_alias_of_impakt_troja():
         "Troja": _zero_cap_building("Troja"),
         "Karlin": _zero_cap_building("Karlin"),
     }
-    helper = Helper(id=1, name="H", building_preferences=frozenset({"Impakt + Troja"}))
+    helper = Helper(id=1, name="H", building_preferences=frozenset({"Impakt + Troja"}), role_preferences=CONTENT)
     comp = Competition(buildings=buildings, helpers=[helper])
 
     result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
@@ -163,7 +168,7 @@ def test_building_preference_matches_config_alias_of_impakt_troja():
 
 def test_building_preference_still_penalizes_a_genuinely_different_building():
     buildings = {"Karlov": _zero_cap_building("Karlov")}
-    helper = Helper(id=1, name="H", building_preferences=frozenset({"Malá Strana"}))
+    helper = Helper(id=1, name="H", building_preferences=frozenset({"Malá Strana"}), role_preferences=CONTENT)
     comp = Competition(buildings=buildings, helpers=[helper])
     config = SolverConfig(time_limit_seconds=5)
 
@@ -216,3 +221,85 @@ def test_fixed_helpers_count_toward_friend_colocation():
     friend = next(a for a in result.assignments if a.helper_id == 1)
     assert friend.room == "R2"
     assert (1, 2) in result.satisfied_friend_pairs
+
+
+# --- Role Preference scoring by rating cost -------------------------------
+
+REAL_ROLES = [Role.Opravovatel, Role.Menic, Role.Skenovac, Role.Kreslic, Role.Fotograf]
+
+
+def _all_roles(pref):
+    return {role: pref for role in REAL_ROLES}
+
+
+def _solve(comp, config=None):
+    return solve_competition(comp, config or SolverConfig(time_limit_seconds=5))
+
+
+def test_an_ano_beats_a_blank_for_a_contested_role():
+    building = Building(name="B", rooms=[_room("R1", Opravovatel=1)])
+    helpers = [
+        Helper(id=1, name="Blank"),
+        Helper(id=2, name="Ano", role_preferences={Role.Opravovatel: Preference.Ano}),
+    ]
+    comp = Competition(buildings={"B": building}, helpers=helpers)
+
+    result = _solve(comp)
+
+    winner = next(a for a in result.assignments if a.role == Role.Opravovatel)
+    assert winner.helper_id == 2
+
+
+def test_a_blank_role_scores_the_same_as_an_explicit_nevadi():
+    building = Building(name="B", rooms=[_room("R1")])
+    blank = Competition(buildings={"B": building}, helpers=[Helper(id=1, name="H")])
+    nevadi = Competition(
+        buildings={"B": building},
+        helpers=[Helper(id=1, name="H", role_preferences=_all_roles(Preference.Nevadi))],
+    )
+
+    assert _solve(blank).objective_value == _solve(nevadi).objective_value
+
+
+def test_nevadi_on_a_real_role_is_placed_there_rather_than_in_zaloha():
+    building = Building(name="B", rooms=[_room("R1")])
+    helper = Helper(id=1, name="H", role_preferences=_all_roles(Preference.Nevadi))
+    comp = Competition(buildings={"B": building}, helpers=[helper])
+
+    assert _solve(comp).assignments[0].role != Role.Zaloha
+
+
+def test_a_helper_who_refused_every_open_role_is_placed_in_zaloha():
+    building = Building(name="B", rooms=[_room("R1")])
+    prefs = {
+        Role.Opravovatel: Preference.Spise_ne,
+        Role.Menic: Preference.Ne,
+        Role.Skenovac: Preference.Spise_ne,
+        Role.Kreslic: Preference.Ne,
+        Role.Fotograf: Preference.Spise_ne,
+    }
+    comp = Competition(buildings={"B": building}, helpers=[Helper(id=1, name="H", role_preferences=prefs)])
+
+    assert _solve(comp).assignments[0].role == Role.Zaloha
+
+
+def test_configured_costs_change_the_outcome():
+    building = Building(name="B", rooms=[_room("R1")])
+    helper = Helper(id=1, name="H", role_preferences=_all_roles(Preference.Spise_ne))
+    comp = Competition(buildings={"B": building}, helpers=[helper])
+
+    default = _solve(comp)
+    dear_zaloha = _solve(comp, SolverConfig(time_limit_seconds=5, role_costs=RoleCosts(zaloha=8)))
+
+    assert default.assignments[0].role == Role.Zaloha
+    assert dear_zaloha.assignments[0].role != Role.Zaloha
+
+
+def test_the_role_preference_weight_is_the_unit_of_the_role_cost():
+    building = Building(name="B", rooms=[_room("R1", Skenovac=1)])
+    helper = Helper(id=1, name="H", role_preferences={Role.Skenovac: Preference.Ne})
+    comp = Competition(buildings={"B": building}, helpers=[helper])
+    doubled = SolverConfig(time_limit_seconds=5, weights=SolverWeights(role_preference=2))
+
+    assert _solve(comp).objective_value == RoleCosts().ne
+    assert _solve(comp, doubled).objective_value == 2 * RoleCosts().ne

@@ -326,7 +326,8 @@ def test_a_helper_with_blank_preferences_gets_no_role_bias():
 
     result = solve_competition(Competition(rooms, [blank]), config)
 
-    assert result.objective_value == 0
+    # Every real Role reads as Nevadí, so any of them costs the same.
+    assert result.objective_value == config.role_costs.nevadi * config.weights.role_preference
     assert len(result.assignments) == 1
 
 
