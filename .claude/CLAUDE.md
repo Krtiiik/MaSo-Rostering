@@ -313,6 +313,40 @@ pushing the tag, not just creating it locally.
   banner judges the result live like after any solve. Forced-friend groups
   need no code here: once that rule family exists it applies to the newcomers
   through the same fixed-Assignment solve.
+  roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. Note a
+  re-upload still replaces the Season's whole Helper list, so it does not yet
+  keep hand-added records.
+- Organizers (`rostering/organizers.py`, the Organizers section of
+  `mutations.py`): the Season's Organizers are `state["organizers"]` (dicts `id`,
+  `person_id`, `name`, `email`, `building`, `room`; ids from the high-water mark
+  `state["next_organizer_id"]`, never reused), part of every Version. They are
+  not Helpers: `Competition.organizers` (domain `Organizer`) carries them to the
+  export only, the solver never sees them. The four leadership slots hold them by
+  `organizer_id` on a `manual_roles["structural"]` entry; the placement
+  (`building`/`room`) on the record is derived, only ever written by
+  `_sync_placements` from those entries (so `assign_organizer`,
+  `unassign_organizer`, `set_slot_holders`, `delete_organizer` and
+  `put_manual_roles` all end by re-deriving it). `organizers.SLOT_SCOPES` /
+  `check_slot` define a slot's address (Vedoucí budovy and Technická podpora:
+  Building only; Vedoucí místností: Building and Room; Pravá ruka: either), a
+  mismatch being a `RosteringError`, never a rule matter. `assign_organizer`
+  moves the placement (removing the Organizer's entries at another Building/Room;
+  entries at the same one stay) and a single-holder cell replaces its holder.
+  `set_slot_holders` backs the grid: a typed name picks a tracked Organizer
+  (normalized-name match) or creates one on the spot, a legacy entry named in the
+  cell is kept. A *legacy* entry (no `organizer_id`; a `helper_id` or typed
+  `helper_name`) stays in `manual_roles`, exports as before, shows with a "not
+  tracked" badge (`mutations.legacy_slot_entries`, `legacy` on the grid's
+  `manual_entries`) and is dropped when a single-holder cell gets a new holder or
+  its chip is removed; `put_manual_roles` stays lenient about legacy entries
+  (only validating `organizer_id` ones). Person recognition: `records_from_state`
+  yields Organizer records too (`PersonRecord.kind`, ids are per kind), so
+  `list_persons`, e-mail matching (`add_organizer`/`update_organizer`) and the
+  Helper review list (`get_uncertain_matches`, which thus offers a link to a
+  Person known as an Organizer) cover them; `get_uncertain_organizer_matches` /
+  `link_organizer` / `reject_organizer_match` / `unlink_organizer` mirror the
+  Helper ones and have no UI yet. Promotion of a Helper, Friend preference toward
+  an Organizer and Organizer Can't attend/Tags are separate, later tickets.
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
   Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
   `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never

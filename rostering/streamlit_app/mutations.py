@@ -46,6 +46,7 @@ from rostering.persistence.serialize import (
     helper_to_dict,
     manual_roles_from_dict,
     manual_roles_to_dict,
+    organizer_from_dict,
     solver_config_from_dict,
     solver_config_to_dict,
 )
@@ -54,6 +55,7 @@ from rostering.persons import build_persons, link_persons, new_person_id, uncert
 from rostering.solver.checker import check_roster, newly_broken, toasts
 from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
+from rostering import organizers as organizer_slots
 from rostering import tags as tag_tree
 
 
@@ -128,7 +130,8 @@ def _build_competition(state: dict[str, Any]) -> Competition:
     them."""
     buildings = config_from_list(state["config"])
     helpers = [helper_from_dict(h) for h in state["helpers"] if not h.get("cant_attend")]
-    return Competition(buildings=buildings, helpers=helpers, tags=_tag_definitions(state))
+    organizers = [organizer_from_dict(o) for o in state.get("organizers", [])]
+    return Competition(buildings=buildings, helpers=helpers, tags=_tag_definitions(state), organizers=organizers)
 
 
 def _recompute_friend_pairs(state: dict[str, Any]) -> tuple[list[list[int]], list[list[int]]]:
@@ -565,7 +568,7 @@ def get_person_links(workspace: Workspace) -> dict[int, dict]:
         others = [
             r
             for r in by_person.get(helper.get("person_id") or "", [])
-            if (r.season_id, r.helper_id) != (season["id"], helper["id"])
+            if (r.season_id, r.kind, r.helper_id) != (season["id"], "helper", helper["id"])
         ]
         if others:
             links[helper["id"]] = {
@@ -751,7 +754,7 @@ def unlink_helper(workspace: Workspace, helper_id: int) -> dict:
     season = workspace.open_season()
     old_person = helper.get("person_id")
     shared = any(
-        r.person_id == old_person and (r.season_id, r.helper_id) != (season["id"], helper_id)
+        r.person_id == old_person and (r.season_id, r.kind, r.helper_id) != (season["id"], "helper", helper_id)
         for r in workspace.person_records()
     )
     if not shared and not helper.get("link_confirmed"):
@@ -759,6 +762,102 @@ def unlink_helper(workspace: Workspace, helper_id: int) -> dict:
     helper["person_id"] = new_person_id()
     helper.pop("link_confirmed", None)
     rejected = helper.setdefault("rejected_person_ids", [])
+    if old_person and old_person not in rejected:
+        rejected.append(old_person)
+    workspace.save(state)
+    return state
+
+
+def get_uncertain_organizer_matches(workspace: Workspace) -> list[dict]:
+    """The review list of the open Season's Organizers, like
+    :func:`get_uncertain_matches` for Helpers: an Organizer created by hand
+    without an e-mail is only ever an uncertain name match, proposed here with the
+    Persons (Helpers or Organizers of other Seasons) that share their normalized
+    name and never linked until :func:`link_organizer` confirms it. An entry is
+    ``organizer_id``, ``organizer_name``, ``organizer_email`` and ``candidates``
+    (``person_id``, ``name``, ``season``, ``email``, ``phone``), most recent
+    first. Empty with no Season open."""
+    season = workspace.open_season()
+    if season is None:
+        return []
+    proposals = uncertain_candidates(workspace.person_records(), season["id"], kind="organizer")
+    entries = []
+    for organizer in workspace.load()["organizers"]:
+        candidates = proposals.get(organizer["id"])
+        if not candidates:
+            continue
+        entries.append(
+            {
+                "organizer_id": organizer["id"],
+                "organizer_name": organizer["name"],
+                "organizer_email": organizer.get("email"),
+                "candidates": [
+                    {
+                        "person_id": c.person_id,
+                        "name": c.record.name,
+                        "season": c.record.season_label,
+                        "email": c.record.email,
+                        "phone": c.record.phone,
+                    }
+                    for c in candidates
+                ],
+            }
+        )
+    return sorted(entries, key=lambda e: e["organizer_id"])
+
+
+def link_organizer(workspace: Workspace, organizer_id: int, person_id: str) -> dict:
+    """Link an Organizer of the open Season to a Person the stored Seasons know
+    (:func:`link_helper` for an Organizer): changes only their Person link,
+    settles them, and is remembered independently of e-mail."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    _known_person(workspace, person_id)
+    if organizer.get("person_id") == person_id:
+        raise RosteringError(f"{organizer['name']} is already linked to that Person.")
+    organizer["person_id"] = person_id
+    organizer["link_confirmed"] = True
+    remaining = [p for p in organizer.get("rejected_person_ids", []) if p != person_id]
+    if remaining:
+        organizer["rejected_person_ids"] = remaining
+    else:
+        organizer.pop("rejected_person_ids", None)
+    workspace.save(state)
+    return state
+
+
+def reject_organizer_match(workspace: Workspace, organizer_id: int, person_id: str) -> dict:
+    """"Not the same person" for an Organizer: the pairing is never proposed
+    again, from either side."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    _known_person(workspace, person_id)
+    if organizer.get("person_id") == person_id:
+        raise RosteringError(f"{organizer['name']} is linked to that Person — unlink them instead.")
+    rejected = organizer.setdefault("rejected_person_ids", [])
+    if person_id not in rejected:
+        rejected.append(person_id)
+    workspace.save(state)
+    return state
+
+
+def unlink_organizer(workspace: Workspace, organizer_id: int) -> dict:
+    """Undo an Organizer's Person link (:func:`unlink_helper` for an
+    Organizer): they become a Person of their own again, and the Person they were
+    unlinked from is remembered as rejected."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    season = workspace.open_season()
+    old_person = organizer.get("person_id")
+    shared = any(
+        r.person_id == old_person and (r.season_id, r.kind, r.helper_id) != (season["id"], "organizer", organizer_id)
+        for r in workspace.person_records()
+    )
+    if not shared and not organizer.get("link_confirmed"):
+        raise RosteringError(f"{organizer['name']} is not linked to any other record.")
+    organizer["person_id"] = new_person_id()
+    organizer.pop("link_confirmed", None)
+    rejected = organizer.setdefault("rejected_person_ids", [])
     if old_person and old_person not in rejected:
         rejected.append(old_person)
     workspace.save(state)
@@ -1381,6 +1480,323 @@ def delete_helper(workspace: Workspace, helper_id: int, confirmed: bool = False)
         _refresh_friend_pairs(state)
     workspace.save(state)
     return state
+
+
+# -- Organizers ------------------------------------------------------------------
+#
+# An Organizer (see CONTEXT.md and rostering/organizers.py) is a tracked person
+# of one Season, saved in ``state["organizers"]``; the four leadership slots hold
+# them by id (``organizer_id`` on a ``manual_roles["structural"]`` entry) and
+# an Organizer's placement is derived from the slot(s) they hold.
+
+
+def _organizer_record(state: dict[str, Any], organizer_id: int) -> dict:
+    record = next((o for o in state["organizers"] if o["id"] == organizer_id), None)
+    if record is None:
+        raise RosteringError(f"No such Organizer: {organizer_id}")
+    return record
+
+
+def _next_organizer_id(state: dict[str, Any]) -> int:
+    """An Organizer id above every id in use and above every id ever handed out
+    or deleted (``next_organizer_id`` is that high-water mark), so an id is
+    never reused for another person."""
+    new_id = max(
+        int(state.get("next_organizer_id") or 1), max((o["id"] for o in state["organizers"]), default=0) + 1
+    )
+    state["next_organizer_id"] = new_id + 1
+    return new_id
+
+
+def _validated_organizer_email(email: Optional[str]) -> Optional[str]:
+    normalized = normalize_email(email)
+    if normalized is not None and not _looks_like_email(normalized):
+        raise RosteringError(f"Not an e-mail address: {email!r}")
+    return normalized
+
+
+def _config_rooms(state: dict[str, Any]) -> dict[str, list[str]]:
+    return {b["name"]: [r["name"] for r in b["rooms"]] for b in state["config"]}
+
+
+def _slot_role(role: str) -> StructuralRole:
+    try:
+        return organizer_slots.parse_slot_role(role)
+    except ValueError as exc:
+        raise RosteringError(str(exc)) from exc
+
+
+def _checked_slot(state: dict[str, Any], role: str, building: Optional[str], room: Optional[str]):
+    """The slot's role, after refusing (as a structural error) an address that
+    does not fit its scope or names a Building/Room the Season lacks."""
+    slot = _slot_role(role)
+    try:
+        organizer_slots.check_slot(slot, building, room or None, _config_rooms(state))
+    except ValueError as exc:
+        raise RosteringError(str(exc)) from exc
+    return slot
+
+
+def _sync_placements(state: dict[str, Any]) -> None:
+    """Re-derive every Organizer's placement from the slot entries: the Building
+    (and Room) of the slot they hold, none while they hold no slot. The one place
+    a placement is written."""
+    entries = state["manual_roles"]["structural"]
+    for organizer in state["organizers"]:
+        organizer["building"], organizer["room"] = organizer_slots.placement_of(entries, organizer["id"])
+
+
+def _same_place(entry: dict, building: Optional[str], room: Optional[str]) -> bool:
+    return entry.get("building") == building and (entry.get("room") or None) == (room or None)
+
+
+def _place_organizer(
+    state: dict[str, Any], organizer_id: int, slot: StructuralRole, building: str, room: Optional[str]
+) -> None:
+    """Put an Organizer in a slot cell. They hold exactly one placement, so any
+    entry of theirs elsewhere is removed (the placement moves); entries of theirs
+    at this same Building/Room in other slots stay. A single-holder cell drops
+    its previous holder, an untracked legacy entry included."""
+    kept = []
+    for entry in state["manual_roles"]["structural"]:
+        if entry.get("organizer_id") == organizer_id and not _same_place(entry, building, room):
+            continue
+        if (
+            slot in organizer_slots.SINGLE_HOLDER_ROLES
+            and entry["role"] == slot.name
+            and _same_place(entry, building, room)
+            and entry.get("organizer_id") != organizer_id
+        ):
+            continue
+        kept.append(entry)
+    if not any(e.get("organizer_id") == organizer_id and e["role"] == slot.name and _same_place(e, building, room) for e in kept):
+        kept.append(
+            {
+                "role": slot.name,
+                "building": building,
+                "room": room,
+                "helper_id": None,
+                "helper_name": None,
+                "organizer_id": organizer_id,
+            }
+        )
+    state["manual_roles"]["structural"] = kept
+    _sync_placements(state)
+
+
+def _new_organizer(workspace: Workspace, state: dict[str, Any], name: str, email: Optional[str]) -> dict:
+    """Append a new Organizer record to ``state`` (not saved): a fresh id, and a
+    Person link that is fresh unless the e-mail was recorded in an earlier stored
+    Season. Without an e-mail the only match left is the uncertain name match
+    :func:`get_uncertain_organizer_matches` proposes."""
+    record = {
+        "id": _next_organizer_id(state),
+        "person_id": _person_id_for_new_email(workspace, email),
+        "name": name,
+        "email": email,
+        "building": None,
+        "room": None,
+    }
+    state["organizers"].append(record)
+    return record
+
+
+def add_organizer(workspace: Workspace, name: str, email: Optional[str] = None) -> dict:
+    """Create an Organizer by hand: only ``name`` is required. They get a fresh,
+    never-reused Organizer id and a Person link (fresh unless the optional
+    ``email`` was recorded in an earlier Season) and have no placement until
+    :func:`assign_organizer` puts them in a slot. The new record is the last of
+    ``state["organizers"]``."""
+    name = (name or "").strip()
+    if not name:
+        raise RosteringError("An Organizer needs a name.")
+    email = _validated_organizer_email(email)
+    state = workspace.load()
+    _new_organizer(workspace, state, name, email)
+    workspace.save(state)
+    return state
+
+
+def update_organizer(
+    workspace: Workspace, organizer_id: int, *, name: Optional[str] = None, email: Optional[str] = None
+) -> dict:
+    """Rename an Organizer and/or set or clear (blank) their e-mail. Entering an
+    e-mail an earlier stored Season recorded links them to that Person at once
+    (a confident match) unless the user already settled their Person link or they
+    are linked by e-mail already; the Organizer id never changes."""
+    state = workspace.load()
+    record = _organizer_record(state, organizer_id)
+    if name is not None:
+        name = name.strip()
+        if not name:
+            raise RosteringError("An Organizer needs a name.")
+        record["name"] = name
+    if email is not None:
+        new_email = _validated_organizer_email(email)
+        if new_email != record.get("email"):
+            record["email"] = new_email
+            season = workspace.open_season()
+            records = workspace.person_records()
+            shared = any(
+                r.person_id == record["person_id"]
+                and (r.season_id, r.kind, r.helper_id) != (season["id"] if season else None, "organizer", organizer_id)
+                for r in records
+            )
+            if new_email and not record.get("link_confirmed") and not shared:
+                known = [r for r in records if season is None or r.season_id != season["id"]]
+                if any(r.email == new_email for r in known):
+                    record["person_id"] = link_persons([new_email], known)[0]
+    workspace.save(state)
+    return state
+
+
+def _organizer_impact(state: dict[str, Any], organizer_id: int) -> list[str]:
+    return [
+        f"Manual role: {_manual_entry_label(entry)}"
+        for entry in state["manual_roles"]["structural"]
+        if entry.get("organizer_id") == organizer_id
+    ]
+
+
+def delete_organizer(workspace: Workspace, organizer_id: int, confirmed: bool = False) -> dict:
+    """Delete an Organizer. One holding slots is only deleted once ``confirmed``
+    (:class:`ConfirmationRequired` names the slots that would be emptied);
+    their id is never handed out again."""
+    state = workspace.load()
+    record = _organizer_record(state, organizer_id)
+    impact = _organizer_impact(state, organizer_id)
+    if impact and not confirmed:
+        raise ConfirmationRequired(f"Deleting {record['name']} empties " + "; ".join(impact) + ".", impact)
+    state["organizers"] = [o for o in state["organizers"] if o["id"] != organizer_id]
+    state["next_organizer_id"] = max(int(state.get("next_organizer_id") or 1), organizer_id + 1)
+    state["manual_roles"]["structural"] = [
+        e for e in state["manual_roles"]["structural"] if e.get("organizer_id") != organizer_id
+    ]
+    workspace.save(state)
+    return state
+
+
+def assign_organizer(
+    workspace: Workspace, organizer_id: int, role: str, building: str, room: Optional[str] = None
+) -> dict:
+    """Assign an Organizer to a leadership slot (``role``: ``"VedouciBudovy"``,
+    ``"PravaRuka"``, ``"VedouciMistnosti"`` or ``"TechnickaPodpora"``) at
+    ``building`` and, for a Room-scoped slot, ``room``. This is the only way an
+    Organizer is placed: a Room-scoped slot gives Building and Room, a
+    Building-scoped one the Building. Assigning them to a slot at another
+    placement moves the placement and removes their previous slot entries. A
+    single-holder cell (Vedoucí budovy, Pravá ruka, Vedoucí místností) drops its
+    previous holder. An address that does not fit the slot's scope is a
+    structural error, but a placement is never refused for the Broken rules it
+    may cause."""
+    state = workspace.load()
+    _organizer_record(state, organizer_id)
+    slot = _checked_slot(state, role, building, room)
+    _place_organizer(state, organizer_id, slot, building, room or None)
+    workspace.save(state)
+    return state
+
+
+def unassign_organizer(
+    workspace: Workspace, organizer_id: int, role: str, building: str, room: Optional[str] = None
+) -> dict:
+    """Take an Organizer out of one slot. Removing them from every slot they hold
+    clears their placement; they stay a tracked Organizer."""
+    state = workspace.load()
+    _organizer_record(state, organizer_id)
+    slot = _slot_role(role)
+    structural = state["manual_roles"]["structural"]
+    kept = [
+        e
+        for e in structural
+        if not (e.get("organizer_id") == organizer_id and e["role"] == slot.name and _same_place(e, building, room))
+    ]
+    if len(kept) == len(structural):
+        raise RosteringError("That Organizer does not hold that slot.")
+    state["manual_roles"]["structural"] = kept
+    _sync_placements(state)
+    workspace.save(state)
+    return state
+
+
+def _slot_entry_name(state: dict[str, Any], entry: dict) -> str:
+    """The display name of a slot entry: its Organizer, else (legacy) the Helper
+    or the hand-typed text."""
+    if entry.get("organizer_id") is not None:
+        return next((o["name"] for o in state["organizers"] if o["id"] == entry["organizer_id"]), f"#{entry['organizer_id']}")
+    if entry.get("helper_id") is not None:
+        return next((h["name"] for h in state["helpers"] if h["id"] == entry["helper_id"]), f"#{entry['helper_id']}")
+    return entry.get("helper_name") or ""
+
+
+def legacy_slot_entries(state: dict[str, Any]) -> list[dict]:
+    """The slot entries that are not (yet) tracked Organizers: saved before
+    Organizers existed with a Helper id or hand-typed text. They still display and
+    export, marked as such, until replaced. Each is ``role``, ``building``,
+    ``room`` and ``name``."""
+    return [
+        {"role": e["role"], "building": e["building"], "room": e.get("room"), "name": _slot_entry_name(state, e)}
+        for e in state["manual_roles"]["structural"]
+        if e.get("organizer_id") is None
+    ]
+
+
+def set_slot_holders(
+    workspace: Workspace, role: str, building: str, room: Optional[str], names: Sequence[str]
+) -> dict:
+    """Set the full list of holders of one slot cell from the names the grid
+    shows in it: a name matching a tracked Organizer (ignoring case, diacritics
+    and spacing) picks them, one nobody tracks creates an Organizer on the spot,
+    and a name of an untracked legacy entry already in the cell keeps that entry.
+    Whoever is no longer named is removed from the cell (an Organizer left with no
+    slot loses their placement). A single-holder slot keeps only the last name."""
+    state = workspace.load()
+    slot = _checked_slot(state, role, building, room)
+    room = room or None
+    cell = [e for e in state["manual_roles"]["structural"] if e["role"] == slot.name and _same_place(e, building, room)]
+    legacy_in_cell = {normalize_name(_slot_entry_name(state, e)): e for e in cell if e.get("organizer_id") is None}
+    in_cell = {e["organizer_id"] for e in cell if e.get("organizer_id") is not None}
+
+    desired: list[tuple[str, Any]] = []  # ("legacy", entry) or ("organizer", id)
+    for raw in names:
+        name = (raw or "").strip()
+        key = normalize_name(name)
+        if not key or any(_desired_key(state, d) == key for d in desired):
+            continue
+        if key in legacy_in_cell:
+            desired.append(("legacy", legacy_in_cell[key]))
+            continue
+        matches = sorted((o for o in state["organizers"] if normalize_name(o["name"]) == key), key=lambda o: o["id"])
+        picked = next((o for o in matches if o["id"] in in_cell), matches[0] if matches else None)
+        if picked is None:
+            picked = _new_organizer(workspace, state, name, None)
+        desired.append(("organizer", picked["id"]))
+    if slot in organizer_slots.SINGLE_HOLDER_ROLES:
+        desired = desired[-1:]
+
+    cell_ids = {id(e) for e in cell}
+    keep_legacy = {id(entry) for kind, entry in desired if kind == "legacy"}
+    keep_ids = {value for kind, value in desired if kind == "organizer"}
+    state["manual_roles"]["structural"] = [
+        e
+        for e in state["manual_roles"]["structural"]
+        if id(e) not in cell_ids
+        or (e.get("organizer_id") is None and id(e) in keep_legacy)
+        or (e.get("organizer_id") in keep_ids)
+    ]
+    for kind, value in desired:
+        if kind == "organizer" and value not in in_cell:
+            _place_organizer(state, value, slot, building, room)
+    _sync_placements(state)
+    workspace.save(state)
+    return state
+
+
+def _desired_key(state: dict[str, Any], desired: tuple[str, Any]) -> str:
+    kind, value = desired
+    if kind == "legacy":
+        return normalize_name(_slot_entry_name(state, value))
+    return normalize_name(_organizer_record(state, value)["name"])
 
 
 # -- Tags ------------------------------------------------------------------------
@@ -2580,7 +2996,15 @@ def put_manual_roles(workspace: Workspace, manual_roles: dict) -> dict:
     except (KeyError, ValueError) as exc:
         raise RosteringError(f"Invalid manual roles: {exc}") from exc
     state = workspace.load()
+    # A slot entry that names an Organizer must name a tracked one, at an address
+    # its slot's scope allows. Bare Helper/typed entries are the legacy form: a
+    # saved one is kept (and still exported) until replaced.
+    for entry in manual_roles.get("structural", []):
+        if entry.get("organizer_id") is not None:
+            _organizer_record(state, entry["organizer_id"])
+            _checked_slot(state, entry["role"], entry.get("building"), entry.get("room"))
     state["manual_roles"] = manual_roles
+    _sync_placements(state)
     workspace.save(state)
     return state
 

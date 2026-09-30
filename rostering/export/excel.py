@@ -301,6 +301,16 @@ def write_roster(
     def annotate_id(helper_id: int, fallback_name: str = "") -> str:
         return _annotate(helper_by_id.get(helper_id), fallback_name)
 
+    organizer_names = {o.id: o.name for o in comp.organizers}
+
+    def slot_name(entry) -> str:
+        """The name an Organizer role slot shows: the tracked Organizer's, else
+        (a legacy entry, see StructuralAssignment) the Helper's, with the
+        equipment tags, or the hand-typed text."""
+        if entry.organizer_id is not None:
+            return organizer_names.get(entry.organizer_id, f"#{entry.organizer_id}")
+        return annotate_id(entry.helper_id, entry.helper_name or "")
+
     room_obj = {(b.name, r.name): r for b in buildings for r in b.rooms}
 
     # Each solved Role's row-groups per Building (a merged group is one wide
@@ -474,7 +484,7 @@ def write_roster(
     structural_building: dict[tuple[StructuralRole, str], list[str]] = defaultdict(list)
     structural_room: dict[tuple[StructuralRole, str, str], list[str]] = defaultdict(list)
     for entry in manual.structural:
-        name = annotate_id(entry.helper_id, entry.helper_name or "")
+        name = slot_name(entry)
         if entry.role in _ROOM_SCOPED_STRUCTURAL_ROLES and entry.room:
             structural_room[(entry.role, entry.building, entry.room)].append(name)
         else:
@@ -618,7 +628,7 @@ def write_roster(
     tech_lists: dict[str, list[str]] = defaultdict(list)
     for entry in manual.structural:
         if entry.role is StructuralRole.TechnickaPodpora:
-            tech_lists[entry.building].append(annotate_id(entry.helper_id, entry.helper_name or ""))
+            tech_lists[entry.building].append(slot_name(entry))
     track_width(0, StructuralRole.TechnickaPodpora.value)
     ws.write(row, 0, StructuralRole.TechnickaPodpora.value, cell_format(bold=True, top="medium", bottom="medium", left="medium", right="medium"))
     fmt = cell_format(wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")

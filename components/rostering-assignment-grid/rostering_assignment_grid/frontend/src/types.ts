@@ -97,6 +97,9 @@ export interface GridRow {
   // helper (e.g. Vedoucí budovy) render as plain free text instead of an
   // autocomplete against registered helper names.
   plain_text?: boolean;
+  // "manual" rows for the leadership slots, which take a tracked Organizer:
+  // their input autocompletes against `organizer_names` instead of helpers.
+  organizer?: boolean;
   // "manual" rows for a single-holder role (e.g. one building lead) cap
   // their cell at one name instead of allowing a list.
   single_entry?: boolean;
@@ -113,6 +116,12 @@ export interface ManualEntry {
   room: string | null;
   helper_id: number | null;
   name: string;
+  // Set on a leadership-slot entry held by a tracked Organizer.
+  organizer_id?: number | null;
+  // A leadership-slot entry saved before Organizers existed (a Helper or
+  // hand-typed text): still shown, marked as not yet a tracked Organizer,
+  // until it is replaced by picking one.
+  legacy?: boolean;
 }
 
 // A light "this breaks a rule" mark (see CONTEXT.md "Broken rule"), computed
@@ -144,6 +153,7 @@ export interface AssignmentGridData {
   manual_entries: ManualEntry[];
   cell_merges: CellMerges;
   helper_names: string[];
+  organizer_names?: string[];
   broken_marks?: BrokenMarks;
   // Render each Helper's Tag pills under their name (hidden by default).
   show_tags?: boolean;

@@ -131,10 +131,23 @@ export function ManualCell({
           <span
             key={entry.name}
             className={`manual-chip${
-              entry.helper_id === null ? " manual-chip-new" : droppable ? " manual-chip-duplicate" : ""
+              entry.legacy
+                ? " manual-chip-new"
+                : entry.organizer_id != null
+                  ? ""
+                  : entry.helper_id === null
+                    ? " manual-chip-new"
+                    : droppable
+                      ? " manual-chip-duplicate"
+                      : ""
             }`}
           >
             {entry.name}
+            {entry.legacy && (
+              <span className="manual-chip-badge" title="Not yet a tracked Organizer — remove it and pick or add an Organizer to replace it">
+                not tracked
+              </span>
+            )}
             <button
               type="button"
               className="manual-chip-remove"

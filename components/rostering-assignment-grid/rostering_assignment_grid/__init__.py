@@ -49,6 +49,7 @@ def assignment_grid(
     manual_entries: list[dict[str, Any]],
     cell_merges: dict[str, dict[str, list[list[str]]]],
     helper_names: list[str],
+    organizer_names: Optional[list[str]] = None,
     broken_marks: Optional[dict[str, list[dict[str, Any]]]] = None,
     show_tags: bool = False,
     dimmed_helper_ids: Optional[list[int]] = None,
@@ -81,6 +82,11 @@ def assignment_grid(
     solved into, which adds them to that manual row without removing
     their solved-role assignment (reported via the same ``manual_set``
     trigger as a typed/picked name would be).
+
+    A ``manual`` row with ``"organizer": True`` (the four leadership slots) takes
+    a tracked Organizer: its cell input autocompletes against ``organizer_names``,
+    and a ``manual_entries`` item may carry ``organizer_id`` (a tracked Organizer)
+    or ``legacy`` (an untracked Helper/typed entry, shown with a badge).
 
     Each ``helpers`` entry's ``friends`` (raw, resolved-to-id friend
     requests straight from ingestion) is what drives the grid's own
@@ -127,6 +133,7 @@ def assignment_grid(
             "manual_entries": manual_entries,
             "cell_merges": cell_merges,
             "helper_names": helper_names,
+            "organizer_names": organizer_names or [],
             "broken_marks": broken_marks or {"cells": [], "helpers": []},
             "show_tags": show_tags,
             "dimmed_helper_ids": dimmed_helper_ids or [],
