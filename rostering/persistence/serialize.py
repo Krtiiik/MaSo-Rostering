@@ -23,7 +23,7 @@ from rostering.domain import (
     parse_tshirt_size,
 )
 from rostering.ingest.preferences import parse_role_token
-from rostering.solver.model import SolverConfig, SolverWeights
+from rostering.solver.model import RoleCosts, SolverConfig, SolverWeights
 from rostering.solver.scoring import FriendScoringConfig, FriendScoringMode
 
 
@@ -220,13 +220,32 @@ def manual_roles_from_dict(data: dict) -> ManualRoles:
     return ManualRoles(structural=structural, overlay=overlay)
 
 
+# The unit that scales the whole role cost is stored under its own key. The
+# old ``role_preference`` key held a weight on the old ``(5 - rating)`` scale
+# and is deliberately never read (see ``solver_config_from_dict``).
+_ROLE_COST_UNIT_KEY = "role_cost_unit"
+_ROLE_COST_FIELDS = ("ano", "klidne", "nevadi", "zaloha", "spise_ne", "ne")
+
+
+def _non_negative_int(data: dict, key: str, default: int) -> int:
+    """``data[key]`` as a non-negative integer, or ``default`` when absent.
+    Raises ``ValueError`` for anything else, so a bad edit is refused on save."""
+    if data.get(key) is None:
+        return default
+    value = data[key]
+    if isinstance(value, bool) or int(value) != value or int(value) < 0:
+        raise ValueError(f"{key} must be a non-negative whole number, got {value!r}")
+    return int(value)
+
+
 def solver_config_to_dict(config: SolverConfig) -> dict:
     return {
         "weights": {
-            "role_preference": config.weights.role_preference,
+            _ROLE_COST_UNIT_KEY: config.weights.role_preference,
             "building_mismatch": config.weights.building_mismatch,
             "friend_unsatisfied": config.weights.friend_unsatisfied,
         },
+        "role_costs": {name: getattr(config.role_costs, name) for name in _ROLE_COST_FIELDS},
         "friend_scoring": {
             "mode": config.friend_scoring.mode.value,
             "symmetric": config.friend_scoring.symmetric,
@@ -237,19 +256,33 @@ def solver_config_to_dict(config: SolverConfig) -> dict:
 
 
 def solver_config_from_dict(data: dict) -> SolverConfig:
+    """Read a saved solver config. A missing key falls back to the solver's own
+    default (never a separate literal here), and the legacy ``role_preference``
+    weight is ignored: it was on the old scale and would make role costs far
+    too strong under the cost table."""
     data = data or {}
-    weights_data = data.get("weights", {})
-    friend_data = data.get("friend_scoring", {})
+    weights_data = data.get("weights") or {}
+    role_costs_data = data.get("role_costs") or {}
+    friend_data = data.get("friend_scoring") or {}
+    defaults = SolverConfig()
     return SolverConfig(
         weights=SolverWeights(
-            role_preference=weights_data.get("role_preference", 1),
-            building_mismatch=weights_data.get("building_mismatch", 10),
-            friend_unsatisfied=weights_data.get("friend_unsatisfied", 5),
+            role_preference=_non_negative_int(
+                weights_data, _ROLE_COST_UNIT_KEY, defaults.weights.role_preference
+            ),
+            building_mismatch=weights_data.get("building_mismatch", defaults.weights.building_mismatch),
+            friend_unsatisfied=weights_data.get("friend_unsatisfied", defaults.weights.friend_unsatisfied),
+        ),
+        role_costs=RoleCosts(
+            **{
+                name: _non_negative_int(role_costs_data, name, getattr(defaults.role_costs, name))
+                for name in _ROLE_COST_FIELDS
+            }
         ),
         friend_scoring=FriendScoringConfig(
-            mode=FriendScoringMode(friend_data.get("mode", "pairwise")),
-            symmetric=friend_data.get("symmetric", True),
-            weight=friend_data.get("weight", 1),
+            mode=FriendScoringMode(friend_data.get("mode", defaults.friend_scoring.mode.value)),
+            symmetric=friend_data.get("symmetric", defaults.friend_scoring.symmetric),
+            weight=friend_data.get("weight", defaults.friend_scoring.weight),
         ),
-        time_limit_seconds=data.get("time_limit_seconds", 10.0),
+        time_limit_seconds=data.get("time_limit_seconds", defaults.time_limit_seconds),
     )

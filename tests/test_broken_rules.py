@@ -127,7 +127,9 @@ def test_ordinary_preferences_never_outweigh_a_rule():
 
 def test_objective_value_excludes_rule_penalties():
     building = Building(name="B", rooms=[_room("R1", Skenovac=2)])
-    comp = Competition(buildings={"B": building}, helpers=[Helper(id=1, name="A")])
+    # Ano on Skenovač costs nothing, so the whole objective is the rule penalty's absence.
+    helper = Helper(id=1, name="A", role_preferences={Role.Skenovac: Preference.Ano})
+    comp = Competition(buildings={"B": building}, helpers=[helper])
 
     result = solve_competition(comp, _config())
 
