@@ -81,13 +81,17 @@ def seasons(tmp_path, monkeypatch):
     return Workspace()
 
 
-def test_the_people_tab_lists_organizers_and_helpers_as_name_buttons(seasons):
+def test_the_people_tab_lists_organizers_and_helpers_with_an_open_button_per_row(seasons):
     at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
 
     assert not at.exception
     assert any(s.value == "Organizátoři (1)" for s in at.subheader)
     assert any(s.value == "Pomocníci (1)" for s in at.subheader)
-    assert {b.label for b in at.button} >= {"Boss", "Anna", "＋ Přidat organizátora", "＋ Přidat pomocníka"}
+    labels = [b.label for b in at.button]
+    assert labels.count("Otevřít") == 2
+    assert {"＋ Přidat organizátora", "＋ Přidat pomocníka"} <= set(labels)
+    assert not {"Boss", "Anna"} & set(labels)  # a name is plain text, not a button
+    assert {"Boss", "Anna"} <= {t.value for t in at.text}
 
 
 def _cant_attend_box(at, label):
