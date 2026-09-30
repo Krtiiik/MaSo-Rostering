@@ -62,7 +62,7 @@ def render() -> None:
         if returning:
             msg += f" Vracejících se pomocníků (poznaných podle e-mailu z dřívějšího ročníku): **{len(returning)}**."
         if unresolved_count:
-            msg += f" Žádosti o kamarády, které je nutné přiřadit (otevřete pomocníka označeného ⚠): **{unresolved_count}**."
+            msg += f" Žádosti o kamarády, které je nutné přiřadit (otevřete pomocníka označeného ⚠️): **{unresolved_count}**."
         st.success(msg)
 
         if state["ingestion_warnings"]:
@@ -225,7 +225,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     names, details = [], []
     for helper in helpers:
         unresolved = len(helper["unresolved_friend_names"])
-        names.append(("▶ " if helper["id"] == focus_helper_id else "") + ("⚠ " if unresolved else "") + helper["name"])
+        names.append(("▶ " if helper["id"] == focus_helper_id else "") + ("⚠️ " if unresolved else "") + helper["name"])
         details.append(
             [
                 ", ".join(returning.get(helper["id"], [])) or "—",
@@ -233,7 +233,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
                 " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
                 or "—",
                 helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
-                f"k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])),
+                f"⚠️ k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])),
             ]
         )
     _render_table(

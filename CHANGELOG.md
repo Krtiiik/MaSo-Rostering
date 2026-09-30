@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The People tab marks a Helper with unmatched friend names with a coloured ⚠️
+  emoji (before their name and in the Friends column) instead of the small
+  monochrome ⚠ glyph.
 - The People tab's Tags column shows coloured pills (solid for direct Tags,
   dashed for inherited ones) instead of plain text. The Equipment column shows
   💻 / 📷 icons instead of text.
