@@ -242,8 +242,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Ano", x1.5 for two, x1.33 for three), so when two Helpers compete for a Role
   the one with a single "Ano" is kept on it ahead of one who has several to
   fall back on. Every objective term is scaled internally and the
-  reported objective stays in the old scale. The cost table is a solver
-  setting with these defaults; editing and saving it comes separately.
+  reported objective stays in the old scale. The unit and the six costs are
+  editable in the Buildings tab's solver weights ("Unit for role costs" and one
+  field per rating, whole numbers of 0 or more, no ordering enforced) with a
+  "Restore role cost defaults" button, and are saved with the solver config. The
+  unit is saved under a new key: an old saved "Role preference" weight (which
+  was on the old scale) is ignored and the unit starts at the new default of 1.
+  A missing setting now loads as the solver's own default, including the
+  Building-mismatch weight (3, not the 10 the loader used to fall back to).
 - A solve that finds no roster before the time limit now says "No roster found
   within N seconds" with a hint to raise the limit or solve again, keeps the
   existing roster, and is no longer reported as INFEASIBLE.
