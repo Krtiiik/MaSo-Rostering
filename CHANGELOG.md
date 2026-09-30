@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On the Buildings tab, the "Remove building" button no longer overlaps the
+  "+ Add room" button when its label wraps in a narrow column.
+
 ### Changed
 
 - The Tags tab's "Others (N)" section in the Tag edit menu is now titled
