@@ -373,7 +373,7 @@ pushing the tag, not just creating it locally.
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
 - Forced friends groups (`rostering/forced_friends.py`, the lifecycle in
   `streamlit_app/forced_groups.py`, UI in `tabs/forced_friends_tab.py` — the
-  "4. Forced friends" tab, then "5. Solver" and "6. Roster"): a group is a dict in
+  "3. Forced friends" tab, then "4. Buildings", "5. Solver" and "6. Roster"): a group is a dict in
   `state["forced_groups"]` (`id` from the high-water mark
   `next_forced_group_id`, `name`, canonical `axes` — Room implies Building —
   and `members`, each `{person_id, name}` with the last-known name), part of
@@ -514,7 +514,7 @@ pushing the tag, not just creating it locally.
   are part of every Version, empty after Start over, and stay through a
   re-upload (the recognized record is updated in place); `Workspace` gives a
   state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
-  (the "3. Tags" tab) and the Tag picker in a person's popup in the People tab (`tabs/person_dialog.py`), both drawing pills through `tag_pills.py`.
+  (the "2. Tags" tab) and the Tag picker in a person's popup in the People tab (`tabs/person_dialog.py`), both drawing pills through `tag_pills.py`.
 - Tag import (`mutations.py`, "Tag import" section; UI in
   `tabs/tag_import_ui.py`): `import_from_season(workspace, source_season_id,
   selections=None)` runs every `ImportSection` in `_IMPORT_SECTIONS`

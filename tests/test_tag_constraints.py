@@ -765,4 +765,4 @@ def test_a_tag_rule_has_a_go_fix_button_to_the_tags_tab(workspace):
     (broken,) = _tag_rules(state)
 
     assert fix_focus.can_go_fix(broken)
-    assert fix_focus.TAB_LABELS[broken.fix.tab] == "3. Tags"
+    assert fix_focus.TAB_LABELS[broken.fix.tab] == "2. Tags"

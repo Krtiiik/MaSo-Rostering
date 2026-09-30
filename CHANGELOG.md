@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chip again, pressing Escape, clicking elsewhere or starting a drag closes it.
 - The Buildings tab shows an "Unsaved changes" note while the layout on screen
   differs from what the Season has saved.
+- The Buildings tab now comes after Tags and Forced friends, just before Solver
+  and Roster (tab order: People, Tags, Forced friends, Buildings, Solver,
+  Roster). The People tab's continue button now leads to Tags.
 
 ### Removed
 

@@ -29,7 +29,7 @@ def focus_tag(tag_id: int) -> None:
 
 
 def render() -> None:
-    st.header("3. Tags")
+    st.header("2. Tags")
     workspace = session.get_workspace()
     if mutations.get_open_season(workspace) is None:
         st.info("Open a Season (or upload responses to create one) before adding Tags.")

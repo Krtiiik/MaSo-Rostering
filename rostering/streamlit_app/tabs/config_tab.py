@@ -184,7 +184,7 @@ def clear_drafts() -> None:
 
 
 def render() -> None:
-    st.header("2. Buildings & rooms")
+    st.header("4. Buildings & rooms")
     st.write("Define the buildings, their rooms, and how many of each role each can hold this season.")
 
     state = session.get_state()
