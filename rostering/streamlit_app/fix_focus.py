@@ -12,17 +12,17 @@ from typing import Optional
 import streamlit as st
 
 from rostering.domain import BrokenRule, FixTarget
-from rostering.streamlit_app import mutations, session
+from rostering.streamlit_app import labels, mutations, session
 
 _KEY = "_fix_focus"
 
 # Logical FixTarget.tab -> the tab strip's label (app.py's _TABS). A rule
 # family whose tab does not exist yet has no entry, hence no "Go fix" button.
 TAB_LABELS = {
-    "buildings": "4. Buildings",
-    "helpers": "1. People",
-    "tags": "2. Tags",
-    "forced_friends": "3. Forced friends",
+    "buildings": labels.TAB_BUILDINGS,
+    "helpers": labels.TAB_PEOPLE,
+    "tags": labels.TAB_TAGS,
+    "forced_friends": labels.TAB_FORCED,
 }
 
 
@@ -73,8 +73,8 @@ def render_callout(state: dict, tab: str) -> Optional[FixTarget]:
         return None
     line = st.session_state[_KEY]["line"]
     cols = st.columns([6, 1], vertical_alignment="center")
-    cols[0].info(f"**Fixing:** {line}", icon="🔧")
-    if cols[1].button("Dismiss", key="fix_focus_dismiss"):
+    cols[0].info(f"**Opravujete:** {line}", icon="🔧")
+    if cols[1].button("Skrýt", key="fix_focus_dismiss"):
         st.session_state.pop(_KEY, None)
         st.rerun()
     return fix

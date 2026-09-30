@@ -200,7 +200,7 @@ def test_a_group_the_organizers_anchor_cannot_hold_bends_and_names_the_organizer
     (broken,) = result.broken_rules
     assert broken.instance == RuleInstance("forced_friends", (1, "room"))
     assert broken.amount == 1
-    assert broken.line == "Group Team [H1, Org1] is split across rooms A1 and B1"
+    assert broken.line == "Skupinka Team [H1, Org1] je rozdělena mezi místnosti A1 a B1"
 
 
 def test_two_organizers_who_stand_apart_are_a_broken_group_the_solver_cannot_fix():
@@ -334,7 +334,7 @@ def test_an_unplaced_organizer_member_is_dormant_and_the_group_says_why(workspac
 
     group = _group_named(state, "Tym")
     assert group["status"] == forced_groups.DORMANT
-    assert "Marie is an unplaced Organizer" in group["reason"]
+    assert "Marie je nezařazený organizátor" in group["reason"]
     org = next(m for m in group["members"] if m["person_id"] == marie)
     assert org["state"] == forced_groups.UNPLACED
 
@@ -401,7 +401,7 @@ def test_a_member_promoted_to_organizer_keeps_membership_with_the_role_axis_not_
     assert [m["person_id"] for m in group["members"]] == ["p1", "p2", "p3"]
     anna = group["members"][0]
     assert (anna["name"], anna["kind"], anna["state"]) == ("Anna", "organizer", forced_groups.UNPLACED)
-    assert group["badges"] == ["Role not applied to Anna"]
+    assert group["badges"] == ["Role se na Anna neuplatní"]
     # The remaining two Helpers still make the group active.
     assert group["status"] == forced_groups.ACTIVE
 
@@ -414,7 +414,7 @@ def test_the_badge_shows_only_on_groups_that_use_the_role_axis_and_only_for_orga
     state = mutations.promote_helper(workspace, 1)
 
     assert _group_named(state, "Bez role")["badges"] == []
-    assert _group_named(state, "S rolí")["badges"] == ["Role not applied to Anna"]
+    assert _group_named(state, "S rolí")["badges"] == ["Role se na Anna neuplatní"]
 
 
 def test_editing_a_group_that_carries_the_badge_is_not_refused(workspace):
@@ -426,7 +426,7 @@ def test_editing_a_group_that_carries_the_badge_is_not_refused(workspace):
     forced_groups.update_group(workspace, group_id, name="Nova")
     state = forced_groups.update_group(workspace, group_id, person_ids=["p1", "p2"])
 
-    assert _group_named(state, "Nova")["badges"] == ["Role not applied to Anna"]
+    assert _group_named(state, "Nova")["badges"] == ["Role se na Anna neuplatní"]
 
 
 def test_a_promoted_members_placement_anchors_the_group_in_a_solve(workspace):
@@ -455,7 +455,7 @@ def test_dragging_a_helper_away_from_a_group_with_a_placed_organizer_is_an_ordin
     after = mutations.move_helper(workspace, 1, "A", "A1", "Zaloha")
 
     (broken,) = [b for b in mutations.broken_rules(after) if b.family == "forced_friends"]
-    assert broken.line == "Group Tym [Anna, Marie] is split across rooms A1 and B2"
+    assert broken.line == "Skupinka Tym [Anna, Marie] je rozdělena mezi místnosti A1 a B2"
     assert broken.fix.group_id == 1
     assert mutations.move_toast_lines(before, after) == [broken.line]
     assert (
@@ -468,7 +468,7 @@ def test_the_grid_marks_a_helper_bound_to_a_placed_organizer(workspace):
     marie = _organizer_named(workspace, "Marie", "VedouciBudovy", "B")
     state = forced_groups.add_group(workspace, "Tym", ["p1", marie], ["building"])
 
-    assert mutations.grid_forced_groups(state) == {1: ["Tym (same Building)"]}
+    assert mutations.grid_forced_groups(state) == {1: ["Tym (shodné: budova)"]}
 
 
 def test_the_people_multiselect_offers_organizers_too(workspace):
@@ -527,10 +527,10 @@ def test_make_forced_needs_a_resolved_request_and_refuses_a_duplicate(workspace)
     _season(workspace)
     mutations.update_helper(workspace, 1, friends=[2])
 
-    with pytest.raises(mutations.RosteringError, match="friend request"):
+    with pytest.raises(mutations.RosteringError, match="přání"):
         forced_groups.make_forced(workspace, 1, 3)
     forced_groups.make_forced(workspace, 1, 2)
-    with pytest.raises(mutations.RosteringError, match="already"):
+    with pytest.raises(mutations.RosteringError, match="už existuje"):
         forced_groups.make_forced(workspace, 1, 2)
 
     assert len(mutations.get_state(workspace)["forced_groups"]) == 1
@@ -557,7 +557,7 @@ def test_friend_requests_lists_each_resolved_request_and_whether_it_is_already_f
 
     assert [(r["helper_name"], r["friend_name"], r["forced"]) for r in requests] == [
         ("Anna", "Petr", True),
-        ("Anna", "Marie (Organizer)", False),
+        ("Anna", "Marie (organizátor)", False),
     ]
     assert marie
 
@@ -593,8 +593,8 @@ def test_the_tab_shows_the_role_not_applied_badge_and_an_organizer_as_a_member(s
     at = AppTest.from_function(_forced_tab_app, default_timeout=30).run()
 
     assert not at.exception
-    assert any("Role not applied to Anna" in m.value for m in at.markdown)
-    assert any("Anna (unplaced Organizer, inactive)" in m.value for m in at.markdown)
+    assert any("Role se na Anna neuplatní" in m.value for m in at.markdown)
+    assert any("Anna (nezařazený organizátor, neaktivní)" in m.value for m in at.markdown)
 
 
 def test_the_tab_makes_a_friend_request_forced_with_one_click(seasons):
@@ -604,7 +604,7 @@ def test_the_tab_makes_a_friend_request_forced_with_one_click(seasons):
 
     at = AppTest.from_function(_forced_tab_app, default_timeout=30).run()
     assert not at.exception
-    next(b for b in at.button if b.label == "Make forced").click().run()
+    next(b for b in at.button if b.label == "Vynutit").click().run()
 
     assert not at.exception
     (group,) = mutations.get_state(seasons)["forced_groups"]

@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar
 
+from rostering.czech import plural
 from rostering.domain import (
     TSHIRT_SIZES,
     UNKNOWN_TSHIRT_SIZE,
@@ -229,7 +230,7 @@ def migrate_legacy_workspace(workspace: Workspace, label: Optional[str] = None) 
     if not candidate:
         modified = datetime.fromtimestamp(workspace.legacy_state_path().stat().st_mtime)
         raise SeasonLabelRequired(
-            "Your existing saved state needs a Season label (a year plus jaro or podzim, e.g. 2026-jaro).",
+            "Váš dosavadní uložený stav potřebuje označení ročníku (rok a jaro nebo podzim, např. 2026-jaro).",
             suggested_label=guess_label([modified]),
         )
     try:
@@ -285,8 +286,8 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
         label = (label or "").strip() or guess_label(result.submission_timestamps)
         if not label:
             raise SeasonLabelRequired(
-                "The submission dates in this export couldn't be read — enter the Season label "
-                "(a year plus jaro or podzim, e.g. 2026-jaro)."
+                "Data odeslání v tomto exportu se nepodařilo přečíst — zadejte označení ročníku "
+                "(rok a jaro nebo podzim, např. 2026-jaro)."
             )
 
     state = workspace.load()
@@ -608,13 +609,13 @@ def get_person_links(workspace: Workspace) -> dict[int, dict]:
 def _helper_record(state: dict[str, Any], helper_id: int) -> dict:
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
     if helper is None:
-        raise RosteringError(f"No such helper: {helper_id}")
+        raise RosteringError(f"Takový pomocník neexistuje: {helper_id}")
     return helper
 
 
 def _known_person(workspace: Workspace, person_id: str) -> None:
     if person_id not in {r.person_id for r in workspace.person_records()}:
-        raise RosteringError("No such Person.")
+        raise RosteringError("Taková osoba neexistuje.")
 
 
 def _hand_added_merge_target(state: dict[str, Any], helper: dict, person_id: str) -> Optional[dict]:
@@ -735,7 +736,7 @@ def link_helper(workspace: Workspace, helper_id: int, person_id: str) -> dict:
     helper = _helper_record(state, helper_id)
     _known_person(workspace, person_id)
     if helper.get("person_id") == person_id:
-        raise RosteringError(f"{helper['name']} is already linked to that Person.")
+        raise RosteringError(f"{helper['name']} je už s touto osobou propojen(a).")
     target = _hand_added_merge_target(state, helper, person_id)
     if target is not None:
         _merge_into_hand_added(workspace, state, helper, target)
@@ -760,7 +761,7 @@ def reject_person_match(workspace: Workspace, helper_id: int, person_id: str) ->
     helper = _helper_record(state, helper_id)
     _known_person(workspace, person_id)
     if helper.get("person_id") == person_id:
-        raise RosteringError(f"{helper['name']} is linked to that Person — unlink them instead.")
+        raise RosteringError(f"{helper['name']} je s touto osobou propojen(a) — místo toho zrušte propojení.")
     rejected = helper.setdefault("rejected_person_ids", [])
     if person_id not in rejected:
         rejected.append(person_id)
@@ -782,7 +783,7 @@ def unlink_helper(workspace: Workspace, helper_id: int) -> dict:
         for r in workspace.person_records()
     )
     if not shared and not helper.get("link_confirmed"):
-        raise RosteringError(f"{helper['name']} is not linked to any other record.")
+        raise RosteringError(f"{helper['name']} není propojen(a) s žádným jiným záznamem.")
     helper["person_id"] = new_person_id()
     helper.pop("link_confirmed", None)
     rejected = helper.setdefault("rejected_person_ids", [])
@@ -838,7 +839,7 @@ def link_organizer(workspace: Workspace, organizer_id: int, person_id: str) -> d
     organizer = _organizer_record(state, organizer_id)
     _known_person(workspace, person_id)
     if organizer.get("person_id") == person_id:
-        raise RosteringError(f"{organizer['name']} is already linked to that Person.")
+        raise RosteringError(f"{organizer['name']} je už s touto osobou propojen(a).")
     organizer["person_id"] = person_id
     organizer["link_confirmed"] = True
     remaining = [p for p in organizer.get("rejected_person_ids", []) if p != person_id]
@@ -857,7 +858,7 @@ def reject_organizer_match(workspace: Workspace, organizer_id: int, person_id: s
     organizer = _organizer_record(state, organizer_id)
     _known_person(workspace, person_id)
     if organizer.get("person_id") == person_id:
-        raise RosteringError(f"{organizer['name']} is linked to that Person — unlink them instead.")
+        raise RosteringError(f"{organizer['name']} je s touto osobou propojen(a) — místo toho zrušte propojení.")
     rejected = organizer.setdefault("rejected_person_ids", [])
     if person_id not in rejected:
         rejected.append(person_id)
@@ -878,7 +879,7 @@ def unlink_organizer(workspace: Workspace, organizer_id: int) -> dict:
         for r in workspace.person_records()
     )
     if not shared and not organizer.get("link_confirmed"):
-        raise RosteringError(f"{organizer['name']} is not linked to any other record.")
+        raise RosteringError(f"{organizer['name']} není propojen(a) s žádným jiným záznamem.")
     organizer["person_id"] = new_person_id()
     organizer.pop("link_confirmed", None)
     rejected = organizer.setdefault("rejected_person_ids", [])
@@ -924,10 +925,10 @@ def resolve_friend(
     state = workspace.load()
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
     if helper is None:
-        raise RosteringError(f"No such helper: {helper_id}")
+        raise RosteringError(f"Takový pomocník neexistuje: {helper_id}")
     decisions = helper.setdefault("friend_name_decisions", {})
     if name not in helper["unresolved_friend_names"] and name not in decisions:
-        raise RosteringError(f"{name!r} is not a known friend name for helper {helper_id}")
+        raise RosteringError(f"{name!r} není známé jméno kamaráda pomocníka {helper_id}")
 
     previous = {_friend_key(ref) for ref in _decision_refs(decisions.get(name))}
     helper["friends"] = [f for f in helper["friends"] if _friend_key(f) not in previous]
@@ -938,11 +939,11 @@ def resolve_friend(
         known_ids = {h["id"] for h in state["helpers"]}
         unknown_ids = [hid for hid in resolved_helper_ids or [] if hid not in known_ids]
         if unknown_ids:
-            raise RosteringError(f"No such helper(s): {unknown_ids}")
+            raise RosteringError(f"Takoví pomocníci neexistují: {unknown_ids}")
         known_organizers = {o["id"] for o in state["organizers"]}
         unknown_organizers = [oid for oid in resolved_organizer_ids or [] if oid not in known_organizers]
         if unknown_organizers:
-            raise RosteringError(f"No such Organizer(s): {unknown_organizers}")
+            raise RosteringError(f"Takoví organizátoři neexistují: {unknown_organizers}")
         new_refs: list[Any] = list(dict.fromkeys(resolved_helper_ids or []))
         new_refs += [{"organizer_id": oid} for oid in dict.fromkeys(resolved_organizer_ids or [])]
         present = {_friend_key(f) for f in helper["friends"]}
@@ -1000,14 +1001,13 @@ def unplaced_helpers(state: dict[str, Any]) -> list[dict]:
 
 
 def unplaced_reason(state: dict[str, Any]) -> Optional[str]:
-    """The line naming the registrants still unassigned (e.g. "2 registrants
-    are not placed yet: Klára, Eva"), or None when everyone is placed."""
+    """The line naming the registrants still unassigned (e.g. "Zatím nezařazení
+    zájemci (2): Klára, Eva"), or None when everyone is placed."""
     unplaced = unplaced_helpers(state)
     if not unplaced:
         return None
-    names = ", ".join(h["name"] for h in unplaced[:5]) + (f" and {len(unplaced) - 5} more" if len(unplaced) > 5 else "")
-    noun = "registrant is" if len(unplaced) == 1 else "registrants are"
-    return f"{len(unplaced)} {noun} not placed yet: {names}"
+    names = ", ".join(h["name"] for h in unplaced[:5]) + (f" a dalších {len(unplaced) - 5}" if len(unplaced) > 5 else "")
+    return f"Zatím nezařazení zájemci ({len(unplaced)}): {names}"
 
 
 def export_blockers(state: dict[str, Any]) -> list[str]:
@@ -1106,10 +1106,10 @@ def link_typed_role_name(workspace: Workspace, name: str, helper_id: int) -> dic
     helper = _helper_record(state, helper_id)
     key = normalize_name(name)
     if helper.get("cant_attend") or normalize_name(helper["name"]) != key:
-        raise RosteringError(f"{helper['name']} is not a match for the typed name {name!r}.")
+        raise RosteringError(f"{helper['name']} neodpovídá napsanému jménu {name!r}.")
     typed = [entry for _group, entry in _typed_role_entries(state) if normalize_name(entry["helper_name"]) == key]
     if not typed:
-        raise RosteringError(f"No Manual role entry names {name!r} by text.")
+        raise RosteringError(f"Žádný záznam manuální role neuvádí {name!r} textem.")
     for group in ("structural", "overlay"):
         held = {
             (e["role"], e.get("building"), e.get("room"))
@@ -1157,11 +1157,11 @@ def cant_attend_impact(state: dict[str, Any], helper_id: int) -> list[str]:
     placed = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
     if placed is not None:
         where = f"{placed['building']} · {placed['room']} · {Role[placed['role']].value}"
-        lines.append(f"Assignment: {where}" + (" (locked)" if placed.get("locked") else ""))
+        lines.append(f"Přiřazení: {where}" + (" (uzamčeno)" if placed.get("locked") else ""))
     for group in ("structural", "overlay"):
         for entry in state["manual_roles"][group]:
             if entry.get("helper_id") == helper_id:
-                lines.append(f"Manual role: {_manual_entry_label(entry)}")
+                lines.append(f"Manuální role: {_manual_entry_label(entry)}")
     return lines
 
 
@@ -1187,8 +1187,8 @@ def set_cant_attend(workspace: Workspace, helper_id: int, cant_attend: bool, con
     impact = cant_attend_impact(state, helper_id)
     if impact and not confirmed:
         raise ConfirmationRequired(
-            f"Marking {helper['name']} as Can't attend clears " + "; ".join(impact) + ". "
-            "Un-flagging them later does not restore these, and the roster is out of date until the next Solve.",
+            f"Označením pomocníka {helper['name']} jako Nemůže se zúčastnit se vymaže: " + "; ".join(impact) + ". "
+            "Pozdější zrušení příznaku to neobnoví a rozdělení pomocníků je do dalšího sestavení neaktuální.",
             impact,
         )
     helper["cant_attend"] = True
@@ -1202,7 +1202,7 @@ def set_cant_attend(workspace: Workspace, helper_id: int, cant_attend: bool, con
             group: [e for e in entries if e.get("helper_id") != helper_id]
             for group, entries in state["manual_roles"].items()
         }
-        _add_stale_reason(state, f"{helper['name']} can't attend: their Assignment and role entries were cleared")
+        _add_stale_reason(state, f"{helper['name']} se nemůže zúčastnit: vymazáno přiřazení a záznamy rolí")
     workspace.save(state)
     return state
 
@@ -1216,7 +1216,7 @@ def _parse_tshirt_size(size: str) -> str:
     parsed = parse_tshirt_size(size)
     if parsed is None:
         allowed = ", ".join([*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE])
-        raise RosteringError(f"Invalid T-shirt size {size!r}; expected one of: {allowed}")
+        raise RosteringError(f"Neplatná velikost trička {size!r}; povolené: {allowed}")
     return parsed
 
 
@@ -1229,7 +1229,7 @@ def set_tshirt_size(workspace: Workspace, helper_id: int, size: str) -> dict:
     state = workspace.load()
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
     if helper is None:
-        raise RosteringError(f"No such helper: {helper_id}")
+        raise RosteringError(f"Takový pomocník neexistuje: {helper_id}")
     parsed = _parse_tshirt_size(size)
     if helper.get("tshirt_size") != parsed and helper.get("hand_added"):
         _mark_hand_typed(helper, ["tshirt_size"])
@@ -1282,9 +1282,9 @@ def helper_collisions(
         if other["id"] == exclude_helper_id:
             continue
         if name_key and normalize_name(other["name"]) == name_key:
-            lines.append(f"{other['name']} is already a Helper with this name.")
+            lines.append(f"{other['name']} už je pomocník se stejným jménem.")
         elif email and normalize_email(other.get("email")) == email:
-            lines.append(f"{other['name']} already has the e-mail {email}.")
+            lines.append(f"{other['name']} už má e-mail {email}.")
     return lines
 
 
@@ -1307,7 +1307,7 @@ def _validated_helper_fields(
     fields: dict[str, Any] = {}
     if name is not None:
         if not name.strip():
-            raise RosteringError("A Helper needs a name.")
+            raise RosteringError("Pomocník musí mít jméno.")
         fields["name"] = name.strip()
     if email is not None:
         fields["email"] = normalize_email(email)
@@ -1318,17 +1318,17 @@ def _validated_helper_fields(
         for role_name, pref_name in role_preferences.items():
             role = parse_role_token(role_name)
             if role is None:
-                raise RosteringError(f"Unknown role: {role_name!r}")
+                raise RosteringError(f"Neznámá role: {role_name!r}")
             if pref_name not in Preference.__members__:
                 allowed = ", ".join(Preference.__members__)
-                raise RosteringError(f"Unknown preference {pref_name!r}; expected one of: {allowed}")
+                raise RosteringError(f"Neznámá preference {pref_name!r}; povolené: {allowed}")
             cleaned[role.name] = pref_name
         fields["role_preferences"] = cleaned
     if building_preferences is not None:
         known = [b["name"] for b in state["config"]]
         unknown = [b for b in building_preferences if b not in known]
         if unknown:
-            raise RosteringError(f"Unknown building(s): {', '.join(unknown)}")
+            raise RosteringError(f"Neznámé budovy: {', '.join(unknown)}")
         fields["building_preferences"] = sorted(set(building_preferences))
     if can_bring_notebook is not None:
         fields["can_bring_notebook"] = bool(can_bring_notebook)
@@ -1340,15 +1340,15 @@ def _validated_helper_fields(
         known_ids = {h["id"] for h in state["helpers"]}
         unknown_ids = [f for f in refs if not isinstance(f, dict) and f not in known_ids]
         if unknown_ids:
-            raise RosteringError(f"No such helper(s): {unknown_ids}")
+            raise RosteringError(f"Takoví pomocníci neexistují: {unknown_ids}")
         known_organizers = {o["id"] for o in state["organizers"]}
         unknown_organizers = [
             f["organizer_id"] for f in refs if isinstance(f, dict) and f["organizer_id"] not in known_organizers
         ]
         if unknown_organizers:
-            raise RosteringError(f"No such Organizer(s): {unknown_organizers}")
+            raise RosteringError(f"Takoví organizátoři neexistují: {unknown_organizers}")
         if helper_id is not None and helper_id in refs:
-            raise RosteringError("A Helper can't be their own friend.")
+            raise RosteringError("Pomocník nemůže být sám sobě kamarádem.")
         fields["friends"] = list({_friend_key(f): f for f in refs}.values())
     if tshirt_size is not None:
         fields["tshirt_size"] = _parse_tshirt_size(tshirt_size)
@@ -1399,9 +1399,9 @@ def add_helper(
     name = (name or "").strip()
     contact = (contact or "").strip()
     if not name:
-        raise RosteringError("A Helper needs a name.")
+        raise RosteringError("Pomocník musí mít jméno.")
     if not contact:
-        raise RosteringError("A Helper needs a contact (an e-mail or a phone number).")
+        raise RosteringError("Pomocník musí mít kontakt (e-mail nebo telefon).")
     state = workspace.load()
     is_email = _looks_like_email(contact)
     fields = _validated_helper_fields(
@@ -1518,8 +1518,8 @@ def delete_helper(workspace: Workspace, helper_id: int, confirmed: bool = False)
     impact = cant_attend_impact(state, helper_id)
     if impact and not confirmed:
         raise ConfirmationRequired(
-            f"Deleting {helper['name']} clears " + "; ".join(impact) + ". "
-            "This can't be undone, and the roster is out of date until the next Solve.",
+            f"Smazáním pomocníka {helper['name']} se vymaže: " + "; ".join(impact) + ". "
+            "Nelze vrátit zpět a rozdělení pomocníků je do dalšího sestavení neaktuální.",
             impact,
         )
     state["helpers"] = [h for h in state["helpers"] if h["id"] != helper_id]
@@ -1531,7 +1531,7 @@ def delete_helper(workspace: Workspace, helper_id: int, confirmed: bool = False)
             group: [e for e in entries if e.get("helper_id") != helper_id]
             for group, entries in state["manual_roles"].items()
         }
-        _add_stale_reason(state, f"{helper['name']} was deleted: their Assignment and role entries were cleared")
+        _add_stale_reason(state, f"Pomocník {helper['name']} smazán: vymazáno přiřazení a záznamy rolí")
     if state["assignments"]:
         _refresh_friend_pairs(state)
     workspace.save(state)
@@ -1549,7 +1549,7 @@ def delete_helper(workspace: Workspace, helper_id: int, confirmed: bool = False)
 def _organizer_record(state: dict[str, Any], organizer_id: int) -> dict:
     record = next((o for o in state["organizers"] if o["id"] == organizer_id), None)
     if record is None:
-        raise RosteringError(f"No such Organizer: {organizer_id}")
+        raise RosteringError(f"Takový organizátor neexistuje: {organizer_id}")
     return record
 
 
@@ -1567,7 +1567,7 @@ def _next_organizer_id(state: dict[str, Any]) -> int:
 def _validated_organizer_email(email: Optional[str]) -> Optional[str]:
     normalized = normalize_email(email)
     if normalized is not None and not _looks_like_email(normalized):
-        raise RosteringError(f"Not an e-mail address: {email!r}")
+        raise RosteringError(f"Toto není e-mailová adresa: {email!r}")
     return normalized
 
 
@@ -1616,7 +1616,7 @@ def _place_organizer(
     Can't attend holds nothing (like a Helper, they are not on the roster)."""
     record = _organizer_record(state, organizer_id)
     if record.get("cant_attend"):
-        raise RosteringError(f"{record['name']} is marked Can't attend: untick it before giving them a slot.")
+        raise RosteringError(f"{record['name']} je označen(a) jako Nemůže se zúčastnit: před přidělením místa to zrušte.")
     kept = []
     for entry in state["manual_roles"]["structural"]:
         if entry.get("organizer_id") == organizer_id and not _same_place(entry, building, room):
@@ -1669,7 +1669,7 @@ def add_organizer(workspace: Workspace, name: str, email: Optional[str] = None) 
     ``state["organizers"]``."""
     name = (name or "").strip()
     if not name:
-        raise RosteringError("An Organizer needs a name.")
+        raise RosteringError("Organizátor musí mít jméno.")
     email = _validated_organizer_email(email)
     state = workspace.load()
     _new_organizer(workspace, state, name, email)
@@ -1714,8 +1714,8 @@ def promote_helper(workspace: Workspace, helper_id: int, confirmed: bool = False
     impact = cant_attend_impact(state, helper_id)
     if impact and not confirmed:
         raise ConfirmationRequired(
-            f"Promoting {helper['name']} to Organizer clears " + "; ".join(impact) + ". "
-            "They leave the Helper pool and receive no solved Role, and the roster is out of date until the next Solve.",
+            f"Povýšením pomocníka {helper['name']} na organizátora se vymaže: " + "; ".join(impact) + ". "
+            "Opustí množinu pomocníků, nedostanou žádnou sestavenou roli a rozdělení pomocníků je do dalšího sestavení neaktuální.",
             impact,
         )
     organizer = {
@@ -1742,7 +1742,7 @@ def promote_helper(workspace: Workspace, helper_id: int, confirmed: bool = False
             group: [e for e in entries if e.get("helper_id") != helper_id]
             for group, entries in state["manual_roles"].items()
         }
-        _add_stale_reason(state, f"{helper['name']} became an Organizer: their Assignment and role entries were cleared")
+        _add_stale_reason(state, f"{helper['name']} se stal(a) organizátorem: vymazáno přiřazení a záznamy rolí")
     if state["assignments"]:
         _refresh_friend_pairs(state)
     workspace.save(state)
@@ -1761,7 +1761,7 @@ def update_organizer(
     if name is not None:
         name = name.strip()
         if not name:
-            raise RosteringError("An Organizer needs a name.")
+            raise RosteringError("Organizátor musí mít jméno.")
         record["name"] = name
     if email is not None:
         new_email = _validated_organizer_email(email)
@@ -1784,7 +1784,7 @@ def update_organizer(
 
 def _organizer_impact(state: dict[str, Any], organizer_id: int) -> list[str]:
     return [
-        f"Manual role: {_manual_entry_label(entry)}"
+        f"Manuální role: {_manual_entry_label(entry)}"
         for entry in state["manual_roles"]["structural"]
         if entry.get("organizer_id") == organizer_id
     ]
@@ -1798,7 +1798,7 @@ def delete_organizer(workspace: Workspace, organizer_id: int, confirmed: bool = 
     record = _organizer_record(state, organizer_id)
     impact = _organizer_impact(state, organizer_id)
     if impact and not confirmed:
-        raise ConfirmationRequired(f"Deleting {record['name']} empties " + "; ".join(impact) + ".", impact)
+        raise ConfirmationRequired(f"Smazáním organizátora {record['name']} se vyprázdní: " + "; ".join(impact) + ".", impact)
     state["organizers"] = [o for o in state["organizers"] if o["id"] != organizer_id]
     state["next_organizer_id"] = max(int(state.get("next_organizer_id") or 1), organizer_id + 1)
     state["manual_roles"]["structural"] = [
@@ -1844,8 +1844,8 @@ def set_organizer_cant_attend(
     impact = _organizer_impact(state, organizer_id)
     if impact and not confirmed:
         raise ConfirmationRequired(
-            f"Marking {record['name']} as Can't attend clears " + "; ".join(impact) + ". "
-            "Un-flagging them later does not restore these, and the roster is out of date until the next Solve.",
+            f"Označením organizátora {record['name']} jako Nemůže se zúčastnit se vymaže: " + "; ".join(impact) + ". "
+            "Pozdější zrušení příznaku to neobnoví a rozdělení pomocníků je do dalšího sestavení neaktuální.",
             impact,
         )
     record["cant_attend"] = True
@@ -1854,7 +1854,7 @@ def set_organizer_cant_attend(
             e for e in state["manual_roles"]["structural"] if e.get("organizer_id") != organizer_id
         ]
         _sync_placements(state)
-        _add_stale_reason(state, f"{record['name']} can't attend: their role entries were cleared")
+        _add_stale_reason(state, f"{record['name']} se nemůže zúčastnit: vymazány záznamy rolí")
     workspace.save(state)
     return state
 
@@ -1895,7 +1895,7 @@ def unassign_organizer(
         if not (e.get("organizer_id") == organizer_id and e["role"] == slot.name and _same_place(e, building, room))
     ]
     if len(kept) == len(structural):
-        raise RosteringError("That Organizer does not hold that slot.")
+        raise RosteringError("Tento organizátor toto místo nedrží.")
     state["manual_roles"]["structural"] = kept
     _sync_placements(state)
     workspace.save(state)
@@ -2003,23 +2003,23 @@ def _tag_definitions(state: dict[str, Any]) -> list[tag_tree.Tag]:
 def _tag_record(state: dict[str, Any], tag_id: int) -> dict:
     tag = next((t for t in state.get("tags") or [] if t["id"] == tag_id), None)
     if tag is None:
-        raise RosteringError(f"No such tag: {tag_id}")
+        raise RosteringError(f"Takový štítek neexistuje: {tag_id}")
     return tag
 
 
 def _validated_tag_name(state: dict[str, Any], name: str, own_id: Optional[int] = None) -> str:
     cleaned = (name or "").strip()
     if not cleaned:
-        raise RosteringError("A tag needs a name.")
+        raise RosteringError("Štítek musí mít název.")
     for other in state.get("tags") or []:
         if other["id"] != own_id and tag_tree.name_key(other["name"]) == tag_tree.name_key(cleaned):
-            raise RosteringError(f"A tag named {other['name']} already exists.")
+            raise RosteringError(f"Štítek s názvem {other['name']} už existuje.")
     return cleaned
 
 
 def _validated_tag_colour(colour: str) -> str:
     if not tag_tree.is_hex_colour(colour):
-        raise RosteringError(f"A tag colour is a hex colour like #3366cc, not {colour!r}.")
+        raise RosteringError(f"Barva štítku je šestnáctková barva jako #3366cc, ne {colour!r}.")
     return colour.lower()
 
 
@@ -2028,8 +2028,8 @@ def _validated_tag_parent(state: dict[str, Any], tag_id: Optional[int], parent_i
         return None
     parent = _tag_record(state, parent_id)
     if tag_id is not None and not tag_tree.can_be_parent(_tag_definitions(state), tag_id, parent_id):
-        detail = "itself" if parent_id == tag_id else f"{parent['name']}, which implies it"
-        raise RosteringError(f"A tag can't imply {detail}: it would become its own ancestor.")
+        detail = "sám sebe" if parent_id == tag_id else f"{parent['name']}, který ho odvozuje"
+        raise RosteringError(f"Štítek nemůže odvozovat {detail}: stal by se vlastním předkem.")
     return parent_id
 
 
@@ -2049,7 +2049,7 @@ def _validated_constraint(field: str, entries: Sequence[str]) -> list[str]:
         if field.startswith("role"):
             role = parse_role_token(text)
             if role is None:
-                raise RosteringError(f"No such role: {text}. A tag constraint names one of the six roles.")
+                raise RosteringError(f"Taková role neexistuje: {text}. Omezení štítku uvádí jednu ze šesti rolí.")
             text = role.name
         names.append(text)
     return list(dict.fromkeys(names))
@@ -2109,12 +2109,12 @@ def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[str, int, str
         found = tag_tree.restrictions(tags, _direct_tag_ids(record), axis, universes[axis])
         display = (lambda v: Role[v].value) if axis == tag_tree.ROLE else str
         why = "; ".join(tag_tree.describe_restriction(r, axis, display) for r in found)
-        noun = "Role" if axis == tag_tree.ROLE else "Building"
-        problems.append(f"{record['name']} would be left with no allowed {noun} ({why})")
+        noun = "roli" if axis == tag_tree.ROLE else "budovu"
+        problems.append(f"{record['name']} by neměl(a) žádnou povolenou {noun} ({why})")
     fresh_groups = {(group_id, axis) for kind, group_id, axis in fresh if kind == "group"}
     problems += [c.message() for c in _group_tag_clashes(state) if (c.group.id, c.axis) in fresh_groups]
     shown, hidden = problems[:3], len(problems) - 3
-    raise RosteringError("Refused: " + "; ".join(shown) + (f"; and {hidden} more" if hidden > 0 else "") + ".")
+    raise RosteringError("Odmítnuto: " + "; ".join(shown) + (f"; a dalších {hidden}" if hidden > 0 else "") + ".")
 
 
 def tag_constraint_entries(state: dict[str, Any], tag_id: int) -> dict[str, list[dict]]:
@@ -2245,7 +2245,7 @@ def _assign_tags(state: dict[str, Any], helper: dict, tag_ids: list[int]) -> Non
     known = {t["id"] for t in state.get("tags") or []}
     for tag_id in tag_ids:
         if tag_id not in known:
-            raise RosteringError(f"No such tag: {tag_id}")
+            raise RosteringError(f"Takový štítek neexistuje: {tag_id}")
     helper["tags"] = list(dict.fromkeys(tag_ids))
 
 
@@ -2481,16 +2481,16 @@ def delete_tag(workspace: Workspace, tag_id: int, confirmed: bool = False) -> di
     if (impact["helpers"] or impact["organizers"] or impact["children"]) and not confirmed:
         lines = []
         if impact["helpers"]:
-            lines.append("Removed from: " + ", ".join(impact["helpers"]))
+            lines.append("Odebráno pomocníkům: " + ", ".join(impact["helpers"]))
         if impact["organizers"]:
-            lines.append("Removed from Organizers: " + ", ".join(impact["organizers"]))
+            lines.append("Odebráno organizátorům: " + ", ".join(impact["organizers"]))
         if impact["children"]:
             parent = next((t["name"] for t in state["tags"] if t["id"] == record["parent_id"]), None)
             lines.append(
-                f"Child tags {', '.join(impact['children'])} "
-                + (f"move up to {parent}" if parent else "become top-level tags")
+                f"Podřízené štítky {', '.join(impact['children'])} "
+                + (f"se přesunou pod {parent}" if parent else "se stanou štítky nejvyšší úrovně")
             )
-        raise ConfirmationRequired(f"Deleting the tag {record['name']} changes: " + "; ".join(lines) + ".", lines)
+        raise ConfirmationRequired(f"Smazáním štítku {record['name']} se změní: " + "; ".join(lines) + ".", lines)
     for person in (*state["helpers"], *state["organizers"]):
         if tag_id in _direct_tag_ids(person):
             person["tags"] = [t for t in person["tags"] if t != tag_id]
@@ -2694,7 +2694,7 @@ def _add_valid_tags(
             continue
         fresh = sorted(tag_tree.dead_ends(tags, {helper["id"]: [*direct, tag_id]}, universes) - before)
         if fresh:
-            nouns = " or ".join("Role" if axis == tag_tree.ROLE else "Building" for _, axis in fresh)
+            nouns = " nebo ".join("roli" if axis == tag_tree.ROLE else "budovu" for _, axis in fresh)
             skipped.append(
                 {
                     "kind": kind,
@@ -2702,7 +2702,7 @@ def _add_valid_tags(
                     kind: helper["name"],
                     "tag_id": tag_id,
                     "tag": names[tag_id],
-                    "reason": f"would leave {helper['name']} with no allowed {nouns}",
+                    "reason": f"{helper['name']} by neměl(a) žádnou povolenou {nouns}",
                 }
             )
             continue
@@ -2798,27 +2798,27 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
     def names(items: Sequence[str]) -> str:
         return f" ({', '.join(items)})" if items else ""
 
-    lines = [f"Tags created: {len(created)}{names(created)}"]
+    lines = [f"Vytvořeno štítků: {len(created)}{names(created)}"]
     if restored:
-        lines.append(f"Restored (deleted earlier, imported again): {len(restored)}{names(restored)}")
+        lines.append(f"Obnoveno (dříve smazáno, znovu importováno): {len(restored)}{names(restored)}")
     if reused:
-        lines.append(f"Already in this Season, not copied again: {len(reused)}{names(reused)}")
-    lines.append(f"Helpers tagged: {len(tagged)}{names(tagged)}")
+        lines.append(f"Už v tomto ročníku, znovu nekopírováno: {len(reused)}{names(reused)}")
+    lines.append(f"Označeno pomocníků: {len(tagged)}{names(tagged)}")
     has_organizers = bool(state["organizers"])
     if has_organizers or organizers_tagged:
-        lines.append(f"Organizers tagged: {len(organizers_tagged)}{names(organizers_tagged)}")
+        lines.append(f"Označeno organizátorů: {len(organizers_tagged)}{names(organizers_tagged)}")
     lines.append(
-        f"Constraint entries dropped (not in this Season): {len(dropped)}"
+        f"Vynechaná omezení (nejsou v tomto ročníku): {len(dropped)}"
         + names([f"{d['tag']}: {d['entry']}" for d in dropped])
     )
     lines.append(
-        f"Assignments skipped (would leave no allowed Building or Role): {len(skipped)}"
+        f"Přeskočená přiřazení štítků (nezbyla by povolená budova ani role): {len(skipped)}"
         + names([f"{s[s['kind']]} - {s['tag']}" for s in skipped])
     )
-    lines.append(f"Helpers awaiting review, not tagged: {len(awaiting)}{names(awaiting)}")
+    lines.append(f"Pomocníci čekající na posouzení, neoznačeni: {len(awaiting)}{names(awaiting)}")
     if has_organizers or organizers_awaiting:
         lines.append(
-            f"Organizers awaiting review, not tagged: {len(organizers_awaiting)}{names(organizers_awaiting)}"
+            f"Organizátoři čekající na posouzení, neoznačeni: {len(organizers_awaiting)}{names(organizers_awaiting)}"
         )
     return {
         "tags_created": created,
@@ -2845,10 +2845,10 @@ def _import_context(
     source that is not an earlier stored Season."""
     season = workspace.open_season()
     if season is None:
-        raise RosteringError("Open a Season (or upload responses to create one) before importing Tags.")
+        raise RosteringError("Před importem štítků otevřete ročník (nebo nahráním odpovědí nějaký vytvořte).")
     source = next((s for s in import_sources(workspace) if s["id"] == source_season_id), None)
     if source is None:
-        raise RosteringError("Pick an earlier stored Season to import from.")
+        raise RosteringError("Vyberte dřívější uložený ročník, ze kterého se má importovat.")
     identity = {"id": source["id"], "label": source["label"]}
     return ImportContext(
         workspace.load(),
@@ -3027,7 +3027,7 @@ def class_promotion_offer(workspace: Workspace) -> dict:
     deliberately not part of it. Nothing is changed."""
     season = workspace.open_season()
     if season is None:
-        raise RosteringError("Open a Season before promoting classes.")
+        raise RosteringError("Před zestárnutím tříd otevřete ročník.")
     state = workspace.load()
     labels = {s["id"]: s["label"] for s in workspace.list_seasons()}
     suggestions = []
@@ -3067,18 +3067,18 @@ def _class_promotion_conflicts(state: dict[str, Any], changes: dict[int, str]) -
     problems = []
     for tag_id, target in changes.items():
         if not target:
-            problems.append(f"The new name of {names[tag_id]} is empty.")
+            problems.append(f"Nový název štítku {names[tag_id]} je prázdný.")
             continue
         for other_id, other in final.items():
             if other_id == tag_id or tag_tree.name_key(other) != tag_tree.name_key(target):
                 continue
             if other_id not in changes:
                 problems.append(
-                    f"{names[tag_id]} would become {target}, but a Tag named {names[other_id]} is not ticked "
-                    "and keeps its name. Tags are never merged."
+                    f"{names[tag_id]} by se stal {target}, ale štítek {names[other_id]} není zaškrtnut "
+                    "a název si ponechává. Štítky se nikdy neslučují."
                 )
             elif other_id > tag_id:
-                problems.append(f"{names[tag_id]} and {names[other_id]} would both be named {target}.")
+                problems.append(f"{names[tag_id]} a {names[other_id]} by se oba jmenovaly {target}.")
     return problems
 
 
@@ -3101,7 +3101,7 @@ def apply_class_promotion(workspace: Workspace, renames: dict[int, str]) -> dict
     links resolve the promoted name. Returns the new state."""
     season = workspace.open_season()
     if season is None:
-        raise RosteringError("Open a Season before promoting classes.")
+        raise RosteringError("Před zestárnutím tříd otevřete ročník.")
     state = workspace.load()
     changes = _class_promotion_changes(state, renames)
     problems = _class_promotion_conflicts(state, changes)
@@ -3129,7 +3129,7 @@ def tag_origin_labels(state: dict[str, Any], tag_id: int) -> list[str]:
     """The Seasons (by label) an imported Tag was copied from, or matched to."""
     imports = state.get("tag_imports") or {}
     return [
-        (imports.get(origin["season_id"]) or {}).get("label") or "an earlier Season"
+        (imports.get(origin["season_id"]) or {}).get("label") or "dřívější ročník"
         for origin in _tag_record(state, tag_id).get("origins") or []
     ]
 
@@ -3138,7 +3138,7 @@ def put_config(workspace: Workspace, buildings: list[dict], config_path: Optiona
     try:
         config_from_list(buildings)
     except (KeyError, ValueError) as exc:
-        raise RosteringError(f"Invalid config: {exc}") from exc
+        raise RosteringError(f"Neplatná konfigurace: {exc}") from exc
     state = workspace.load()
     state["config"] = buildings
     state["cell_merges"] = _prune_cell_merges(buildings, state.get("cell_merges", {}))
@@ -3154,7 +3154,7 @@ def put_solver_config(workspace: Workspace, solver_config: dict) -> dict:
     try:
         parsed = solver_config_from_dict(solver_config)
     except (KeyError, ValueError) as exc:
-        raise RosteringError(f"Invalid solver config: {exc}") from exc
+        raise RosteringError(f"Neplatná konfigurace řešiče: {exc}") from exc
     state = workspace.load()
     state["solver_config"] = solver_config_to_dict(parsed)
     workspace.save(state)
@@ -3175,11 +3175,11 @@ def _standing_assignments(state: dict[str, Any], *, only_locked: bool) -> tuple[
             continue
         assignment = assignment_from_dict(data)
         if assignment.helper_id not in helper_ids:
-            dropped.append(f"Helper {assignment.helper_name} no longer exists")
+            dropped.append(f"Pomocník {assignment.helper_name} už neexistuje")
         elif assignment.building not in buildings:
-            dropped.append(f"Building {assignment.building} no longer exists")
+            dropped.append(f"Budova {assignment.building} už neexistuje")
         elif (assignment.building, assignment.room) not in rooms:
-            dropped.append(f"Room {assignment.room} no longer exists")
+            dropped.append(f"Místnost {assignment.room} už neexistuje")
         else:
             kept.append(assignment)
     return kept, dropped
@@ -3193,13 +3193,13 @@ def _split_locks(state: dict[str, Any]) -> tuple[list[Assignment], list[str]]:
 
 
 def _dropped_locks_lines(reasons: list[str]) -> list[str]:
-    """The Solve result's note on dropped locks, e.g. ``"2 locks dropped: Room
-    R2 no longer exists"`` (empty when none were)."""
+    """The Solve result's note on dropped locks, e.g. ``"1 zámek zrušen: Místnost
+    R2 už neexistuje"`` (empty when none were)."""
     if not reasons:
         return []
     distinct = list(dict.fromkeys(reasons))
-    noun = "lock" if len(reasons) == 1 else "locks"
-    return [f"{len(reasons)} {noun} dropped: {'; '.join(distinct)}"]
+    noun = plural(len(reasons), "zámek zrušen", "zámky zrušeny", "zámků zrušeno")
+    return [f"{len(reasons)} {noun}: {'; '.join(distinct)}"]
 
 
 def locked_count(state: dict[str, Any]) -> int:
@@ -3238,11 +3238,11 @@ def _solve_diagnostics(result: SolveResult, dropped_locks: list[str]) -> dict[st
 def solve(workspace: Workspace) -> dict:
     state = workspace.load()
     if not state["helpers"]:
-        raise RosteringError("Upload a responses file first.")
+        raise RosteringError("Nejdřív nahrajte soubor s odpověďmi.")
     if all(h.get("cant_attend") for h in state["helpers"]):
-        raise RosteringError("Every helper is marked Can't attend, so there is nobody to solve for.")
+        raise RosteringError("Všichni pomocníci jsou označeni jako Nemůže se zúčastnit, není tedy koho zařazovat.")
     if not state["config"]:
-        raise RosteringError("Configure at least one building first.")
+        raise RosteringError("Nejdřív nastavte alespoň jednu budovu.")
 
     comp = _build_competition(state)
     solver_config = solver_config_from_dict(state["solver_config"])
@@ -3280,15 +3280,15 @@ def place_new_registrants(workspace: Workspace) -> dict:
     Solve). Raises when there is no roster yet or nobody is unassigned."""
     state = workspace.load()
     if not state["config"]:
-        raise RosteringError("Configure at least one building first.")
+        raise RosteringError("Nejdřív nastavte alespoň jednu budovu.")
     if not state["assignments"]:
-        raise RosteringError("There is no roster yet: run a full Solve first.")
+        raise RosteringError("Rozdělení pomocníků zatím neexistuje: nejdřív sestavte celé rozdělení.")
     fixed, _ = _standing_assignments(state, only_locked=False)
     _, dropped_locks = _split_locks(state)
     held = {a.helper_id for a in fixed}
     newcomers = {h["id"] for h in state["helpers"] if not h.get("cant_attend") and h["id"] not in held}
     if not newcomers:
-        raise RosteringError("Everyone is already placed, so there is nobody to place.")
+        raise RosteringError("Všichni jsou už zařazeni, není koho zařazovat.")
 
     comp = _build_competition(state)
     solver_config = solver_config_from_dict(state["solver_config"])
@@ -3362,7 +3362,7 @@ def grid_forced_groups(state: dict[str, Any]) -> dict[int, list[str]]:
         if forced_friends.active_member_count(group, competition.helpers, competition.organizers) < 2:
             continue
         active = forced_friends.active_helper_ids(group, competition.helpers)
-        line = f"{group.name} (same {', '.join(forced_friends.AXIS_LABELS[a] for a in group.axes)})"
+        line = f"{group.name} (shodné: {', '.join(forced_friends.AXIS_LABELS[a].lower() for a in group.axes)})"
         for helper_id in active:
             marks.setdefault(helper_id, []).append(line)
     return marks
@@ -3382,7 +3382,7 @@ def set_lock(workspace: Workspace, helper_id: int, locked: bool) -> dict:
                 assignment.pop("locked", None)
             workspace.save(state)
             return state
-    raise RosteringError(f"Helper {helper_id} is not placed, so there is nothing to lock.")
+    raise RosteringError(f"Pomocník {helper_id} není zařazen, takže není co zamykat.")
 
 
 def lock_all_placed(workspace: Workspace) -> dict:
@@ -3429,9 +3429,9 @@ def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, 
     state = workspace.load()
     known_ids = {h["id"] for h in state["helpers"]}
     if helper_id not in known_ids:
-        raise RosteringError(f"No such helper: {helper_id}")
+        raise RosteringError(f"Takový pomocník neexistuje: {helper_id}")
     if any(h["id"] == helper_id and h.get("cant_attend") for h in state["helpers"]):
-        raise RosteringError(f"Helper {helper_id} is marked Can't attend, so they can't be placed.")
+        raise RosteringError(f"Pomocník {helper_id} je označen jako Nemůže se zúčastnit, takže ho nelze zařadit.")
     helper_name = next(h["name"] for h in state["helpers"] if h["id"] == helper_id)
 
     previous = next((a for a in state["assignments"] if a["helper_id"] == helper_id), None)
@@ -3453,7 +3453,7 @@ def put_manual_roles(workspace: Workspace, manual_roles: dict) -> dict:
     try:
         manual_roles_from_dict(manual_roles)
     except (KeyError, ValueError) as exc:
-        raise RosteringError(f"Invalid manual roles: {exc}") from exc
+        raise RosteringError(f"Neplatné manuální role: {exc}") from exc
     state = workspace.load()
     # A slot entry that names an Organizer must name a tracked one, at an address
     # its slot's scope allows. Bare Helper/typed entries are the legacy form: a
@@ -3516,26 +3516,26 @@ def restore_version(workspace: Workspace, slug: str) -> dict:
     groups, Assignments, ...) except its label and Season id."""
     data = workspace.restore_version(slug)
     if data is None:
-        raise RosteringError("No such version")
+        raise RosteringError("Taková verze neexistuje")
     return data
 
 
 @_season_errors
 def delete_version(workspace: Workspace, slug: str) -> None:
     if not workspace.delete_version(slug):
-        raise RosteringError("No such version")
+        raise RosteringError("Taková verze neexistuje")
 
 
 def export_xlsx_bytes(workspace: Workspace) -> bytes:
     state = workspace.load()
     if not state["assignments"]:
-        raise RosteringError("Nothing to export yet — solve first.")
+        raise RosteringError("Zatím není co exportovat — nejdřív sestavte rozdělení.")
     reasons = stale_reasons(state)
     if reasons:
-        raise RosteringError("The roster is out of date: " + "; ".join(reasons) + ". Solve again before exporting.")
+        raise RosteringError("Rozdělení pomocníků je neaktuální: " + "; ".join(reasons) + ". Před exportem sestavte rozdělení znovu.")
     unplaced = unplaced_reason(state)
     if unplaced:
-        raise RosteringError(unplaced + ". Place them (drag them into the grid, or Solve) before exporting.")
+        raise RosteringError(unplaced + ". Před exportem je zařaďte (přetáhněte je do mřížky, nebo sestavte rozdělení).")
 
     comp = _build_competition(state)
     result = SolveResult(

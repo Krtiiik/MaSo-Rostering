@@ -110,8 +110,8 @@ class NoRosterFound(Exception):
         self.time_limit_seconds = time_limit_seconds
         shown = int(time_limit_seconds) if float(time_limit_seconds).is_integer() else time_limit_seconds
         super().__init__(
-            f"No roster found within {shown} seconds. "
-            "Raise the time limit in the solver settings or solve again."
+            f"Rozdělení se nepodařilo najít do {shown} s. "
+            "Zvyšte časový limit v parametrech rozřazování nebo sestavte rozdělení znovu."
         )
 
 

@@ -114,7 +114,7 @@ def test_forced_friends_groups_are_the_second_section_of_the_offer(workspace):
     sections = mutations.tag_import_offer(workspace)["sections"]
 
     assert [s["key"] for s in sections] == ["tags", "forced_groups"]
-    assert sections[1]["title"] == "Forced friends groups"
+    assert sections[1]["title"] == "Vynucené skupinky kamarádů"
 
 
 def test_the_overview_lists_each_groups_returning_and_missing_members(workspace):
@@ -178,7 +178,7 @@ def test_a_group_left_with_fewer_than_two_is_imported_inactive(workspace):
 
     dvojice = _group(mutations.get_state(workspace), "Dvojice")
     assert dvojice["active"] is False and dvojice["status"] == "dormant"
-    assert "Jana Dvořáková is not registered this Season" in dvojice["reason"]
+    assert "Jana Dvořáková není v tomto ročníku registrován(a)" in dvojice["reason"]
     assert _member(dvojice, "Jana Dvořáková")["state"] == "not_registered"
 
 
@@ -248,7 +248,7 @@ def test_a_returning_person_who_is_an_organizer_now_is_recognized_and_keeps_the_
     assert "Cizinci" in section["groups_imported"]  # Jana is recognized there too
     team = _group(state, "Tým")
     assert _member(team, "Jana Dvořáková")["kind"] == "organizer"  # recognized: no placeholder
-    assert team["badges"] == ["Role not applied to Jana Dvořáková"]  # kept, the Role axis not applied to her
+    assert team["badges"] == ["Role se na Jana Dvořáková neuplatní"]  # kept, the Role axis not applied to her
     assert _member(_group(state, "Cizinci"), "Karel Nový")["state"] == "not_registered"
 
 
@@ -366,11 +366,11 @@ def test_the_summary_reports_groups_alongside_tags(workspace):
 
     assert [s["key"] for s in summary["sections"]] == ["tags", "forced_groups"]
     section = _groups_section(summary)
-    assert section["title"] == "Forced friends groups"
-    assert section["lines"][0] == "Groups imported: 2 (Rodina, Dvojice)"
-    assert "Groups without a returning person, not imported: 1 (Cizinci)" in section["lines"]
-    assert any(line.startswith("Groups already in this Season, skipped: 0") for line in section["lines"])
-    assert "Inactive for now (fewer than two active members): 1 (Dvojice)" in section["lines"]
+    assert section["title"] == "Vynucené skupinky kamarádů"
+    assert section["lines"][0] == "Importované skupinky: 2 (Rodina, Dvojice)"
+    assert "Skupinky bez vracející se osoby, neimportovány: 1 (Cizinci)" in section["lines"]
+    assert any(line.startswith("Skupinky už v tomto ročníku, přeskočeno: 0") for line in section["lines"])
+    assert "Zatím neaktivní (méně než dva aktivní členové): 1 (Dvojice)" in section["lines"]
 
 
 def test_an_import_raises_the_stale_flag_only_when_a_roster_exists_and_a_group_arrived(workspace):
@@ -426,5 +426,5 @@ def test_a_group_whose_members_tags_already_clash_here_is_still_imported_and_the
 
     section = _groups_section(summary)
     assert "Rodina" in section["groups_imported"]  # never blocked: it shows as a Broken rule once solved
-    assert section["tag_clashes"] and "Group Rodina can't share a Building" in section["tag_clashes"][0]
-    assert any(line.startswith("Imported, but their members' Tags leave nothing in common") for line in section["lines"])
+    assert section["tag_clashes"] and "Skupinka Rodina nemůže sdílet budovu" in section["tag_clashes"][0]
+    assert any(line.startswith("Importováno, ale štítky jejich členů nemají nic společného") for line in section["lines"])

@@ -57,14 +57,14 @@ def check_slot(
     no Room, a Room-scoped one needs one) and the Building — and Room — exist in
     ``buildings`` (Building name -> its Room names)."""
     if not building or building not in buildings:
-        raise ValueError(f"Unknown Building: {building!r}")
+        raise ValueError(f"Neznámá budova: {building!r}")
     scope = SLOT_SCOPES[role]
     if scope == "building" and room:
-        raise ValueError(f"{role.value} is scoped to a Building, not a Room.")
+        raise ValueError(f"{role.value} patří k budově, ne k místnosti.")
     if scope == "room" and not room:
-        raise ValueError(f"{role.value} is scoped to a Room — name one.")
+        raise ValueError(f"{role.value} patří k místnosti — uveďte ji.")
     if room and room not in set(buildings[building]):
-        raise ValueError(f"Unknown Room {room!r} in {building}.")
+        raise ValueError(f"Neznámá místnost {room!r} v budově {building}.")
 
 
 def placement_of(entries: Iterable[dict[str, Any]], organizer_id: int) -> tuple[Optional[str], Optional[str]]:

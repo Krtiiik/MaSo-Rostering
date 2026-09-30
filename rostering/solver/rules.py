@@ -152,7 +152,7 @@ def _minimums(ctx: ModelContext) -> list[Relaxation]:
                 instance=RuleInstance(*kind_entity),
                 slack=slack,
                 max_units=max_units,
-                describe=lambda off: f"{where} · {role.value}: {off} off the required {limit}",
+                describe=lambda off: f"{where} · {role.value}: odchylka {off} od požadovaných {limit}",
                 describe_placed=lambda _off, assignments: _exact_line(
                     where, role, limit, sum(1 for a in assignments if placed(a))
                 ),
@@ -166,7 +166,7 @@ def _minimums(ctx: ModelContext) -> list[Relaxation]:
             relax(
                 ("room_exact", (bname, room.name, role.name)),
                 f"room{room_id}_{role.name}",
-                f"Room {room.name}",
+                f"Místnost {room.name}",
                 role,
                 cap.minimum,
                 [ctx.role_room_var[h.id, role, room_id] for h in ctx.helpers],
@@ -181,7 +181,7 @@ def _minimums(ctx: ModelContext) -> list[Relaxation]:
             relax(
                 ("building_exact", (building.name, role.name)),
                 f"building_{building.name}_{role.name}",
-                f"Building {building.name}",
+                f"Budova {building.name}",
                 role,
                 cap.minimum,
                 [ctx.role_room_var[h.id, role, rid] for rid in room_ids for h in ctx.helpers],
@@ -193,12 +193,12 @@ def _minimums(ctx: ModelContext) -> list[Relaxation]:
 def _exact_line(where: str, role: Role, limit: int, have: int) -> str:
     """A Room's or Building's exact count, judged against ``have`` people placed."""
     if have < limit:
-        return f"{where} · {role.value}: {have} of {limit} required (needs {limit - have} more)"
-    return f"{where} · {role.value}: {have} of {limit} required ({have - limit} too many)"
+        return f"{where} · {role.value}: {have} z {limit} požadovaných (chybí {limit - have})"
+    return f"{where} · {role.value}: {have} z {limit} požadovaných (přebývá {have - limit})"
 
 
 def _equipment_line(helper_name: str) -> str:
-    return f"Helper {helper_name} has no camera but is Fotograf"
+    return f"Pomocník {helper_name} nemá fotoaparát, ale je Fotograf"
 
 
 def _equipment(ctx: ModelContext) -> list[Relaxation]:
@@ -237,7 +237,7 @@ def _check_minimums(ctx: CheckContext) -> list[BrokenRule]:
                             instance=RuleInstance("room_exact", (building.name, room.name, role.name)),
                             family="minimums",
                             amount=off,
-                            line=_exact_line(f"Room {room.name}", role, cap.minimum, have),
+                            line=_exact_line(f"Místnost {room.name}", role, cap.minimum, have),
                             cells=((building.name, room.name, role.name),),
                             fix=FixTarget("buildings", building=building.name, room=room.name, role=role.name),
                         )
@@ -252,7 +252,7 @@ def _check_minimums(ctx: CheckContext) -> list[BrokenRule]:
                         instance=RuleInstance("building_exact", (building.name, role.name)),
                         family="minimums",
                         amount=off,
-                        line=_exact_line(f"Building {building.name}", role, cap.minimum, have),
+                        line=_exact_line(f"Budova {building.name}", role, cap.minimum, have),
                         cells=tuple((building.name, room.name, role.name) for room in building.rooms),
                         fix=FixTarget("buildings", building=building.name, role=role.name),
                     )
@@ -286,15 +286,15 @@ def _role_display(name: str) -> str:
 
 
 def _tag_line(
-    helper_name: str, blockers: list[tags_module.Restriction], axis: str, value: str, kind: str = "Helper"
+    helper_name: str, blockers: list[tags_module.Restriction], axis: str, value: str, kind: str = "Pomocník"
 ) -> str:
-    """``Helper Anna (Tag 8.M, allows only Building Karlín) is placed in
+    """``Pomocník Anna (Štítek 8.M, povoluje jen budovu Karlín) je zařazen(a) do
     Impakt`` -- the restrictions that keep the value out, the value itself
     (``kind`` says whose it is: a Helper, or an Organizer)."""
     display = _role_display if axis == tags_module.ROLE else str
     why = "; ".join(tags_module.describe_restriction(r, axis, display) for r in blockers)
-    placed = f"as {display(value)}" if axis == tags_module.ROLE else f"in {value}"
-    return f"{kind} {helper_name} ({why}) is placed {placed}"
+    placed = f"jako {display(value)}" if axis == tags_module.ROLE else f"do {value}"
+    return f"{kind} {helper_name} ({why}) je zařazen(a) {placed}"
 
 
 def _tag_universes(buildings: list[str], roles: list[Role]) -> dict[str, list[str]]:
@@ -359,7 +359,7 @@ def _check_organizer_tag_restrictions(ctx: CheckContext, universe: list[str]) ->
                 instance=RuleInstance("tag_building", ("organizer", organizer.id, organizer.building)),
                 family="tag_restrictions",
                 amount=1,
-                line=_tag_line(organizer.name, blockers, tags_module.BUILDING, organizer.building, kind="Organizer"),
+                line=_tag_line(organizer.name, blockers, tags_module.BUILDING, organizer.building, kind="Organizátor"),
                 cells=((organizer.building, organizer.room, None),) if organizer.room else (),
                 fix=FixTarget("tags", organizer_id=organizer.id, tag_id=blockers[0].tag.id),
                 organizer_ids=(organizer.id,),

@@ -147,7 +147,7 @@ def test_a_solve_with_every_helper_flagged_is_refused(workspace):
     for helper_id in (1, 2, 3):
         mutations.set_cant_attend(workspace, helper_id, True)
 
-    with pytest.raises(mutations.RosteringError, match="attend"):
+    with pytest.raises(mutations.RosteringError, match="zúčastnit"):
         mutations.solve(workspace)
 
 
@@ -206,7 +206,7 @@ def test_flagging_a_placed_helper_asks_for_confirmation_naming_what_is_cleared(w
     message = str(excinfo.value)
     assert "Anna" in message
     assert placed["building"] in message and placed["room"] in message
-    assert "locked" in message.lower()
+    assert "uzamčeno" in message.lower()
     assert excinfo.value.lines  # the per-item list the dialog shows
     assert mutations.get_state(workspace) == before  # nothing changed
 
@@ -536,7 +536,7 @@ def test_a_flagged_helper_cannot_be_placed_by_hand(workspace):
     mutations.solve(workspace)
     mutations.set_cant_attend(workspace, 1, True, confirmed=True)
 
-    with pytest.raises(mutations.RosteringError, match="Can't attend"):
+    with pytest.raises(mutations.RosteringError, match="Nemůže se zúčastnit"):
         mutations.move_helper(workspace, 1, "B", "R1", "Zaloha")
 
     assert _assignment(mutations.get_state(workspace), 1) is None

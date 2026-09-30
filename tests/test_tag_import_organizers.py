@@ -169,7 +169,7 @@ def test_an_assignment_that_would_strand_an_organizer_on_buildings_is_skipped_an
     assert _org_tag_names(state, "Anna Nováková") == ["T1"]
     (skipped,) = _tags_section(summary)["skipped_assignments"]
     assert (skipped["organizer"], skipped["tag"]) == ("Anna Nováková", "T2")
-    assert "Building" in skipped["reason"]
+    assert "budovu" in skipped["reason"]
     assert mutations.organizer_allowed(state, _organizer(state, "Anna Nováková")["id"])["buildings"] == ["A"]
     assert _tags_section(summary)["organizers_tagged"] == ["Anna Nováková"]  # still tagged, with T1
 
@@ -200,7 +200,7 @@ def test_the_same_role_dead_end_still_skips_a_helper(workspace):
 
     (skipped,) = _tags_section(summary)["skipped_assignments"]
     assert (skipped["helper"], skipped["tag"]) == ("Petr Svoboda", "NoRoles")
-    assert "Role" in skipped["reason"]
+    assert "roli" in skipped["reason"]
 
 
 # -- awaiting review -------------------------------------------------------------
@@ -230,7 +230,7 @@ def test_an_unreviewed_uncertain_organizer_is_not_tagged_and_is_reported_as_awai
     section = _tags_section(summary)
     assert section["organizers_awaiting_review"] == ["Anna Nováková"]
     assert section["awaiting_review"] == []
-    assert any("Organizers awaiting review" in line and "Anna Nováková" in line for line in section["lines"])
+    assert any("Organizátoři čekající na posouzení" in line and "Anna Nováková" in line for line in section["lines"])
 
 
 def test_an_uncertain_organizer_whose_person_carried_no_tags_is_not_reported(workspace):

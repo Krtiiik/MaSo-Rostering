@@ -295,7 +295,7 @@ def test_a_solve_reports_the_locks_it_dropped_and_why(workspace):
 
     state = mutations.solve(workspace)
 
-    assert state["diagnostics"]["dropped_locks"] == ["2 locks dropped: Room R2 no longer exists"]
+    assert state["diagnostics"]["dropped_locks"] == ["2 zámky zrušeny: Místnost R2 už neexistuje"]
     assert mutations.locked_count(state) == 0
 
 
@@ -310,7 +310,7 @@ def test_a_solve_names_a_removed_building_and_each_reason_separately(workspace):
 
     state = mutations.solve(workspace)
 
-    assert state["diagnostics"]["dropped_locks"] == ["2 locks dropped: Building B no longer exists"]
+    assert state["diagnostics"]["dropped_locks"] == ["2 zámky zrušeny: Budova B už neexistuje"]
 
 
 def test_a_solve_that_drops_no_lock_reports_none(workspace):

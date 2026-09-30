@@ -458,7 +458,7 @@ def test_promoting_a_placed_helper_asks_first_then_clears_assignment_and_lock(wo
 
     with pytest.raises(mutations.ConfirmationRequired) as excinfo:
         mutations.promote_helper(workspace, 1)
-    assert any("(locked)" in line for line in excinfo.value.lines)
+    assert any("(uzamčeno)" in line for line in excinfo.value.lines)
     assert [h["id"] for h in workspace.load()["helpers"]] == [1, 2, 3]  # nothing changed
 
     state = mutations.promote_helper(workspace, 1, confirmed=True)

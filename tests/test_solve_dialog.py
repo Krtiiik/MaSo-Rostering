@@ -34,12 +34,12 @@ def test_a_finished_solve_closes_its_dialog_by_itself():
 def test_a_failed_solve_keeps_the_dialog_open_with_the_message_and_a_close_button():
     at = _run("rostering")
     assert [e.value for e in at.error] == ["No roster found within 60 seconds"]
-    assert [b.label for b in at.button if b.key == "solve_error_close"] == ["Close"]
+    assert [b.label for b in at.button if b.key == "solve_error_close"] == ["Zavřít"]
 
 
 def test_an_unexpected_error_never_leaves_the_dialog_stuck():
     at = _run("crash")
-    assert [e.value for e in at.error] == ["Unexpected error: boom"]
+    assert [e.value for e in at.error] == ["Neočekávaná chyba: boom"]
 
 
 def test_closing_the_error_does_not_run_the_work_again():

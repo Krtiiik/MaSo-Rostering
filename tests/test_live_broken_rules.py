@@ -118,7 +118,7 @@ def test_a_hand_move_that_breaks_a_minimum_shows_it_at_once_and_moving_back_clea
     assert [b.instance for b in broken] == [instance]
     assert broken[0].family == "minimums"
     assert broken[0].amount == 1
-    assert broken[0].line == "Room R1 · Fotograf: 0 of 1 required (needs 1 more)"
+    assert broken[0].line == "Místnost R1 · Fotograf: 0 z 1 požadovaných (chybí 1)"
 
     fixed = mutations.move_helper(workspace, 1, "B", "R1", "Fotograf")
     assert mutations.broken_rules(fixed) == []
@@ -130,7 +130,7 @@ def test_a_building_limit_shortfall_is_a_count(workspace):
     broken = mutations.broken_rules(mutations.move_helper(workspace, 3, "B", "R2", "Zaloha"))
 
     assert [b.instance for b in broken] == [RuleInstance("building_exact", ("B", "Skenovac"))]
-    assert broken[0].line == "Building B · Skenovač: 1 of 2 required (needs 1 more)"
+    assert broken[0].line == "Budova B · Skenovač: 1 z 2 požadovaných (chybí 1)"
 
 
 def test_an_equipment_violation_names_the_helper(workspace):
@@ -141,7 +141,7 @@ def test_an_equipment_violation_names_the_helper(workspace):
     equipment = _by_kind(broken)["equipment"]
     assert equipment.instance == RuleInstance("equipment", (2,))
     assert equipment.family == "equipment"
-    assert equipment.line == "Helper Petr has no camera but is Fotograf"
+    assert equipment.line == "Pomocník Petr nemá fotoaparát, ale je Fotograf"
 
 
 def test_broken_rules_come_in_tier_order_minimums_first(workspace):
@@ -165,7 +165,7 @@ def test_a_building_limit_overshoot_is_a_count_too(workspace):
     building = next(b for b in broken if b.instance.kind == "building_exact")
     assert building.instance == RuleInstance("building_exact", ("B", "Skenovac"))
     assert building.amount == 1
-    assert building.line == "Building B · Skenovač: 3 of 2 required (1 too many)"
+    assert building.line == "Budova B · Skenovač: 3 z 2 požadovaných (přebývá 1)"
 
 
 def test_stale_assignments_to_removed_rooms_do_not_crash_the_check(workspace):
@@ -186,7 +186,7 @@ def test_each_instance_carries_the_cells_and_chips_it_affects(workspace):
     assert broken["building_exact"].cells == (("B", "R1", "Skenovac"), ("B", "R2", "Skenovac"))
     assert broken["equipment"].helper_ids == (2,)
     marks = mutations.broken_rule_marks(mutations.broken_rules(state))
-    assert marks["helpers"] == [{"helper_id": 2, "line": "Helper Petr has no camera but is Fotograf"}]
+    assert marks["helpers"] == [{"helper_id": 2, "line": "Pomocník Petr nemá fotoaparát, ale je Fotograf"}]
     # The equipment rule marks Petr's whole Room (R1); the counts their cells.
     assert {(c["building"], c["room"], c["role"]) for c in marks["cells"]} == {
         ("B", "R1", "Fotograf"),
@@ -244,7 +244,7 @@ def test_a_move_that_breaks_equipment_toasts_a_line_worded_like_the_banner(works
     lines = mutations.move_toast_lines(before, after)
 
     banner = [b.line for b in mutations.broken_rules(after) if b.family == "equipment"]
-    assert lines == banner == ["Helper Petr has no camera but is Fotograf"]
+    assert lines == banner == ["Pomocník Petr nemá fotoaparát, ale je Fotograf"]
 
 
 def test_minimums_never_toast(workspace):

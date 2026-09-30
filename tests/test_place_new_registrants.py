@@ -187,14 +187,14 @@ def test_a_newcomer_who_cant_attend_is_not_placed(workspace):
     klara = _register_klara(workspace)
     mutations.set_cant_attend(workspace, klara, True)
 
-    with pytest.raises(mutations.RosteringError, match="nobody to place"):
+    with pytest.raises(mutations.RosteringError, match="není koho zařazovat"):
         mutations.place_new_registrants(workspace)
 
 
 def test_it_refuses_when_everyone_is_already_placed(workspace):
     _season(workspace, ("K1", "Kreslic"), ("K1", "Fotograf"), ("K1", "Menic"))
 
-    with pytest.raises(mutations.RosteringError, match="nobody to place"):
+    with pytest.raises(mutations.RosteringError, match="není koho zařazovat"):
         mutations.place_new_registrants(workspace)
 
 
@@ -202,7 +202,7 @@ def test_it_refuses_before_there_is_a_roster(workspace):
     _upload(workspace, _row("Anna Nováková", ANNA), label="2026-jaro")
     mutations.put_config(workspace, MINIMUM_CONFIG)
 
-    with pytest.raises(mutations.RosteringError, match="Solve"):
+    with pytest.raises(mutations.RosteringError, match="sestavte"):
         mutations.place_new_registrants(workspace)
 
 

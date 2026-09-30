@@ -30,7 +30,7 @@ def test_add_building_button_appends_a_uniquely_named_building(tab):
 
 
 def _unsaved_note(tab):
-    return [c.value for c in tab.caption if "Unsaved changes" in c.value]
+    return [c.value for c in tab.caption if "Neuložené změny" in c.value]
 
 
 def test_a_fresh_tab_has_no_unsaved_changes_note(tab):

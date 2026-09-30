@@ -10,6 +10,7 @@ import streamlit as st
 
 from rostering.domain import UNKNOWN_TSHIRT_SIZE
 from rostering.streamlit_app import fix_focus, mutations, session, tag_pills
+from rostering.streamlit_app import labels as ui_labels
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
 # Height in px of one table row; see ``_row_cells``.
 _ROW_HEIGHT = 44
@@ -19,24 +20,24 @@ _CANT_ATTEND_NONCE = "_people_cant_attend_nonce"
 
 
 def render() -> None:
-    st.header("1. People")
+    st.header(ui_labels.TAB_PEOPLE)
     workspace = session.get_workspace()
     season = mutations.get_open_season(workspace)
     if season is None:
         st.write(
-            "Upload the raw Google Forms export (.xlsx) of helper responses. This creates a new Season: "
-            "you'll confirm its label first."
+            "Nahrajte původní export odpovědí pomocníků z Google Forms (.xlsx). Tím se vytvoří nový ročník: "
+            "nejdřív potvrdíte jeho označení."
         )
     else:
         st.write(
-            f"Upload the raw Google Forms export (.xlsx) to load helper responses into Season "
-            f"**{season['label']}**. Helpers already in it are refreshed from their latest row (matched by e-mail), "
-            "new registrants are added unassigned, and nobody is moved or removed."
+            f"Nahrajte původní export z Google Forms (.xlsx), aby se odpovědi pomocníků načetly do ročníku "
+            f"**{season['label']}**. Pomocníci, kteří už v něm jsou, se obnoví podle svého nejnovějšího řádku "
+            "(párují se podle e-mailu), noví zájemci se přidají nezařazení a nikdo se nepřesouvá ani neodebírá."
         )
 
     state = session.get_state()
     uploaded = st.file_uploader(
-        "Responses file", type=["xlsx"], key=f"responses_file_{st.session_state.get('_uploader_nonce', 0)}"
+        "Soubor s odpověďmi", type=["xlsx"], key=f"responses_file_{st.session_state.get('_uploader_nonce', 0)}"
     )
     if uploaded is not None:
         content = uploaded.getvalue()
@@ -44,7 +45,7 @@ def render() -> None:
         if season is None:
             _render_create_season(workspace, uploaded.name, content, content_hash)
         elif st.session_state.get("_last_upload_hash") != content_hash:
-            with st.spinner("Uploading and parsing…"):
+            with st.spinner("Nahrávám a zpracovávám…"):
                 try:
                     state = mutations.upload_responses(workspace, content, uploaded.name)
                     session.set_state(state)
@@ -65,36 +66,36 @@ def render() -> None:
     if state["helpers"]:
         unresolved_count = sum(len(h["unresolved_friend_names"]) for h in state["helpers"])
         returning = mutations.get_returning_helpers(workspace)
-        msg = f"**{len(state['helpers'])}** helpers loaded."
+        msg = f"Načteno pomocníků: **{len(state['helpers'])}**."
         absent_count = sum(1 for h in state["helpers"] if h.get("cant_attend"))
         if absent_count:
-            msg += f" **{absent_count}** can't attend."
+            msg += f" Nemůže se zúčastnit: **{absent_count}**."
         if returning:
-            msg += f" **{len(returning)}** are Returning helpers (recognized by e-mail from an earlier Season)."
+            msg += f" Vracejících se pomocníků (poznaných podle e-mailu z dřívějšího ročníku): **{len(returning)}**."
         if unresolved_count:
-            msg += f" **{unresolved_count}** friend name(s) still need matching (open a helper marked ⚠)."
+            msg += f" Jmen kamarádů, která je ještě třeba přiřadit (otevřete pomocníka označeného ⚠): **{unresolved_count}**."
         st.success(msg)
 
         if state["ingestion_warnings"]:
-            with st.expander(f"{len(state['ingestion_warnings'])} ingestion warning(s)"):
+            with st.expander(f"Upozornění při načítání: {len(state['ingestion_warnings'])}"):
                 for warning in state["ingestion_warnings"]:
                     st.write(f"- {warning}")
 
         with st.bottom:
-            if st.button("Continue to tags →", type="primary"):
-                session.switch_tab("2. Tags")
+            if st.button("Pokračovat na štítky →", type="primary"):
+                session.switch_tab(ui_labels.TAB_TAGS)
                 st.rerun()
 
         if mutations.stale_reasons(state):
             st.warning(
-                "The roster is out of date: "
+                "Rozdělení pomocníků je neaktuální: "
                 + "; ".join(mutations.stale_reasons(state))
-                + ". Solve again in the Roster tab; Export is blocked until then.",
+                + ". Sestavte rozdělení znovu na záložce Rozdělení pomocníků; do té doby je export zablokovaný.",
                 icon="⚠️",
             )
         unplaced = mutations.unplaced_reason(state)
         if unplaced:
-            st.warning(unplaced + ". Place them in the Roster tab; Export is blocked until then.", icon="⚠️")
+            st.warning(unplaced + ". Zařaďte je na záložce Rozdělení pomocníků; do té doby je export zablokovaný.", icon="⚠️")
         tag_import_ui.render_banner()
         tag_import_ui.render_summary("banner")
         tag_import_ui.render_promotion_auto()
@@ -115,23 +116,23 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
         st.error(str(exc))
         return
     if suggested is None:
-        st.warning("The submission dates in this export couldn't be read, so enter the Season label yourself.")
+        st.warning("Data odeslání v tomto exportu se nepodařilo přečíst, zadejte proto označení ročníku sami.")
     with st.form(key=f"create_season_form_{content_hash}"):
         label = st.text_input(
-            "Season label",
+            ui_labels.SEASON_LABEL_FIELD,
             value=suggested or "",
-            placeholder="e.g. 2026-jaro",
-            help="A year plus jaro (January to June) or podzim (July to December); unique among stored Seasons.",
+            placeholder="např. 2026-jaro",
+            help="Rok a jaro (leden až červen) nebo podzim (červenec až prosinec); mezi uloženými ročníky jedinečné.",
         )
-        submitted = st.form_submit_button("Create Season and load responses", type="primary")
+        submitted = st.form_submit_button("Vytvořit ročník a načíst odpovědi", type="primary")
     if not submitted:
         return
     try:
-        with st.spinner("Uploading and parsing…"):
+        with st.spinner("Nahrávám a zpracovávám…"):
             state = mutations.upload_responses(workspace, content, filename, label=label)
     except mutations.RosteringError as exc:
-        hint = " Choose another label, or open that Season in the sidebar to re-upload into it."
-        st.error(str(exc) + (hint if "already exists" in str(exc) else ""))
+        hint = " Zvolte jiné označení, nebo tento ročník otevřete v postranním panelu a nahrajte do něj odpovědi znovu."
+        st.error(str(exc) + (hint if "již existuje" in str(exc) else ""))
         return
     session.set_state(state)
     st.session_state["_last_upload_hash"] = content_hash
@@ -165,7 +166,7 @@ def _cant_attend_cell(cell, kind: str, person: dict) -> None:
     for confirmation, see ``person_actions``) and reruns the page."""
     saved = bool(person.get("cant_attend"))
     flag = cell.checkbox(
-        f"Can't attend: {person['name']}",
+        f"Nemůže se zúčastnit: {person['name']}",
         value=saved,
         key=f"cant_attend_{kind}_{person['id']}_{st.session_state.get(_CANT_ATTEND_NONCE, 0)}",
         label_visibility="collapsed",
@@ -177,10 +178,10 @@ def _cant_attend_cell(cell, kind: str, person: dict) -> None:
 
 def _render_organizers(state: dict) -> None:
     organizers = sorted(state["organizers"], key=lambda o: o["name"].lower())
-    st.subheader(f"Organizers ({len(organizers)})")
+    st.subheader(f"Organizátoři ({len(organizers)})")
     pills = mutations.organizer_tag_pills(state)
     with st.container(border=True):
-        columns = _table_columns(["Name", "Placement", "Can't attend", "Tags"])
+        columns = _table_columns(["Jméno", "Zařazení", "Nemůže se zúčastnit", "Štítky"])
         for organizer in organizers:
             name_cell, placement_cell, absent_cell, tags_cell = _row_cells(columns)
             if name_cell.button(organizer["name"], key=f"open_organizer_{organizer['id']}", type="tertiary"):
@@ -188,7 +189,7 @@ def _render_organizers(state: dict) -> None:
             placement_cell.write(" · ".join(filter(None, [organizer.get("building"), organizer.get("room")])) or "—")
             _cant_attend_cell(absent_cell, "organizer", organizer)
             tags_cell.html(_pills(pills.get(organizer["id"])))
-        if st.button("＋ Add organizer", key="add_organizer_open"):
+        if st.button("＋ Přidat organizátora", key="add_organizer_open"):
             person_dialog.open_add_organizer()
 
 
@@ -196,11 +197,11 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     """The helper table; ``focus_helper_id`` (a "Go fix" target) marks that
     helper's row."""
     helpers = sorted(state["helpers"], key=lambda h: h["name"].lower())
-    st.subheader(f"Helpers ({len(helpers)})")
+    st.subheader(f"Pomocníci ({len(helpers)})")
     pills = mutations.grid_tag_pills(state)
     with st.container(border=True):
         columns = _table_columns(
-            ["Name", "Earlier Seasons", "Buildings", "Equipment", "T-shirt", "Friends", "Can't attend", "Tags"]
+            ["Jméno", "Dřívější ročníky", "Budovy", "Vybavení", "Tričko", "Kamarádi", "Nemůže se zúčastnit", "Štítky"]
         )
         for helper in helpers:
             name_cell, seasons_cell, buildings_cell, equipment_cell, size_cell, friends_cell, absent_cell, tags_cell = (
@@ -211,14 +212,14 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
             if name_cell.button(mark + helper["name"], key=f"open_helper_{helper['id']}", type="tertiary"):
                 person_dialog.open_person("helper", helper["id"])
             seasons_cell.write(", ".join(returning.get(helper["id"], [])) or "—")
-            buildings_cell.write(", ".join(helper["building_preferences"]) or "any")
+            buildings_cell.write(", ".join(helper["building_preferences"]) or "libovolná")
             equipment_cell.write(
                 " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
                 or "—"
             )
             size_cell.write(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE)
-            friends_cell.write(f"{unresolved} to match" if unresolved else str(len(helper["friends"])))
+            friends_cell.write(f"k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])))
             _cant_attend_cell(absent_cell, "helper", helper)
             tags_cell.html(_pills(pills.get(helper["id"])))
-        if st.button("＋ Add helper", key="add_helper_open"):
+        if st.button("＋ Přidat pomocníka", key="add_helper_open"):
             person_dialog.open_add_helper()

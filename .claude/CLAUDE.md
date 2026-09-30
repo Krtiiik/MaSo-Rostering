@@ -9,6 +9,18 @@ Room, Role, Manual roles, etc.) — read it before making changes so terminology
 stays consistent. This file covers everything else: implementation notes,
 the data pipeline, known data quirks, and project status/decisions.
 
+## Czech front end
+
+Everything the user sees in the web app is Czech; code, identifiers, CLI usage
+and developer docs stay English. Use the `Czech:` names in `CONTEXT.md` and the
+labels in `docs/czech-ui-glossary.md` verbatim. Tab labels live in
+`streamlit_app/labels.py` (they double as the tab strip's state keys); counted
+text goes through `rostering.czech.plural`. Values persisted in a Season's
+state (for example the "answers changed" field names) keep English identifiers
+and are translated only where they are displayed. A new UI string or a new
+message raised to the user must be written in Czech from the start, and the
+grid component's bundle rebuilt (`npm run build` in its `frontend/` folder).
+
 ## Manual roles (implementation notes)
 
 See `CONTEXT.md` for what Organizer role and Additional role mean and which

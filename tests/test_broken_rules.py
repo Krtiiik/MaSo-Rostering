@@ -50,7 +50,7 @@ def test_unmeetable_room_minimum_returns_a_full_roster_and_the_broken_rule():
     assert list(broken) == [instance]
     assert broken[instance].family == "minimums"
     assert broken[instance].amount == 1
-    assert broken[instance].line == "Room R1 · Skenovač: 2 of 3 required (needs 1 more)"
+    assert broken[instance].line == "Místnost R1 · Skenovač: 2 z 3 požadovaných (chybí 1)"
 
 
 def test_unmeetable_building_limit_is_reported():
@@ -66,7 +66,7 @@ def test_unmeetable_building_limit_is_reported():
     instance = RuleInstance("building_exact", ("B", "Menic"))
     broken = _broken(result)
     assert list(broken) == [instance]
-    assert broken[instance].line == "Building B · Měnič: 1 of 2 required (needs 1 more)"
+    assert broken[instance].line == "Budova B · Měnič: 1 z 2 požadovaných (chybí 1)"
 
 
 def test_a_room_count_is_exact_so_the_solver_never_overfills_it():
@@ -94,7 +94,7 @@ def test_an_unmeetable_room_count_reports_the_overshoot():
     broken = _broken(result)
     instance = RuleInstance("room_exact", ("B", "R1", "Skenovac"))
     assert broken[instance].amount == 3
-    assert broken[instance].line == "Room R1 · Skenovač: 4 of 1 required (3 too many)"
+    assert broken[instance].line == "Místnost R1 · Skenovač: 4 z 1 požadovaných (přebývá 3)"
 
 
 def test_a_building_limit_is_exact_so_the_solver_never_overfills_it():
@@ -130,7 +130,7 @@ def test_an_unmeetable_building_limit_reports_the_overshoot():
     instance = RuleInstance("building_exact", ("B", "Skenovac"))
     assert instance in broken
     assert broken[instance].amount == 1
-    assert broken[instance].line == "Building B · Skenovač: 3 of 2 required (1 too many)"
+    assert broken[instance].line == "Budova B · Skenovač: 3 z 2 požadovaných (přebývá 1)"
 
 
 def test_achievable_competition_has_no_broken_rules():
@@ -169,7 +169,7 @@ def test_equipment_bends_only_when_nothing_else_can():
     broken = _broken(result)
     assert list(broken) == [instance]
     assert broken[instance].family == "equipment"
-    assert broken[instance].line == "Helper Nocam has no camera but is Fotograf"
+    assert broken[instance].line == "Pomocník Nocam nemá fotoaparát, ale je Fotograf"
 
 
 def test_ordinary_preferences_never_outweigh_a_rule():
@@ -312,5 +312,5 @@ def test_time_limit_with_no_roster_is_its_own_outcome():
     with pytest.raises(NoRosterFound) as excinfo:
         solve_competition(comp, SolverConfig(time_limit_seconds=0))
 
-    assert str(excinfo.value).startswith("No roster found within 0 seconds.")
-    assert "solve again" in str(excinfo.value)
+    assert str(excinfo.value).startswith("Rozdělení se nepodařilo najít do 0 s.")
+    assert "sestavte rozdělení znovu" in str(excinfo.value)

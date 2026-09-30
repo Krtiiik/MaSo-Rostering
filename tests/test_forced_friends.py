@@ -191,7 +191,7 @@ def test_a_group_that_cannot_hold_still_yields_a_roster_and_is_reported():
     assert broken.family == "forced_friends"
     assert broken.instance == RuleInstance("forced_friends", (1, "building"))
     assert broken.amount == 1
-    assert broken.line.startswith("Group Rodina")
+    assert broken.line.startswith("Skupinka Rodina")
 
 
 def test_a_minimum_bends_before_a_forced_group_does():
@@ -347,9 +347,9 @@ def test_a_group_has_a_required_name_axes_and_members_who_are_persons(workspace)
 def test_a_group_needs_a_name_and_at_least_one_axis(workspace):
     _season(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="name"):
+    with pytest.raises(mutations.RosteringError, match="název"):
         forced_groups.add_group(workspace, "  ", ["p1", "p2"], ["building"])
-    with pytest.raises(mutations.RosteringError, match="axis"):
+    with pytest.raises(mutations.RosteringError, match="osu"):
         forced_groups.add_group(workspace, "Rodina", ["p1", "p2"], [])
     assert forced_groups.list_groups(mutations.get_state(workspace)) == []
 
@@ -357,7 +357,7 @@ def test_a_group_needs_a_name_and_at_least_one_axis(workspace):
 def test_only_registered_people_can_be_picked(workspace):
     _season(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="registered"):
+    with pytest.raises(mutations.RosteringError, match="registrováni"):
         forced_groups.add_group(workspace, "Rodina", ["p1", "p99"], ["building"])
 
 
@@ -371,7 +371,7 @@ def test_a_group_can_be_renamed_and_edited(workspace):
     group = _group_named(state, "Tým")
     assert group["axes"] == ["role"]
     assert [m["person_id"] for m in group["members"]] == ["p1", "p2", "p3"]
-    with pytest.raises(mutations.RosteringError, match="name"):
+    with pytest.raises(mutations.RosteringError, match="název"):
         forced_groups.update_group(workspace, gid, name="")
 
 
@@ -477,7 +477,7 @@ def test_a_group_with_fewer_than_two_active_members_is_inactive_and_constrains_n
 
     group = _group_named(state, "Rodina")
     assert group["active"] is False
-    assert "fewer than two" in group["reason"].lower()
+    assert "méně než dva" in group["reason"].lower()
 
     state = mutations.solve(workspace)
 

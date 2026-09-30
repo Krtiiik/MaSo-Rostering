@@ -61,7 +61,7 @@ export function HelperChip({
     : undefined;
 
   const titleText =
-    [...(broken ?? []), ...(unsatisfiedFriend ? ["Has an unsatisfied friend request"] : [])].join("\n") || undefined;
+    [...(broken ?? []), ...(unsatisfiedFriend ? ["Má nesplněné přání být s kamarádem"] : [])].join("\n") || undefined;
 
   const highlightClass = friendHighlight ? ` friend-highlight-${friendHighlight}` : "";
 
@@ -92,14 +92,14 @@ export function HelperChip({
       onMouseLeave={() => onHoverChange?.(false)}
     >
       {locked && (
-        <span className="helper-chip-lock" title="Locked: a full Solve keeps this Assignment">
+        <span className="helper-chip-lock" title="Uzamčeno: celé sestavení rozdělení toto přiřazení zachová">
           🔒{" "}
         </span>
       )}
       {helper.answers_changed && helper.answers_changed.length > 0 && (
         <span
           className="helper-chip-answers-changed"
-          title={`Answers changed since placed: ${helper.answers_changed.join(", ")}`}
+          title={`Odpovědi se změnily od zařazení: ${helper.answers_changed.join(", ")}`}
         >
           ✎{" "}
         </span>
@@ -107,14 +107,14 @@ export function HelperChip({
       {helper.forced_groups && helper.forced_groups.length > 0 && (
         <span
           className="helper-chip-forced"
-          title={`Forced friends: ${helper.forced_groups.join("; ")}`}
+          title={`Vynucené skupinky kamarádů: ${helper.forced_groups.join("; ")}`}
         >
           🔗{" "}
         </span>
       )}
       {helper.name}
-      {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}
-      {helper.can_bring_camera && <span title="Can bring a camera"> 📷</span>}
+      {helper.can_bring_notebook && <span title="Může přinést notebook"> 💻</span>}
+      {helper.can_bring_camera && <span title="Může přinést fotoaparát"> 📷</span>}
       {showTags && helper.tags && (helper.tags.direct.length > 0 || helper.tags.implied.length > 0) && (
         <div className="helper-chip-tags">
           {helper.tags.direct.map((pill) => (

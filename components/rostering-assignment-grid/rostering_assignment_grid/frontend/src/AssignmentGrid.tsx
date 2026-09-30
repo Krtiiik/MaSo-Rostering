@@ -493,7 +493,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   }
 
   if (rooms.length === 0) {
-    return <p>Configure at least one building with a room first.</p>;
+    return <p>Nejdřív nastavte alespoň jednu budovu s místností.</p>;
   }
 
   return (
@@ -511,7 +511,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
       <DndContext sensors={sensors} onDragStart={() => setOpenCard(null)} onDragEnd={handleDragEnd}>
         {unassignedHelpers.length > 0 && (
           <div className="unassigned-pool">
-            <strong>Unassigned:</strong>{" "}
+            <strong>Nezařazení:</strong>{" "}
             {unassignedHelpers.map((h) => renderChip(h))}
           </div>
         )}

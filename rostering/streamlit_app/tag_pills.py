@@ -25,7 +25,7 @@ def pill_html(name: str, colour: str, implied: bool = False) -> str:
     colour = colour if is_hex_colour(colour) else "#888888"
     if implied:
         style = f"{_PILL}border:1px dashed {colour};color:{colour};background:transparent;"
-        return f'<span style="{style}" title="implied">{label}</span>'
+        return f'<span style="{style}" title="odvozený">{label}</span>'
     style = f"{_PILL}border:1px solid {colour};background:{colour};color:{_text_colour(colour)};"
     return f'<span style="{style}">{label}</span>'
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations, session
+from rostering.streamlit_app import labels, mutations, session
 
 
 def render(where: str) -> None:
@@ -16,30 +16,30 @@ def render(where: str) -> None:
         return
     with st.container(border=True):
         title_col, dismiss_col = st.columns([6, 1], vertical_alignment="center")
-        title_col.markdown("**What the latest upload changed**")
-        if dismiss_col.button("Dismiss", key=f"dismiss_upload_summary_{where}"):
+        title_col.markdown("**Co změnilo poslední nahrání**")
+        if dismiss_col.button("Skrýt", key=f"dismiss_upload_summary_{where}"):
             session.set_state(mutations.dismiss_upload_summary(workspace))
             st.rerun()
 
         if summary["new"]:
             st.markdown(
-                f"**{len(summary['new'])} new registrant(s)**, not placed yet (Export is blocked until they are): "
+                f"**Noví zájemci ({len(summary['new'])})**, zatím nezařazení (export je zablokovaný, dokud nebudou): "
                 + ", ".join(entry["name"] for entry in summary["new"])
             )
         if summary["changed"]:
             st.markdown(
-                f"**{len(summary['changed'])} placed helper(s) changed their answers** (their Assignment was left "
-                "as it is; marked ✎ in the grid until you move or lock them):"
+                f"**Zařazení pomocníci, kteří změnili odpovědi ({len(summary['changed'])})** (jejich přiřazení zůstalo "
+                "beze změny; v mřížce jsou označeni ✎, dokud je nepřesunete nebo neuzamknete):"
             )
             for entry in summary["changed"]:
-                st.markdown(f"- {entry['name']}: {', '.join(entry['fields'])}")
+                st.markdown(f"- {entry['name']}: {', '.join(labels.answer_label(f) for f in entry['fields'])}")
         if summary["missing"]:
             st.markdown(
-                f"**{len(summary['missing'])} helper(s) missing from the export** (kept as they are): "
+                f"**Pomocníci chybějící v exportu ({len(summary['missing'])})** (zůstávají, jak jsou): "
                 + ", ".join(entry["name"] for entry in summary["missing"])
             )
         if summary["uncertain"]:
             st.markdown(
-                f"**{len(summary['uncertain'])} uncertain match(es) awaiting review** (in the People tab): "
+                f"**Nejisté shody čekající na posouzení ({len(summary['uncertain'])})** (na záložce Lidé): "
                 + ", ".join(entry["helper_name"] for entry in summary["uncertain"])
             )

@@ -37,8 +37,9 @@ ROLE = "role"
 # Building added whenever Room is ticked.
 AXES = (BUILDING, ROOM, ROLE)
 
-AXIS_LABELS = {BUILDING: "Building", ROOM: "Room", ROLE: "Role"}
-_PLURALS = {BUILDING: "Buildings", ROOM: "Rooms", ROLE: "Roles"}
+AXIS_LABELS = {BUILDING: "Budova", ROOM: "Místnost", ROLE: "Role"}
+# "Split across ..." takes the accusative plural.
+_PLURALS = {BUILDING: "budovy", ROOM: "místnosti", ROLE: "role"}
 
 # The RuleInstance / BrokenRule family name of this rule.
 KIND = "forced_friends"
@@ -66,7 +67,7 @@ def normalize_axes(axes: Iterable[str]) -> tuple[str, ...]:
     if ROOM in ticked:
         ticked.add(BUILDING)
     if not ticked:
-        raise ValueError("Tick at least one axis (Building, Room or Role) the group must share.")
+        raise ValueError("Zaškrtněte alespoň jednu osu (budova, místnost nebo role), kterou musí skupinka sdílet.")
     return tuple(axis for axis in AXES if axis in ticked)
 
 
@@ -130,8 +131,8 @@ def place_label(axis: str, a: Assignment) -> str:
 
 
 def _joined(labels: Sequence[str]) -> str:
-    """``A``, ``A and B``, ``A, B and C``."""
-    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + " and " + labels[-1]
+    """``A``, ``A a B``, ``A, B a C``."""
+    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + " a " + labels[-1]
 
 
 @dataclass(frozen=True)
@@ -179,10 +180,10 @@ class GroupRule:
 
     def _subject(self) -> str:
         names = [*self.helper_names, *(a.name for a in self.anchors)]
-        return f"Group {self.group.name} [{', '.join(names)}]"
+        return f"Skupinka {self.group.name} [{', '.join(names)}]"
 
     def line(self, assignments: Sequence[Assignment] = ()) -> str:
-        """``Group Rodina [Anna, Petr, Jana] is split across rooms N4 and N6``:
+        """``Skupinka Rodina [Anna, Petr, Jana] je rozdělena mezi místnosti N4 a N6``:
         the members' names and the distinct places the ``assignments`` of the
         Helper members and the anchors occupy on the axis (first seen first). The
         solver and the live checker word every violation through this one
@@ -201,7 +202,7 @@ class GroupRule:
         if self.axis == ROOM and len(set(labels)) < len(labels):
             # The same Room name in two Buildings: say which is which.
             labels = [f"{label} ({building})" for label, building in places.values()]
-        return f"{self._subject()} is split across {_PLURALS[self.axis].lower()}" + (
+        return f"{self._subject()} je rozdělena mezi {_PLURALS[self.axis]}" + (
             f" {_joined(labels)}" if labels else ""
         )
 
@@ -283,13 +284,13 @@ class TagClash:
     def message(self) -> str:
         role = self.axis == tags_module.ROLE
         shown = [
-            f"{name}: only {', '.join(Role[v].value if role else v for v in values)}"
+            f"{name}: jen {', '.join(Role[v].value if role else v for v in values)}"
             for name, values in self.limits[:3]
         ]
         more = len(self.limits) - len(shown)
-        noun = "Role" if role else "Building"
-        return f"Group {self.group.name} can't share a {noun} ({'; '.join(shown)}" + (
-            f"; and {more} more)" if more > 0 else ")"
+        noun = "roli" if role else "budovu"
+        return f"Skupinka {self.group.name} nemůže sdílet {noun} ({'; '.join(shown)}" + (
+            f"; a dalších {more})" if more > 0 else ")"
         )
 
 

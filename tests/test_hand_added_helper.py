@@ -123,7 +123,7 @@ def test_a_blank_name_is_rejected_and_nothing_changes(workspace):
     before = mutations.get_state(workspace)
 
     for name in ("", "   "):
-        with pytest.raises(mutations.RosteringError, match="name"):
+        with pytest.raises(mutations.RosteringError, match="jméno"):
             mutations.add_helper(workspace, name, "eva@example.test")
 
     assert mutations.get_state(workspace) == before
@@ -133,7 +133,7 @@ def test_a_blank_contact_is_rejected(workspace):
     _seed(workspace)
     before = mutations.get_state(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="contact"):
+    with pytest.raises(mutations.RosteringError, match="kontakt"):
         mutations.add_helper(workspace, "Eva", "  ")
 
     assert mutations.get_state(workspace) == before
@@ -439,8 +439,8 @@ def test_deleting_a_placed_helper_asks_for_confirmation_and_changes_nothing(work
     with pytest.raises(mutations.ConfirmationRequired) as raised:
         mutations.delete_helper(workspace, 1)
 
-    assert any(line.startswith("Assignment:") and "(locked)" in line for line in raised.value.lines)
-    assert any(line.startswith("Manual role:") for line in raised.value.lines)
+    assert any(line.startswith("Přiřazení:") and "(uzamčeno)" in line for line in raised.value.lines)
+    assert any(line.startswith("Manuální role:") for line in raised.value.lines)
     assert mutations.get_state(workspace) == before
 
 

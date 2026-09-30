@@ -22,23 +22,33 @@ from typing import Any, Callable
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations, session
+from rostering.czech import plural
+from rostering.streamlit_app import labels, mutations, session
 
 _NOTE_KEY = "_solve_note"
 _PENDING_KEY = "_solve_pending"
 _ERROR_KEY = "_solve_error"
 
+_SOLVING_TITLE = "Sestavuji rozdělení…"
+_PLACING_TITLE = "Zařazuji…"
+
 _log = logging.getLogger(__name__)
 
 
-@st.dialog("Replace unlocked Assignments?")
+@st.dialog("Nahradit neuzamčená přiřazení?")
 def _confirm(count: int, run: Callable[[], None]) -> None:
-    noun = "Assignment" if count == 1 else "Assignments"
-    st.write(f"{count} unlocked {noun} will be replaced.")
+    st.write(
+        plural(
+            count,
+            "Jedno neuzamčené přiřazení bude nahrazeno.",
+            f"{count} neuzamčená přiřazení budou nahrazena.",
+            f"{count} neuzamčených přiřazení bude nahrazeno.",
+        )
+    )
     cols = st.columns(2)
-    if cols[0].button("Solve", type="primary", key="solve_confirm_go"):
-        _queue("Solving…", run)
-    if cols[1].button("Cancel", key="solve_confirm_cancel"):
+    if cols[0].button("Sestavit rozdělení", type="primary", key="solve_confirm_go"):
+        _queue(_SOLVING_TITLE, run)
+    if cols[1].button("Zrušit", key="solve_confirm_cancel"):
         st.rerun()
 
 
@@ -49,13 +59,13 @@ def request_solve(state: dict[str, Any], run: Callable[[], None]) -> None:
     if count:
         _confirm(count, run)
     else:
-        _queue("Solving…", run)
+        _queue(_SOLVING_TITLE, run)
 
 
 def request_place(run: Callable[[], None]) -> None:
     """Run the Place new registrants ``run`` in the solving dialog (it needs no
     confirmation: nothing placed can be lost)."""
-    _queue("Placing…", run)
+    _queue(_PLACING_TITLE, run)
 
 
 def run_solve() -> None:
@@ -69,7 +79,7 @@ def solve_and_open_roster() -> None:
     """Run a full Solve on the saved Season, then show the Roster tab. Shared by
     the "Save & solve" buttons of the Buildings and Solver tabs."""
     run_solve()
-    session.switch_tab("6. Roster")
+    session.switch_tab(labels.TAB_ROSTER)
 
 
 def _queue(title: str, work: Callable[[], None]) -> None:
@@ -95,33 +105,32 @@ def _run_dialog(title: str, work: Callable[[], None]) -> None:
     Solve never leaves the page locked. (The Close click reruns only this
     function, hence the message lives in session state.)"""
     if _ERROR_KEY not in st.session_state:
-        with st.spinner("This can take a while; please wait."):
+        with st.spinner("Může to chvíli trvat, čekejte prosím."):
             try:
                 work()
             except mutations.RosteringError as exc:
                 st.session_state[_ERROR_KEY] = str(exc)
             except Exception as exc:  # anything else must not leave the modal stuck
                 _log.exception("Solve failed")
-                st.session_state[_ERROR_KEY] = f"Unexpected error: {exc}"
+                st.session_state[_ERROR_KEY] = f"Neočekávaná chyba: {exc}"
         if _ERROR_KEY not in st.session_state:
             st.rerun()
     st.error(st.session_state[_ERROR_KEY])
-    if st.button("Close", key="solve_error_close"):
+    if st.button("Zavřít", key="solve_error_close"):
         st.session_state.pop(_ERROR_KEY, None)
         st.rerun()
 
 
-@st.dialog("Clear the roster?")
+@st.dialog("Vymazat rozdělení pomocníků?")
 def _confirm_clear(count: int, locked: int, run: Callable[[], None]) -> None:
-    noun = "Assignment" if count == 1 else "Assignments"
-    st.write(f"All {count} {noun} will be removed and the solver result reset.")
+    st.write(f"Všechna přiřazení ({count}) budou odstraněna a výsledek řešení se vynuluje.")
     if locked:
-        st.write(f"This includes {locked} locked.")
-    st.caption("Helpers, Tags and Manual roles are kept.")
+        st.write(f"Včetně uzamčených: {locked}.")
+    st.caption("Pomocníci, štítky a manuální role zůstanou.")
     cols = st.columns(2)
-    if cols[0].button("Clear roster", type="primary", key="clear_roster_confirm_go"):
+    if cols[0].button("Vymazat rozdělení", type="primary", key="clear_roster_confirm_go"):
         run()
-    if cols[1].button("Cancel", key="clear_roster_confirm_cancel"):
+    if cols[1].button("Zrušit", key="clear_roster_confirm_cancel"):
         st.rerun()
 
 

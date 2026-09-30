@@ -313,7 +313,7 @@ def test_an_assignment_that_would_strand_a_helper_is_skipped_and_counted(workspa
     assert _tag_names(state, "Anna Nováková") == ["T1"]
     (skipped,) = _tags_section(summary)["skipped_assignments"]
     assert (skipped["helper"], skipped["tag"]) == ("Anna Nováková", "T2")
-    assert "Building" in skipped["reason"]
+    assert "budovu" in skipped["reason"]
     assert mutations.helper_allowed(state, _helper(state, "Anna Nováková")["id"])["buildings"] == ["A"]
     assert _tags_section(summary)["helpers_tagged"] == ["Anna Nováková"]  # still tagged, with T1
 
@@ -416,7 +416,7 @@ def test_a_deliberately_deleted_imported_tag_comes_back_on_explicit_reimport_and
     assert section["tags_restored"] == ["Vedoucí"]
     assert section["tags_created"] == []
     assert _tag_names(state, "Petr Svoboda") == ["GCHD", "Vedoucí"]
-    assert any("restored" in line.lower() for line in section["lines"])
+    assert any("obnoveno" in line.lower() for line in section["lines"])
 
     # It is an ordinary imported Tag again: the next re-import does not report it.
     again = _tags_section(mutations.import_from_season(workspace, source))

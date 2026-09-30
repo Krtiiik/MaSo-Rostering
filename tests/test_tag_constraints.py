@@ -264,8 +264,8 @@ def test_a_tag_assignment_leaving_no_allowed_building_is_refused_with_the_reason
         mutations.set_helper_tags(workspace, 1, [a, b])
 
     text = str(refused.value)
-    assert "Anna" in text and "Building" in text
-    assert "Tag A, allows only Building Karlín" in text and "Tag B, allows only Building Impakt" in text
+    assert "Anna" in text and "budovu" in text
+    assert "Štítek A, povoluje jen budovu Karlín" in text and "Štítek B, povoluje jen budovu Impakt" in text
     assert _direct(workspace, 1) == [a]  # nothing changed
 
 
@@ -273,7 +273,7 @@ def test_a_deny_that_empties_the_roles_is_refused_too(workspace):
     _seed(workspace)
     everything = _new_tag(workspace, "Nothing", role_deny=ROLE_NAMES)
 
-    with pytest.raises(mutations.RosteringError, match="Role"):
+    with pytest.raises(mutations.RosteringError, match="roli"):
         mutations.set_helper_tags(workspace, 1, [everything])
 
 
@@ -419,7 +419,7 @@ def test_a_helper_outside_their_allowed_buildings_is_reported_with_the_tag(works
     state = mutations.move_helper(workspace, 1, "Impakt", "Impakt-R1", "Zaloha")
 
     (broken,) = _tag_rules(state)
-    assert broken.line == "Helper Anna (Tag 8.M, allows only Building Karlín) is placed in Impakt"
+    assert broken.line == "Pomocník Anna (Štítek 8.M, povoluje jen budovu Karlín) je zařazen(a) do Impakt"
     assert broken.amount == 1
     assert broken.instance == RuleInstance("tag_building", (1, "Impakt"))
     assert broken.helper_ids == (1,)
@@ -444,7 +444,7 @@ def test_a_denied_role_is_reported(workspace):
     state = mutations.move_helper(workspace, 2, "Impakt", "Impakt-R1", "Fotograf")
 
     (broken,) = _tag_rules(state)
-    assert broken.line == "Helper Petr (Tag GCHD, denies Role Fotograf) is placed as Fotograf"
+    assert broken.line == "Pomocník Petr (Štítek GCHD, zakazuje roli Fotograf) je zařazen(a) jako Fotograf"
     assert broken.instance == RuleInstance("tag_role", (2, "Fotograf"))
     assert broken.fix.tag_id == pros
 
@@ -457,7 +457,7 @@ def test_an_inherited_constraint_names_the_tag_that_states_it(workspace):
 
     (broken,) = _tag_rules(mutations.get_state(workspace))
 
-    assert broken.line == "Helper Jana (Tag GCHD, denies Building Hostivař) is placed in Hostivař"
+    assert broken.line == "Pomocník Jana (Štítek GCHD, zakazuje budovu Hostivař) je zařazen(a) do Hostivař"
     assert broken.fix.tag_id == parent
 
 
@@ -469,10 +469,10 @@ def test_a_broken_placement_names_only_the_tags_that_exclude_it(workspace):
 
     (broken,) = _tag_rules(mutations.get_state(workspace))
 
-    assert broken.line == "Helper Jana (Tag B, denies Building Hostivař) is placed in Hostivař"
+    assert broken.line == "Pomocník Jana (Štítek B, zakazuje budovu Hostivař) je zařazen(a) do Hostivař"
     mutations.move_helper(workspace, 3, "Karlín", "Karlín-R1", "Zaloha")
     (broken,) = _tag_rules(mutations.get_state(workspace))
-    assert broken.line == "Helper Jana (Tag A, allows only Buildings Impakt, Hostivař) is placed in Karlín"
+    assert broken.line == "Pomocník Jana (Štítek A, povoluje jen budovy Impakt, Hostivař) je zařazen(a) do Karlín"
 
 
 def test_a_drop_that_newly_breaks_a_tag_constraint_toasts_the_banner_line_and_still_applies(workspace):
@@ -484,7 +484,7 @@ def test_a_drop_that_newly_breaks_a_tag_constraint_toasts_the_banner_line_and_st
     moved = next(a for a in after["assignments"] if a["helper_id"] == 1)
     assert moved["building"] == "Hostivař"  # never refused
     assert mutations.move_toast_lines(before, after) == [
-        "Helper Anna (Tag 8.M, allows only Building Karlín) is placed in Hostivař"
+        "Pomocník Anna (Štítek 8.M, povoluje jen budovu Karlín) je zařazen(a) do Hostivař"
     ]
 
 
@@ -651,7 +651,7 @@ def test_a_tag_restriction_bends_when_it_is_the_only_thing_that_can():
 
     assert len(result.assignments) == 1
     assert [b.family for b in result.broken_rules] == ["tag_restrictions"]
-    assert result.broken_rules[0].line.startswith("Helper H1 (Tag Nowhere, denies Buildings A, B) is placed in ")
+    assert result.broken_rules[0].line.startswith("Pomocník H1 (Štítek Nowhere, zakazuje budovy A, B) je zařazen(a) do ")
 
 
 def test_a_tag_restriction_bends_before_equipment():
@@ -675,7 +675,7 @@ def test_a_fixed_assignment_outside_the_allowed_set_stands_and_is_reported():
 
     assert _by_helper(result)[1].building == "B"
     assert [b.instance for b in result.broken_rules] == [RuleInstance("tag_building", (1, "B"))]
-    assert result.broken_rules[0].line == "Helper H1 (Tag OnlyA, allows only Building A) is placed in B"
+    assert result.broken_rules[0].line == "Pomocník H1 (Štítek OnlyA, povoluje jen budovu A) je zařazen(a) do B"
 
 
 def test_a_helper_who_cant_attend_is_left_out_of_the_tag_rule():
@@ -765,4 +765,4 @@ def test_a_tag_rule_has_a_go_fix_button_to_the_tags_tab(workspace):
     (broken,) = _tag_rules(state)
 
     assert fix_focus.can_go_fix(broken)
-    assert fix_focus.TAB_LABELS[broken.fix.tab] == "2. Tags"
+    assert fix_focus.TAB_LABELS[broken.fix.tab] == "2. Štítky"

@@ -15,7 +15,7 @@ HALVES = ("jaro", "podzim")  # in calendar order: spring, then autumn
 
 _LABEL_RE = re.compile(r"^(\d{4})\s*[-_/ ]?\s*(jaro|podzim)$", re.IGNORECASE)
 
-LABEL_FORMAT_HINT = "a year plus jaro or podzim, e.g. 2026-jaro"
+LABEL_FORMAT_HINT = "rok a jaro nebo podzim, např. 2026-jaro"
 
 
 def normalize_label(text: Optional[str]) -> Optional[str]:
