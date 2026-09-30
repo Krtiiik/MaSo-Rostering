@@ -1,14 +1,14 @@
 ---
 name: merge-session-branches
-description: Merge unmerged worktree-bridge-* session branches into main, resolve conflicts (including semantic conflicts between diverged Streamlit/frontend features), rebuild the assignment-grid frontend bundle, and verify with pytest. Use when asked to "merge the session/worktree branch(es)", "merge the latest branch/session", or "merge <feature-name> into main".
+description: Merge unmerged session branches (claude/*, formerly worktree-bridge-*) into main, resolve conflicts (including semantic conflicts between diverged Streamlit/frontend features), rebuild the assignment-grid frontend bundle, and verify with pytest. Use when asked to "merge the session/worktree branch(es)", "merge the latest branch/session", or "merge <feature-name> into main".
 ---
 
 # Merge session branches
 
-Each Claude Code worktree-bridge session works on its own
-`worktree-bridge-cse_*` branch in `.claude/worktrees/<name>/`. This skill
-merges that work into `main` from the primary checkout. Verified this
-session across ~10 merges, including two with real multi-file conflicts.
+Each Claude Code session works on its own branch in
+`.claude/worktrees/<name>/`: currently `claude/<feature>-<hash>` (older
+sessions used `worktree-bridge-cse_*`). This skill merges that work into
+`main` from the primary checkout.
 
 ## 1. Find candidate branches
 
@@ -16,15 +16,16 @@ session across ~10 merges, including two with real multi-file conflicts.
 .claude/skills/merge-session-branches/list-unmerged.sh
 ```
 
-Lists every `worktree-bridge-*` branch not yet an ancestor of `main`,
-newest-commit-first, with each branch's not-yet-merged commits. Use this to:
+Lists every `claude/*` and `worktree-bridge-*` branch not yet an ancestor
+of `main` (other unmerged branches such as `backup/*` and `research/*` are
+not session work and are left out), newest-commit-first, with each branch's not-yet-merged commits. Use this to:
 
 - Find "the latest branch/session" (top of the list).
 - Find a branch by feature name/session description (grep the commit
   subjects, or match against the description the user gave — session names
   like "Excel roster export styling" map to commit subjects like `feat:
-  match Excel roster export to historical roster layout`, not to the opaque
-  `cse_...` branch id).
+  match Excel roster export to historical roster layout`; `claude/*` branch
+  names usually carry the feature name too).
 
 If a target branch has *more* commits than last time you looked, that
 session kept working — merge again to pick up the new commits (branches get
@@ -41,10 +42,13 @@ worktrees or touches sessions that might still be using them.
 git merge <branch> --no-edit -m "$(cat <<'EOF'
 Merge branch '<branch>' into main
 
-Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+<attribution line from the current system reminder>
 EOF
 )"
 ```
+
+Use the `Co-Authored-By` line the current attribution reminder gives (it
+names the model running now); don't copy one from an earlier commit.
 
 Three outcomes:
 
@@ -59,13 +63,13 @@ Three outcomes:
 `components/rostering-assignment-grid/rostering_assignment_grid/frontend/build/index-*.js`
 and `index-_hash_.css` are compiled output with a content hash in the
 filename. A conflict here (often `rename/delete` or `modify/delete`, since
-the hash changes every build) is noise, not a real conflict:
-
-```bash
-git rm -f components/rostering-assignment-grid/rostering_assignment_grid/frontend/build/index-*.js
-# if index-_hash_.css itself conflicts, either side is fine — it's overwritten next:
-git checkout --theirs components/rostering-assignment-grid/rostering_assignment_grid/frontend/build/index-_hash_.css 2>/dev/null || true
-```
+the hash changes every build) is noise, not a real conflict. Don't touch
+these files: `npm run build` (step 4) empties `build/` and writes a fresh
+bundle, and `git add -A` on the build folder then stages the new files and
+the removal of every stale one, conflicted or not. (Deleting them by hand
+is also blocked: the user's `block-irreversible-fs.sh` hook rejects any
+Bash command containing the word `rm`, even inside a grep pattern or a
+heredoc — use Read/Edit for files whose text contains it.)
 
 Rebuild after resolving *source* conflicts (step below), not before.
 
@@ -79,7 +83,7 @@ now-redundant/duplicate bullet and keep only its genuinely new content.
 
 ### Source conflicts: check which side is stale before merging text
 
-The most common real conflict shape in this repo: two `worktree-bridge-*`
+The most common real conflict shape in this repo: two session
 branches forked from the same commit, and **one landed on `main` first**.
 The second branch's diff was computed against the *old* common ancestor, so
 its conflict hunk may contain logic that a *third*, already-merged commit
@@ -112,9 +116,9 @@ npm run build # runs clean -> tsc --noEmit -> vite build
 
 A clean typecheck + build here is strong evidence the semantic merge in
 step 3 was correct — a dangling reference to a removed prop/variable fails
-`tsc --noEmit` immediately. Stage the newly-hashed `build/index-*` files
-and `git rm` any old ones that vanished (`git status` shows old as deleted,
-new as untracked).
+`tsc --noEmit` immediately. Stage the result with
+`git add -A components/rostering-assignment-grid/rostering_assignment_grid/frontend/build`,
+which picks up the new `index-*.js` and the deletion of the old ones.
 
 ## 5. Verify and commit
 
@@ -129,7 +133,8 @@ memory if this path is stale). Then:
 git add <every file touched above>
 git commit --no-edit   # or -m with a summary if you resolved real conflicts —
                         # note what was semantically dropped/superseded and why
-git status --short     # must be clean
+git status --short     # must be clean, apart from the user's own
+                        # uncommitted edits that predate the merge (leave those)
 ```
 
 Do not push to origin unless explicitly asked (see global git-commit
