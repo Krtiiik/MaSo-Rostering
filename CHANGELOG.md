@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A solve never fails because the hard rules clash. Room and Building
+  minimums and Equipment eligibility now bend in a fixed order (minimums
+  first, Equipment last, with room reserved for Tag restrictions and
+  Forced-friend groups in between) and the solver always returns a full roster,
+  keeping the ordinary preference and friend objective among rosters that
+  break equally few rules. What it had to bend is listed under "The last solve
+  had to bend N rule(s)" above the roster grid, and printed by
+  `rostering solve`. Export is not blocked by a bent rule.
+- A "Time limit (seconds)" setting on the Buildings tab's solver settings.
+
 - Uncertain-match review list: after an export is loaded, the Upload tab lists
   every Helper who has the same name as someone from an earlier Season (or
   another row of the same export) but no matching e-mail, with that Person's
@@ -107,6 +117,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A solve that finds no roster before the time limit now says "No roster found
+  within N seconds" with a hint to raise the limit or solve again, keeps the
+  existing roster, and is no longer reported as INFEASIBLE.
 - "Start over" now empties the open Season's state but keeps its label, Season
   id and Versions (and, as before, the saved buildings layout).
 - A Version snapshots the whole Season except its identity, and restoring one

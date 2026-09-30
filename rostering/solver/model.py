@@ -1,26 +1,33 @@
 """CP-SAT solver: assigns each helper exactly one (room, role).
 
-Hard constraints:
+Structural constraints (never relaxed):
 - each helper gets exactly one room and exactly one role;
-- room/building role headcounts meet their configured minimum;
-- a helper without a camera can never be Fotograf (see CLAUDE.md "Equipment
-  eligibility"). Kreslič has no equipment hard constraint.
+- fixed Assignments (``fixed_assignments``) are held as given.
 
-Soft (minimized) objective terms:
+Hard rules (relaxed — see ``rostering.solver.rules``): room/building role
+minimums and Equipment eligibility. A solve never fails because they clash;
+each rule carries a slack penalized in strict priority tiers, and the rules
+the solver had to bend come back as ``SolveResult.broken_rules``.
+
+Soft (minimized) objective terms, dominated by any rule penalty:
 - role-preference mismatch (weighted by how far from the helper's top choice);
 - being placed in a building outside the helper's acceptable set (see
   CLAUDE.md "Building preference is a SET, not a single choice");
 - unsatisfied friend requests, scored via ``rostering.solver.scoring``.
+
+The only failure left is the time limit expiring before any roster is found
+(``NoRosterFound``).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Sequence
 
 from ortools.sat.python import cp_model
 
 from rostering.domain import (
     Assignment,
+    BrokenRule,
     Competition,
     Preference,
     Role,
@@ -29,6 +36,14 @@ from rostering.domain import (
     SolveResult,
 )
 from rostering.ingest.mapping import building_keys
+from rostering.solver.rules import (
+    ModelContext,
+    RuleFamily,
+    Tier,
+    rule_families,
+    tier_weights,
+    to_broken_rule,
+)
 from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs
 
 
@@ -46,8 +61,34 @@ class SolverConfig:
     time_limit_seconds: float = 60.0
 
 
-def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) -> Optional[SolveResult]:
+class NoRosterFound(Exception):
+    """The time limit expired before the solver found any roster. Not a
+    verdict on the rules — they can no longer make a solve infeasible."""
+
+    def __init__(self, time_limit_seconds: float) -> None:
+        self.time_limit_seconds = time_limit_seconds
+        shown = int(time_limit_seconds) if float(time_limit_seconds).is_integer() else time_limit_seconds
+        super().__init__(
+            f"No roster found within {shown} seconds. "
+            "Raise the time limit in the solver settings or solve again."
+        )
+
+
+def solve_competition(
+    comp: Competition,
+    config: Optional[SolverConfig] = None,
+    *,
+    fixed_assignments: Sequence[Assignment] = (),
+    families: Optional[Sequence[RuleFamily]] = None,
+) -> SolveResult:
+    """Solve ``comp`` into a full roster, bending hard rules in tier order if
+    it must. ``fixed_assignments`` pin those Helpers to a Room and Role
+    exactly (a fixed Assignment never bends, even if it breaks a rule);
+    ``families`` overrides the registered rule families (default: all of
+    ``rostering.solver.rules.rule_families()``). Raises ``NoRosterFound`` when
+    the time limit expires with no roster."""
     config = config or SolverConfig()
+    families = list(rule_families() if families is None else families)
     model = cp_model.CpModel()
 
     helpers = comp.helpers
@@ -100,28 +141,37 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
         model.Add(sum(assign_room[h.id, room_id] for room_id in range(num_rooms)) == 1)
         model.Add(sum(assign_role[h.id, r] for r in roles) == 1)
 
-    # Equipment eligibility (hard). Camera/Fotograf only — the notebook/
-    # Kreslič constraint was removed; can_bring_notebook is display-only now.
-    for h in helpers:
-        if not h.can_bring_camera:
-            model.Add(assign_role[h.id, Role.Fotograf] == 0)
+    # Fixed Assignments: pinned exactly, never relaxed.
+    room_ids_by_name = {(bname, room.name): room_id for room_id, (bname, room) in enumerate(rooms)}
+    helper_ids = {h.id for h in helpers}
+    for fixed in fixed_assignments:
+        if fixed.helper_id not in helper_ids:
+            raise ValueError(f"Fixed Assignment for unknown helper {fixed.helper_id}")
+        fixed_room = room_ids_by_name.get((fixed.building, fixed.room))
+        if fixed_room is None:
+            raise ValueError(
+                f"Fixed Assignment of helper {fixed.helper_id} names unknown room {fixed.building}/{fixed.room}"
+            )
+        model.Add(assign_room[fixed.helper_id, fixed_room] == 1)
+        model.Add(assign_role[fixed.helper_id, fixed.role] == 1)
 
-    # Room-level capacities.
-    for room_id, (_bname, room) in enumerate(rooms):
-        for role, cap in room.capacities.items():
-            if cap.minimum:
-                terms = [role_room_var[h.id, role, room_id] for h in helpers]
-                model.Add(sum(terms) >= cap.minimum)
-
-    # Building-level capacities (aggregated across the building's rooms).
-    for b in buildings:
-        room_ids = building_rooms.get(b.name, [])
-        for role, cap in b.capacities.items():
-            if cap.minimum:
-                terms = [role_room_var[h.id, role, rid] for rid in room_ids for h in helpers]
-                model.Add(sum(terms) >= cap.minimum)
+    # Hard rules, each relaxed by a slack. They are penalized only once the
+    # ordinary objective is built, since their weights must dominate it.
+    ctx = ModelContext(
+        model=model,
+        helpers=helpers,
+        buildings=buildings,
+        rooms=rooms,
+        building_rooms=building_rooms,
+        roles=roles,
+        assign_room=assign_room,
+        assign_role=assign_role,
+        role_room_var=role_room_var,
+    )
+    relaxed = [(family, relaxation) for family in families for relaxation in family.relax(ctx)]
 
     penalty_terms: list[cp_model.LinearExprT] = []
+    ordinary_max = 0  # upper bound of the ordinary objective, for the tier weights
     max_pref = max(p.value for p in Preference)
 
     # Season configs and the survey spell buildings differently (diacritics,
@@ -133,12 +183,14 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
             weight = (max_pref - int(pref)) * config.weights.role_preference
             if weight:
                 penalty_terms.append(weight * assign_role[h.id, role])
+                ordinary_max += weight
 
         if h.building_preferences:
             preferred_keys = frozenset().union(*(building_keys(p) for p in h.building_preferences))
             for room_id, keys in enumerate(room_building_keys):
                 if keys.isdisjoint(preferred_keys):
                     penalty_terms.append(config.weights.building_mismatch * assign_room[h.id, room_id])
+                    ordinary_max += config.weights.building_mismatch
 
     # Friends: soft, scored per rostering.solver.scoring's configured mode.
     friend_pairs = build_friend_pairs(helpers, config.friend_scoring)
@@ -157,15 +209,25 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
         weighted = weight * config.weights.friend_unsatisfied
         if weighted:
             penalty_terms.append(weighted * (1 - satisfied))
+            ordinary_max += weighted
 
-    model.Minimize(sum(penalty_terms))
+    ordinary_objective = sum(penalty_terms)
+    units_by_tier: dict[Tier, int] = {}
+    for family, relaxation in relaxed:
+        units_by_tier[family.tier] = units_by_tier.get(family.tier, 0) + relaxation.max_units
+    weights = tier_weights(ordinary_max, units_by_tier)
+    rule_penalty = sum(weights[family.tier] * relaxation.slack for family, relaxation in relaxed)
+    model.Minimize(ordinary_objective + rule_penalty)
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = config.time_limit_seconds
     status = solver.Solve(model)
 
+    if status == cp_model.UNKNOWN:
+        raise NoRosterFound(config.time_limit_seconds)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return None
+        # Relaxation leaves nothing provably infeasible; anything else is a bug.
+        raise RuntimeError(f"Unexpected solver status: {solver.StatusName(status)}")
 
     assignments: list[Assignment] = []
     for h in helpers:
@@ -180,10 +242,18 @@ def solve_competition(comp: Competition, config: Optional[SolverConfig] = None) 
     satisfied_pairs = [pair for pair, var in satisfied_vars.items() if solver.Value(var) == 1]
     status_name = "OPTIMAL" if status == cp_model.OPTIMAL else "FEASIBLE"
 
+    # Bent rules, the tier that bends first at the top.
+    broken_rules: list[BrokenRule] = []
+    for family, relaxation in sorted(relaxed, key=lambda pair: pair[0].tier):
+        units = solver.Value(relaxation.slack)
+        if units > 0:
+            broken_rules.append(to_broken_rule(family, relaxation, units))
+
     return SolveResult(
         assignments=assignments,
         status=status_name,
-        objective_value=solver.ObjectiveValue(),
+        objective_value=solver.Value(ordinary_objective),
         unsatisfied_friend_pairs=unsatisfied_pairs,
         satisfied_friend_pairs=satisfied_pairs,
+        broken_rules=broken_rules,
     )

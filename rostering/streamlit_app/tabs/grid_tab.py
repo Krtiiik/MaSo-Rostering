@@ -237,6 +237,13 @@ def render() -> None:
         parts.append(f"{unsatisfied} unsatisfied friend request(s)")
         st.caption(" · ".join(parts))
 
+    broken_rules = diagnostics.get("broken_rules", [])
+    if broken_rules:
+        # As of the last solve; the live Broken-rule banner supersedes this.
+        with st.expander(f"⚠ The last solve had to bend {len(broken_rules)} rule(s)", expanded=len(broken_rules) <= 10):
+            for broken in broken_rules:
+                st.markdown(f"- {broken['line']}")
+
     grid_helpers = [
         {
             "id": h["id"],

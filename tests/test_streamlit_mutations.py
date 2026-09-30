@@ -145,6 +145,66 @@ def test_solve_end_to_end_and_export(workspace):
     assert export_bytes[:2] == b"PK"  # xlsx zip magic
 
 
+OVER_CONSTRAINED_CONFIG = [
+    {
+        "name": "B",
+        "rooms": [
+            {
+                "name": "R1",
+                "capacities": {"Skenovac": {"minimum": 3}, "Zaloha": {"minimum": 0}},
+            }
+        ],
+        "capacities": {},
+    }
+]
+
+
+def test_solve_of_an_over_constrained_competition_returns_a_roster_and_the_bent_rules(workspace):
+    _seed_two_helpers(workspace)
+    mutations.put_config(workspace, OVER_CONSTRAINED_CONFIG)
+
+    state = mutations.solve(workspace)
+
+    assert len(state["assignments"]) == 2
+    assert state["diagnostics"]["status"] in ("OPTIMAL", "FEASIBLE")
+    assert state["diagnostics"]["broken_rules"] == [
+        {"family": "minimums", "amount": 1, "line": "Room R1 · Skenovač: 2 of 3 required (needs 1 more)"}
+    ]
+    # A roster with a bent rule is still exportable.
+    assert mutations.export_xlsx_bytes(workspace)[:2] == b"PK"
+
+
+def test_solve_reports_no_broken_rules_when_all_hold(workspace):
+    _seed_two_helpers(workspace)
+    mutations.put_config(workspace, SMALL_CONFIG)
+
+    state = mutations.solve(workspace)
+
+    assert state["diagnostics"]["broken_rules"] == []
+
+
+def test_solve_with_no_roster_within_the_time_limit_says_so_and_keeps_the_old_roster(workspace, monkeypatch):
+    _seed_two_helpers(workspace)
+    mutations.put_config(workspace, SMALL_CONFIG)
+    mutations.solve(workspace)
+    mutations.put_solver_config(workspace, {"time_limit_seconds": 0})
+
+    def _no_roster(comp, config=None, **kwargs):
+        raise mutations.NoRosterFound(config.time_limit_seconds)
+
+    monkeypatch.setattr(mutations, "solve_competition", _no_roster)
+
+    with pytest.raises(mutations.RosteringError) as excinfo:
+        mutations.solve(workspace)
+
+    message = str(excinfo.value)
+    assert message.startswith("No roster found within 0 seconds.")
+    assert "INFEASIBLE" not in message
+    state = mutations.get_state(workspace)
+    assert len(state["assignments"]) == 2
+    assert state["diagnostics"]["status"] != "INFEASIBLE"
+
+
 def _tshirt_sheet(export_bytes: bytes):
     wb = openpyxl.load_workbook(io.BytesIO(export_bytes))
     return [[c.value for c in row] for row in wb["Trička"].iter_rows()]

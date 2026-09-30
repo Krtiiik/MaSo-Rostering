@@ -40,7 +40,7 @@ from rostering.persistence.serialize import (
 )
 from rostering.persistence.workspace import SeasonError, Workspace
 from rostering.persons import build_persons, link_persons, new_person_id, uncertain_candidates
-from rostering.solver.model import solve_competition
+from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
 
 
@@ -587,24 +587,24 @@ def solve(workspace: Workspace) -> dict:
 
     comp = _build_competition(state)
     solver_config = solver_config_from_dict(state["solver_config"])
-    result = solve_competition(comp, solver_config)
+    try:
+        result = solve_competition(comp, solver_config)
+    except NoRosterFound as exc:
+        # Nothing to store: the previous roster (if any) is left untouched.
+        raise RosteringError(str(exc)) from exc
 
-    if result is None:
-        state["assignments"] = []
-        state["diagnostics"] = {
-            "status": "INFEASIBLE",
-            "objective_value": None,
-            "unsatisfied_friend_pairs": [],
-            "satisfied_friend_pairs": [],
-        }
-    else:
-        state["assignments"] = [assignment_to_dict(a) for a in result.assignments]
-        state["diagnostics"] = {
-            "status": result.status,
-            "objective_value": result.objective_value,
-            "unsatisfied_friend_pairs": [list(p) for p in result.unsatisfied_friend_pairs],
-            "satisfied_friend_pairs": [list(p) for p in result.satisfied_friend_pairs],
-        }
+    state["assignments"] = [assignment_to_dict(a) for a in result.assignments]
+    state["diagnostics"] = {
+        "status": result.status,
+        "objective_value": result.objective_value,
+        "unsatisfied_friend_pairs": [list(p) for p in result.unsatisfied_friend_pairs],
+        "satisfied_friend_pairs": [list(p) for p in result.satisfied_friend_pairs],
+        # What the solver had to bend, as of this solve — later hand edits do
+        # not update it (the live checker of the Broken-rule banner will).
+        "broken_rules": [
+            {"family": b.family, "amount": b.amount, "line": b.line} for b in result.broken_rules
+        ],
+    }
     workspace.save(state)
     return state
 
