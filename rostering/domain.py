@@ -183,16 +183,38 @@ class RuleInstance:
 
 
 @dataclass(frozen=True)
+class FixTarget:
+    """Where the "Go fix" button of a Broken rule leads: ``tab`` is a logical
+    name (``"buildings"`` for a minimum, ``"helpers"`` for the Helper list;
+    later rule families add their own), the other fields preselect the entity
+    on that tab."""
+
+    tab: str
+    building: Optional[str] = None
+    room: Optional[str] = None
+    role: Optional[str] = None
+    helper_id: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class BrokenRule:
     """One hard rule the roster fails to satisfy (see CONTEXT.md "Broken
     rule"): ``family`` is the rule family's name, ``amount`` the size of the
     violation in people (a minimum's shortfall; 1 for an all-or-nothing rule)
-    and ``line`` the human-readable description."""
+    and ``line`` the human-readable description.
+
+    The rest is filled only by the live checker (the solver's report leaves
+    it empty): ``cells`` the grid cells affected, as ``(building, room, role
+    name)`` — a role of ``None`` means the whole Room —, ``helper_ids`` the
+    Helper chips affected and ``fix`` the "Go fix" target, if any."""
 
     instance: RuleInstance
     family: str
     amount: int
     line: str
+    cells: tuple[tuple[str, str, Optional[str]], ...] = ()
+    helper_ids: tuple[int, ...] = ()
+    fix: Optional[FixTarget] = None
 
 
 @dataclass

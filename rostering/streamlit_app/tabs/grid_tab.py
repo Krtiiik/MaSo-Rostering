@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.domain import OverlayRole, Preference, Role, StructuralRole, normalize_name
-from rostering.streamlit_app import mutations, session
+from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
+from rostering.streamlit_app import fix_focus, mutations, session
 from rostering_assignment_grid import assignment_grid
 
 _ROLE_ORDER = [r.name for r in Role]
@@ -197,6 +197,58 @@ def _apply_manual_set(state: dict, event: dict) -> dict:
     return {**manual, "overlay": other + new_entries}
 
 
+_TOAST_KEY = "_move_toast"
+
+# How the Broken-rule banner names each rule family, in tier order. A family
+# not listed (added later through rostering.solver.rules.register_rule_family)
+# falls back to its own name.
+_FAMILY_LABELS = {
+    "minimums": "Room and Building minimums",
+    "tag_restrictions": "Tag restrictions",
+    "forced_friends": "Forced-friend groups",
+    "equipment": "Equipment",
+}
+
+# A family with more broken instances than this collapses into an expandable
+# summary so the banner never becomes a wall of text.
+_COLLAPSE_ABOVE = 10
+
+
+def _render_broken_line(broken: BrokenRule) -> None:
+    cols = st.columns([9, 1], vertical_alignment="center")
+    cols[0].markdown(f"- {broken.line}")
+    if fix_focus.can_go_fix(broken):
+        key = f"go_fix_{broken.instance.kind}_{'_'.join(map(str, broken.instance.entity))}"
+        if cols[1].button("Go fix", key=key):
+            fix_focus.go_fix(broken)
+            st.rerun()
+
+
+def _render_broken_banner(broken_rules: list[BrokenRule], has_roster: bool) -> None:
+    """The warning banner above the grid: one line per broken rule instance,
+    grouped by family (in the order the rules bend), each with a "Go fix"
+    button; a family above about ten instances collapses into an expander."""
+    if not broken_rules:
+        if has_roster:
+            st.caption("✓ No broken rules")
+        return
+    by_family: dict[str, list[BrokenRule]] = {}
+    for broken in broken_rules:
+        by_family.setdefault(broken.family, []).append(broken)
+    with st.container(border=True):
+        st.markdown(f"**⚠ {len(broken_rules)} broken rule{'s' if len(broken_rules) != 1 else ''}**")
+        for family, instances in by_family.items():
+            label = _FAMILY_LABELS.get(family, family)
+            if len(instances) > _COLLAPSE_ABOVE:
+                with st.expander(f"{label}: {len(instances)} broken"):
+                    for broken in instances:
+                        _render_broken_line(broken)
+            else:
+                st.caption(label)
+                for broken in instances:
+                    _render_broken_line(broken)
+
+
 def render() -> None:
     st.header("3. Roster")
     state = session.get_state()
@@ -228,21 +280,15 @@ def render() -> None:
             except mutations.RosteringError:
                 pass
 
-    diagnostics = state["diagnostics"]
-    if diagnostics["status"]:
-        unsatisfied = len(diagnostics["unsatisfied_friend_pairs"])
-        parts = [f"Status: {diagnostics['status']}"]
-        if diagnostics["objective_value"] is not None:
-            parts.append(f"objective {diagnostics['objective_value']}")
-        parts.append(f"{unsatisfied} unsatisfied friend request(s)")
-        st.caption(" · ".join(parts))
+    # The toast for the previous run's drop (emitted after the rerun that
+    # follows it, since a toast issued right before st.rerun() can be lost).
+    for line in st.session_state.pop(_TOAST_KEY, []):
+        st.toast(line, icon="⚠️")
 
-    broken_rules = diagnostics.get("broken_rules", [])
-    if broken_rules:
-        # As of the last solve; the live Broken-rule banner supersedes this.
-        with st.expander(f"⚠ The last solve had to bend {len(broken_rules)} rule(s)", expanded=len(broken_rules) <= 10):
-            for broken in broken_rules:
-                st.markdown(f"- {broken['line']}")
+    # Judged live against the roster as it stands, on every render; never
+    # stored.
+    broken_rules = mutations.broken_rules(state)
+    _render_broken_banner(broken_rules, has_roster=bool(state["assignments"]))
 
     grid_helpers = [
         {
@@ -265,6 +311,7 @@ def render() -> None:
         manual_entries=_manual_entries(state),
         cell_merges=state.get("cell_merges", {}),
         helper_names=sorted({h["name"] for h in state["helpers"]}, key=str.lower),
+        broken_marks=mutations.broken_rule_marks(broken_rules),
         key="assignment_grid",
     )
     if event:
@@ -272,11 +319,15 @@ def render() -> None:
         # them, so no dedup bookkeeping is needed here.
         try:
             if event["type"] == "drop":
-                session.set_state(
-                    mutations.move_helper(
-                        session.get_workspace(), event["helper_id"], event["building"], event["room"], event["role"]
-                    )
+                # Never refused, whatever it breaks; the toast only names what
+                # this drop newly broke (minimums excepted).
+                moved = mutations.move_helper(
+                    session.get_workspace(), event["helper_id"], event["building"], event["room"], event["role"]
                 )
+                session.set_state(moved)
+                toast_lines = mutations.move_toast_lines(state, moved)
+                if toast_lines:
+                    st.session_state[_TOAST_KEY] = toast_lines
             elif event["type"] == "cell_merge":
                 session.set_state(
                     mutations.set_cell_merges(

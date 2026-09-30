@@ -12,9 +12,11 @@ interface Props {
   // Present only when this cell is currently merged (spans more than one
   // room) — renders a small clickable "unmerge" icon.
   onUnmerge?: () => void;
+  // The Broken-rule lines this cell is part of, if any — marks it lightly.
+  broken?: string[];
 }
 
-export function Cell({ id, children, colSpan = 1, onMergeRight, onUnmerge }: Props) {
+export function Cell({ id, children, colSpan = 1, onMergeRight, onUnmerge, broken }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   function stop<T>(handler: () => T) {
@@ -25,7 +27,12 @@ export function Cell({ id, children, colSpan = 1, onMergeRight, onUnmerge }: Pro
   }
 
   return (
-    <td ref={setNodeRef} className={`grid-cell${isOver ? " drop-over" : ""}`} colSpan={colSpan}>
+    <td
+      ref={setNodeRef}
+      className={`grid-cell${isOver ? " drop-over" : ""}${broken?.length ? " broken" : ""}`}
+      colSpan={colSpan}
+      title={broken?.length ? broken.join("\n") : undefined}
+    >
       <div className="grid-cell-inner">{children}</div>
       {onMergeRight && (
         <div className="cell-merge-handle" title="Click to merge with the next cell" onClick={stop(onMergeRight)} />

@@ -94,6 +94,27 @@ export interface ManualEntry {
   name: string;
 }
 
+// A light "this breaks a rule" mark (see CONTEXT.md "Broken rule"), computed
+// live on the Python side and only displayed here. `role: null` marks the
+// whole Room (its column header) instead of one role's cell; `line` is the
+// banner's wording, shown as a tooltip.
+export interface BrokenCellMark {
+  building: string;
+  room: string;
+  role: string | null;
+  line: string;
+}
+
+export interface BrokenChipMark {
+  helper_id: number;
+  line: string;
+}
+
+export interface BrokenMarks {
+  cells: BrokenCellMark[];
+  helpers: BrokenChipMark[];
+}
+
 export interface AssignmentGridData {
   rooms: RoomRef[];
   rows: GridRow[];
@@ -102,6 +123,7 @@ export interface AssignmentGridData {
   manual_entries: ManualEntry[];
   cell_merges: CellMerges;
   helper_names: string[];
+  broken_marks?: BrokenMarks;
 }
 
 export interface DropEvent {

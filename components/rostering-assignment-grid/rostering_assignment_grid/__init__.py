@@ -49,6 +49,7 @@ def assignment_grid(
     manual_entries: list[dict[str, Any]],
     cell_merges: dict[str, dict[str, list[list[str]]]],
     helper_names: list[str],
+    broken_marks: Optional[dict[str, list[dict[str, Any]]]] = None,
     key: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Render the grid, including any non-droppable manual-role rows.
@@ -88,6 +89,13 @@ def assignment_grid(
     silently merge or drop a one-directional request. The grid always
     reflects what helpers actually wrote on the form.
 
+    ``broken_marks`` (``{"cells": [{"building", "room", "role", "line"}],
+    "helpers": [{"helper_id", "line"}]}``, see CONTEXT.md "Broken rule") lightly
+    marks the Broken rules' affected role cells (a ``role`` of ``None`` marks
+    only the Room's column header), Room headers and helper chips; ``line`` is
+    the banner's wording, shown as a tooltip. Purely visual — it never blocks
+    or reroutes a drop.
+
     Returns ``{"type": "drop", "helper_id", "building", "room", "role"}`` for
     a completed drag-and-drop, ``{"type": "manual_set", "key", "building",
     "room", "names"}`` for an edited manual-role cell (``names`` is the
@@ -108,6 +116,7 @@ def assignment_grid(
             "manual_entries": manual_entries,
             "cell_merges": cell_merges,
             "helper_names": helper_names,
+            "broken_marks": broken_marks or {"cells": [], "helpers": []},
         },
         on_drop_change=_noop,
         on_manual_set_change=_noop,

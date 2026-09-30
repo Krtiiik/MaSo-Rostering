@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Role
-from rostering.streamlit_app import mutations, session
+from rostering.streamlit_app import fix_focus, mutations, session
 
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
 _SIZE_COLUMN = "T-shirt size"
@@ -69,7 +69,8 @@ def render() -> None:
                 st.rerun()
 
         _render_uncertain_matches(workspace)
-        _render_helpers_overview(state, returning)
+        fix = fix_focus.render_callout(state, "helpers")
+        _render_helpers_overview(state, returning, focus_helper_id=fix.helper_id if fix else None)
         _render_person_links(workspace, state)
         _render_friend_resolution(state)
 
@@ -213,7 +214,11 @@ def _render_person_links(workspace, state: dict) -> None:
             _apply_link_edit(mutations.link_helper, helper_id, person_id)
 
 
-def _render_helpers_overview(state: dict, returning: dict[int, list[str]]) -> None:
+def _render_helpers_overview(
+    state: dict, returning: dict[int, list[str]], focus_helper_id: int | None = None
+) -> None:
+    """The helper list; ``focus_helper_id`` (a "Go fix" target) marks that
+    helper's row."""
     rows = []
     for h in state["helpers"]:
         buildings = ", ".join(h["building_preferences"]) or "any"
@@ -230,7 +235,7 @@ def _render_helpers_overview(state: dict, returning: dict[int, list[str]]) -> No
         )
         rows.append(
             {
-                "Name": h["name"],
+                "Name": ("▶ " if h["id"] == focus_helper_id else "") + h["name"],
                 "Earlier Seasons": ", ".join(returning.get(h["id"], [])) or "—",
                 "Buildings": buildings,
                 "Equipment": equipment,

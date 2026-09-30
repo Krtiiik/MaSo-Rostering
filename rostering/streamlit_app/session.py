@@ -44,7 +44,7 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
     config_tab.clear_drafts()
     if keep_view:
         return
-    for key in ("_confirm_reset", "_last_upload_hash", "_active_tab", "_pending_tab"):
+    for key in ("_confirm_reset", "_last_upload_hash", "_active_tab", "_pending_tab", "_fix_focus"):
         st.session_state.pop(key, None)
     # A new key gives the upload tab a fresh, empty file picker, so a file
     # picked for the previous Season isn't silently loaded into this one.

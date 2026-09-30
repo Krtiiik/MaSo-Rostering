@@ -61,6 +61,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   manual_entries,
   cell_merges,
   helper_names,
+  broken_marks,
   setTriggerValue,
 }): ReactElement => {
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
@@ -77,6 +78,46 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     for (const a of assignments) map.set(a.helper_id, a);
     return map;
   }, [assignments]);
+
+  // The Broken-rule marks, indexed for lookup while rendering: by cell
+  // (building::room::role), by Room (any mark inside it, for its header) and
+  // by helper chip.
+  const brokenByCell = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const m of broken_marks?.cells ?? []) {
+      if (m.role === null) continue;
+      const key = `${m.building}::${m.room}::${m.role}`;
+      map.set(key, [...(map.get(key) ?? []), m.line]);
+    }
+    return map;
+  }, [broken_marks]);
+
+  const brokenByRoom = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const m of broken_marks?.cells ?? []) {
+      const key = `${m.building}::${m.room}`;
+      if (!(map.get(key) ?? []).includes(m.line)) map.set(key, [...(map.get(key) ?? []), m.line]);
+    }
+    return map;
+  }, [broken_marks]);
+
+  const brokenByHelper = useMemo(() => {
+    const map = new Map<number, string[]>();
+    for (const m of broken_marks?.helpers ?? []) {
+      map.set(m.helper_id, [...(map.get(m.helper_id) ?? []), m.line]);
+    }
+    return map;
+  }, [broken_marks]);
+
+  function brokenLinesForCell(building: string, groupRooms: string[], role: string): string[] {
+    const lines: string[] = [];
+    for (const room of groupRooms) {
+      for (const line of brokenByCell.get(`${building}::${room}::${role}`) ?? []) {
+        if (!lines.includes(line)) lines.push(line);
+      }
+    }
+    return lines;
+  }
 
   const unassignedHelpers = helpers
     .filter((h) => !assignmentByHelper.has(h.id))
@@ -207,6 +248,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
         helper={h}
         card={cardDataFor(h)}
         unsatisfiedFriend={unsatisfiedHelperIds.has(h.id)}
+        broken={brokenByHelper.get(h.id)}
         friendHighlight={friendHighlight}
         onHoverChange={(hovering) => setHoveredHelperId(hovering ? h.id : null)}
       />
@@ -426,9 +468,18 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
             </tr>
             <tr>
               <th></th>
-              {rooms.map(({ building, room }) => (
-                <th key={`${building}::${room}`}>{room}</th>
-              ))}
+              {rooms.map(({ building, room }) => {
+                const lines = brokenByRoom.get(`${building}::${room}`);
+                return (
+                  <th
+                    key={`${building}::${room}`}
+                    className={lines?.length ? "broken" : undefined}
+                    title={lines?.length ? lines.join("\n") : undefined}
+                  >
+                    {room}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -444,6 +495,7 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
                           key={`${group.building}::${group.rooms.join("+")}::${rowDef.key}`}
                           id={`${group.building}::${group.rooms[0]}::${rowDef.key}`}
                           colSpan={group.rooms.length}
+                          broken={brokenLinesForCell(group.building, group.rooms, rowDef.key)}
                           onMergeRight={
                             canMergeRight
                               ? () => mergeCellRight(rowDef.key, group.building, group.rooms[group.rooms.length - 1], next!.rooms[0])

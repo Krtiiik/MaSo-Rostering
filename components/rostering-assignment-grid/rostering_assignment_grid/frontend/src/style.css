@@ -272,3 +272,25 @@
 .helper-card-friends li.friend-requested-by {
   color: var(--st-violet-color, #8b5cf6);
 }
+
+/* Light Broken-rule marks (see CONTEXT.md "Broken rule"): a soft red tint on
+   the affected role cell and Room header, a soft red ring on the affected
+   chip. Deliberately quieter than the friend highlights (which use outlines)
+   so both can show at once. */
+.grid-cell.broken {
+  background: color-mix(in srgb, var(--st-red-color, #dc3545) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-red-color, #dc3545) 45%, transparent);
+}
+
+.roster-grid th.broken {
+  background: color-mix(in srgb, var(--st-red-color, #dc3545) 14%, var(--st-secondary-background-color, #f3f3f3));
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--st-red-color, #dc3545) 55%, transparent);
+}
+
+.grid-cell.broken.drop-over {
+  background: var(--st-blue-background-color, #e6f4ff);
+}
+
+.helper-chip.broken {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--st-red-color, #dc3545) 45%, transparent);
+}

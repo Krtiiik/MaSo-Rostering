@@ -14,9 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first, Equipment last, with room reserved for Tag restrictions and
   Forced-friend groups in between) and the solver always returns a full roster,
   keeping the ordinary preference and friend objective among rosters that
-  break equally few rules. What it had to bend is listed under "The last solve
-  had to bend N rule(s)" above the roster grid, and printed by
-  `rostering solve`. Export is not blocked by a bent rule.
+  break equally few rules. What it had to bend is printed by
+  `rostering solve` and shown in the roster tab's Broken-rule banner (below).
+  Export is not blocked by a bent rule.
+- Live Broken rules: the roster tab now checks the current Assignments against
+  the current rules on every render (nothing is stored) and shows a warning
+  banner above the grid, replacing the status caption, with one line per broken
+  rule grouped by family (Room and Building minimums as counts, e.g. "Room N4 ·
+  Fotograf: 1 of 2 required (needs 1 more)", and Equipment, e.g. "Helper X has
+  no camera but is Fotograf"). A family with more than ten broken instances
+  collapses into an expandable summary. Each line has a "Go fix" button that
+  switches to the Buildings tab (minimums) or the Helper list on the Upload tab
+  (Equipment) and marks what to fix there until the rule holds again. The
+  drag-and-drop grid lightly marks the affected Room headers, role cells and
+  helper chips. A hand move is still never refused, and a drop that newly
+  breaks Equipment eligibility shows a transient toast worded like the banner
+  (nothing for a rule that was already broken, and never for minimums, which
+  only appear in the banner and the grid marks). Export is never blocked and the
+  exported sheet is unchanged by Broken rules.
 - A "Time limit (seconds)" setting on the Buildings tab's solver settings.
 
 - Uncertain-match review list: after an export is loaded, the Upload tab lists
