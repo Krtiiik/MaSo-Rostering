@@ -55,6 +55,7 @@ from rostering.persons import build_persons, link_persons, new_person_id, uncert
 from rostering.solver.checker import check_roster, newly_broken, toasts
 from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
+from rostering import forced_friends
 from rostering import organizers as organizer_slots
 from rostering import tags as tag_tree
 
@@ -131,7 +132,13 @@ def _build_competition(state: dict[str, Any]) -> Competition:
     buildings = config_from_list(state["config"])
     helpers = [helper_from_dict(h) for h in state["helpers"] if not h.get("cant_attend")]
     organizers = [organizer_from_dict(o) for o in state.get("organizers", [])]
-    return Competition(buildings=buildings, helpers=helpers, tags=_tag_definitions(state), organizers=organizers)
+    return Competition(
+        buildings=buildings,
+        helpers=helpers,
+        tags=_tag_definitions(state),
+        organizers=organizers,
+        forced_groups=forced_friends.groups_from_state(state),
+    )
 
 
 def _recompute_friend_pairs(state: dict[str, Any]) -> tuple[list[list[int]], list[list[int]]]:

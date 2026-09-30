@@ -311,8 +311,8 @@ pushing the tag, not just creating it locally.
   `RosteringError` when there is no roster yet or nobody is unassigned.
   `diagnostics` come from the shared `_solve_diagnostics`, and the Broken-rule
   banner judges the result live like after any solve. Forced-friend groups
-  need no code here: once that rule family exists it applies to the newcomers
-  through the same fixed-Assignment solve.
+  need no code here: the rule family applies to the newcomers through the same
+  fixed-Assignment solve.
   roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. Note a
   re-upload still replaces the Season's whole Helper list, so it does not yet
   keep hand-added records.
@@ -347,6 +347,37 @@ pushing the tag, not just creating it locally.
   `link_organizer` / `reject_organizer_match` / `unlink_organizer` mirror the
   Helper ones and have no UI yet. Promotion of a Helper, Friend preference toward
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
+- Forced friends groups (`rostering/forced_friends.py`, the lifecycle in
+  `streamlit_app/forced_groups.py`, UI in `tabs/forced_friends_tab.py` — the
+  "4. Forced friends" tab, Roster being "5. Roster"): a group is a dict in
+  `state["forced_groups"]` (`id` from the high-water mark
+  `next_forced_group_id`, `name`, canonical `axes` — Room implies Building —
+  and `members`, each `{person_id, name}` with the last-known name), part of
+  every Version, empty after Start over and untouched by a re-upload. Members
+  are Persons; who they are this Season is derived on every read
+  (`forced_groups.list_groups`: `active` = a Helper who is attending,
+  `cant_attend`, `not_registered`), never stored, so un-flagging or a later
+  registration recognized by `person_id` makes a member live again by itself.
+  `forced_friends.group_rules(helpers, groups)` is the one shared definition of
+  a group's rule for the solver and the checker: one `GroupRule` per active
+  group (two or more attending members) and enforced axis (Room subsumes
+  Building), identity `RuleInstance("forced_friends", (group_id, axis))`, size
+  `split_units` (members outside the largest party sharing a value, so the
+  Room axis compares `(building, room)`). `solver/rules.py`
+  `FORCED_FRIENDS_FAMILY` (tier between Tag restrictions and Equipment) states
+  it as a max-count slack per rule and `_check_forced_friends` judges it live
+  (the line is the same static wording in both, `GroupRule.line`; its
+  `FixTarget` is `("forced_friends", group_id)`, which `fix_focus` turns into
+  `forced_friends_tab.focus_group`). `Competition.forced_groups` carries the
+  groups (`mutations._build_competition`, `attending()`). Mutations:
+  `add_group` / `update_group` / `dissolve_group`; a create, or an edit of
+  people or axes, marks an existing roster stale, a rename does not, and a
+  dissolve does only if the group was active with two placed active members
+  currently satisfying it (`_was_pulling`). Only registered people can be
+  picked (a member already in the group is kept even when not registered).
+  Not built yet: status "violated" and the grid chip marks (#60), the Tag
+  intersection edit-time check (#60), "make forced" and Organizer members
+  (#61), the import section (#62).
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
   Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
   `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never

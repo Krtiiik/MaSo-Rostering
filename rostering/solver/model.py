@@ -5,7 +5,8 @@ Structural constraints (never relaxed):
 - fixed Assignments (``fixed_assignments``) are held as given.
 
 Hard rules (relaxed — see ``rostering.solver.rules``): room/building role
-minimums, Tag constraints on Building/Role and Equipment eligibility. A solve never fails because they clash;
+minimums, Tag constraints on Building/Role, Forced friends groups and Equipment
+eligibility. A solve never fails because they clash;
 each rule carries a slack penalized in strict priority tiers, and the rules
 the solver had to bend come back as ``SolveResult.broken_rules``.
 
@@ -209,6 +210,7 @@ def solve_competition(
         assign_role=assign_role,
         role_room_var=role_room_var,
         tags=comp.tags,
+        forced_groups=comp.forced_groups,
     )
     relaxed = [(family, relaxation) for family in families for relaxation in family.relax(ctx)]
 

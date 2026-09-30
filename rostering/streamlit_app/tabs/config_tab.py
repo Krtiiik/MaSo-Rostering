@@ -277,7 +277,7 @@ def render() -> None:
                         return
                     session.set_state(solved)
                     solve_prompt.remember_dropped_locks(solved)
-                    session.switch_tab("4. Roster")
+                    session.switch_tab("5. Roster")
                 st.rerun()
 
             try:

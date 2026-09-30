@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Forced friends groups: a new "4. Forced friends" tab (the Roster tab is now
+  "5. Roster") lists named groups of people who must share a Building, Room
+  and/or Role, each with an editable name, a people multiselect, the axes to
+  share (ticking Room implies Building) and an Active/Inactive badge. The solver
+  treats a group as a hard rule between the Tag restrictions and Equipment
+  eligibility: it keeps the active members together, transitively and
+  independently per group (overlapping groups are never merged), and when a
+  group cannot be kept it bends only after minimums and Tag restrictions and the
+  roster is still returned, with the group listed as a Broken rule (also shown
+  live, and toasted when a hand move newly splits one). A person may be in
+  several groups. A member who Can't attend stays in the group but is inactive
+  and flagged until un-flagged; a member not registered this Season is shown dim
+  as "not registered" and becomes live if they later register and are
+  recognized; a group with fewer than two active members constrains nothing.
+  Creating a group or changing its people or axes after a solve moves no one and
+  makes the roster stale (the banner blocks Export until the next Solve);
+  dissolving one does so only if it was active and its members currently satisfy
+  it. Groups are saved in Versions, cleared by Start over and kept on re-upload.
+  Making a group from a friend request, Organizers as members and carrying groups
+  into a later Season are separate, later changes.
 - "Place new registrants" in the Roster tab's bottom bar places only the
   unassigned Helpers (late registrants, someone un-flagged from Can't attend)
   while everyone already placed stays exactly where they are: every existing

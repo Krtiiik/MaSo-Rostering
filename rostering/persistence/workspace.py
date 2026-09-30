@@ -130,6 +130,12 @@ class Workspace:
             # by Start over; ids come from the high-water mark
             # "next_organizer_id" and are never reused.
             "organizers": [],
+            # The Season's Forced friends groups (see rostering.forced_friends
+            # and streamlit_app.forced_groups): id, name, axes and members (each
+            # a Person, by person_id). Part of every Version and cleared by
+            # Start over; ids come from the high-water mark
+            # "next_forced_group_id" and are never reused.
+            "forced_groups": [],
             "diagnostics": {
                 "status": None,
                 "objective_value": None,
@@ -155,6 +161,8 @@ class Workspace:
         state.setdefault("tag_imports", {})
         # ... and one saved before Organizers existed has none.
         state.setdefault("organizers", [])
+        # ... and one saved before Forced friends groups existed has none.
+        state.setdefault("forced_groups", [])
         if ensure_person_ids(state):
             _write_json(path, state)
         return state
