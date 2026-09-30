@@ -1296,6 +1296,37 @@ def tag_helper_counts(state: dict[str, Any]) -> dict[int, int]:
     return counts
 
 
+def grid_tag_pills(state: dict[str, Any]) -> dict[int, dict[str, list[dict[str, str]]]]:
+    """Each Helper's Tag pills for the roster grid, by Helper id: ``direct``
+    (solid pills) and ``implied`` (dashed pills), each a ``{name, colour}``,
+    computed live from the Tag tree like every effective Tag."""
+    by_id = {t["id"]: t for t in state.get("tags") or []}
+
+    def pill(tag_id: int) -> dict[str, str]:
+        return {"name": by_id[tag_id]["name"], "colour": by_id[tag_id]["colour"]}
+
+    pills = {}
+    for helper in state["helpers"]:
+        found = helper_tags(state, helper["id"])
+        pills[helper["id"]] = {
+            "direct": [pill(t) for t in found["direct"]],
+            "implied": [pill(t) for t in found["implied"]],
+        }
+    return pills
+
+
+def dimmed_helper_ids(state: dict[str, Any], tag_ids: list[int], mode: str) -> list[int]:
+    """The Helpers the roster grid's Tag filter dims: everyone who does not match
+    ``tag_ids`` (all-of or any-of, ``mode`` ``"all"``/``"any"``; inherited Tags
+    count). Nobody is dimmed by an empty filter. Dimming never hides anyone."""
+    tags = _tag_definitions(state)
+    return [
+        helper["id"]
+        for helper in state["helpers"]
+        if not tag_tree.matches_filter(tags, helper_tags(state, helper["id"])["direct"], tag_ids, mode)
+    ]
+
+
 def tag_delete_impact(state: dict[str, Any], tag_id: int) -> dict[str, list[str]]:
     """What deleting a Tag would change, by name: ``helpers`` it would be
     stripped from (those who carry it directly) and ``children`` that would be

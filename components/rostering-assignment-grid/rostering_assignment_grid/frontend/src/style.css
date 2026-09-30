@@ -132,6 +132,41 @@
   padding: 1px 5px;
 }
 
+/* Tag pills under a Helper's name (shown by the "Show tags" toggle): a direct
+   Tag is a solid pill, one carried only by implication is dashed and outlined
+   (the same look as the Tags tab's pills, see rostering.streamlit_app.tag_pills). */
+.helper-chip-tags {
+  display: block;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.tag-pill {
+  display: inline-block;
+  margin: 1px 3px 1px 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 0.75em;
+  white-space: nowrap;
+}
+
+.tag-pill-implied {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* The Tag filter fades a Helper who does not match; they stay in place and
+   draggable. Hovering restores full strength, which also keeps the hover card
+   (a child of the chip) readable. */
+.helper-chip.dimmed {
+  opacity: 0.3;
+}
+
+.helper-chip.dimmed:hover {
+  opacity: 1;
+}
+
 .helper-chip.dragging {
   opacity: 0.6;
 }

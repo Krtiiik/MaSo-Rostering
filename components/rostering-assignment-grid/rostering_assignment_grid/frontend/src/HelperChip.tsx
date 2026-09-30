@@ -1,12 +1,35 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import type { Helper, HelperCardData } from "./types";
+import type { Helper, HelperCardData, TagPill } from "./types";
 import { HelperCard } from "./HelperCard";
+
+// Black or white, whichever reads better on the given "#rrggbb" fill (the same
+// rule as rostering.streamlit_app.tag_pills).
+function pillTextColour(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#000000" : "#ffffff";
+}
+
+function TagPillView({ pill, implied }: { pill: TagPill; implied: boolean }) {
+  const colour = /^#[0-9a-fA-F]{6}$/.test(pill.colour) ? pill.colour : "#888888";
+  const style = implied
+    ? { borderColor: colour, color: colour }
+    : { borderColor: colour, background: colour, color: pillTextColour(colour) };
+  return (
+    <span className={`tag-pill ${implied ? "tag-pill-implied" : "tag-pill-direct"}`} style={style}>
+      {pill.name}
+    </span>
+  );
+}
 
 interface Props {
   helper: Helper;
   card: HelperCardData;
+  // Show the Helper's Tag pills under their name.
+  showTags?: boolean;
+  // Faded by the Tag filter (still in place, still draggable).
+  dimmed?: boolean;
   unsatisfiedFriend?: boolean;
   friendHighlight?: "satisfied" | "unsatisfied" | "requester";
   onHoverChange?: (hovering: boolean) => void;
@@ -52,6 +75,8 @@ function computeCardPosition(clientX: number, clientY: number): { top: number; l
 export function HelperChip({
   helper,
   card,
+  showTags,
+  dimmed,
   unsatisfiedFriend,
   friendHighlight,
   onHoverChange,
@@ -147,7 +172,7 @@ export function HelperChip({
       style={style}
       {...listeners}
       {...attributes}
-      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${highlightClass}`}
+      className={`helper-chip${isDragging ? " dragging" : ""}${unsatisfiedFriend ? " unsatisfied" : ""}${broken?.length ? " broken" : ""}${locked ? " locked" : ""}${dimmed ? " dimmed" : ""}${highlightClass}`}
       title={titleText}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
@@ -162,6 +187,16 @@ export function HelperChip({
       {helper.name}
       {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}
       {helper.can_bring_camera && <span title="Can bring a camera"> 📷</span>}
+      {showTags && helper.tags && (helper.tags.direct.length > 0 || helper.tags.implied.length > 0) && (
+        <div className="helper-chip-tags">
+          {helper.tags.direct.map((pill) => (
+            <TagPillView key={`d:${pill.name}`} pill={pill} implied={false} />
+          ))}
+          {helper.tags.implied.map((pill) => (
+            <TagPillView key={`i:${pill.name}`} pill={pill} implied={true} />
+          ))}
+        </div>
+      )}
       {cardPosition && !isDragging && (
         <HelperCard
           data={card}

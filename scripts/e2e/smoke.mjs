@@ -15,7 +15,8 @@
 // switches to Buildings, solves, switches to Roster, drags one helper chip
 // into a grid cell (exercising the CCv2 assignment_grid component, which
 // renders in a shadow root — not an iframe, since CCv2 doesn't use iframes),
-// and clicks Export.
+// checks the Roster tab's "Show tags" toggle and Tag filter (creating one Tag
+// and tagging one Helper first), and clicks Export.
 //
 // Screenshots land next to this script in ./screenshots/.
 
@@ -56,7 +57,7 @@ if (xlsxPath) {
   // (prefilled from the export's timestamps; typed in if they can't be read).
   const createSeason = page.getByRole("button", { name: "Create Season and load responses" });
   await createSeason.waitFor({ timeout: 30000 });
-  const labelInput = page.getByLabel("Season label");
+  const labelInput = page.getByLabel("Season label", { exact: true });
   if (!(await labelInput.inputValue())) {
     await labelInput.fill("2026-jaro");
   }
@@ -72,7 +73,7 @@ if (xlsxPath) {
   // a candidate — in that order so "not attending" doesn't require scrolling
   // past a long, virtualized candidate list) that applies immediately on
   // selection — there are no separate Match/dismiss buttons any more.
-  const friendSelects = page.locator('[data-testid="stSelectbox"]');
+  const friendSelects = page.locator('[data-testid="stSelectbox"]:visible');
   const friendSelectCount = await friendSelects.count();
   console.log(`unresolved friend selectboxes: ${friendSelectCount}`);
   if (friendSelectCount > 0) {
@@ -82,7 +83,7 @@ if (xlsxPath) {
     await page.getByRole("option").nth(2).click(); // 0 = placeholder, 1 = "not attending", 2 = first candidate
     await page.waitForTimeout(500);
   }
-  const friendSelectsAfter = page.locator('[data-testid="stSelectbox"]');
+  const friendSelectsAfter = page.locator('[data-testid="stSelectbox"]:visible');
   if ((await friendSelectsAfter.count()) > 0) {
     await friendSelectsAfter.first().scrollIntoViewIfNeeded();
     await friendSelectsAfter.first().click();
@@ -123,6 +124,80 @@ if (xlsxPath) {
     console.warn("could not locate a helper chip / grid cell to drag");
   }
   await page.screenshot({ path: path.join(SHOT_DIR, "05-after-drag.png"), fullPage: true });
+
+  // Tag pills and the Tag filter. Create one Tag in the Tags tab and give it to
+  // one Helper, then on the Roster tab check that the "Show tags" toggle renders
+  // pills (hidden by default), and that the filter dims every other Helper
+  // without hiding anyone, whether or not the pills are shown.
+  // A multiselect toggles on click and the app may still be rerunning under
+  // the first one, so click until its option list is really open.
+  const openMultiselect = async (label) => {
+    const input = page.locator('[data-testid="stMultiSelect"]').filter({ hasText: label }).locator("input");
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await input.click();
+      try {
+        await page.getByRole("option").first().waitFor({ timeout: 1500 });
+        return;
+      } catch {
+        // closed again (or not yet open): click once more
+      }
+    }
+    throw new Error(`could not open the "${label}" multiselect`);
+  };
+  await page.getByRole("radio", { name: "Tags" }).click();
+  await page.getByRole("button", { name: "New tag" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("SmokeTag");
+  await page.getByRole("button", { name: "Create tag" }).click();
+  await page.getByText("Others (", { exact: false }).waitFor({ timeout: 10000 });
+  await openMultiselect("Helpers to add");
+  await page.getByRole("option").nth(1).click(); // 0 = "Select all"
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Add 1 to SmokeTag" }).click();
+  await page.getByText("Has this tag (1)").waitFor({ timeout: 10000 });
+
+  await page.getByRole("radio", { name: "Roster" }).click();
+  await page.waitForSelector("div.helper-chip", { timeout: 10000 });
+  const chipCount = await page.locator("div.helper-chip").count();
+  const expect = (cond, message) => {
+    if (!cond) {
+      console.error(`FAILED: ${message}`);
+      errors.push(message);
+    } else {
+      console.log(`ok: ${message}`);
+    }
+  };
+  expect((await page.locator(".tag-pill").count()) === 0, "tag pills are hidden by default");
+
+  // Idempotent: click the toggle until it is in the wanted state.
+  const setShowTags = async (on) => {
+    const toggle = page.getByRole("switch", { name: "Show tags" });
+    for (let attempt = 0; attempt < 5 && (await toggle.isChecked()) !== on; attempt++) {
+      await page.getByText("Show tags", { exact: true }).click();
+      await page.waitForTimeout(700);
+    }
+  };
+  await setShowTags(true);
+  await page.waitForSelector(".tag-pill", { timeout: 10000 });
+  expect((await page.locator(".tag-pill-direct").count()) === 1, "Show tags renders the direct pill under one Helper");
+  expect((await page.locator("div.helper-chip.dimmed").count()) === 0, "no filter dims nobody");
+
+  await openMultiselect("Filter by tags");
+  await page.getByRole("option", { name: "SmokeTag" }).click();
+  await page.keyboard.press("Escape");
+  await page.waitForFunction((n) => document.querySelectorAll("div.helper-chip.dimmed").length === n, chipCount - 1, {
+    timeout: 10000,
+  }).catch(() => {});
+  expect((await page.locator("div.helper-chip.dimmed").count()) === chipCount - 1, "the filter dims every non-matching Helper");
+  expect((await page.locator("div.helper-chip").count()) === chipCount, "the filter never hides a Helper");
+
+  await setShowTags(false);
+  await page.waitForFunction(() => document.querySelectorAll(".tag-pill").length === 0, null, { timeout: 10000 }).catch(() => {});
+  expect((await page.locator(".tag-pill").count()) === 0, "pills hide again when toggled off");
+  expect(
+    (await page.locator("div.helper-chip.dimmed").count()) === chipCount - 1,
+    "the filter still dims with the pills hidden",
+  );
+  await page.screenshot({ path: path.join(SHOT_DIR, "06-tag-filter.png"), fullPage: true });
 
   const exportButton = page.getByRole("button", { name: "Export to Excel" });
   if ((await exportButton.count()) > 0) {

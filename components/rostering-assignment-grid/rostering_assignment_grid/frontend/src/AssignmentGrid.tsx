@@ -64,6 +64,8 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
   cell_merges,
   helper_names,
   broken_marks,
+  show_tags,
+  dimmed_helper_ids,
   setTriggerValue,
 }): ReactElement => {
   const [hoveredHelperId, setHoveredHelperId] = useState<number | null>(null);
@@ -116,6 +118,9 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
     }
     return map;
   }, [broken_marks]);
+
+  // Helpers the Tag filter dims, for lookup while rendering chips.
+  const dimmedIds = useMemo(() => new Set(dimmed_helper_ids ?? []), [dimmed_helper_ids]);
 
   function brokenLinesForCell(building: string, groupRooms: string[], role: string): string[] {
     const lines: string[] = [];
@@ -256,6 +261,8 @@ const AssignmentGrid: FC<AssignmentGridProps> = ({
       <HelperChip
         key={h.id}
         helper={h}
+        showTags={show_tags === true}
+        dimmed={dimmedIds.has(h.id)}
         locked={placed?.locked === true}
         onToggleLock={placed ? () => setTriggerValue("lock", { helper_id: h.id, locked: !placed.locked }) : undefined}
         card={cardDataFor(h)}
