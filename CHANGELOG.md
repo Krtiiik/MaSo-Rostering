@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- "Vynutit přání být s kamarádem" moved from the Forced friends tab into a
+  Helper's popup. Its tab is now "Kamarádi": the friend names still to match on
+  top (when there are any), then every matched friend with a "Vynutit" button
+  (or "Vynuceno" when their Forced friends group already exists), and the
+  matching of already-decided names folded into an expander.
 - In the People tab's Helpers table, the Friends column of a Helper with unmatched
   friend names is a button that opens their popup straight on the "Jména
   kamarádů" tab, where the names are matched.

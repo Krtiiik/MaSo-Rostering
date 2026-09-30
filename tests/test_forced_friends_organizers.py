@@ -597,15 +597,52 @@ def test_the_tab_shows_the_role_not_applied_badge_and_an_organizer_as_a_member(s
     assert any("Anna (nezařazený organizátor, neaktivní)" in m.value for m in at.markdown)
 
 
-def test_the_tab_makes_a_friend_request_forced_with_one_click(seasons):
+def _friends_popup_app():
+    import streamlit as st
+
+    from rostering.streamlit_app.tabs import person_dialog
+
+    st.fragment(person_dialog._helper_body)(1)
+
+
+def test_the_helper_popup_makes_a_friend_request_forced_with_one_click(seasons):
     from streamlit.testing.v1 import AppTest
 
     mutations.update_helper(seasons, 1, friends=[2])
 
-    at = AppTest.from_function(_forced_tab_app, default_timeout=30).run()
+    at = AppTest.from_function(_friends_popup_app, default_timeout=30).run()
     assert not at.exception
     next(b for b in at.button if b.label == "Vynutit").click().run()
 
     assert not at.exception
     (group,) = mutations.get_state(seasons)["forced_groups"]
     assert (group["name"], group["axes"]) == ("Anna + Petr", ["building", "room"])
+    assert not any(b.label == "Vynutit" for b in at.button)  # the wish now shows as forced
+    assert any("Vynuceno" in c.value for c in at.caption)
+
+
+def test_the_forced_friends_tab_no_longer_has_the_make_forced_expander(seasons):
+    from streamlit.testing.v1 import AppTest
+
+    mutations.update_helper(seasons, 1, friends=[2])
+
+    at = AppTest.from_function(_forced_tab_app, default_timeout=30).run()
+
+    assert not at.exception
+    assert not any(b.label == "Vynutit" for b in at.button)
+
+
+def test_the_friends_tab_lists_unmatched_names_above_the_matched_friends(seasons):
+    from streamlit.testing.v1 import AppTest
+
+    state = mutations.get_state(seasons)
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    helper.update(friends=[2], unresolved_friend_names=["Terka"], friend_name_order=["Terka"])
+    seasons.save(state)
+
+    at = AppTest.from_function(_friends_popup_app, default_timeout=30).run()
+
+    assert not at.exception
+    headings = [m.value for m in at.markdown if m.value.startswith("**")]
+    assert headings == ["**K přiřazení**", "**Přiřazení kamarádi**"]
+    assert any(b.label == "Vynutit" for b in at.button)

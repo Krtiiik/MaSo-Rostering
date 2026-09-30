@@ -98,7 +98,6 @@ def render() -> None:
     fix = fix_focus.render_callout(state, "forced_friends")
 
     _render_new(state)
-    _render_make_forced(state)
     groups = forced_groups.list_groups(state)
     if not groups:
         st.info("Zatím žádné vynucené skupinky kamarádů.")
@@ -124,26 +123,6 @@ def _render_new(state: dict) -> None:
             st.session_state[_NONCE] = nonce + 1
             st.session_state[_FLASH] = f"Vytvořeno: {name.strip()}."
             st.rerun()
-
-
-def _render_make_forced(state: dict) -> None:
-    """Harden a resolved soft friend request into a Room group in one click; the
-    request itself is left as it is."""
-    requests = [r for r in forced_groups.friend_requests(state) if not r["forced"]]
-    if not requests:
-        return
-    with st.expander("Vynutit přání být s kamarádem", icon=":material/link:"):
-        st.caption(
-            "Přání být s kamarádem je jen přání. Jeho vynucením vznikne skupinka dvou lidí, kteří musí sdílet "
-            "místnost (a tedy i budovu); samotné přání zůstane, jak bylo."
-        )
-        for i, request in enumerate(requests):
-            line, action = st.columns([6, 3], vertical_alignment="center")
-            line.markdown(f"{request['helper_name']} → {request['friend_name']}")
-            if action.button("Vynutit", key=f"ff_make_{request['helper_id']}_{i}"):
-                if _apply(forced_groups.make_forced, request["helper_id"], request["friend"]):
-                    st.session_state[_FLASH] = f"Vytvořeno: {request['helper_name']} + {request['friend_name'].removesuffix(' (organizátor)')}."
-                    st.rerun()
 
 
 def _badge(group: dict) -> None:
