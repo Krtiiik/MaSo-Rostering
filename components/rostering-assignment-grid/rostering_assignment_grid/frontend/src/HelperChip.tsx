@@ -42,6 +42,7 @@ export function HelperChip({
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(helper.id),
+    data: { kind: "helper" },
   });
 
   const titleText =

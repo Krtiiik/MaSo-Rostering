@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Organizers can be dragged on the Roster tab. Those holding no slot wait in their
+  own "Organizátoři" list inside the "Nezařazení" area and are dropped onto the
+  Organizer rows (Vedoucí budovy, Pravá ruka, Vedoucí místností, Technická podpora);
+  dragging a chip out of one slot cell into another moves the Organizer instead of
+  adding a second slot. An Organizer's chip is refused by the Helper rows (solver
+  roles and Additional roles) and a Helper's chip by the Organizer rows, and a drop
+  always lands on the cell under the pointer.
 - Two more Zobrazení modes on the Roster tab: "Spokojenost s rolí" gives each placed
   chip a thick left border (green when the Role is rated Nevadí or better, red for
   Spíš ne / Ne; Záloha is not judged) and "Spokojenost s budovou" a thick top border
@@ -27,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (and how many locked) go; Helpers, Tags, Organizers and Manual roles are kept.
 
 ### Changed
+
+- On the Roster tab a manual role's cell is now the same kind of cell as a solver
+  role's: names are chips in the cell, and the "+ přidat jméno" field is gone —
+  clicking the cell opens a name field instead (Enter saves, Escape cancels). The
+  row label carries an italic "Manuální role" note with a link icon, which is how
+  the manual rows are told apart.
+- The Organizer rows and the Helper rows are set apart by a heavier line wherever
+  one kind follows the other.
 
 - Each group in the Forced friends tab is now one line: the bold group name, its
   members and the status badge, with the "Upravit skupinku" editor folded directly

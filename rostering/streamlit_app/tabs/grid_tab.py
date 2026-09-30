@@ -1,8 +1,10 @@
 """Tab 3: the drag-and-drop assignment grid, including the manual
 structural/overlay roles (see CLAUDE.md "Out-of-solver roles") rendered as
-extra rows in the same grid rather than as a separate section below it. Most
-manual rows are typed/picked-name only; the overlay roles (UvadeciUcastniku,
-FoceniPredavaniCen: room-scoped; Registrace: building-scoped) additionally
+extra rows in the same grid rather than as a separate section below it. A
+manual row's names are added by clicking its cell; the Organizer rows also take
+a dragged Organizer chip (never a Helper's). The overlay roles
+(UvadeciUcastniku, FoceniPredavaniCen: room-scoped; Registrace:
+building-scoped) additionally
 accept dropping a helper's existing chip onto the cell for their own
 room/building, to duplicate them into that overlay slot without moving
 their solved assignment.
@@ -189,6 +191,28 @@ def _manual_entries(
             }
         )
     return [e for e in entries if e["name"]]
+
+
+def _grid_organizers(
+    state: dict,
+    organizer_pills: dict[int, dict],
+    dimmed_organizer_ids: Sequence[int],
+    organizer_broken: dict[int, list[str]],
+) -> list[dict]:
+    """The Organizers who attend, for the grid's draggable chips: `placed` says
+    whether they hold a slot (an unplaced one waits in the Nezařazení area)."""
+    return [
+        {
+            "id": o["id"],
+            "name": o["name"],
+            "placed": o.get("building") is not None,
+            "tags": organizer_pills.get(o["id"]),
+            "dimmed": o["id"] in dimmed_organizer_ids,
+            "broken": organizer_broken.get(o["id"], []),
+        }
+        for o in state["organizers"]
+        if not o.get("cant_attend")
+    ]
 
 
 def _resolve_manual_name(state: dict, name: str) -> dict:
@@ -478,6 +502,7 @@ def render() -> None:
     organizer_broken: dict[int, list[str]] = {}
     for mark in broken_marks["organizers"]:
         organizer_broken.setdefault(mark["organizer_id"], []).append(mark["line"])
+    dimmed_organizers = mutations.dimmed_organizer_ids(state, filter_tags, filter_mode)
     grid_helpers = [
         {
             "id": h["id"],
@@ -505,13 +530,14 @@ def render() -> None:
         manual_entries=_manual_entries(
             state,
             mutations.organizer_tag_pills(state),
-            mutations.dimmed_organizer_ids(state, filter_tags, filter_mode),
+            dimmed_organizers,
             organizer_broken,
         ),
         cell_merges=state.get("cell_merges", {}),
         helper_names=sorted({h["name"] for h in attending}, key=str.lower),
         # An Organizer who can't attend is not offered for a slot.
         organizer_names=sorted({o["name"] for o in state["organizers"] if not o.get("cant_attend")}, key=str.lower),
+        organizers=_grid_organizers(state, mutations.organizer_tag_pills(state), dimmed_organizers, organizer_broken),
         broken_marks=broken_marks,
         overlays=overlays,
         dimmed_helper_ids=mutations.dimmed_helper_ids(state, filter_tags, filter_mode),
@@ -535,6 +561,20 @@ def render() -> None:
                 # Never blocks and never touches the Broken-rule check.
                 session.set_state(
                     mutations.set_lock(session.get_workspace(), event["helper_id"], bool(event["locked"]))
+                )
+            elif event["type"] == "organizer_drop":
+                source = event.get("source")
+                session.set_state(
+                    mutations.move_organizer(
+                        session.get_workspace(),
+                        event["organizer_id"],
+                        event["key"],
+                        event["building"],
+                        event.get("room"),
+                        {"role": source["key"], "building": source["building"], "room": source.get("room")}
+                        if source
+                        else None,
+                    )
                 )
             elif event["type"] == "cell_merge":
                 session.set_state(
