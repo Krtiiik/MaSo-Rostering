@@ -9,6 +9,7 @@ can be unit-tested directly and reused unchanged by any future caller.
 from __future__ import annotations
 
 import functools
+import re
 import tempfile
 from dataclasses import asdict, replace
 from datetime import datetime
@@ -21,14 +22,19 @@ from rostering.domain import (
     Assignment,
     BrokenRule,
     Competition,
+    Helper,
     ManualRoles,
     OverlayRole,
+    Preference,
     Role,
     SolveResult,
     StructuralRole,
+    normalize_email,
+    normalize_name,
     parse_tshirt_size,
 )
 from rostering.export.excel import write_roster
+from rostering.ingest.preferences import parse_role_token
 from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
 from rostering.persistence import config_store
 from rostering.persistence.season_label import guess_label, label_sort_key
@@ -649,6 +655,19 @@ def set_cant_attend(workspace: Workspace, helper_id: int, cant_attend: bool, con
     return state
 
 
+def _parse_tshirt_size(size: str) -> str:
+    """The canonical size ``size`` names (one of ``TSHIRT_SIZES`` or
+    ``UNKNOWN_TSHIRT_SIZE``, ignoring case and surrounding whitespace like the
+    survey answer); anything else raises :class:`RosteringError`."""
+    if (size or "").strip().lower() == UNKNOWN_TSHIRT_SIZE.lower():
+        return UNKNOWN_TSHIRT_SIZE
+    parsed = parse_tshirt_size(size)
+    if parsed is None:
+        allowed = ", ".join([*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE])
+        raise RosteringError(f"Invalid T-shirt size {size!r}; expected one of: {allowed}")
+    return parsed
+
+
 def set_tshirt_size(workspace: Workspace, helper_id: int, size: str) -> dict:
     """Set one helper's T-shirt size by hand (chiefly to resolve an Unknown
     flagged by the upload warnings). ``size`` must be one of
@@ -659,14 +678,300 @@ def set_tshirt_size(workspace: Workspace, helper_id: int, size: str) -> dict:
     helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
     if helper is None:
         raise RosteringError(f"No such helper: {helper_id}")
-    if (size or "").strip().lower() == UNKNOWN_TSHIRT_SIZE.lower():
-        parsed: Optional[str] = UNKNOWN_TSHIRT_SIZE
-    else:
-        parsed = parse_tshirt_size(size)
-    if parsed is None:
-        allowed = ", ".join([*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE])
-        raise RosteringError(f"Invalid T-shirt size {size!r}; expected one of: {allowed}")
+    parsed = _parse_tshirt_size(size)
+    if helper.get("tshirt_size") != parsed and helper.get("hand_added"):
+        _mark_hand_typed(helper, ["tshirt_size"])
     helper["tshirt_size"] = parsed
+    workspace.save(state)
+    return state
+
+
+# -- Adding, editing and deleting a Helper by hand ----------------------------------
+
+# What a hand-added Helper starts with for every optional field: exactly a blank
+# survey row (no Preferences, so each Role reads as Nevadí; no Building
+# preference; no equipment; no friends; T-shirt size Unknown).
+_BLANK_ANSWERS: dict[str, Any] = {
+    "role_preferences": {},
+    "building_preferences": [],
+    "can_bring_notebook": False,
+    "can_bring_camera": False,
+    "friends": [],
+    "tshirt_size": UNKNOWN_TSHIRT_SIZE,
+}
+_EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _looks_like_email(contact: str) -> bool:
+    return _EMAIL_SHAPE.match(contact.strip()) is not None
+
+
+def _mark_hand_typed(helper: dict, fields: list[str]) -> None:
+    """Remember on the record that these fields were typed by hand, so a later
+    survey row fills only what was left at its default (see CONTEXT.md
+    "Hand-added Helper")."""
+    typed = list(helper.get("hand_typed") or [])
+    typed.extend(f for f in fields if f not in typed)
+    if typed:
+        helper["hand_typed"] = typed
+
+
+def helper_collisions(
+    state: dict[str, Any], name: str, contact: Optional[str] = None, exclude_helper_id: Optional[int] = None
+) -> list[str]:
+    """Warning lines for a name or e-mail that another Helper of the Season
+    already has (names compared ignoring case, diacritics and spacing; an
+    e-mail only when ``contact`` is e-mail-shaped). Only a warning: the caller
+    may go ahead. ``exclude_helper_id`` skips the Helper being edited."""
+    name_key = normalize_name(name)
+    email = normalize_email(contact) if contact and _looks_like_email(contact) else None
+    lines = []
+    for other in state["helpers"]:
+        if other["id"] == exclude_helper_id:
+            continue
+        if name_key and normalize_name(other["name"]) == name_key:
+            lines.append(f"{other['name']} is already a Helper with this name.")
+        elif email and normalize_email(other.get("email")) == email:
+            lines.append(f"{other['name']} already has the e-mail {email}.")
+    return lines
+
+
+def _validated_helper_fields(
+    state: dict[str, Any],
+    helper_id: Optional[int],
+    *,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    role_preferences: Optional[dict[str, str]] = None,
+    building_preferences: Optional[list[str]] = None,
+    can_bring_notebook: Optional[bool] = None,
+    can_bring_camera: Optional[bool] = None,
+    friends: Optional[list[int]] = None,
+    tshirt_size: Optional[str] = None,
+) -> dict[str, Any]:
+    """The fields that were given (``None`` = not given), validated and in
+    stored form; raises :class:`RosteringError` for any invalid one."""
+    fields: dict[str, Any] = {}
+    if name is not None:
+        if not name.strip():
+            raise RosteringError("A Helper needs a name.")
+        fields["name"] = name.strip()
+    if email is not None:
+        fields["email"] = normalize_email(email)
+    if phone is not None:
+        fields["phone"] = phone.strip() or None
+    if role_preferences is not None:
+        cleaned = {}
+        for role_name, pref_name in role_preferences.items():
+            role = parse_role_token(role_name)
+            if role is None:
+                raise RosteringError(f"Unknown role: {role_name!r}")
+            if pref_name not in Preference.__members__:
+                allowed = ", ".join(Preference.__members__)
+                raise RosteringError(f"Unknown preference {pref_name!r}; expected one of: {allowed}")
+            cleaned[role.name] = pref_name
+        fields["role_preferences"] = cleaned
+    if building_preferences is not None:
+        known = [b["name"] for b in state["config"]]
+        unknown = [b for b in building_preferences if b not in known]
+        if unknown:
+            raise RosteringError(f"Unknown building(s): {', '.join(unknown)}")
+        fields["building_preferences"] = sorted(set(building_preferences))
+    if can_bring_notebook is not None:
+        fields["can_bring_notebook"] = bool(can_bring_notebook)
+    if can_bring_camera is not None:
+        fields["can_bring_camera"] = bool(can_bring_camera)
+    if friends is not None:
+        known_ids = {h["id"] for h in state["helpers"]}
+        unknown_ids = [f for f in friends if f not in known_ids]
+        if unknown_ids:
+            raise RosteringError(f"No such helper(s): {unknown_ids}")
+        if helper_id is not None and helper_id in friends:
+            raise RosteringError("A Helper can't be their own friend.")
+        fields["friends"] = list(dict.fromkeys(friends))
+    if tshirt_size is not None:
+        fields["tshirt_size"] = _parse_tshirt_size(tshirt_size)
+    return fields
+
+
+def _next_helper_id(state: dict[str, Any]) -> int:
+    """A Helper id above every id in use and above every id ever handed out or
+    deleted (``next_helper_id`` is that high-water mark), so an id is never
+    reused for another person."""
+    new_id = max(int(state.get("next_helper_id") or 1), max((h["id"] for h in state["helpers"]), default=0) + 1)
+    state["next_helper_id"] = new_id + 1
+    return new_id
+
+
+def _person_id_for_new_email(workspace: Workspace, email: Optional[str]) -> str:
+    """The Person link for a Helper added by hand: a confident match by e-mail
+    to a Person an earlier stored Season recorded, otherwise a fresh Person. The
+    open Season's own records never match, so a duplicate e-mail typed here
+    doesn't fuse two Helpers of one Season into one Person."""
+    open_season = workspace.open_season()
+    known = [r for r in workspace.person_records() if open_season is None or r.season_id != open_season["id"]]
+    return link_persons([email], known)[0]
+
+
+def add_helper(
+    workspace: Workspace,
+    name: str,
+    contact: str,
+    *,
+    role_preferences: Optional[dict[str, str]] = None,
+    building_preferences: Optional[list[str]] = None,
+    can_bring_notebook: Optional[bool] = None,
+    can_bring_camera: Optional[bool] = None,
+    friends: Optional[list[int]] = None,
+    tshirt_size: Optional[str] = None,
+) -> dict:
+    """Add a Helper by hand (see CONTEXT.md "Hand-added Helper"): only ``name``
+    and ``contact`` are required, and every optional field left out takes the
+    blank-survey default. An e-mail-shaped ``contact`` is stored as the Helper's
+    e-mail (so it takes part in Person matching); any other contact is kept as
+    the display contact (``phone``) and matching falls back to the name. The
+    record gets a fresh, never-reused Helper id, a Person link (fresh unless the
+    e-mail was recorded in an earlier Season) and remembers which fields were
+    typed by hand; it is appended to ``state["helpers"]``, which is how the
+    caller finds it. A name or e-mail another Helper already has is not
+    refused here: :func:`helper_collisions` is the warning."""
+    name = (name or "").strip()
+    contact = (contact or "").strip()
+    if not name:
+        raise RosteringError("A Helper needs a name.")
+    if not contact:
+        raise RosteringError("A Helper needs a contact (an e-mail or a phone number).")
+    state = workspace.load()
+    is_email = _looks_like_email(contact)
+    fields = _validated_helper_fields(
+        state,
+        None,
+        name=name,
+        email=contact if is_email else None,
+        phone=None if is_email else contact,
+        role_preferences=role_preferences,
+        building_preferences=building_preferences,
+        can_bring_notebook=can_bring_notebook,
+        can_bring_camera=can_bring_camera,
+        friends=friends,
+        tshirt_size=tshirt_size,
+    )
+    person_id = _person_id_for_new_email(workspace, fields.get("email"))
+    record = helper_to_dict(Helper(id=_next_helper_id(state), name=name, person_id=person_id))
+    record.update(fields)
+    record["hand_added"] = True
+    _mark_hand_typed(
+        record, [f for f, value in fields.items() if f in ("name", "email", "phone") or value != _BLANK_ANSWERS[f]]
+    )
+    state["helpers"].append(record)
+    workspace.save(state)
+    return state
+
+
+def update_helper(
+    workspace: Workspace,
+    helper_id: int,
+    *,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    role_preferences: Optional[dict[str, str]] = None,
+    building_preferences: Optional[list[str]] = None,
+    can_bring_notebook: Optional[bool] = None,
+    can_bring_camera: Optional[bool] = None,
+    friends: Optional[list[int]] = None,
+    tshirt_size: Optional[str] = None,
+) -> dict:
+    """Edit any field of a Helper by hand, at any time (before or after a solve;
+    an edit never moves anyone). Fields left out stay as they are; a blank
+    ``email`` or ``phone`` clears it. The Helper id and Person link are
+    untouched, and the fields that changed are remembered as typed by hand."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    fields = _validated_helper_fields(
+        state,
+        helper_id,
+        name=name,
+        email=email,
+        phone=phone,
+        role_preferences=role_preferences,
+        building_preferences=building_preferences,
+        can_bring_notebook=can_bring_notebook,
+        can_bring_camera=can_bring_camera,
+        friends=friends,
+        tshirt_size=tshirt_size,
+    )
+    changed = [f for f, value in fields.items() if helper.get(f) != value]
+    helper.update({f: fields[f] for f in changed})
+    _mark_hand_typed(helper, changed)
+    if "name" in changed:
+        for assignment in state["assignments"]:
+            if assignment["helper_id"] == helper_id:
+                assignment["helper_name"] = helper["name"]
+    if "friends" in changed and state["assignments"]:
+        _refresh_friend_pairs(state)
+    workspace.save(state)
+    return state
+
+
+def _refresh_friend_pairs(state: dict[str, Any]) -> None:
+    satisfied, unsatisfied = _recompute_friend_pairs(state)
+    state["diagnostics"]["satisfied_friend_pairs"] = satisfied
+    state["diagnostics"]["unsatisfied_friend_pairs"] = unsatisfied
+
+
+def _forget_as_friend(state: dict[str, Any], helper_id: int) -> None:
+    """Take a deleted Helper out of everyone's Friend preference. A friend name
+    that was resolved only to them goes back to unresolved rather than being
+    silently dropped."""
+    for other in state["helpers"]:
+        other["friends"] = [f for f in other.get("friends", []) if f != helper_id]
+        decisions = other.get("friend_name_decisions") or {}
+        for friend_name, raw in list(decisions.items()):
+            ids = [raw] if isinstance(raw, int) else list(raw or [])
+            if helper_id not in ids:
+                continue
+            remaining = [i for i in ids if i != helper_id]
+            if remaining:
+                decisions[friend_name] = remaining
+                continue
+            del decisions[friend_name]
+            if friend_name not in other["unresolved_friend_names"]:
+                other["unresolved_friend_names"].append(friend_name)
+
+
+def delete_helper(workspace: Workspace, helper_id: int, confirmed: bool = False) -> dict:
+    """Delete a Helper, at any time.
+
+    Like flagging Can't attend, a Helper with an Assignment or Manual role
+    entries is only deleted once ``confirmed``; without it
+    :class:`ConfirmationRequired` names what would be cleared and nothing
+    changes. Confirming removes their Assignment (and its lock) and every Manual
+    role entry holding them and raises the stale-roster flag; a Helper with
+    nothing to clear is simply removed. Either way they are dropped from other
+    Helpers' Friend preferences, and their id is never handed out again."""
+    state = workspace.load()
+    helper = _helper_record(state, helper_id)
+    impact = cant_attend_impact(state, helper_id)
+    if impact and not confirmed:
+        raise ConfirmationRequired(
+            f"Deleting {helper['name']} clears " + "; ".join(impact) + ". "
+            "This can't be undone, and the roster is out of date until the next Solve.",
+            impact,
+        )
+    state["helpers"] = [h for h in state["helpers"] if h["id"] != helper_id]
+    state["next_helper_id"] = max(int(state.get("next_helper_id") or 1), helper_id + 1)
+    _forget_as_friend(state, helper_id)
+    if impact:
+        state["assignments"] = [a for a in state["assignments"] if a["helper_id"] != helper_id]
+        state["manual_roles"] = {
+            group: [e for e in entries if e.get("helper_id") != helper_id]
+            for group, entries in state["manual_roles"].items()
+        }
+        _add_stale_reason(state, f"{helper['name']} was deleted: their Assignment and role entries were cleared")
+    if state["assignments"]:
+        _refresh_friend_pairs(state)
     workspace.save(state)
     return state
 

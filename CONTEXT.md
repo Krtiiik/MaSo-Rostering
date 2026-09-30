@@ -25,7 +25,10 @@ the 6 solver-assigned Roles. Czech: pomocník.
 A Helper entered directly into the app rather than parsed from the survey.
 Only name and contact are required; every other field (Preferences, Building
 preference, equipment, Friend preference, T-shirt size) is optional and left
-at its normal empty/no-preference default.
+at its normal empty/no-preference default. Otherwise an ordinary Helper, with
+no visual distinction; every field is editable and it can be deleted at any
+time, deleting one who holds an Assignment or Manual role entries being
+confirmed and clearing them exactly as Can't attend does.
 
 **Locked Assignment**:
 An Assignment the user has fixed by hand for a chosen Helper so that a full

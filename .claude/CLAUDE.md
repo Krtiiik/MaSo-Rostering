@@ -229,6 +229,25 @@ pushing the tag, not just creating it locally.
   Solve button and disables Export, the Upload tab shows it above the Helper
   list. The Upload tab's confirmation opens on the rerun after the checkbox
   edit (the table's widget key is bumped so it shows the saved state meanwhile).
+- Hand-added Helpers: `mutations.add_helper` / `update_helper` /
+  `delete_helper` (and `helper_collisions`, the non-blocking name/e-mail
+  warning) write ordinary Helper records into `state["helpers"]`, so the
+  solver, grid, export, Tags and Can't attend have no second code path. A
+  record gets `hand_added: true` and `hand_typed` (the fields typed by hand,
+  for the not-yet-built re-upload merge; a hand edit of any Helper adds to it,
+  and the T-shirt table edit does for a hand-added one) — both live on the
+  record dict only, not on the `Helper` dataclass. An e-mail-shaped contact is
+  the normalized `email`, any other contact is `phone` (display-only). Ids come
+  from `state["next_helper_id"]`, a high-water mark also bumped by a delete, so
+  an id is never reused (Versions snapshot it with the rest of the state). The
+  Person link is a confident e-mail match against *earlier* stored Seasons only
+  (`link_persons`), else fresh. `delete_helper` reuses `cant_attend_impact` and
+  `ConfirmationRequired`, then clears Assignment, lock and Manual role entries,
+  prunes the id from every `friends` list and `friend_name_decisions` (a name
+  left with no target returns to `unresolved_friend_names`) and marks the
+  roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. Note a
+  re-upload still replaces the Season's whole Helper list, so it does not yet
+  keep hand-added records.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid component

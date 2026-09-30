@@ -8,6 +8,7 @@ import streamlit as st
 
 from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Role
 from rostering.streamlit_app import fix_focus, mutations, session
+from rostering.streamlit_app.tabs import helper_forms
 
 _PREF_ROLES = [r for r in Role if r != Role.Zaloha]
 _SIZE_COLUMN = "T-shirt size"
@@ -53,6 +54,10 @@ def render() -> None:
                     st.error(str(exc))
             st.rerun()
 
+    if season is not None:
+        helper_forms.render_flash()
+        helper_forms.render_add_form(state)
+
     if state["helpers"]:
         unresolved_count = sum(len(h["unresolved_friend_names"]) for h in state["helpers"])
         returning = mutations.get_returning_helpers(workspace)
@@ -77,6 +82,7 @@ def render() -> None:
                 st.rerun()
 
         _show_pending_cant_attend_confirmation(state)
+        helper_forms.show_pending_delete_confirmation(state)
         if mutations.stale_reasons(state):
             st.warning(
                 "The roster is out of date: "
@@ -87,6 +93,7 @@ def render() -> None:
         _render_uncertain_matches(workspace)
         fix = fix_focus.render_callout(state, "helpers")
         _render_helpers_overview(state, returning, focus_helper_id=fix.helper_id if fix else None)
+        helper_forms.render_edit_form(state)
         _render_person_links(workspace, state)
         _render_friend_resolution(state)
 
