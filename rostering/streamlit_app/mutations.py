@@ -3404,6 +3404,27 @@ def clear_all_locks(workspace: Workspace) -> dict:
     return state
 
 
+def clear_roster(workspace: Workspace) -> dict:
+    """Throw the whole roster away and go back to the state before the first
+    Solve: every Assignment (locked ones included), the solver's diagnostics
+    (status, objective, friend pairs, dropped locks) and the stale flag, which has
+    nothing left to be stale about. Helpers, Organizers, Tags, Forced friends
+    groups, the layout and the hand-entered Manual roles are untouched. A no-op
+    with nothing placed."""
+    state = workspace.load()
+    state["assignments"] = []
+    state["diagnostics"] = {
+        "status": None,
+        "objective_value": None,
+        "unsatisfied_friend_pairs": [],
+        "satisfied_friend_pairs": [],
+    }
+    state["stale_reasons"] = []
+    _clear_answers_changed(state)
+    workspace.save(state)
+    return state
+
+
 def move_helper(workspace: Workspace, helper_id: int, building: str, room: str, role: str) -> dict:
     state = workspace.load()
     known_ids = {h["id"] for h in state["helpers"]}

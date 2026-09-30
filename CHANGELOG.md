@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A "Clear roster" button in the Roster tab's bottom bar removes every Assignment
+  (locked ones too) and resets the solver result and the out-of-date warning, back
+  to the state before the first Solve. It asks first, saying how many Assignments
+  (and how many locked) go; Helpers, Tags, Organizers and Manual roles are kept.
 - Tag import re-applies Tags to Organizers as well as Helpers. What a Person
   carried directly in the source Season, as a Helper or as an Organizer, is
   re-applied to their confidently linked record this Season, whichever kind it is

@@ -206,6 +206,47 @@ def test_lock_all_placed_locks_every_placed_helper_and_clear_all_locks_frees_the
     assert len(cleared["assignments"]) == 2  # the Assignments themselves stay
 
 
+def test_clear_roster_removes_every_assignment_and_resets_the_solver_result(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    mutations.set_lock(workspace, 1, True)
+    mutations.mark_stale(workspace, "a Helper changed")
+    before = mutations.get_state(workspace)
+    assert before["diagnostics"]["status"] is not None
+
+    cleared = mutations.clear_roster(workspace)
+
+    assert cleared["assignments"] == []
+    assert cleared["diagnostics"] == {
+        "status": None,
+        "objective_value": None,
+        "unsatisfied_friend_pairs": [],
+        "satisfied_friend_pairs": [],
+    }
+    assert cleared["stale_reasons"] == []
+    assert mutations.locked_count(cleared) == 0
+    assert [h["id"] for h in cleared["helpers"]] == [1, 2]  # the Helpers stay
+    assert mutations.get_state(workspace) == cleared  # persisted
+    assert mutations.broken_rules(cleared) == []  # no roster, nothing broken
+
+
+def test_clear_roster_then_solve_builds_a_fresh_roster(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    mutations.clear_roster(workspace)
+
+    solved = mutations.solve(workspace)
+
+    assert len(solved["assignments"]) == 2
+    assert solved["diagnostics"]["status"] is not None
+
+
+def test_clear_roster_does_nothing_before_the_first_solve(workspace):
+    _seed(workspace)
+
+    assert mutations.clear_roster(workspace)["assignments"] == []
+
+
 def test_the_locked_count_follows_single_locks(workspace):
     _seed(workspace)
     mutations.solve(workspace)
