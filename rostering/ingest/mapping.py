@@ -37,6 +37,13 @@ FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
         "Tvůj e-mail",
         "E-mail",
     ],
+    # The contact phone number. Only ever shown as a hint next to an uncertain
+    # Person match — never a match key (returners change it far too often).
+    "phone": [
+        "Telefonní číslo",
+        "Telefon",
+        "Phone",
+    ],
     "building_preference": [
         "Na jakém místě bys chtěl/a pomáhat?",
         "Na jakém místě chceš pomáhat?",

@@ -136,8 +136,18 @@ pushing the tag, not just creating it locally.
   those records, so Start over and Season deletion forget what only they held.
   A state saved before Persons existed gets `person_id`s written back on first
   load. Duplicate rows with one e-mail collapse inside `parse_raw_survey`
-  (latest submission wins) before ids are assigned. Name-based (uncertain)
-  matching, the review list and manual link/unlink are not built yet.
+  (latest submission wins) before ids are assigned. Uncertain (same-name)
+  matches are derived, not stored: `persons.uncertain_candidates` proposes,
+  for each unsettled Helper of the open Season (one that shares its
+  `person_id` with no other record and has no `link_confirmed`), every other
+  Person with a record of the same normalized name, minus rejected pairings
+  (`rejected_person_ids` on the Helper record, checked from either side).
+  `mutations.get_uncertain_matches` / `link_helper` / `reject_person_match` /
+  `unlink_helper` / `get_person_links` back the upload tab's review list and
+  "Person links" expander. Links, rejections and `link_confirmed` live on the
+  Helper record (so Versions roll them back) and are carried over a re-upload
+  onto the record with the same `person_id`. The survey's phone (`phone`
+  column mapping, `Helper.phone`) is captured for display only.
 - The one piece of UI Streamlit can't do natively — drag-and-drop — is a
   custom Streamlit component (CCv2) at `components/rostering-assignment-grid/`
   (React + dnd-kit, generated from Streamlit's official CCv2

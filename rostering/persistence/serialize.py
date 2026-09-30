@@ -96,6 +96,7 @@ def helper_to_dict(h: Helper) -> dict:
         "unresolved_friend_names": list(h.unresolved_friend_names),
         "tshirt_size": h.tshirt_size,
         "email": h.email,
+        "phone": h.phone,
         "person_id": h.person_id,
     }
 
@@ -123,6 +124,7 @@ def helper_from_dict(data: dict) -> Helper:
         tshirt_size=parse_tshirt_size(data.get("tshirt_size")) or UNKNOWN_TSHIRT_SIZE,
         # Likewise absent from workspaces saved before Persons existed.
         email=normalize_email(data.get("email")),
+        phone=(data.get("phone") or "").strip() or None,
         person_id=data.get("person_id") or None,
     )
 

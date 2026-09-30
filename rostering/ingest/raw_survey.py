@@ -72,6 +72,15 @@ def _cell_str(raw: object) -> Optional[str]:
     return text or None
 
 
+def _phone_str(raw: object) -> Optional[str]:
+    """A phone cell as trimmed text. Excel stores a bare number as a numeric
+    cell (a float once any cell in the column is blank), so a whole number is
+    written back without the ``.0``."""
+    if isinstance(raw, float) and raw.is_integer():
+        raw = int(raw)
+    return _cell_str(raw)
+
+
 _ISO_DATE = re.compile(r"(\d{4})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{1,2})")
 _CZECH_DATE = re.compile(r"(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})")
 
@@ -334,6 +343,7 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
     equipment_col = columns.get("equipment")
     tshirt_col = columns.get("tshirt_size")
     email_col = columns.get("email")
+    phone_col = columns.get("phone")
 
     for idx, (_, row) in enumerate(df.iterrows(), start=1):
         name = names[idx - 1]
@@ -367,6 +377,7 @@ def parse_raw_survey(path: str | Path) -> RawSurveyResult:
                 unresolved_friend_names=unresolved_friends,
                 tshirt_size=tshirt_size,
                 email=normalize_email(_cell_str(row.get(email_col))) if email_col else None,
+                phone=_phone_str(row.get(phone_col)) if phone_col else None,
             )
         )
 
