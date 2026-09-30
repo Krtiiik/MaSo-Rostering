@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add, edit and delete a Helper by hand: an "Add a helper by hand" form on the
+  Upload tab needs only a name and a contact (a blank name or contact is
+  rejected; a name or e-mail another Helper of the Season already has shows a
+  warning but does not block). An e-mail-shaped contact is stored as the
+  Helper's e-mail, so it takes part in Person matching (and links to the same
+  Person if an earlier stored Season recorded that e-mail); any other contact
+  is kept as a display contact and matching falls back to the name. Everything
+  else is optional and defaults like a blank survey row: no Role preferences
+  (each reads as Nevadí), no Building preference, no equipment, no friends,
+  T-shirt size Unknown. The new Helper gets a fresh Helper id that is never
+  reused, and is solved, shown in the grid, tagged and flagged Can't attend like
+  any other, with no visual distinction. "Edit or delete a helper" changes any
+  field at any time (an edit never moves anyone) and deletes a Helper; deleting
+  one who holds an Assignment or Manual role entry asks first, exactly like
+  Can't attend, then clears the Assignment (and its lock) and those entries and
+  marks the roster stale. A deleted Helper is also dropped from other Helpers'
+  Friend preferences (a friend name resolved only to them goes back to
+  unresolved). The record remembers which fields were typed by hand.
 - Can't attend: a "Can't attend" checkbox on every Helper row of the Upload
   tab's Helper list takes an absent person out of the picture. A flagged Helper
   is left out of the solver, the roster grid, the Unassigned pool, the
