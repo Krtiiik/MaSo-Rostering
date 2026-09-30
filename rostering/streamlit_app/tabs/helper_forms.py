@@ -22,6 +22,7 @@ _SIZE_OPTIONS = [*TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE]
 # show once after a rerun.
 _ADD_NONCE = "_add_helper_nonce"
 _PENDING_DELETE = "_pending_delete_helper"
+_PENDING_PROMOTE = "_pending_promote_helper"
 _FLASH = "_helper_form_flash"
 
 
@@ -69,14 +70,23 @@ def _optional_inputs(state: dict, prefix: str, helper: dict | None, own_id: int 
         index=_SIZE_OPTIONS.index(helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE),
         key=f"{prefix}_size",
     )
-    names = {h["id"]: h["name"] for h in state["helpers"] if h["id"] != own_id}
-    friends = st.multiselect(
-        "Friends (Helpers to share a Room with)",
-        options=sorted(names, key=lambda hid: names[hid].lower()),
-        default=[f for f in helper.get("friends", []) if f in names],
-        format_func=lambda hid: names[hid],
+    # A friend is a Helper or an Organizer: options are "h<id>" / "o<id>" keys.
+    names = {f"h{h['id']}": h["name"] for h in state["helpers"] if h["id"] != own_id}
+    names.update({f"o{o['id']}": f"{o['name']} (Organizer)" for o in state["organizers"]})
+    picked = st.multiselect(
+        "Friends (Helpers or Organizers to share a Room with)",
+        options=sorted(names, key=lambda key: names[key].lower()),
+        default=[
+            key
+            for key in (
+                f"o{f['organizer_id']}" if isinstance(f, dict) else f"h{f}" for f in helper.get("friends", [])
+            )
+            if key in names
+        ],
+        format_func=lambda key: names[key],
         key=f"{prefix}_friends",
     )
+    friends = [{"organizer_id": int(key[1:])} if key[0] == "o" else int(key[1:]) for key in picked]
     return {
         "role_preferences": role_preferences,
         "building_preferences": building_preferences,
@@ -146,7 +156,7 @@ def render_edit_form(state: dict) -> None:
         for line in mutations.helper_collisions(state, name, email, exclude_helper_id=helper_id):
             st.warning(line, icon="⚠️")
         optional = _optional_inputs(state, prefix, helper, helper_id)
-        save_col, delete_col = st.columns(2)
+        save_col, promote_col, delete_col = st.columns(3)
         if save_col.button("Save changes", type="primary", key=f"{prefix}_save"):
             try:
                 new_state = mutations.update_helper(
@@ -157,6 +167,22 @@ def render_edit_form(state: dict) -> None:
                 return
             session.set_state(new_state)
             st.session_state[_FLASH] = f"Saved changes to {name.strip()}"
+            st.rerun()
+        if promote_col.button(
+            "Promote to Organizer",
+            key=f"{prefix}_promote",
+            help="Moves them out of the Helper pool: they keep their name, e-mail, Tags and Person link but "
+            "receive no solved Role, and are placed by giving them a leadership slot on the Roster grid.",
+        ):
+            try:
+                session.set_state(mutations.promote_helper(session.get_workspace(), helper_id))
+            except mutations.ConfirmationRequired:
+                st.session_state[_PENDING_PROMOTE] = helper_id
+                st.rerun()
+            except mutations.RosteringError as exc:
+                st.error(str(exc))
+                return
+            _forget_picked_helper(helper["name"], promoted=True)
             st.rerun()
         if delete_col.button("Delete helper", key=f"{prefix}_delete"):
             try:
@@ -171,9 +197,9 @@ def render_edit_form(state: dict) -> None:
             st.rerun()
 
 
-def _forget_picked_helper(name: str) -> None:
+def _forget_picked_helper(name: str, promoted: bool = False) -> None:
     st.session_state.pop("edit_helper_pick", None)
-    st.session_state[_FLASH] = f"Deleted {name}."
+    st.session_state[_FLASH] = f"{name} is now an Organizer." if promoted else f"Deleted {name}."
 
 
 @st.dialog("Delete this helper?")
@@ -193,6 +219,40 @@ def _confirm_delete(helper_id: int, name: str, lines: list[str]) -> None:
         st.rerun()
     if cancel_col.button("Cancel", key="delete_helper_cancel"):
         st.rerun()
+
+
+@st.dialog("Promote this helper to Organizer?")
+def _confirm_promote(helper_id: int, name: str, lines: list[str]) -> None:
+    st.write(f"Promoting **{name}** to Organizer clears:")
+    for line in lines:
+        st.write(f"- {line}")
+    st.caption(
+        "They leave the Helper pool and get no solved Role. The roster is out of date until the next Solve, "
+        "and Export is blocked until then."
+    )
+    confirm_col, cancel_col = st.columns(2)
+    if confirm_col.button("Promote to Organizer", type="primary", key="promote_helper_confirm"):
+        try:
+            session.set_state(mutations.promote_helper(session.get_workspace(), helper_id, confirmed=True))
+        except mutations.RosteringError as exc:
+            st.error(str(exc))
+            return
+        _forget_picked_helper(name, promoted=True)
+        st.rerun()
+    if cancel_col.button("Cancel", key="promote_helper_cancel"):
+        st.rerun()
+
+
+def show_pending_promote_confirmation(state: dict) -> None:
+    """Open the confirmation for the Helper whose promotion was just requested
+    (once: dismissing the dialog drops the request, changing nothing)."""
+    helper_id = st.session_state.pop(_PENDING_PROMOTE, None)
+    if helper_id is None:
+        return
+    helper = next((h for h in state["helpers"] if h["id"] == helper_id), None)
+    lines = mutations.cant_attend_impact(state, helper_id) if helper else []
+    if helper is not None and lines:
+        _confirm_promote(helper_id, helper["name"], lines)
 
 
 def show_pending_delete_confirmation(state: dict) -> None:

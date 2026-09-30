@@ -83,6 +83,7 @@ def render() -> None:
 
         _show_pending_cant_attend_confirmation(state)
         helper_forms.show_pending_delete_confirmation(state)
+        helper_forms.show_pending_promote_confirmation(state)
         if mutations.stale_reasons(state):
             st.warning(
                 "The roster is out of date: "
@@ -255,7 +256,11 @@ def _render_helpers_overview(
             if role.name in h["role_preferences"]
         )
         friends = ", ".join(
-            next((f["name"] for f in state["helpers"] if f["id"] == fid), f"#{fid}") for fid in h["friends"]
+            next((o["name"] for o in state["organizers"] if o["id"] == fid["organizer_id"]), f"#{fid['organizer_id']}")
+            + " (Organizer)"
+            if isinstance(fid, dict)
+            else next((f["name"] for f in state["helpers"] if f["id"] == fid), f"#{fid}")
+            for fid in h["friends"]
         )
         rows.append(
             {
@@ -356,13 +361,13 @@ _DISMISS_LABEL = "✕ Not attending"
 _UNRESOLVED_PLACEHOLDER = "Unresolved / Unmatched / Unknown"
 
 
-def _decision_ids(value: object) -> list[int] | None:
-    """Normalize a friend_name_decisions value to a list of ids (or None for
-    dismissed). Older persisted state stored a single int per name instead
-    of a list."""
+def _decision_ids(value: object) -> list[int | dict] | None:
+    """Normalize a friend_name_decisions value to a list of friend references
+    (a Helper id, or ``{"organizer_id": n}``), or None for dismissed. Older
+    persisted state stored a single int per name instead of a list."""
     if value is None:
         return None
-    if isinstance(value, int):
+    if isinstance(value, (int, dict)):
         return [value]
     return list(value)
 
@@ -386,6 +391,9 @@ def _render_friend_resolution(state: dict) -> None:
     st.subheader("Resolve friend names")
     st.caption("A name can match more than one helper if it refers to a group of people.")
     other_helpers = {h["id"]: h["name"] for h in state["helpers"]}
+    # An Organizer can be named too; their option carries a suffix so a Helper
+    # with the same name stays distinguishable.
+    organizer_labels = {o["id"]: f"{o['name']} (Organizer)" for o in state["organizers"]}
     for helper, names in rows:
         decisions = helper.get("friend_name_decisions", {})
         candidates = sorted(
@@ -393,7 +401,8 @@ def _render_friend_resolution(state: dict) -> None:
             key=lambda hid: other_helpers[hid].lower(),
         )
         helper_id_by_name = {other_helpers[hid]: hid for hid in candidates}
-        options = [_DISMISS_LABEL, *(other_helpers[hid] for hid in candidates)]
+        organizer_id_by_label = {label: oid for oid, label in organizer_labels.items()}
+        options = [_DISMISS_LABEL, *(other_helpers[hid] for hid in candidates), *organizer_id_by_label]
 
         st.markdown(f"**{helper['name']}** named:")
         for name in names:
@@ -404,7 +413,13 @@ def _render_friend_resolution(state: dict) -> None:
             if was_decided and decided_ids is None:
                 default = [_DISMISS_LABEL]
             elif was_decided:
-                default = [other_helpers[hid] for hid in decided_ids if hid in other_helpers]
+                default = [
+                    organizer_labels[ref["organizer_id"]]
+                    if isinstance(ref, dict)
+                    else other_helpers[ref]
+                    for ref in decided_ids
+                    if (ref["organizer_id"] in organizer_labels if isinstance(ref, dict) else ref in other_helpers)
+                ]
             else:
                 default = []
             choice = select_col.multiselect(
@@ -436,20 +451,27 @@ def _render_friend_resolution(state: dict) -> None:
                 continue
 
             resolved_ids = []
+            resolved_organizer_ids = []
             unknown = []
             for picked in choice:
                 hid = helper_id_by_name.get(picked)
-                (resolved_ids if hid is not None else unknown).append(hid if hid is not None else picked)
+                oid = organizer_id_by_label.get(picked)
+                if hid is not None:
+                    resolved_ids.append(hid)
+                elif oid is not None:
+                    resolved_organizer_ids.append(oid)
+                else:
+                    unknown.append(picked)
             if unknown:
                 names_str = ", ".join(f"“{u}”" for u in unknown)
                 select_col.warning(f"{names_str} doesn't match any known helper.")
                 continue
-            if was_decided and decided_ids == resolved_ids:
+            if was_decided and decided_ids == [*resolved_ids, *({"organizer_id": o} for o in resolved_organizer_ids)]:
                 continue
             try:
                 session.set_state(
                     mutations.resolve_friend(
-                        session.get_workspace(), helper["id"], name, "resolve", resolved_ids
+                        session.get_workspace(), helper["id"], name, "resolve", resolved_ids, resolved_organizer_ids
                     )
                 )
             except mutations.RosteringError as exc:
