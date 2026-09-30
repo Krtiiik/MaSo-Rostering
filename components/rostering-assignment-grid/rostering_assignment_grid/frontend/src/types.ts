@@ -29,6 +29,9 @@ export interface Helper {
   building_preferences: string[];
   // IDs of helpers this helper asked to share a room with.
   friends: number[];
+  // The answers (e.g. "Building preference") a re-submitted survey row changed
+  // since this Helper was placed; absent or empty when nothing changed.
+  answers_changed?: string[];
 }
 
 export interface FriendCardEntry {

@@ -184,6 +184,14 @@ export function HelperChip({
           🔒{" "}
         </span>
       )}
+      {helper.answers_changed && helper.answers_changed.length > 0 && (
+        <span
+          className="helper-chip-answers-changed"
+          title={`Answers changed since placed: ${helper.answers_changed.join(", ")}`}
+        >
+          ✎{" "}
+        </span>
+      )}
       {helper.name}
       {helper.can_bring_notebook && <span title="Can bring a notebook"> 💻</span>}
       {helper.can_bring_camera && <span title="Can bring a camera"> 📷</span>}

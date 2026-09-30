@@ -145,8 +145,8 @@ pushing the tag, not just creating it locally.
   `mutations.get_uncertain_matches` / `link_helper` / `reject_person_match` /
   `unlink_helper` / `get_person_links` back the upload tab's review list and
   "Person links" expander. Links, rejections and `link_confirmed` live on the
-  Helper record (so Versions roll them back) and are carried over a re-upload
-  onto the record with the same `person_id`. The survey's phone (`phone`
+  Helper record (so Versions roll them back) and stay put through a re-upload,
+  which updates the recognized record in place. The survey's phone (`phone`
   column mapping, `Helper.phone`) is captured for display only.
 - The one piece of UI Streamlit can't do natively — drag-and-drop — is a
   custom Streamlit component (CCv2) at `components/rostering-assignment-grid/`
@@ -222,7 +222,7 @@ pushing the tag, not just creating it locally.
   Helper with an Assignment or Manual role entries raises
   `mutations.ConfirmationRequired` (`.lines` name what goes) unless
   `confirmed=True`, then clears them and sets the stale flag. A re-upload
-  carries the flag over by `person_id` (`_carry_over_cant_attend`). The stale
+  never touches the flag (the recognized record is updated in place). The stale
   flag is `state["stale_reasons"]` (list of lines; `mutations.stale_reasons`,
   `mark_stale`), cleared by `solve`, refusing `export_xlsx_bytes`, snapshotted
   by Versions like the rest of the state; the Roster tab shows it above the
@@ -234,7 +234,7 @@ pushing the tag, not just creating it locally.
   warning) write ordinary Helper records into `state["helpers"]`, so the
   solver, grid, export, Tags and Can't attend have no second code path. A
   record gets `hand_added: true` and `hand_typed` (the fields typed by hand,
-  for the not-yet-built re-upload merge; a hand edit of any Helper adds to it,
+  for the re-upload, which never overwrites them; a hand edit of any Helper adds to it,
   and the T-shirt table edit does for a hand-added one) — both live on the
   record dict only, not on the `Helper` dataclass. An e-mail-shaped contact is
   the normalized `email`, any other contact is `phone` (display-only). Ids come
@@ -245,9 +245,42 @@ pushing the tag, not just creating it locally.
   `ConfirmationRequired`, then clears Assignment, lock and Manual role entries,
   prunes the id from every `friends` list and `friend_name_decisions` (a name
   left with no target returns to `unresolved_friend_names`) and marks the
-  roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. Note a
-  re-upload still replaces the Season's whole Helper list, so it does not yet
-  keep hand-added records.
+  roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. A
+  re-upload keeps hand-added records (they are never listed as "missing from the
+  export"); a row with the same e-mail updates one in place, skipping the fields
+  in its `hand_typed`. Not done yet: a name-only merge through the review list,
+  and offering a typed Manual role name a link to a newly recognized Helper.
+- Re-upload (`mutations.upload_responses` with a Season open, via
+  `_merge_survey_rows`): `parse_raw_survey` still numbers its rows 1..N, so the
+  merge maps each parsed id to a real one first (`_recognize_rows`: an identical
+  normalized e-mail against the Season's own Helpers, else the Person
+  `link_persons` finds if a Season Helper carries it; a row is never taken by two
+  Helpers) and gives a new registrant `_next_helper_id`. A recognized record is
+  refreshed in place by `_refresh_from_survey`: `_SURVEY_FIELDS` (name, role
+  preferences, Building set, equipment, e-mail, phone) except those in
+  `hand_typed`; friend names keep their `friend_name_decisions` only while the
+  same name is still unresolved in the row (`friend_name_order` is refreshed);
+  the T-shirt size takes the row unless it was set by hand while the last
+  survey answer (`survey_tshirt_size` on the record, written by every upload) is
+  unchanged. Assignments, locks, manual roles, merges, Tags, Can't attend and
+  every other non-survey key are never touched, and only the friend-pair
+  diagnostics are recomputed. On a re-upload of a Season that had Helpers,
+  `state["upload_summary"]` (`new`, `changed`, `missing`; hand-added Helpers are
+  never "missing") accumulates until `dismiss_upload_summary`, and
+  `upload_summary(workspace)` adds the live `uncertain` matches. A placed
+  Helper whose Building set, Preferences (blank = Nevadí) or equipment changed
+  gets `answers_changed` (the field labels) on the record, shown as a chip mark
+  in the grid (`answers_changed` helper prop); it is cleared by `move_helper`,
+  locking (`set_lock`, `lock_all_placed`), a full Solve for the Helpers it
+  re-places, and losing the Assignment, never by dismissing the summary
+  (`answers_changed_since_placed` reads it, ignoring an unplaced Helper).
+  Export gate: `unplaced_helpers` / `unplaced_reason` (attending Helpers with no
+  Assignment once a roster exists) feed `export_blockers` and
+  `export_xlsx_bytes`; unlike `stale_reasons` it is derived live, so placing the
+  newcomers by hand lifts it. UI: `tabs/upload_summary_ui.py` (top of the Upload
+  and Roster tabs), the Roster tab's warning above Solve. A same-name row with
+  no e-mail match is a new registrant plus a review-list entry, so re-uploading
+  an export with no e-mail column duplicates every Helper as one to review.
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
   Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
   `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never
@@ -262,7 +295,7 @@ pushing the tag, not just creating it locally.
   `confirmed`; then strips it and re-parents its children) and
   `set_helper_tags` / `add_tag_to_helpers` / `remove_tag_from_helper`. Tags
   are part of every Version, empty after Start over, and stay through a
-  re-upload (`_carry_over_tags`, matched by `person_id`); `Workspace` gives a
+  re-upload (the recognized record is updated in place); `Workspace` gives a
   state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
   (the "3. Tags" tab) and `tabs/helper_tags.py` (a fragment above the Upload
   tab's Helper table), both drawing pills through `tag_pills.py`.

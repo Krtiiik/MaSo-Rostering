@@ -231,7 +231,8 @@ def test_upload_while_a_season_is_open_is_always_a_reupload(workspace):
 
     # Even a podzim export, and even with a label passed, goes into the open Season.
     state = mutations.upload_responses(workspace, _podzim_survey(("Klara",)), "s.xlsx", label="2030-jaro")
-    assert [h["name"] for h in state["helpers"]] == ["Klara"]
+    # ...where it adds to the Helpers already loaded rather than replacing them.
+    assert [h["name"] for h in state["helpers"]] == ["Anna", "Petr", "Klara"]
     assert mutations.get_open_season(workspace) == {"id": season_id, "label": "2026-jaro"}
     assert len(mutations.list_seasons(workspace)) == 1
 

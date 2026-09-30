@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Re-upload into an open Season keeps your hand work. Uploading a newer export
+  into the open Season now runs the same recognition rules as a first upload
+  against the Helpers already loaded: an identical e-mail refreshes that Helper
+  from the latest row (Building preference, role Preferences, equipment,
+  friend names, ...) and they keep their id, Assignment, lock, Tags, Can't
+  attend flag and Manual roles; the same name with another e-mail becomes a new
+  registrant and goes to the review list; duplicate rows collapse to the latest
+  submission; Helpers missing from the export are kept. New registrants get
+  fresh ids and land in the Unassigned pool. A friend name you resolved by hand
+  keeps its resolution while the same name is still in the row and loses it when
+  the name changes or goes; a field you typed by hand and a T-shirt size you set
+  by hand (while the survey answer is unchanged) are kept. A placed Helper whose
+  Building preference, Preferences or equipment changed keeps their Assignment
+  and gets a ✎ marker on their chip in the grid, which stays until you move or
+  lock them (or a full Solve re-places them). A summary at the top of the Upload
+  and Roster tabs lists new registrants, changed answers (with the fields),
+  Helpers missing from the export and uncertain matches awaiting review, and
+  stays until you dismiss it. Export is blocked, with the reason, while any
+  registrant is unassigned, and lifts as they are placed.
 - Class promotion: a "Promote classes" button in the Tags tab moves school-class
   Tags (names like "8.M", "8. M" or "10.M": number, dot, optional space,
   letters) up one school year per school year crossed since the Season they were
