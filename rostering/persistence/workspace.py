@@ -114,6 +114,11 @@ class Workspace:
             # edit that invalidates it without moving anyone, cleared by a full
             # Solve, and blocks Export while non-empty. Part of every Version.
             "stale_reasons": [],
+            # The Season's Tags (see rostering.tags): dicts with id, name,
+            # colour, note and parent_id. A Helper's direct Tags are the Tag
+            # ids in its record's "tags"; effective Tags are computed, never
+            # stored. Part of every Version and cleared by Start over.
+            "tags": [],
             "diagnostics": {
                 "status": None,
                 "objective_value": None,
@@ -134,6 +139,8 @@ class Workspace:
         written back at once, so the ids are stable from then on."""
         path = season_dir / "state.json"
         state = _read_json(path)
+        # A state saved before Tags existed has none.
+        state.setdefault("tags", [])
         if ensure_person_ids(state):
             _write_json(path, state)
         return state
