@@ -1,6 +1,6 @@
 """Tab 3: the Season's Tags — the tag tree, an edit form, and who carries each
-Tag (Helpers and Organizers alike). Tagging them one by one or in bulk also lives
-in the Upload tab's Helper list (``helper_tags``)."""
+Tag (Helpers and Organizers alike). A person's own Tags are also picked in their
+popup in the People tab (``person_dialog``)."""
 from __future__ import annotations
 
 import streamlit as st

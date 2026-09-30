@@ -11,7 +11,7 @@
 //   node smoke.mjs [path/to/raw-response.xlsx]
 //
 // With no xlsx path, only checks that the app shell loads. With a path,
-// uploads it via the Upload tab, waits for the parsed-helpers dataframe,
+// uploads it via the People tab, waits for the Organizers/Helpers tables,
 // switches to Buildings, solves, switches to Roster, drags one helper chip
 // into a grid cell (exercising the CCv2 assignment_grid component, which
 // renders in a shadow root — not an iframe, since CCv2 doesn't use iframes),
@@ -62,33 +62,26 @@ if (xlsxPath) {
     await labelInput.fill("2026-jaro");
   }
   await createSeason.click();
-  await page.waitForSelector('[data-testid="stDataFrame"]', { timeout: 30000 });
+  await page.getByText("Helpers (", { exact: false }).waitFor({ timeout: 30000 });
   await page.screenshot({ path: path.join(SHOT_DIR, "02-helpers-loaded.png"), fullPage: true });
-  console.log("helpers dataframe rendered");
+  console.log("people tables rendered");
 
-  // Resolve one unresolved friend name to a candidate, and dismiss another as
-  // "not attending", if any exist. Each unresolved name is its own inline
-  // selectbox (placeholder = the quoted name; options are the unselected
-  // placeholder, then a "not attending" sentinel, then every other helper as
-  // a candidate — in that order so "not attending" doesn't require scrolling
-  // past a long, virtualized candidate list) that applies immediately on
-  // selection — there are no separate Match/dismiss buttons any more.
-  const friendSelects = page.locator('[data-testid="stSelectbox"]:visible');
-  const friendSelectCount = await friendSelects.count();
-  console.log(`unresolved friend selectboxes: ${friendSelectCount}`);
-  if (friendSelectCount > 0) {
-    await friendSelects.first().scrollIntoViewIfNeeded();
-    await friendSelects.first().click();
-    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-    await page.getByRole("option").nth(2).click(); // 0 = placeholder, 1 = "not attending", 2 = first candidate
-    await page.waitForTimeout(500);
-  }
-  const friendSelectsAfter = page.locator('[data-testid="stSelectbox"]:visible');
-  if ((await friendSelectsAfter.count()) > 0) {
-    await friendSelectsAfter.first().scrollIntoViewIfNeeded();
-    await friendSelectsAfter.first().click();
-    await page.waitForSelector('[role="listbox"]', { timeout: 5000 });
-    await page.getByRole("option").nth(1).click(); // "not attending"
+  // Friend names are matched in a helper's popup: a name button marked with a
+  // warning sign has some unresolved. Open one, go to its "Friend names" tab
+  // and dismiss its first name as "not attending" (each picker applies its
+  // choice immediately and the popup stays open), then close the popup.
+  const flagged = page.getByRole("button", { name: /^⚠/ });
+  const flaggedCount = await flagged.count();
+  console.log(`helpers with unresolved friend names: ${flaggedCount}`);
+  if (flaggedCount > 0) {
+    await flagged.first().scrollIntoViewIfNeeded();
+    await flagged.first().click();
+    const popup = page.getByRole("dialog");
+    await popup.getByRole("tab", { name: "Friend names" }).click();
+    await popup.locator('[data-testid="stMultiSelect"]').first().click();
+    await page.getByRole("option").first().click(); // "not attending"
+    await page.waitForTimeout(800);
+    await popup.getByRole("button", { name: "Close" }).click();
     await page.waitForTimeout(500);
   }
   await page.screenshot({ path: path.join(SHOT_DIR, "03-after-friend-actions.png"), fullPage: true });

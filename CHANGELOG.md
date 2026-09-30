@@ -7,8 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The "Upload" tab is now "People": a table-like view with the Organizers above
+  and the Helpers below, each with a "＋ Add" button under the last row. Click a
+  name to open that person's popup, which holds everything that was spread over
+  the tab before: their fields, Can't attend, Tags, Person links, deleting, and
+  (for a Helper) promoting to Organizer and matching the friend names they wrote.
+  An Organizer can now be added, renamed, given an e-mail and deleted there.
+- Matching friend names moved from one long list on the tab into each helper's
+  popup (Friend names); a helper with names still to match is marked ⚠ in the table.
+
 ### Removed
 
+- The "Tag helpers" list on the Upload tab (per-person pickers, a name and Tag
+  filter, and "Apply a tag to all shown"). A person's Tags are picked in their
+  popup, and a Tag is given to many people at once from the Tags tab.
+- The editable helper and organizer tables (T-shirt size and Can't attend
+  columns), replaced by the popup.
 - The "Find a helper" box above the "Others" picker when editing a Tag. The
   picker itself is searchable, so the extra filter was redundant.
 

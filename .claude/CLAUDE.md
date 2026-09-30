@@ -97,7 +97,7 @@ pushing the tag, not just creating it locally.
   were removed in favor of Streamlit to cut the toolchain down to one
   language). `app.py` is the entry point; `mutations.py` holds
   Streamlit-free state-mutation functions (upload, solve, move a helper,
-  friend resolution, ...) that the three tabs (`tabs/upload_tab.py`,
+  friend resolution, ...) that the three tabs (`tabs/people_tab.py`,
   `tabs/config_tab.py`, `tabs/grid_tab.py`) call into and that tests exercise
   directly. Single-workspace design: the Workspace is the one open Season —
   upload a raw survey export (which creates the Season when none is open),
@@ -186,7 +186,7 @@ pushing the tag, not just creating it locally.
   renders the banner (family sections collapse above 10 instances), passes the
   marks to the grid component (`broken_marks`) and stores the drop's toast
   lines in session state to emit after the rerun; `fix_focus.py` carries a
-  "Go fix" target to the Buildings/Upload tab and drops it once the rule
+  "Go fix" target to the Buildings/People tab and drops it once the rule
   holds. `move_helper` has no validation gate. `diagnostics["broken_rules"]`
   in the saved state is only the solver's report as of the last solve and is
   not shown anywhere.
@@ -226,9 +226,30 @@ pushing the tag, not just creating it locally.
   flag is `state["stale_reasons"]` (list of lines; `mutations.stale_reasons`,
   `mark_stale`), cleared by `solve`, refusing `export_xlsx_bytes`, snapshotted
   by Versions like the rest of the state; the Roster tab shows it above the
-  Solve button and disables Export, the Upload tab shows it above the Helper
-  list. The Upload tab's confirmation opens on the rerun after the checkbox
-  edit (the table's widget key is bumped so it shows the saved state meanwhile).
+  Solve button and disables Export, the People tab shows it above the tables.
+  Can't attend is a checkbox in the person's popup (`person_dialog`); flagging
+  a placed person queues the confirmation in `person_actions` (a full page rerun
+  closes the popup, and the dialog opens from there, since dialogs can't nest).
+- People tab (`tabs/people_tab.py`, "1. People"): the upload, the review lists
+  and two hand-built table views (Streamlit's own tables can't hold a click
+  target or pills): Organizers above, Helpers below, one `st.columns` row per
+  person sorted by name, each ending with a "＋ Add" button. A name is a button
+  that opens that person's popup (`person_dialog.open_person`, an `st.dialog`
+  with `on_dismiss="rerun"` so the table is current once it closes): for a
+  Helper the tabs Details (Can't attend, every field, Save / Promote / Delete,
+  `helper_forms.render_details`), Tags, Friend names (the per-Helper matching of
+  the free-text friend names, `resolve_friend`) and Person links
+  (`person_links.render_helper_links`); for an Organizer Details and Tags. Edits
+  that only change the popup (Tags, friend names, Can't attend) call
+  `person_actions.rerun_popup` (a fragment rerun, the popup stays open); Save,
+  Delete and Promote rerun the page, which closes it, and leave a one-shot
+  message (`person_actions.flash`). An action needing confirmation is queued by
+  `person_actions.attempt` and its dialog opens from `show_pending` on the next
+  page run. The page-level review lists stay in `person_links`. A Helper's
+  Details form gets a fresh widget key (`helper_forms.DETAILS_NONCE`) when the
+  friend matching changes their friends. The popup's bodies read the state fresh
+  (`session.get_state()`), never from arguments, since a fragment rerun re-passes
+  the old ones.
 - Hand-added Helpers: `mutations.add_helper` / `update_helper` /
   `delete_helper` (and `helper_collisions`, the non-blocking name/e-mail
   warning) write ordinary Helper records into `state["helpers"]`, so the
@@ -261,7 +282,7 @@ pushing the tag, not just creating it locally.
   carried. Typed Manual role names (`helper_id` None, `helper_name` text) are
   matched live by normalized name against the attending Helpers
   (`get_typed_role_link_offers`, one offer per typed name with its candidates
-  and slots; shown above the review list in the Upload tab);
+  and slots; shown above the review list in the People tab);
   `link_typed_role_name` rewrites every such entry to `{helper_id, helper_name:
   None}` (dropping one whose slot the Helper already holds) and
   `decline_typed_role_link` records the pair in `state["declined_typed_role_links"]`
@@ -293,7 +314,7 @@ pushing the tag, not just creating it locally.
   Export gate: `unplaced_helpers` / `unplaced_reason` (attending Helpers with no
   Assignment once a roster exists) feed `export_blockers` and
   `export_xlsx_bytes`; unlike `stale_reasons` it is derived live, so placing the
-  newcomers by hand lifts it. UI: `tabs/upload_summary_ui.py` (top of the Upload
+  newcomers by hand lifts it. UI: `tabs/upload_summary_ui.py` (top of the People
   and Roster tabs), the Roster tab's warning above Solve. A same-name row with
   no e-mail match is a new registrant plus a review-list entry, so re-uploading
   an export with no e-mail column duplicates every Helper as one to review.
@@ -437,8 +458,7 @@ pushing the tag, not just creating it locally.
   is not scored, silently — and, via `export.people.without_absent`, the export
   never see them). `promote_helper` does not carry the Helper's flag over
   (documented choice: promoting is deliberate, the Organizer attends). UI:
-  `tabs/organizer_list.py` (an Organizers table with the Can't attend checkbox and
-  its confirmation, under the Upload tab's Helper list). Organizer Tags: the
+  the Organizers table of the People tab (`tabs/people_tab.py`), whose popup has the Can't attend checkbox, the e-mail/name edit and a delete, with the confirmation in `tabs/person_actions.py`. Organizer Tags: the
   record's direct-Tag id list `tags`, with parallel functions to the Helper ones
   (`organizer_tags`, `set_organizer_tags`, `remove_tag_from_organizer`,
   `tag_organizer_carriers` / `tag_organizer_counts`, `organizer_tag_pills`,
@@ -450,7 +470,7 @@ pushing the tag, not just creating it locally.
   `BrokenRule.organizer_ids`, `FixTarget.organizer_id`), which the solver never
   reports (a placed Organizer is a fixed anchor), and `mutations.broken_rules`
   judges those even before the first solve (only they: an empty roster breaks no
-  minimum). The Upload tab's "Tag helpers" list and the Tags tab list Organizers
+  minimum). The People tab's popups and the Tags tab list Organizers
   beside Helpers; the grid passes each slot chip's `tags`/`dimmed`/`broken` on its
   `manual_entries` entry. Tag import re-applies them to Organizers across Seasons
   (see the Tag import note below).
@@ -491,8 +511,7 @@ pushing the tag, not just creating it locally.
   are part of every Version, empty after Start over, and stay through a
   re-upload (the recognized record is updated in place); `Workspace` gives a
   state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
-  (the "3. Tags" tab) and `tabs/helper_tags.py` (a fragment above the Upload
-  tab's Helper table), both drawing pills through `tag_pills.py`.
+  (the "3. Tags" tab) and the Tag picker in a person's popup in the People tab (`tabs/person_dialog.py`), both drawing pills through `tag_pills.py`.
 - Tag import (`mutations.py`, "Tag import" section; UI in
   `tabs/tag_import_ui.py`): `import_from_season(workspace, source_season_id,
   selections=None)` runs every `ImportSection` in `_IMPORT_SECTIONS`
@@ -563,7 +582,7 @@ pushing the tag, not just creating it locally.
   no merging). It also records, per source in `tag_imports`, `promoted_years`
   and `unpromoted_tag_ids` (source Tag ids of suggestions left unticked, still
   suggested next time). `import_from_season` returns `promotion_prompt` (current
-  label podzim and a school year crossed), which makes the Upload/Tags tab open
+  label podzim and a school year crossed), which makes the People/Tags tab open
   the dialog by itself (`_class_promotion_auto`); the Tags tab has an
   always-available "Promote classes" button.
 - Roster grid Tag pills and filter: `mutations.grid_tag_pills(state)` (each

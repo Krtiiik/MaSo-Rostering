@@ -5,9 +5,9 @@ from __future__ import annotations
 import streamlit as st
 
 from rostering.streamlit_app import mutations, season_header, seasons_panel, session, versions_sidebar
-from rostering.streamlit_app.tabs import config_tab, forced_friends_tab, grid_tab, tags_tab, upload_tab
+from rostering.streamlit_app.tabs import config_tab, forced_friends_tab, grid_tab, people_tab, tags_tab
 
-_TABS = ["1. Upload", "2. Buildings", "3. Tags", "4. Forced friends", "5. Roster"]
+_TABS = ["1. People", "2. Buildings", "3. Tags", "4. Forced friends", "5. Roster"]
 
 
 def _migrate_saved_state() -> None:
@@ -76,8 +76,8 @@ def main() -> None:
         label_visibility="collapsed",
     )
 
-    if active_tab == "1. Upload":
-        upload_tab.render()
+    if active_tab == "1. People":
+        people_tab.render()
     elif active_tab == "2. Buildings":
         config_tab.render()
     elif active_tab == "3. Tags":

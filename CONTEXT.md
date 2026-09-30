@@ -74,7 +74,7 @@ the text into a Helper reference and declining leaves it as typed. A placed Help
 preference, Preferences or equipment changed keeps their Assignment and is
 marked "answers changed since placed" until they are moved, locked or
 re-placed by a full Solve. A summary of what changed stays at the top of the
-Upload and Roster tabs until dismissed, and Export is blocked while any
+People and Roster tabs until dismissed, and Export is blocked while any
 registrant is unassigned.
 
 **Place new registrants**:
@@ -169,8 +169,7 @@ Helper's effective Tags are the ones assigned to them directly plus every
 implied ancestor, computed live off the Tag tree rather than copied onto the
 Helper (e.g. "8.M" implies "GCHD", so an 8.M Helper is GCHD too). Each Season
 keeps its own Tags; they reach a later Season through Tag import. Tags are
-managed in the Tags tab and applied there or inline in the Upload tab's Helper
-list; deleting a Tag strips it from its Helpers and moves its child Tags up to
+managed in the Tags tab and applied there or in a person's popup in the People tab; deleting a Tag strips it from its Helpers and moves its child Tags up to
 its own parent.
 
 **Tag constraint**:

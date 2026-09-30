@@ -1,8 +1,7 @@
-"""Organizers in the Upload and Tags tabs (rendered headlessly with Streamlit's
+"""Organizers in the People and Tags tabs (rendered headlessly with Streamlit's
 AppTest against a temp-dir Season seeded with synthetic Helpers and Organizers,
-never data/): the inline Tag multiselect lists them next to the Helpers and
-tagging one saves through the mutation layer, the Organizer table lists their
-placement and Can't attend flag, and the Tags tab shows who carries a Tag."""
+never data/): the People tab lists them above the Helpers, their popup edits
+and tags them through the mutation layer, and the Tags tab shows who carries a Tag."""
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -19,17 +18,29 @@ CONFIG = [
 ]
 
 
-def _helper_tags_app():
-    from rostering.streamlit_app.tabs import helper_tags
+def _people_tab_app():
+    from rostering.streamlit_app.tabs import people_tab
 
-    helper_tags.render()
+    people_tab.render()
 
 
-def _organizer_list_app():
-    from rostering.streamlit_app import session
-    from rostering.streamlit_app.tabs import organizer_list
+# AppTest reruns the whole script on a widget change and so would not render a
+# popup that a button opened; these render a popup's body directly, as the
+# fragment a real popup is.
+def _organizer_popup_app():
+    import streamlit as st
 
-    organizer_list.render(session.get_state())
+    from rostering.streamlit_app.tabs import person_dialog
+
+    st.fragment(person_dialog._organizer_body)(1)
+
+
+def _helper_popup_app():
+    import streamlit as st
+
+    from rostering.streamlit_app.tabs import person_dialog
+
+    st.fragment(person_dialog._helper_body)(1)
 
 
 def _tags_tab_app():
@@ -70,12 +81,20 @@ def seasons(tmp_path, monkeypatch):
     return Workspace()
 
 
-def test_the_inline_tag_list_shows_organizers_and_tagging_one_saves(seasons):
-    at = AppTest.from_function(_helper_tags_app, default_timeout=30).run()
+def test_the_people_tab_lists_organizers_and_helpers_as_name_buttons(seasons):
+    at = AppTest.from_function(_people_tab_app, default_timeout=30).run()
+
+    assert not at.exception
+    assert any(s.value == "Organizers (1)" for s in at.subheader)
+    assert any(s.value == "Helpers (1)" for s in at.subheader)
+    assert {b.label for b in at.button} >= {"Boss", "Anna", "＋ Add organizer", "＋ Add helper"}
+
+
+def test_tagging_an_organizer_in_their_popup_saves(seasons):
+    at = AppTest.from_function(_organizer_popup_app, default_timeout=30).run()
     assert not at.exception
 
-    picker = next(m for m in at.multiselect if m.label == "Tags of Boss")
-    picker.set_value([1]).run()
+    next(m for m in at.multiselect if m.label == "Tags (directly)").set_value([1]).run()
 
     assert not at.exception
     saved = mutations.get_state(seasons)
@@ -83,11 +102,64 @@ def test_the_inline_tag_list_shows_organizers_and_tagging_one_saves(seasons):
     assert saved["helpers"][0].get("tags") in (None, [])
 
 
-def test_the_organizer_table_shows_the_placement_and_can_attend_state(seasons):
-    at = AppTest.from_function(_organizer_list_app, default_timeout=30).run()
+def test_editing_a_helper_in_their_popup_saves(seasons):
+    at = AppTest.from_function(_helper_popup_app, default_timeout=30).run()
+    assert not at.exception
+
+    next(t for t in at.text_input if t.label == "Name").set_value("Anna K.").run()
+    next(b for b in at.button if b.label == "Save changes").click().run()
 
     assert not at.exception
-    assert any(s.value == "Organizers (1)" for s in at.subheader)
+    assert mutations.get_state(seasons)["helpers"][0]["name"] == "Anna K."
+
+
+def test_the_add_organizer_form_creates_one(seasons):
+    def app():
+        from rostering.streamlit_app.tabs import person_dialog
+
+        person_dialog._add_organizer_body()
+
+    at = AppTest.from_function(app, default_timeout=30).run()
+    next(t for t in at.text_input if t.label == "Name (required)").set_value("Nova").run()
+    next(b for b in at.button if b.label == "Add organizer").click().run()
+
+    assert not at.exception
+    assert [o["name"] for o in mutations.get_state(seasons)["organizers"]] == ["Boss", "Nova"]
+
+
+def test_the_add_helper_form_creates_one(seasons):
+    def app():
+        from rostering.streamlit_app.tabs import helper_forms
+
+        helper_forms.render_add_form()
+
+    at = AppTest.from_function(app, default_timeout=30).run()
+    next(t for t in at.text_input if t.label == "Name (required)").set_value("Nova Helper").run()
+    next(t for t in at.text_input if t.label == "Contact (required)").set_value("nova@example.com").run()
+    next(b for b in at.button if b.label == "Add helper").click().run()
+
+    assert not at.exception
+    assert [h["name"] for h in mutations.get_state(seasons)["helpers"]] == ["Anna", "Nova Helper"]
+
+
+def test_deleting_a_helper_in_their_popup_removes_them(seasons):
+    at = AppTest.from_function(_helper_popup_app, default_timeout=30).run()
+    next(b for b in at.button if b.label == "Delete helper").click().run()
+
+    assert not at.exception
+    assert mutations.get_state(seasons)["helpers"] == []
+
+
+def test_the_friend_names_tab_lists_the_names_a_helper_wrote(seasons):
+    state = seasons.load()
+    state["helpers"][0]["unresolved_friend_names"] = ["Terka"]
+    state["helpers"][0]["friend_name_order"] = ["Terka"]
+    seasons.save(state)
+
+    at = AppTest.from_function(_helper_popup_app, default_timeout=30).run()
+
+    assert not at.exception
+    assert any("Terka" in w.value for w in at.markdown)
 
 
 def test_the_tags_tab_lists_an_organizer_who_carries_the_tag(seasons):
