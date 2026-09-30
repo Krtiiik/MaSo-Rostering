@@ -220,7 +220,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     helper's row."""
     helpers = sorted(state["helpers"], key=lambda h: h["name"].lower())
     st.subheader(f"Pomocníci ({len(helpers)})")
-    st.caption("Odvozené štítky (které pomocník má jen díky nadřazenému štítku) mají čárkovaný obrys.")
+    st.caption("Odvozené štítky (které pomocník má jen díky nadřazenému štítku) mají čárkovaný obrys. Vybavení: 💻 notebook, 📷 fotoaparát.")
     pills = mutations.grid_tag_pills(state)
     names, details = [], []
     for helper in helpers:
@@ -230,7 +230,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
             [
                 ", ".join(returning.get(helper["id"], [])) or "—",
                 ", ".join(helper["building_preferences"]) or "libovolná",
-                ", ".join(filter(None, ["notebook" if helper["can_bring_notebook"] else "", "fotoaparát" if helper["can_bring_camera"] else ""]))
+                " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
                 or "—",
                 helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
                 f"k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])),
