@@ -22,6 +22,7 @@ TAB_LABELS = {
     "buildings": "2. Buildings",
     "helpers": "1. Upload",
     "tags": "3. Tags",
+    "forced_friends": "4. Forced friends",
 }
 
 
@@ -44,6 +45,10 @@ def go_fix(broken: BrokenRule) -> None:
         from rostering.streamlit_app.tabs import tags_tab
 
         tags_tab.focus_tag(broken.fix.tag_id)
+    if broken.fix.tab == "forced_friends" and broken.fix.group_id is not None:
+        from rostering.streamlit_app.tabs import forced_friends_tab
+
+        forced_friends_tab.focus_group(broken.fix.group_id)
     session.switch_tab(TAB_LABELS[broken.fix.tab])
 
 

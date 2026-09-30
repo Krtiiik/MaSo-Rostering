@@ -188,17 +188,24 @@ independently) or `mutual` (only reciprocated requests count), and as
 `symmetric` (a reciprocated pair merges into one scored unit) or not
 (each direction scores separately).
 
-**Forced friends group** *(planned, not yet implemented)*:
-A named, user-authored hard constraint: a set of Helpers and Organizers who
-must share every axis the group selects — Building, Room, and/or Role (Room
-implies Building). Distinct from Friend preference, which is a soft survey
-request the solver may leave unsatisfied. A person may belong to several
-groups; overlapping groups are never merged. A group never includes an
-Organizer on the Role axis, since an Organizer has no solved Role. A group is
-inactive while it has fewer than two active members; a member who is
-Can't attend, an unplaced Organizer, or not registered this Season is not
-active. A group belongs to the people in it, not to one Season, so it carries
-over to a later Season alongside Tag import.
+**Forced friends group**:
+A named, user-authored hard constraint: a set of people — Persons, each
+resolving in a Season to a Helper or to "not registered" — who must share every
+axis the group selects — Building, Room, and/or Role (Room implies Building).
+Distinct from Friend preference, which is a soft survey request the solver may
+leave unsatisfied. A person may belong to several groups; overlapping groups are
+never merged. A group is inactive while it has fewer than two active members; a
+member who is Can't attend or not registered this Season is not active (a Can't
+attend member stays in the group, flagged, and is restored on un-flagging; a
+member not registered this Season is shown dim as "not registered" and becomes
+live if they later register and are recognized as the same Person). Groups are
+saved per Season, in Versions, cleared by Start over and kept on re-upload.
+Creating a group or changing its people or axes after a solve moves no one and
+makes the roster stale; dissolving one does so only if it was active and its
+members currently satisfy it. *Planned, not yet implemented*: an Organizer as a
+member (never on the Role axis, since an Organizer has no solved Role; an
+unplaced Organizer is not active), and a group carrying over to a later Season
+alongside Tag import, since it belongs to the people in it, not to one Season.
 
 **Assignment**:
 The solver's output for one Helper: the Building, Room, and Role they're

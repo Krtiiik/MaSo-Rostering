@@ -12,6 +12,7 @@ from enum import Enum, IntEnum
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:  # rostering.tags needs nothing from here at runtime
+    from rostering.forced_friends import ForcedGroup
     from rostering.tags import Tag
 
 
@@ -176,6 +177,9 @@ class Competition:
     # Helpers: the solver never sees them and they use no Role or Role
     # capacity; the export names them in their Organizer role slots.
     organizers: list["Organizer"] = field(default_factory=list)
+    # The Season's Forced friends groups (see rostering.forced_friends); their
+    # members are Persons, resolved against the Helpers by ``person_id``.
+    forced_groups: list["ForcedGroup"] = field(default_factory=list)
 
     def attending(self) -> "Competition":
         """This Competition without the Helpers flagged Can't attend: the one
@@ -188,6 +192,7 @@ class Competition:
             helpers=[h for h in self.helpers if not h.cant_attend],
             tags=self.tags,
             organizers=self.organizers,
+            forced_groups=self.forced_groups,
         )
 
 
@@ -228,6 +233,7 @@ class FixTarget:
     role: Optional[str] = None
     helper_id: Optional[int] = None
     tag_id: Optional[int] = None
+    group_id: Optional[int] = None
 
 
 @dataclass(frozen=True)

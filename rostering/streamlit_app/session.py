@@ -51,6 +51,8 @@ def workspace_replaced(new_state: dict[str, Any], keep_view: bool = False) -> No
         "_active_tab",
         "_pending_tab",
         "_fix_focus",
+        "_ff_focus",
+        "_ff_flash",
         "_grid_show_tags",
         "_grid_tag_filter",
         "_grid_tag_mode",

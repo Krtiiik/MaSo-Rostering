@@ -23,7 +23,7 @@ one Role per Helper, and fixed Assignments (see ``solve_competition``'s
 
 Extension point
 ---------------
-A later rule family (Forced-friend groups, as Tag constraints already do) plugs in by
+A later rule family (as Tag constraints and Forced-friend groups already do) plugs in by
 building a ``RuleFamily`` and passing it through ``register_rule_family``
 (or to ``solve_competition(families=...)``), with no change to the model:
 
@@ -50,7 +50,7 @@ from typing import Callable, Optional
 
 from ortools.sat.python import cp_model
 
-from rostering import tags as tags_module
+from rostering import forced_friends, tags as tags_module
 from rostering.domain import (
     Assignment,
     Building,
@@ -91,6 +91,8 @@ class ModelContext:
     role_room_var: dict[tuple[int, Role, int], cp_model.IntVar]
     # The Season's Tag definitions; each Helper carries its direct Tag ids.
     tags: list[tags_module.Tag] = field(default_factory=list)
+    # The Season's Forced friends groups (members resolved against ``helpers``).
+    forced_groups: list[forced_friends.ForcedGroup] = field(default_factory=list)
 
 
 @dataclass
@@ -338,13 +340,85 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
     return broken
 
 
+def _forced_friends(ctx: ModelContext) -> list[Relaxation]:
+    """Each active Forced friends group's enforced axes (see
+    ``rostering.forced_friends.group_rules``): the slack is the number of
+    members placed apart from the largest party sharing a value on the axis,
+    exactly 0 when they all share it. Groups are independent, so overlapping
+    ones are never merged."""
+    relaxations: list[Relaxation] = []
+    for rule in forced_friends.group_rules(ctx.helpers, ctx.forced_groups):
+        counts = []
+        if rule.axis == forced_friends.BUILDING:
+            for room_ids in ctx.building_rooms.values():
+                counts.append(sum(ctx.assign_room[h, rid] for h in rule.helper_ids for rid in room_ids))
+        elif rule.axis == forced_friends.ROOM:
+            for rid in range(len(ctx.rooms)):
+                counts.append(sum(ctx.assign_room[h, rid] for h in rule.helper_ids))
+        else:
+            for role in ctx.roles:
+                counts.append(sum(ctx.assign_role[h, role] for h in rule.helper_ids))
+        size = len(rule.helper_ids)
+        largest = ctx.model.NewIntVar(0, size, f"forced_{rule.group.id}_{rule.axis}_largest")
+        ctx.model.AddMaxEquality(largest, counts)
+        slack = ctx.model.NewIntVar(0, size - 1, f"forced_{rule.group.id}_{rule.axis}_apart")
+        ctx.model.Add(slack == size - largest)
+        relaxations.append(
+            Relaxation(
+                instance=rule.instance,
+                slack=slack,
+                max_units=rule.max_units,
+                describe=lambda units, rule=rule: rule.line(units),
+            )
+        )
+    return relaxations
+
+
+def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
+    comp = ctx.competition
+    if not comp.forced_groups:
+        return []
+    placed = {a.helper_id: a for a in ctx.assignments}
+    known_rooms = {(b.name, r.name) for b in comp.buildings.values() for r in b.rooms}
+    helpers = {h.id: h for h in comp.helpers}
+    broken: list[BrokenRule] = []
+    for rule in forced_friends.group_rules(comp.helpers, comp.forced_groups):
+        # A member with no Assignment, or one in a Room the configuration no
+        # longer has, is judged by nothing (like the other families).
+        members = [
+            placed[h]
+            for h in rule.helper_ids
+            if h in placed and (placed[h].building, placed[h].room) in known_rooms
+        ]
+        units = forced_friends.split_units(
+            [forced_friends.place_value(rule.axis, a.building, a.room, a.role.name) for a in members]
+        )
+        if not units:
+            continue
+        broken.append(
+            BrokenRule(
+                instance=rule.instance,
+                family="forced_friends",
+                amount=units,
+                line=rule.line(units, len(members)),
+                cells=tuple(dict.fromkeys((a.building, a.room, None) for a in members)),
+                helper_ids=tuple(a.helper_id for a in members),
+                fix=FixTarget("forced_friends", group_id=rule.group.id),
+            )
+        )
+    return broken
+
+
 MINIMUMS_FAMILY = RuleFamily("minimums", Tier.MINIMUMS, _minimums, check=_check_minimums)
 TAG_RESTRICTIONS_FAMILY = RuleFamily(
     "tag_restrictions", Tier.TAG_RESTRICTIONS, _tag_restrictions, check=_check_tag_restrictions
 )
+FORCED_FRIENDS_FAMILY = RuleFamily(
+    "forced_friends", Tier.FORCED_FRIENDS, _forced_friends, check=_check_forced_friends
+)
 EQUIPMENT_FAMILY = RuleFamily("equipment", Tier.EQUIPMENT, _equipment, check=_check_equipment)
 
-_registry: list[RuleFamily] = [MINIMUMS_FAMILY, TAG_RESTRICTIONS_FAMILY, EQUIPMENT_FAMILY]
+_registry: list[RuleFamily] = [MINIMUMS_FAMILY, TAG_RESTRICTIONS_FAMILY, FORCED_FRIENDS_FAMILY, EQUIPMENT_FAMILY]
 
 
 def register_rule_family(family: RuleFamily) -> None:
