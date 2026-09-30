@@ -2653,28 +2653,38 @@ def _resolve_import_tag(
 
 
 def _source_direct_tags_by_person(source_state: dict[str, Any]) -> dict[str, list[int]]:
-    """Person id -> the Tags (ids of the source Season) its Helper records there
-    carry directly, in the order carried; only Tags that still exist."""
+    """Person id -> the Tags (ids of the source Season) its records there carry
+    directly, in the order carried; only Tags that still exist. A Person's Helper
+    and Organizer records count alike, so what a Helper carried is re-applied to
+    them as an Organizer now (a promotion) and what an Organizer carried to them
+    as a Helper."""
     known = {t["id"] for t in source_state.get("tags") or []}
     by_person: dict[str, list[int]] = {}
-    for helper in source_state["helpers"]:
-        person_id = helper.get("person_id")
+    for person in (*source_state["helpers"], *(source_state.get("organizers") or [])):
+        person_id = person.get("person_id")
         if not person_id:
             continue
         carried = by_person.setdefault(person_id, [])
-        carried.extend(t for t in helper.get("tags") or [] if t in known and t not in carried)
+        carried.extend(t for t in person.get("tags") or [] if t in known and t not in carried)
     return by_person
 
 
-def _add_valid_tags(state: dict[str, Any], helper: dict, tag_ids: Sequence[int]) -> tuple[list[int], list[dict]]:
-    """Give a Helper these Tags directly, one by one, skipping any that would
-    leave them with no allowed Building or Role they did not already lack (the
-    same test as :func:`_refuse_new_dead_ends`, but a skip instead of a refusal)
-    and any they carry already. Returns ``(added Tag ids, skipped)``; a skip is
-    ``helper_id``, ``helper``, ``tag_id``, ``tag`` and ``reason``."""
+def _add_valid_tags(
+    state: dict[str, Any], helper: dict, tag_ids: Sequence[int], kind: str = "helper"
+) -> tuple[list[int], list[dict]]:
+    """Give a Helper (or, with ``kind="organizer"``, an Organizer) these Tags
+    directly, one by one, skipping any that would leave them with no allowed
+    Building or Role they did not already lack (the same test as
+    :func:`_refuse_new_dead_ends`, but a skip instead of a refusal; an Organizer
+    has no solved Role, so only the Building axis counts for them) and any they
+    carry already. Returns ``(added Tag ids, skipped)``; a skip is ``kind``,
+    ``helper_id``/``helper`` (``organizer_id``/``organizer`` for an Organizer),
+    ``tag_id``, ``tag`` and ``reason``."""
     tags = _tag_definitions(state)
     names = {t.id: t.name for t in tags}
     universes = _tag_universes(state)
+    if kind == "organizer":
+        universes = {tag_tree.BUILDING: universes[tag_tree.BUILDING]}
     direct = _direct_tag_ids(helper)
     before = tag_tree.dead_ends(tags, {helper["id"]: direct}, universes)
     added: list[int] = []
@@ -2687,8 +2697,9 @@ def _add_valid_tags(state: dict[str, Any], helper: dict, tag_ids: Sequence[int])
             nouns = " or ".join("Role" if axis == tag_tree.ROLE else "Building" for _, axis in fresh)
             skipped.append(
                 {
-                    "helper_id": helper["id"],
-                    "helper": helper["name"],
+                    "kind": kind,
+                    f"{kind}_id": helper["id"],
+                    kind: helper["name"],
                     "tag_id": tag_id,
                     "tag": names[tag_id],
                     "reason": f"would leave {helper['name']} with no allowed {nouns}",
@@ -2705,7 +2716,11 @@ def _add_valid_tags(state: dict[str, Any], helper: dict, tag_ids: Sequence[int])
 def _import_tags_section(context: ImportContext) -> dict[str, Any]:
     """The Tags section: copy the source's Tag tree (each Tag it lacks, matched
     by origin then name), then re-apply the directly carried Tags to every
-    confidently linked Person."""
+    confidently linked Person, Helper or Organizer in this Season whichever they
+    were in the source (an Organizer's constraint is Building-axis only, see
+    :func:`_add_valid_tags`). The summary lists Helpers and Organizers tagged
+    separately (``helpers_tagged``, ``organizers_tagged``), and the ones awaiting
+    review likewise (``awaiting_review``, ``organizers_awaiting_review``)."""
     state, source_state, source = context.state, context.source_state, context.source
     source_tags = source_state.get("tags") or []
     tags = state.setdefault("tags", [])
@@ -2754,21 +2769,31 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
 
     carried = _source_direct_tags_by_person(source_state)
     tagged: list[str] = []
+    organizers_tagged: list[str] = []
     skipped: list[dict] = []
-    for helper in state["helpers"]:
-        wanted = [mapping[t] for t in carried.get(helper.get("person_id"), []) if t in mapping]
-        if not wanted:
-            continue
-        added, refused = _add_valid_tags(state, helper, wanted)
-        skipped.extend(refused)
-        if added:
-            tagged.append(helper["name"])
+    for kind, people, names_tagged in (
+        ("helper", state["helpers"], tagged),
+        ("organizer", state["organizers"], organizers_tagged),
+    ):
+        for person in people:
+            wanted = [mapping[t] for t in carried.get(person.get("person_id"), []) if t in mapping]
+            if not wanted:
+                continue
+            added, refused = _add_valid_tags(state, person, wanted, kind)
+            skipped.extend(refused)
+            if added:
+                names_tagged.append(person["name"])
 
     awaiting: list[str] = []
-    proposals = uncertain_candidates(context.person_records, context.season["id"])
-    for helper in sorted(state["helpers"], key=lambda h: h["id"]):
-        if any(carried.get(c.person_id) for c in proposals.get(helper["id"], [])):
-            awaiting.append(helper["name"])
+    organizers_awaiting: list[str] = []
+    for kind, people, names_awaiting in (
+        ("helper", state["helpers"], awaiting),
+        ("organizer", state["organizers"], organizers_awaiting),
+    ):
+        proposals = uncertain_candidates(context.person_records, context.season["id"], kind=kind)
+        for person in sorted(people, key=lambda p: p["id"]):
+            if any(carried.get(c.person_id) for c in proposals.get(person["id"], [])):
+                names_awaiting.append(person["name"])
 
     def names(items: Sequence[str]) -> str:
         return f" ({', '.join(items)})" if items else ""
@@ -2779,23 +2804,32 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
     if reused:
         lines.append(f"Already in this Season, not copied again: {len(reused)}{names(reused)}")
     lines.append(f"Helpers tagged: {len(tagged)}{names(tagged)}")
+    has_organizers = bool(state["organizers"])
+    if has_organizers or organizers_tagged:
+        lines.append(f"Organizers tagged: {len(organizers_tagged)}{names(organizers_tagged)}")
     lines.append(
         f"Constraint entries dropped (not in this Season): {len(dropped)}"
         + names([f"{d['tag']}: {d['entry']}" for d in dropped])
     )
     lines.append(
         f"Assignments skipped (would leave no allowed Building or Role): {len(skipped)}"
-        + names([f"{s['helper']} - {s['tag']}" for s in skipped])
+        + names([f"{s[s['kind']]} - {s['tag']}" for s in skipped])
     )
     lines.append(f"Helpers awaiting review, not tagged: {len(awaiting)}{names(awaiting)}")
+    if has_organizers or organizers_awaiting:
+        lines.append(
+            f"Organizers awaiting review, not tagged: {len(organizers_awaiting)}{names(organizers_awaiting)}"
+        )
     return {
         "tags_created": created,
         "tags_restored": restored,
         "tags_reused": reused,
         "helpers_tagged": tagged,
+        "organizers_tagged": organizers_tagged,
         "dropped_constraint_entries": dropped,
         "skipped_assignments": skipped,
         "awaiting_review": awaiting,
+        "organizers_awaiting_review": organizers_awaiting,
         "lines": lines,
     }
 
@@ -2866,10 +2900,11 @@ def import_from_season(workspace: Workspace, source_season_id: str, selections: 
 
 
 def _late_link_tags(workspace: Workspace, state: dict[str, Any], helper: dict) -> list[dict]:
-    """The Tags a Helper's Person carried in an imported Season, resolved into
-    this Season by origin first and name second: ``tag_id``, ``name`` and
-    ``source`` (that Season's label). A Tag that no longer resolves (deleted on
-    purpose) is left out, and so is one the Helper already carries."""
+    """The Tags a Helper's (or Organizer's) Person carried in an imported Season
+    as a Helper or an Organizer, resolved into this Season by origin first and
+    name second: ``tag_id``, ``name`` and ``source`` (that Season's label). A Tag
+    that no longer resolves (deleted on purpose) is left out, and so is one the
+    record already carries."""
     person_id = helper.get("person_id")
     direct = _direct_tag_ids(helper)
     found: dict[int, dict] = {}
@@ -2911,6 +2946,31 @@ def apply_late_link_tags(workspace: Workspace, helper_id: int) -> dict:
     helper = _helper_record(state, helper_id)
     offered = _late_link_tags(workspace, state, helper)
     added, skipped = _add_valid_tags(state, helper, [t["tag_id"] for t in offered])
+    workspace.save(state)
+    return {"applied": [t["name"] for t in offered if t["tag_id"] in added], "skipped": skipped}
+
+
+def late_link_organizer_tag_offer(workspace: Workspace, organizer_id: int) -> Optional[dict]:
+    """:func:`late_link_tag_offer` for an Organizer whose link to an earlier
+    Person was just confirmed (:func:`link_organizer`): ``organizer_id``,
+    ``organizer_name`` and ``tags``, or None when there is nothing to offer.
+    Nothing is applied and no Tag is created."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    tags = _late_link_tags(workspace, state, organizer)
+    if not tags:
+        return None
+    return {"organizer_id": organizer_id, "organizer_name": organizer["name"], "tags": tags}
+
+
+def apply_late_link_organizer_tags(workspace: Workspace, organizer_id: int) -> dict:
+    """Give a late-linked Organizer the Tags :func:`late_link_organizer_tag_offer`
+    offers, skipping any that would leave them with no allowed Building. Returns
+    ``applied`` (Tag names) and ``skipped`` (as in the import summary)."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    offered = _late_link_tags(workspace, state, organizer)
+    added, skipped = _add_valid_tags(state, organizer, [t["tag_id"] for t in offered], "organizer")
     workspace.save(state)
     return {"applied": [t["name"] for t in offered if t["tag_id"] in added], "skipped": skipped}
 
