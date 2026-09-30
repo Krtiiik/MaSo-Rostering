@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- On the Buildings tab, each building's grid takes only the width its columns
+  need instead of spanning the whole page.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added
