@@ -11,6 +11,7 @@ import streamlit as st
 from rostering.domain import UNKNOWN_TSHIRT_SIZE
 from rostering.streamlit_app import fix_focus, mutations, session
 from rostering.streamlit_app import labels as ui_labels
+from rostering.streamlit_app import tag_pills
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
 _OPEN_LABEL = "⚙️"
 # Bumped on every Can't attend tick so the checkboxes start afresh from the saved
@@ -127,12 +128,18 @@ def _render_create_season(workspace, filename: str, content: bytes, content_hash
     st.rerun()
 
 
-def _tag_text(pills: dict | None) -> str:
-    """A person's Tags as plain text: direct Tags by name, implied ones in brackets."""
+def _tag_width(pills: dict | None) -> int:
+    """The width, in characters, a person's Tag pills need (name plus the pill's padding)."""
+    if not pills:
+        return 1
+    return sum(len(tag["name"]) + 3 for tag in [*pills["direct"], *pills["implied"]]) or 1
+
+
+def _tag_html(pills: dict | None) -> str:
+    """A person's Tags as pills: direct Tags solid, implied ones dashed."""
     if not pills:
         return "—"
-    names = [tag["name"] for tag in pills["direct"]] + [f"({tag['name']})" for tag in pills["implied"]]
-    return " ".join(names) or "—"
+    return tag_pills.pills_html(pills["direct"], pills["implied"]) or "—"
 
 
 def _cant_attend_cell(cell, kind: str, person: dict) -> None:
@@ -156,7 +163,7 @@ def _render_table(
     names: list[str],
     detail_labels: list[str],
     details: list[list[str]],
-    tags: list[str],
+    tags: list[dict | None],
     add_label: str,
     on_add,
 ) -> None:
@@ -173,19 +180,19 @@ def _render_table(
         max(len(text) for text in [name_label, *names]) + 2,
         *(max(len(text) for text in [label, *(row[i] for row in details)]) + 2 for i, label in enumerate(detail_labels)),
         len(absent_label) + 2,
-        max(len(text) for text in [tags_label, *tags]),
+        max([len(tags_label), *(_tag_width(pills) for pills in tags)]),
         6,
     ]
     header = st.columns(ratios, vertical_alignment="center")
     for column, label in zip(header, [name_label, *detail_labels, absent_label, tags_label]):
         column.markdown(f"**{label}**")
-    for person, name, row, tag_text in zip(people, names, details, tags):
+    for person, name, row, person_tags in zip(people, names, details, tags):
         name_cell, *detail_cells, absent_cell, tags_cell, open_cell = st.columns(ratios, vertical_alignment="center")
         name_cell.text(name)
         for cell, text in zip(detail_cells, row):
             cell.text(text)
         _cant_attend_cell(absent_cell, kind, person)
-        tags_cell.text(tag_text)
+        tags_cell.html(_tag_html(person_tags))
         if open_cell.button(_OPEN_LABEL, key=f"open_{kind}_{person['id']}", help=f"Otevřít: {person['name']}"):
             person_dialog.open_person(kind, person["id"])
     if st.button(add_label, key=f"add_{kind}_open"):
@@ -202,7 +209,7 @@ def _render_organizers(state: dict) -> None:
         [o["name"] for o in organizers],
         ["Zařazení"],
         [[" · ".join(filter(None, [o.get("building"), o.get("room")])) or "—"] for o in organizers],
-        [_tag_text(pills.get(o["id"])) for o in organizers],
+        [pills.get(o["id"]) for o in organizers],
         "＋ Přidat organizátora",
         person_dialog.open_add_organizer,
     )
@@ -213,7 +220,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
     helper's row."""
     helpers = sorted(state["helpers"], key=lambda h: h["name"].lower())
     st.subheader(f"Pomocníci ({len(helpers)})")
-    st.caption("Odvozené štítky (které pomocník má jen díky nadřazenému štítku) jsou v (závorkách).")
+    st.caption("Odvozené štítky (které pomocník má jen díky nadřazenému štítku) mají čárkovaný obrys. Vybavení: 💻 notebook, 📷 fotoaparát.")
     pills = mutations.grid_tag_pills(state)
     names, details = [], []
     for helper in helpers:
@@ -223,7 +230,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
             [
                 ", ".join(returning.get(helper["id"], [])) or "—",
                 ", ".join(helper["building_preferences"]) or "libovolná",
-                ", ".join(filter(None, ["notebook" if helper["can_bring_notebook"] else "", "fotoaparát" if helper["can_bring_camera"] else ""]))
+                " ".join(filter(None, ["💻" if helper["can_bring_notebook"] else "", "📷" if helper["can_bring_camera"] else ""]))
                 or "—",
                 helper.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
                 f"k přiřazení: {unresolved}" if unresolved else str(len(helper["friends"])),
@@ -235,7 +242,7 @@ def _render_helpers(state: dict, returning: dict[int, list[str]], focus_helper_i
         names,
         ["Dřívější ročníky", "Budovy", "Vybavení", "Tričko", "Kamarádi"],
         details,
-        [_tag_text(pills.get(h["id"])) for h in helpers],
+        [pills.get(h["id"]) for h in helpers],
         "＋ Přidat pomocníka",
         person_dialog.open_add_helper,
     )
