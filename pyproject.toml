@@ -1,6 +1,6 @@
 [project]
 name = "rostering"
-version = "2.0.1"
+version = "2.1.0"
 description = "Helper-roster solver for the MaSo math competition"
 requires-python = ">=3.11"
 dependencies = [

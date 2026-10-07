@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-07
+
 ### Changed
 
 - "Export do Excelu" no longer downloads through the browser: it saves the
