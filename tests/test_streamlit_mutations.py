@@ -219,7 +219,7 @@ def test_export_is_saved_into_the_season_folder(workspace):
 
     path = mutations.save_export_to_season(workspace)
 
-    assert path == workspace.root / "2026-podzim" / "Rozdělení pomocníků Praha - 2026-podzim.xlsx"
+    assert path == workspace.root / "2026-podzim" / "Rozdělení pomocníků Praha - 2026 Podzim.xlsx"
     assert path.read_bytes()[:2] == b"PK"
 
 

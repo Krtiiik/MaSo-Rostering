@@ -153,6 +153,13 @@ def test_a_label_is_normalized_to_year_dash_half(workspace, typed):
     assert state["season"]["label"] == "2026-jaro"
 
 
+@pytest.mark.parametrize(("label", "shown"), [("2026-jaro", "2026 Jaro"), ("2025-podzim", "2025 Podzim"), ("odd", "odd")])
+def test_a_label_reads_as_year_and_capitalized_half(label, shown):
+    from rostering.persistence.season_label import display_label
+
+    assert display_label(label) == shown
+
+
 # -- labels are unique and order Seasons in time ----------------------------
 
 

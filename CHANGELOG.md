@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - "Export do Excelu" no longer downloads through the browser: it saves the
-  roster as `Rozdělení pomocníků Praha - <season>.xlsx` into the Season's folder
+  roster as `Rozdělení pomocníků Praha - <season>.xlsx` (e.g. `… - 2026 Jaro.xlsx`) into the Season's folder
   (`data/seasons/<season>/`), replacing an earlier export there, and offers a
   "Zobrazit ve složce" button that shows the file in the file manager.
 

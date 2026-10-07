@@ -40,7 +40,7 @@ from rostering.export.excel import write_roster
 from rostering.ingest.preferences import parse_role_token
 from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
 from rostering.persistence import config_store
-from rostering.persistence.season_label import guess_label, label_sort_key, school_years_crossed
+from rostering.persistence.season_label import display_label, guess_label, label_sort_key, school_years_crossed
 from rostering.persistence.serialize import (
     assignment_from_dict,
     assignment_to_dict,
@@ -3657,8 +3657,9 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
 
 
 def export_file_name(label: str) -> str:
-    """File name of a Season's exported roster."""
-    return f"Rozdělení pomocníků Praha - {label}.xlsx"
+    """File name of a Season's exported roster, e.g. ``Rozdělení pomocníků
+    Praha - 2026 Jaro.xlsx`` for ``2026-jaro``."""
+    return f"Rozdělení pomocníků Praha - {display_label(label)}.xlsx"
 
 
 def save_export_to_season(workspace: Workspace, data: bytes | None = None) -> Path:

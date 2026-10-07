@@ -28,6 +28,16 @@ def normalize_label(text: Optional[str]) -> Optional[str]:
     return f"{match.group(1)}-{match.group(2).lower()}"
 
 
+def display_label(label: str) -> str:
+    """Readable form of a label, ``2026-jaro`` -> ``2026 Jaro``; anything that
+    is not a valid label is returned unchanged."""
+    normalized = normalize_label(label)
+    if normalized is None:
+        return label
+    year, half = normalized.split("-", 1)
+    return f"{year} {half.capitalize()}"
+
+
 def label_sort_key(label: str) -> tuple[int, int]:
     """Time-order key: ``(year, 0 for jaro / 1 for podzim)``. ``label`` must
     be a normalized label."""
