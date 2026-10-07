@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-07
+
+### Fixed
+
+- The standalone Windows, Linux and macOS executables are attached to the
+  release again (the 2.0.0 build stopped at an outdated smoke test, so that
+  release shipped without them).
+
 ## [2.0.0] - 2026-10-01
 
 ### Added
