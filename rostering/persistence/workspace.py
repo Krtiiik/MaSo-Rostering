@@ -264,6 +264,11 @@ class Workspace:
         resolved = self._resolve_open()
         return None if resolved is None else {"id": resolved["id"], "label": resolved["label"]}
 
+    def open_season_dir(self) -> Optional[Path]:
+        """Directory of the open Season, or None when no Season is open."""
+        resolved = self._resolve_open()
+        return None if resolved is None else resolved["dir"]
+
     def _validated_label(self, label: Optional[str], ignore_id: Optional[str] = None) -> str:
         normalized = normalize_label(label)
         if normalized is None:

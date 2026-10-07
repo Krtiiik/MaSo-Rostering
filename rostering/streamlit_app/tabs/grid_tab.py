@@ -253,6 +253,19 @@ def _apply_overlay_set(state: dict, event: dict) -> dict:
 
 _TOAST_KEY = "_move_toast"
 _PLACED_KEY = "_placed_new_note"
+_EXPORT_SAVED_KEY = "_export_saved_note"
+
+
+def _save_export_to_season(export_bytes: bytes) -> None:
+    """Download button callback: keep a copy of the export in the Season's folder."""
+    if session.get_workspace().open_season() is None:
+        return
+    try:
+        path = mutations.save_export_to_season(session.get_workspace(), export_bytes)
+    except mutations.RosteringError as exc:
+        st.session_state[_EXPORT_SAVED_KEY] = ("error", str(exc))
+    else:
+        st.session_state[_EXPORT_SAVED_KEY] = ("success", f"Rozdělení uloženo do {path}")
 
 
 def _apply_drop(event: dict, confirmed: bool) -> None:
@@ -498,15 +511,24 @@ def render() -> None:
             cols[6].button("Export do Excelu", disabled=True, help="Export je zablokovaný: " + "; ".join(blockers))
         elif state["assignments"]:
             try:
-                export_bytes = mutations.export_xlsx_bytes(session.get_workspace())
+                workspace = session.get_workspace()
+                export_bytes = mutations.export_xlsx_bytes(workspace)
+                season = workspace.open_season()
+                # The download also leaves a copy in the Season's own folder.
                 cols[6].download_button(
                     "Export do Excelu",
                     data=export_bytes,
-                    file_name="roster.xlsx",
+                    file_name=mutations.export_file_name(season["label"]) if season else "roster.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    on_click=_save_export_to_season,
+                    args=(export_bytes,),
+                    help="Stáhne rozdělení a zároveň ho uloží do složky sezóny." if season else None,
                 )
             except mutations.RosteringError:
                 pass
+    saved_note = st.session_state.pop(_EXPORT_SAVED_KEY, None)
+    if saved_note:
+        (st.error if saved_note[0] == "error" else st.success)(saved_note[1])
 
     solve_prompt.show_dropped_locks()
     placed_note = st.session_state.pop(_PLACED_KEY, None)

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- "Export do Excelu" names the roster `Rozdělení pomocníků Praha - <season>.xlsx`
+  and also saves it into the Season's folder (`data/seasons/<season>/`),
+  replacing an earlier export there.
+
 ## [2.0.1] - 2026-10-07
 
 ### Fixed

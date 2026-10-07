@@ -211,6 +211,23 @@ def test_solve_end_to_end_and_export(workspace):
     assert export_bytes[:2] == b"PK"  # xlsx zip magic
 
 
+def test_export_is_saved_into_the_season_folder(workspace):
+    _seed_two_helpers(workspace)
+    mutations.put_config(workspace, SMALL_CONFIG)
+    workspace.create_season("2026-podzim")
+    mutations.solve(workspace)
+
+    path = mutations.save_export_to_season(workspace)
+
+    assert path == workspace.root / "2026-podzim" / "Rozdělení pomocníků Praha - 2026-podzim.xlsx"
+    assert path.read_bytes()[:2] == b"PK"
+
+
+def test_saving_the_export_needs_an_open_season(workspace):
+    with pytest.raises(mutations.RosteringError):
+        mutations.save_export_to_season(workspace, b"PK")
+
+
 OVER_CONSTRAINED_CONFIG = [
     {
         "name": "B",

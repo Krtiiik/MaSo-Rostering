@@ -3656,6 +3656,28 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
         tmp_path.unlink(missing_ok=True)
 
 
+def export_file_name(label: str) -> str:
+    """File name of a Season's exported roster."""
+    return f"Rozdělení pomocníků Praha - {label}.xlsx"
+
+
+def save_export_to_season(workspace: Workspace, data: bytes | None = None) -> Path:
+    """Write the exported roster (``data``, else a fresh export) into the open
+    Season's directory, replacing an earlier export, and return its path."""
+    season = workspace.open_season()
+    season_dir = workspace.open_season_dir()
+    if season is None or season_dir is None:
+        raise RosteringError("Není otevřená žádná sezóna, do jejíž složky by se dalo exportovat.")
+    if data is None:
+        data = export_xlsx_bytes(workspace)
+    path = season_dir / export_file_name(season["label"])
+    try:
+        path.write_bytes(data)
+    except PermissionError as exc:
+        raise RosteringError(f"Soubor {path.name} nejde přepsat — není otevřený v Excelu?") from exc
+    return path
+
+
 # The Forced friends import section registers itself when its module loads; it
 # builds on this module, so it can only be imported once everything above exists.
 from rostering.streamlit_app import forced_groups as _forced_groups  # noqa: E402,F401
