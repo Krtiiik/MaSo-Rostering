@@ -19,6 +19,7 @@ rooms is unaffected. Purely a display/export grouping; the underlying
 per-helper room assignment is untouched either way."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Sequence
 
 import streamlit as st
@@ -29,6 +30,7 @@ from rostering.domain import BrokenRule, OverlayRole, Preference, Role, Structur
 from rostering.czech import plural
 from rostering.ingest.mapping import building_keys
 from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
+from rostering.streamlit_app.reveal import reveal_in_file_manager
 from rostering.streamlit_app.tabs import upload_summary_ui
 from rostering_assignment_grid import assignment_grid
 
@@ -253,19 +255,37 @@ def _apply_overlay_set(state: dict, event: dict) -> dict:
 
 _TOAST_KEY = "_move_toast"
 _PLACED_KEY = "_placed_new_note"
-_EXPORT_SAVED_KEY = "_export_saved_note"
+_EXPORT_PATH_KEY = "_exported_roster_path"
+_EXPORT_ERROR_KEY = "_export_error"
 
 
-def _save_export_to_season(export_bytes: bytes) -> None:
-    """Download button callback: keep a copy of the export in the Season's folder."""
-    if session.get_workspace().open_season() is None:
-        return
+def _save_export_to_season() -> None:
+    """Export button callback: write the roster into the open Season's folder."""
     try:
-        path = mutations.save_export_to_season(session.get_workspace(), export_bytes)
+        path = mutations.save_export_to_season(session.get_workspace())
     except mutations.RosteringError as exc:
-        st.session_state[_EXPORT_SAVED_KEY] = ("error", str(exc))
+        st.session_state[_EXPORT_ERROR_KEY] = str(exc)
     else:
-        st.session_state[_EXPORT_SAVED_KEY] = ("success", f"Rozdělení uloženo do {path}")
+        st.session_state[_EXPORT_PATH_KEY] = str(path)
+
+
+def _render_export_note() -> None:
+    """Where the last export went, with a button revealing it in the file
+    manager; shown while that file is still the open Season's export."""
+    error = st.session_state.pop(_EXPORT_ERROR_KEY, None)
+    if error:
+        st.error(error)
+    saved = st.session_state.get(_EXPORT_PATH_KEY)
+    if not saved:
+        return
+    path = Path(saved)
+    if not path.is_file() or path.parent != session.get_workspace().open_season_dir():
+        st.session_state.pop(_EXPORT_PATH_KEY, None)
+        return
+    note, reveal = st.columns([5, 1], vertical_alignment="center")
+    note.success(f"Rozdělení uloženo do {path}", icon="✅")
+    if reveal.button("Zobrazit ve složce", key="_reveal_export"):
+        reveal_in_file_manager(path)
 
 
 def _apply_drop(event: dict, confirmed: bool) -> None:
@@ -510,25 +530,12 @@ def render() -> None:
         if state["assignments"] and blockers:
             cols[6].button("Export do Excelu", disabled=True, help="Export je zablokovaný: " + "; ".join(blockers))
         elif state["assignments"]:
-            try:
-                workspace = session.get_workspace()
-                export_bytes = mutations.export_xlsx_bytes(workspace)
-                season = workspace.open_season()
-                # The download also leaves a copy in the Season's own folder.
-                cols[6].download_button(
-                    "Export do Excelu",
-                    data=export_bytes,
-                    file_name=mutations.export_file_name(season["label"]) if season else "roster.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    on_click=_save_export_to_season,
-                    args=(export_bytes,),
-                    help="Stáhne rozdělení a zároveň ho uloží do složky sezóny." if season else None,
-                )
-            except mutations.RosteringError:
-                pass
-    saved_note = st.session_state.pop(_EXPORT_SAVED_KEY, None)
-    if saved_note:
-        (st.error if saved_note[0] == "error" else st.success)(saved_note[1])
+            cols[6].button(
+                "Export do Excelu",
+                on_click=_save_export_to_season,
+                help="Uloží rozdělení do složky sezóny (přepíše předchozí export).",
+            )
+    _render_export_note()
 
     solve_prompt.show_dropped_locks()
     placed_note = st.session_state.pop(_PLACED_KEY, None)
