@@ -1,6 +1,5 @@
 import importlib
 import io
-from pathlib import Path
 
 import openpyxl
 import pandas as pd
@@ -11,9 +10,7 @@ from rostering.persistence.serialize import solver_config_from_dict
 from rostering.persistence.workspace import Workspace
 from rostering.solver.model import RoleCosts, SolverConfig, SolverWeights, solve_competition
 from rostering.webapp import mutations
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-RAW_2026 = REPO_ROOT / "data" / "seasons" / "2026-jaro" / "raw-response.xlsx"
+from tests.survey_factory import survey_bytes
 
 SMALL_CONFIG = [
     {
@@ -112,10 +109,9 @@ def test_config_persists_across_reset(workspace, tmp_path):
     assert (tmp_path / "buildings-config.yaml").exists()
 
 
-@pytest.mark.skipif(not RAW_2026.exists(), reason="real season data not present on this machine")
-def test_upload_ingests_real_survey(workspace):
-    data = mutations.upload_responses(workspace, RAW_2026.read_bytes(), "raw-response.xlsx", label="2026-jaro")
-    assert len(data["helpers"]) > 100
+def test_upload_ingests_a_generated_survey(workspace):
+    data = mutations.upload_responses(workspace, survey_bytes(120), "raw-response.xlsx", label="2026-jaro")
+    assert len(data["helpers"]) == 120
     assert isinstance(data["ingestion_warnings"], list)
 
 
