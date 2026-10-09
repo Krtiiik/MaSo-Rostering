@@ -14,12 +14,13 @@ the data pipeline, known data quirks, and project status/decisions.
 Everything the user sees in the web app is Czech; code, identifiers, CLI usage
 and developer docs stay English. Use the `Czech:` names in `CONTEXT.md` and the
 labels in `docs/czech-ui-glossary.md` verbatim. Tab labels live in
-`streamlit_app/labels.py` (they double as the tab strip's state keys); counted
+`rostering/webapp/labels.py` (they double as the tab strip's values); counted
 text goes through `rostering.czech.plural`. Values persisted in a Season's
 state (for example the "answers changed" field names) keep English identifiers
 and are translated only where they are displayed. A new UI string or a new
-message raised to the user must be written in Czech from the start, and the
-grid component's bundle rebuilt (`npm run build` in its `frontend/` folder).
+message raised to the user must be written in Czech from the start (the roster
+grid's strings are in `rostering/webapp/ui/grid/render.py`; it has no build
+step).
 
 ## Manual roles (implementation notes)
 
@@ -30,26 +31,29 @@ named roles belong to each. Implementation details not in the glossary:
   other two (Uvaděči účastníků, Focení předávání cen) are scoped by **room**
   (stricter) — so a helper can only be tagged into the slot for their own
   building/room, not a different one.
-- A manual role's cell in the grid is the same `Cell` as a solver role's
-  (`ManualCell` wraps it): names are chips, and a click on the cell opens a name
-  field. The row label marks the row as "Manuální role" (italic, with the Material
-  `link_2` icon inlined as an SVG, `Link2Icon.tsx`). Organizer rows and Helper rows
-  (solver roles, Additional roles) are separated by a heavy `row-side-start` line.
-- Organizers are draggable (`OrganizerChip`; drag data `{kind: "organizer"}`, a
-  Helper's is `{kind: "helper"}`). `Cell.accepts` (`"organizer"` for the four
-  leadership-slot rows, `"helper"` otherwise) refuses a drag of the other kind, and
-  the grid uses `pointerWithin` collision detection so a refused cell never hands
-  the drop to a neighbour. A drop is the `organizer_drop` trigger, handled by
+- A manual role's cell in the grid is the same table cell as a solver role's
+  (`render._manual_cell`): names are chips, and a click on the cell opens a name
+  field (`roster_grid.js` `openNameField`). The row label marks the row as
+  "Manuální role" / "Organizátorská role" (italic, with the Material `link_2` icon
+  inlined as an SVG, `render.LINK_ICON`). Organizer rows and Helper rows (solver
+  roles, Additional roles) are separated by a heavy `row-side-start` line.
+- Organizers are draggable (`render.organizer_chip`, `data-kind="organizer"`; a
+  Helper's chip is `data-kind="helper"`). Each droppable cell says what it takes in
+  `data-drop` (`role`, `dup` for an Additional role, `org` for the four
+  leadership-slot rows), and `roster_grid.js` `accepts` refuses a drag of the
+  other kind (the cell fades while it is in flight); a drop lands only on the cell
+  under the pointer. An Organizer drop is the `organizer_drop` event, handled by
   `mutations.move_organizer` (`assign_organizer`, plus leaving the slot cell the
   chip came from); Organizers holding no slot and not flagged Can't attend are the
-  "Organizátoři" list of the Nezařazení area (`grid_tab._grid_organizers`).
+  "Organizátoři" list of the Nezařazení area (`grid.data.grid_organizers`).
 - Moving a placed Helper (`mutations.move_helper`) out of the place an Additional
   role entry of theirs is scoped to also drops that entry (`_entries_left_behind`;
   `_entry_covers` judges a room-scoped entry by the cell group its room sits in for
   its own row, so a merged pair is one place; legacy/typed entries and Organizer
   slots are never touched). Unless `confirmed`, it raises `ConfirmationRequired`
-  (`move_manual_role_impact` gives the lines) and changes nothing; the grid tab's
-  `_confirm_drop` dialog opens from the `drop` event and calls it again confirmed.
+  (`move_manual_role_impact` gives the lines) and changes nothing; the Roster
+  tab's `_drop` (the `helper_drop` event) asks through `UiSession.act`'s
+  confirmation and calls it again confirmed.
 - In the roster grid, all three Additional roles can be filled either by
   drag-and-dropping a helper's existing chip onto their own building's/room's
   overlay cell (which duplicates them into that slot without moving their
@@ -122,16 +126,27 @@ pushing the tag, not just creating it locally.
 
 ## Status / decisions log
 
-- Tech stack: a single-process [Streamlit](https://streamlit.io) app
-  (`rostering/streamlit_app/`) calling the domain/solver/ingest/export
-  modules directly, in-process — no HTTP API layer (the project previously
-  shipped a FastAPI backend + separate React/Vite/dnd-kit frontend; both
-  were removed in favor of Streamlit to cut the toolchain down to one
-  language). `app.py` is the entry point; `mutations.py` holds
-  Streamlit-free state-mutation functions (upload, solve, move a helper,
-  friend resolution, ...) that the three tabs (`tabs/people_tab.py`,
-  `tabs/config_tab.py`, `tabs/grid_tab.py`) call into and that tests exercise
-  directly. Single-workspace design: the Workspace is the one open Season —
+- Tech stack: a single-process [NiceGUI](https://nicegui.io) app
+  (`rostering/webapp/`) calling the domain/solver/ingest/export modules
+  directly, in-process — no HTTP API layer of our own (the project previously
+  shipped a FastAPI backend + React/Vite frontend, then a Streamlit app with a
+  React grid component; both were replaced, the latter by the NiceGUI rework because most of
+  its UI code worked around Streamlit's rerun model). `rostering/webapp/`
+  holds the UI-free core: `mutations.py` (state-mutation functions: upload,
+  solve, move a helper, friend resolution, ...) and `forced_groups.py`, which
+  the screens call into and tests exercise directly. The UI is
+  `rostering/webapp/ui/`: `app.py` (`root`, the page: header with the six step
+  tabs and the "K vyřízení" (to-do) drawer, left drawer `sidebar.py` with
+  Seasons and Versions, the person sheet), `session.py` (`UiSession`, one per
+  browser tab: the `Workspace`, the state, the per-Season view state in
+  `SeasonView` — drafts, Go-fix focus, grid overlays/filter, ... — and `act`,
+  which runs a mutation, shows a `RosteringError` as a notification, asks a
+  `ConfirmationRequired` through `dialogs.confirm` and refreshes every view),
+  `dialogs.py` (awaitable dialogs; they nest), `solving.py` (Solve / Place new
+  registrants / Clear roster), `todo.py`, `tag_import.py`, `fix_focus.py` and
+  one module per tab in `tabs/`. Views redraw from the session's state after
+  every mutation; there is no widget-key bookkeeping. Single-workspace
+  design: the Workspace is the one open Season —
   upload a raw survey export (which creates the Season when none is open),
   configure buildings/rooms directly in the browser, solve, drag helpers
   between cells, save/restore named versions, export to Excel. Every Season
@@ -175,22 +190,26 @@ pushing the tag, not just creating it locally.
   Person with a record of the same normalized name, minus rejected pairings
   (`rejected_person_ids` on the Helper record, checked from either side).
   `mutations.get_uncertain_matches` / `link_helper` / `reject_person_match` /
-  `unlink_helper` / `get_person_links` back the upload tab's review list and
-  "Person links" expander. Links, rejections and `link_confirmed` live on the
+  `unlink_helper` / `get_person_links` back the to-do panel's review list and
+  the person sheet's "Person links" tab. Links, rejections and `link_confirmed` live on the
   Helper record (so Versions roll them back) and stay put through a re-upload,
   which updates the recognized record in place. The survey's phone (`phone`
   column mapping, `Helper.phone`) is captured for display only.
-- The one piece of UI Streamlit can't do natively — drag-and-drop — is a
-  custom Streamlit component (CCv2) at `components/rostering-assignment-grid/`
-  (React + dnd-kit, generated from Streamlit's official CCv2
-  `component-template` and then customized). It's packaged as its own
-  installable distribution, separate from the `rostering` package, because
-  Streamlit's CCv2 manifest scanner discovers packaged components by
-  scanning *installed distributions* for their own `pyproject.toml`, not by
-  finding arbitrary subpackages nested inside a different, larger
-  distribution — see README.md "Setup" for the two-package editable-install
-  this requires. Its built JS/CSS bundle is checked into git so a normal
-  `pip install -e` alone is enough to run the app.
+- The roster grid (`rostering/webapp/ui/grid/`) is native to the app, with no
+  npm or build step: `data.py` builds the view model from the state (pure; rows,
+  merged cell groups, chip data, friend statuses, satisfaction, Broken-rule
+  marks, the details card), `render.py` turns it into escaped HTML whose
+  `data-*` attributes carry everything the browser needs, and `RosterGrid`
+  shows it through `roster_grid.js`, a plain ES-module Vue component that turns
+  native HTML5 drag-and-drop, clicks, the friend hover and the manual-role name
+  fields into events (`helper_drop`, `organizer_drop`, `manual_set`,
+  `cell_merge`, `lock`, `card`, `card_close`) by delegation on its root. It
+  decides nothing the HTML does not say. The JS ships as package data of
+  `rostering` (`pyproject.toml`), so one `pip install` is enough. (Never name a
+  component event after a DOM event such as `drop`: NiceGUI's `.on` would hear
+  the browser's native one too.) The grid replaced a React + dnd-kit Streamlit
+  component after a prototype of both (branch `prototype/nicegui-grid`), on the
+  condition that every feature carried over.
 - Equipment eligibility is a **hard** rule (see `CONTEXT.md`), meaning the
   solver bends it only last. Hard rules are never constraints that can make a
   solve infeasible: `rostering/solver/rules.py` relaxes each through a slack
@@ -214,12 +233,12 @@ pushing the tag, not just creating it locally.
   checker equals the solver's own bent rules. Through the mutation layer:
   `mutations.broken_rules(state)` (empty before the first solve),
   `newly_broken_rules(before, after)`, `move_toast_lines(before, after)`
-  (every family except minimums) and `broken_rule_marks(...)`. The grid tab
-  renders the banner (family sections collapse above 10 instances), passes the
-  marks to the grid component (`broken_marks`) and stores the drop's toast
-  lines in session state to emit after the rerun; `fix_focus.py` carries a
-  "Go fix" target to the Buildings/People tab and drops it once the rule
-  holds. `move_helper` has no validation gate. `diagnostics["broken_rules"]`
+  (every family except minimums) and `broken_rule_marks(...)`. The Roster tab
+  lists them in a side sheet opened from a toolbar badge (family sections
+  collapse above 10 instances), the grid draws the marks (`grid.data.build_view`)
+  and a drop notifies its toast lines; `ui/fix_focus.py` carries a "Go fix"
+  target (`SeasonView.fix_focus`) to the Buildings/People/Tags/Forced friends
+  tab and drops it once the rule holds. `move_helper` has no validation gate. `diagnostics["broken_rules"]`
   in the saved state is only the solver's report as of the last solve and is
   not shown anywhere.
 - Locked Assignments: the lock is an optional `locked: true` on an entry of
@@ -229,38 +248,34 @@ pushing the tag, not just creating it locally.
   its Helper; a move never creates one) and `solve` (passes the locked
   Assignments as `fixed_assignments`, re-flags them in the result, and drops a
   lock whose Helper or Room no longer exists) are the only code that reads or
-  writes it. The grid component reports a toggle as the `lock` trigger
-  (`{helper_id, locked}`, from ctrl/cmd-click on a placed chip or the details
-  card's Lock/Unlock button); its drag needs a 6px activation distance so a
-  click stays a click. The details card opens on a plain click on a chip (never
-  on hover, so it can't block a drag), is owned by `AssignmentGrid` (one open
-  at a time; clicking the same chip again, Escape, a press anywhere outside a
-  chip or the card, or starting a drag closes it) and is interactive
-  (`pointer-events: auto`).
-  Bulk control lives in the Roster tab's bottom bar: `lock_all_placed`,
+  writes it. The grid reports a toggle as the `lock` event (`{helper_id,
+  locked}`, from ctrl/cmd-click on a placed chip or the details card's
+  Lock/Unlock button). The details card (`grid/card.py`) opens on a plain click
+  on a chip (never on hover, so it can't block a drag); one is open at a time,
+  and clicking the same chip again, Escape, a press anywhere outside a chip or
+  the card, or starting a drag closes it. It survives the tab's redraws
+  (`HelperCard` keeps which one is open).
+  Bulk control lives in the Roster tab's toolbar menu: `lock_all_placed`,
   `clear_all_locks`, `locked_count`, and `unlocked_assignments_replaced` (what
   a full Solve would throw away, a to-be-dropped lock included; zero means no
-  confirmation). `streamlit_app/solve_prompt.py` shows that confirmation for
-  the Roster tab's Solve and the Buildings and Solver tabs' "Save & solve" (which
-  saves the config first so the count uses the new layout). Every Solve and
-  Place new registrants runs in an undismissible "Solving…" `st.dialog`: the
-  buttons only `request_*` (queue the work callable in session state and
-  rerun, which also closes the confirmation, since one dialog per run is all
-  Streamlit allows) and `solve_prompt.run_pending()`, last in `app.py`, runs it
-  inside the dialog; the work raises `RosteringError` instead of calling
-  `st.error`/`st.rerun` itself, and a failure keeps the dialog open with the
-  message and a Close button. `solve` records
-  the locks it dropped as lines in `diagnostics["dropped_locks"]` ("N locks
-  dropped: Room X no longer exists"), which the Roster tab shows once after
-  the solve. Locks live only in the Season's own `assignments`, so a new
+  confirmation). `ui/solving.py` `solve` shows that confirmation for the Roster
+  tab's Solve and the Buildings and Solver tabs' "Save & solve" (which saves the
+  config first so the count uses the new layout). Every Solve and Place new
+  registrants runs off the event loop (`run.io_bound`) under a persistent
+  "Solving…" dialog (`run_in_modal`) the user cannot close; the work raises
+  `RosteringError`, and a failure keeps the dialog open with the message and a
+  Close button. `solve` records the locks it dropped as lines in
+  `diagnostics["dropped_locks"]` ("N locks dropped: Room X no longer exists"),
+  which are notified once after the solve. Locks live only in the Season's own `assignments`, so a new
   Season or a Tag import never carries them.
 - Can't attend: `cant_attend: true` on the Helper record in the Season's state
   (`Helper.cant_attend`; absent = off), set only by
   `mutations.set_cant_attend(workspace, helper_id, flag, confirmed=False)`.
   The one rule for "who takes part" is `Competition.attending()`, applied by
   `solve_competition`, `check_roster` and the export (`export/people.py`
-  `without_absent`), and by `mutations._build_competition`; the grid tab
-  filters its own helper list, name suggestions and friend ids. Flagging a
+  `without_absent`), and by `mutations._build_competition`; the grid
+  (`grid.data.build_view`) filters its own helper list, name suggestions and
+  friend ids. Flagging a
   Helper with an Assignment or Manual role entries raises
   `mutations.ConfirmationRequired` (`.lines` name what goes) unless
   `confirmed=True`, then clears them and sets the stale flag. A re-upload
@@ -268,39 +283,27 @@ pushing the tag, not just creating it locally.
   flag is `state["stale_reasons"]` (list of lines; `mutations.stale_reasons`,
   `mark_stale`), cleared by `solve`, refusing `export_xlsx_bytes`, snapshotted
   by Versions like the rest of the state; the Roster tab shows it above the
-  Solve button and disables Export, the People tab shows it above the tables.
-  Can't attend is a checkbox in the person's popup (`person_dialog`); flagging
-  a placed person queues the confirmation in `person_actions` (a full page rerun
-  closes the popup, and the dialog opens from there, since dialogs can't nest).
-- People tab (`tabs/people_tab.py`, "1. People"): the upload, the review lists
-  and two hand-built table views (Streamlit's own tables can't hold a click
-  target): Organizers above, Helpers below, one `st.columns` row per person
-  sorted by name (`_render_table`: a name button, one `st.text` per field,
-  the Can't attend checkbox and the Tags as plain text, every cell a plain element
-  in its own `st.columns` column, ratios following the longest text of each
-  column; never one container per cell, which made the tab very slow), each table
-  ending with a "＋ Add" button. A name is a button
-  that opens that person's popup (`person_dialog.open_person`, an `st.dialog`
-  with `on_dismiss="rerun"` so the table is current once it closes): for a
-  Helper the tabs Details (Can't attend, every field, Save / Promote / Delete,
-  `helper_forms.render_details`), Tags, Friends (`person_dialog._render_friends`: every survey name, matched
-  or not, on top under "K přiřazení" (`resolve_friend`); then the "Kamarádi" multiselect
-  (`_render_friend_picker`, saves at once via `update_helper(friends=...)`), then
-  "Vynucení kamarádi v místnosti" (`_render_forced_picker`: a multiselect over
-  that Helper's own friends, a pick runs `make_forced`, an unpick
-  `forced_groups.unforce`)) and Person links
-  (`person_links.render_helper_links`); for an Organizer Details and Tags. Edits
-  that only change the popup (Tags, friend names, Can't attend) call
-  `person_actions.rerun_popup` (a fragment rerun, the popup stays open); Save,
-  Delete and Promote rerun the page, which closes it, and leave a one-shot
-  message (`person_actions.flash`). An action needing confirmation is queued by
-  `person_actions.attempt` and its dialog opens from `show_pending` on the next
-  page run. The page-level review lists stay in `person_links`. The friends
-  pickers key their widgets by the saved value (plus a nonce after a refused pick),
-  so they show what is saved after the name matching changes it; the Details form
-  has no friends picker (only the add form does). The popup's bodies read the state fresh
-  (`session.get_state()`), never from arguments, since a fragment rerun re-passes
-  the old ones.
+  toolbar and disables Export, the to-do panel lists it too. Can't attend is a
+  checkbox in the People tables' rows and in the person sheet's Details
+  (`person_sheet.set_cant_attend`); flagging a placed person asks first.
+- People tab (`tabs/people.py`, "1. Lidé"): the upload card (it creates the
+  Season when none is open, asking for the label), a summary, then two
+  `ui.table`s — Organizers above, Helpers below — with search, sorting, the
+  Can't attend checkbox and the Tag pills in the row (Vue cell slots emitting
+  `cant_attend` / `open_friends`). A click on a row opens the person sheet
+  (`tabs/person_sheet.py` `PersonSheet`, a seamless right-hand dialog, one per
+  page, so the table stays usable behind it): for a Helper the tabs Details
+  (Can't attend, every field via `helper_fields.HelperFields`, Save / Promote /
+  Delete — Delete and Promote always confirm), Tags, Friends (every survey name,
+  matched or not, on top under "K přiřazení" (`resolve_friend`); then the
+  "Kamarádi" picker (saves at once via `update_helper(friends=...)`), then
+  "Vynucení kamarádi v místnosti" (a pick over that Helper's own friends runs
+  `make_forced`, an unpick `forced_groups.unforce`)) and Person links; for an
+  Organizer Details and Tags. The sheet's pickers save on every change and are
+  rebuilt only when what they show changed elsewhere (`_Section` signatures), so
+  picking several values in a row keeps the list open; a refused pick is
+  notified and the picker shows what is saved again. The review lists (possible
+  returning Helpers, typed role names) are in the to-do panel (`ui/todo.py`).
 - Hand-added Helpers: `mutations.add_helper` / `update_helper` /
   `delete_helper` (and `helper_collisions`, the non-blocking name/e-mail
   warning) write ordinary Helper records into `state["helpers"]`, so the
@@ -317,7 +320,7 @@ pushing the tag, not just creating it locally.
   `ConfirmationRequired`, then clears Assignment, lock and Manual role entries,
   prunes the id from every `friends` list and `friend_name_decisions` (a name
   left with no target returns to `unresolved_friend_names`) and marks the
-  roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. A
+  roster stale. The forms live in `rostering/webapp/ui/tabs/person_sheet.py` (fields in `helper_fields.py`). A
   re-upload keeps hand-added records (they are never listed as "missing from the
   export"); a row with the same e-mail updates one in place, skipping the fields
   in its `hand_typed`. A same-name row with no e-mail match is a new registrant
@@ -365,12 +368,12 @@ pushing the tag, not just creating it locally.
   Export gate: `unplaced_helpers` / `unplaced_reason` (attending Helpers with no
   Assignment once a roster exists) feed `export_blockers` and
   `export_xlsx_bytes`; unlike `stale_reasons` it is derived live, so placing the
-  newcomers by hand lifts it. UI: `tabs/upload_summary_ui.py` (top of the People
-  and Roster tabs), the Roster tab's warning above Solve. A same-name row with
+  newcomers by hand lifts it. UI: the to-do panel (`ui/todo.py`, the summary
+  until hidden), the Roster tab's warning above its toolbar. A same-name row with
   no e-mail match is a new registrant plus a review-list entry, so re-uploading
   an export with no e-mail column duplicates every Helper as one to review.
-- Place new registrants (`mutations.place_new_registrants`; Roster tab bottom
-  bar button, enabled while `unplaced_reason` is set): `solve_competition` with
+- Place new registrants (`mutations.place_new_registrants`; Roster tab toolbar
+  button, enabled while `unplaced_reason` is set): `solve_competition` with
   *every* standing Assignment as `fixed_assignments` (`_standing_assignments`,
   the shared filter behind `_split_locks`: it skips one whose Helper, Building or
   Room is gone), then only the newcomers' Assignments are taken from the result
@@ -385,7 +388,7 @@ pushing the tag, not just creating it locally.
   banner judges the result live like after any solve. Forced-friend groups
   need no code here: the rule family applies to the newcomers through the same
   fixed-Assignment solve.
-  roster stale. The forms live in `streamlit_app/tabs/helper_forms.py`. Note a
+  roster stale. The forms live in `rostering/webapp/ui/tabs/person_sheet.py` (fields in `helper_fields.py`). Note a
   re-upload still replaces the Season's whole Helper list, so it does not yet
   keep hand-added records.
 - Organizers (`rostering/organizers.py`, the Organizers section of
@@ -420,7 +423,7 @@ pushing the tag, not just creating it locally.
   Helper ones and have no UI yet. Promotion of a Helper, Friend preference toward
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
 - Forced friends groups (`rostering/forced_friends.py`, the lifecycle in
-  `streamlit_app/forced_groups.py`, UI in `tabs/forced_friends_tab.py` — the
+  `rostering/webapp/forced_groups.py`, UI in `ui/tabs/forced_friends.py` — the
   "3. Forced friends" tab, then "4. Buildings", "5. Solver" and "6. Roster"): a group is a dict in
   `state["forced_groups"]` (`id` from the high-water mark
   `next_forced_group_id`, `name`, canonical `axes` — Room implies Building —
@@ -445,7 +448,7 @@ pushing the tag, not just creating it locally.
   knows no places, `Relaxation` has an optional `describe_placed(units,
   assignments)` that `to_broken_rule` uses with the solved roster; its
   `FixTarget` is `("forced_friends", group_id)`, which `fix_focus` turns into
-  the group's editor, opened for the group a still-broken "Go fix" points at). `Competition.forced_groups` carries the
+  a highlight on the group's card, scrolled to while the rule is still broken). `Competition.forced_groups` carries the
   groups (`mutations._build_competition`, `attending()`). Mutations:
   `add_group` / `update_group` / `dissolve_group`; a create, or an edit of
   people or axes, marks an existing roster stale, a rename does not, and a
@@ -455,10 +458,10 @@ pushing the tag, not just creating it locally.
   `list_groups` also gives each group a `status` (`active` / `dormant` /
   `violated`, the last from `mutations.broken_rules`, so never before a roster
   and never for a dormant group) and its `violations` lines; the tab's badge and
-  the fold-out "Edit group" form read them. `mutations.grid_forced_groups(state)`
+  the group cards (Edit opens a dialog, Dissolve confirms) read them. `mutations.grid_forced_groups(state)`
   gives the grid `{helper_id: ["Rodina (same Building, Room)"]}` for the active
   members of groups in force (a dormant group marks no one), passed as each
-  helper's `forced_groups` prop; `HelperChip` shows a link mark whose tooltip
+  helper's chip data; the chip (`grid/render.py` `helper_chip`) shows a link mark whose tooltip
   lists them. The one blocking edit-time check is `forced_friends.tag_clashes`
   (the members' `tags.allowed_values` intersected per shared Building/Role axis;
   Room is judged as Building; a member with an empty allowed set of their own
@@ -509,7 +512,7 @@ pushing the tag, not just creating it locally.
   is not scored, silently — and, via `export.people.without_absent`, the export
   never see them). `promote_helper` does not carry the Helper's flag over
   (documented choice: promoting is deliberate, the Organizer attends). UI:
-  the Organizers table of the People tab (`tabs/people_tab.py`), whose popup has the Can't attend checkbox, the e-mail/name edit and a delete, with the confirmation in `tabs/person_actions.py`. Organizer Tags: the
+  the Organizers table of the People tab (`ui/tabs/people.py`), whose person sheet has the Can't attend checkbox, the e-mail/name edit and a delete (`ui/tabs/person_sheet.py`, confirmed first). Organizer Tags: the
   record's direct-Tag id list `tags`, with parallel functions to the Helper ones
   (`organizer_tags`, `set_organizer_tags`, `remove_tag_from_organizer`,
   `tag_organizer_carriers` / `tag_organizer_counts`, `organizer_tag_pills`,
@@ -561,10 +564,10 @@ pushing the tag, not just creating it locally.
   `set_helper_tags` / `add_tag_to_helpers` / `remove_tag_from_helper`. Tags
   are part of every Version, empty after Start over, and stay through a
   re-upload (the recognized record is updated in place); `Workspace` gives a
-  state saved before Tags existed an empty tree on read. UI: `tabs/tags_tab.py`
-  (the "2. Tags" tab) and the Tag picker in a person's popup in the People tab (`tabs/person_dialog.py`), both drawing pills through `tag_pills.py`.
+  state saved before Tags existed an empty tree on read. UI: `ui/tabs/tags.py`
+  (the "2. Štítky" tab) and the Tag picker in a person's sheet in the People tab (`ui/tabs/person_sheet.py`), both drawing pills through `ui/pills.py`.
 - Tag import (`mutations.py`, "Tag import" section; UI in
-  `tabs/tag_import_ui.py`): `import_from_season(workspace, source_season_id,
+  `ui/tag_import.py`): `import_from_season(workspace, source_season_id,
   selections=None)` runs every `ImportSection` in `_IMPORT_SECTIONS`
   (`register_import_section`; Tags is the first, Forced friends groups the
   second) over one earlier stored Season (read through `Workspace.stored_state`,
@@ -620,7 +623,7 @@ pushing the tag, not just creating it locally.
   records. Tests: `tests/test_tag_import_organizers.py`.
 - Class promotion (`mutations.py`, "Class promotion" section; the pure name
   rules `tags.is_class_name` / `promoted_class_name`, the year rule
-  `season_label.school_years_crossed`; UI in `tabs/tag_import_ui.py`):
+  `season_label.school_years_crossed`; UI in `ui/tag_import.py`):
   `class_promotion_offer(workspace)` returns `suggestions` (class Tags with an
   origin that are a school year behind: `tag_id`, `name`, `target`, from the
   Tag's newest origin's Season label read fresh, so a rename of the source is
@@ -633,39 +636,41 @@ pushing the tag, not just creating it locally.
   no merging). It also records, per source in `tag_imports`, `promoted_years`
   and `unpromoted_tag_ids` (source Tag ids of suggestions left unticked, still
   suggested next time). `import_from_season` returns `promotion_prompt` (current
-  label podzim and a school year crossed), which makes the People/Tags tab open
-  the dialog by itself (`_class_promotion_auto`); the Tags tab has an
+  label podzim and a school year crossed), which makes the import open
+  the dialog by itself (`tag_import.open_import`); the Tags tab has an
   always-available "Promote classes" button.
-- Roster grid Overlays, Tag colouring and filter: the Roster tab's "Overlays"
-  multi-select pills (`grid_tab.OVERLAYS`, key -> label; widget state under
-  `_grid_overlays`, Friends on to begin with) switch on decorations; the
-  component receives the active keys as `overlays`. A future overlay (Buildings,
-  Roles) is one entry in `OVERLAYS` plus its drawing in the component. (Not to be
-  confused with the deprecated "Overlay role" term, see `CONTEXT.md`.)
-  *Friends* gates the hover highlights and the persistent orange unsatisfied
+- Roster grid Overlays, Tag colouring and filter: the Roster tab's "Zobrazení"
+  (Overlays) chips (`grid.data.OVERLAYS`, key -> label; the choice is
+  `SeasonView.grid_overlays`, Friends on to begin with) switch on decorations;
+  `grid.data.build_view` takes the active keys. A future overlay (Buildings,
+  Roles) is one entry in `OVERLAYS` plus its drawing in `grid/render.py`. (Not to
+  be confused with the deprecated "Overlay role" term, see `CONTEXT.md`.)
+  *Friends* gates the hover highlights (`roster_grid.js`, from the chip's
+  `data-friends` / `data-requesters`) and the persistent orange unsatisfied
   marker (off = neither); the details card's friend lists are not an overlay.
-  *Role satisfaction* (`role_fit`) gives a placed chip a thick left border and *Building satisfaction*
-  (`building_fit`) a thick top border, green/red (`HelperChip`, `.role-fit-*`/`.building-fit-*` in
-  `style.css`): a Role is satisfied at Nevadí or better (blank = Nevadí, Záloha unjudged), a Building when
-  it is in the helper's `acceptable_buildings` (`grid_tab._acceptable_buildings`, matched with
-  `building_keys`; empty Building preference = every Building).
-  *Tags* stripes each chip (`HelperChip`, and Organizer chips in `ManualCell`)
-  into equal segments, one per **direct** Tag in its colour (`tagStripes.ts`,
-  tinted with `color-mix` so the normal text stays readable; Tag names incl.
-  inherited ones go in the tooltip), and is the only thing that shows the Tag
-  filter. `mutations.grid_tag_pills(state)` (each Helper's `{direct, implied}`
-  pills as `{name, colour}`, from `helper_tags`) feeds the stripes and
-  `mutations.dimmed_helper_ids(state, tag_ids, mode)` (over the pure
-  `tags.matches_filter`: all-of / any-of, inherited Tags count, an empty filter
-  or an unknown Tag id matches everyone) feeds `dimmed_helper_ids`;
-  `grid_tab._render_overlay_controls` renders the pills and, with Tags on,
-  `_render_tag_filter` (the "Filter by tags" multiselect in tree order and the
-  All of / Any of radio; `_grid_tag_filter` / `_grid_tag_mode`, pruned of deleted
-  Tags on each run). With Tags off the filter is not rendered (Streamlit drops
-  its state) and dims no one. All three keys are dropped when another Season
-  opens. Dimming is a `dimmed` class (opacity, restored on hover so the details
-  card stays readable). Covered by `tests/test_grid_tags.py`,
-  `tests/test_grid_overlays.py` and the smoke script (`scripts/e2e/smoke.mjs`).
+  *Role satisfaction* (`role_fit`) gives a placed chip a thick left border and
+  *Building satisfaction* (`building_fit`) a thick top border, green/red
+  (`GridView.role_fit` / `building_fit`, `.role-fit-*` / `.building-fit-*` in
+  `render.CSS`): a Role is satisfied at Nevadí or better (blank = Nevadí, Záloha
+  unjudged), a Building when it is in the helper's `acceptable_buildings`
+  (`grid.data.acceptable_buildings`, matched with `building_keys`; empty Building
+  preference = every Building). *Tags* stripes each chip (Helper and Organizer
+  alike) into equal segments, one per **direct** Tag in its colour
+  (`render.tag_stripe_style`, tinted with `color-mix` so the normal text stays
+  readable; Tag names incl. inherited ones go in the tooltip), and is the only
+  thing that shows the Tag filter. `mutations.grid_tag_pills(state)` (each
+  Helper's `{direct, implied}` pills as `{name, colour}`, from `helper_tags`)
+  feeds the stripes and `mutations.dimmed_helper_ids(state, tag_ids, mode)` (over
+  the pure `tags.matches_filter`: all-of / any-of, inherited Tags count, an empty
+  filter or an unknown Tag id matches everyone) the dimming;
+  `RosterTab._overlay_controls` renders the chips and, with Tags on, the "Filtrovat
+  podle štítků" select in tree order and the All of / Any of radio
+  (`SeasonView.grid_tag_filter` / `grid_tag_mode`, pruned of deleted Tags on each
+  draw). With Tags off the filter is hidden and dims no one; another Season opens
+  with the defaults again. Dimming is a `chip-dimmed` class (opacity, restored on
+  hover; never a bare `dimmed`, which is a Quasar utility class that lays a dark
+  overlay over the nearest positioned ancestor — the whole cell). Covered by `tests/test_grid_tags.py`, `tests/test_webapp_grid.py` and
+  the smoke script (`scripts/e2e/smoke.mjs`).
 - Tag constraints: a Tag record also carries `building_allow`, `building_deny`,
   `role_allow`, `role_deny` (lists of Building names / `Role.name`s, absent =
   empty; `Tag` in `rostering/tags.py` holds them as tuples). The single source
@@ -682,7 +687,7 @@ pushing the tag, not just creating it locally.
   disallowed Building/Role (`tag_building` / `tag_role`, entity `(helper id,
   value)`), so the solver's line and the checker's are identical, and its
   `FixTarget` is `("tags", helper_id, tag_id)` (the first Tag that excludes
-  the placement), which `fix_focus.go_fix` turns into `tags_tab.focus_tag`.
+  the placement), which `fix_focus.go_fix` turns into the Tags tab's selection (`SeasonView.selected_tag`).
   Validation is one shared step in `mutations` (`_stranded` /
   `_refuse_new_dead_ends`), run by `set_helper_tags`, `add_tag_to_helpers` and
   `update_tag`: it refuses an edit that leaves a Helper with an empty allowed
@@ -693,7 +698,7 @@ pushing the tag, not just creating it locally.
   flags `in_season`).
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
-  manually as extra rows inside the same drag-and-drop grid component
+  manually as extra rows inside the same drag-and-drop grid
   (typed/picked from a name list; the two room-scoped Additional roles also
   accept dropping a helper's existing chip onto their own room's cell) and
   merged in at export time.

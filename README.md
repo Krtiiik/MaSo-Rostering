@@ -8,16 +8,9 @@ competition. See [CLAUDE.md](.claude/CLAUDE.md) for the domain glossary and cont
 ```
 python -m venv .venv
 .venv/Scripts/pip install -e ".[dev]"
-.venv/Scripts/pip install -e components/rostering-assignment-grid
 ```
 
-The second install is the drag-and-drop assignment-grid widget used by the
-web app's Roster tab — a small custom Streamlit component (CCv2), packaged
-as its own distribution because Streamlit discovers CCv2 components by
-scanning installed distributions, not nested subpackages. Its built JS/CSS
-bundle is checked into git, so this is a plain editable install — no Node/npm
-needed unless you're editing the component's frontend (see "Interactive web
-app" below).
+That is the whole setup: the web app has no frontend build step (no Node/npm).
 
 ## Usage
 
@@ -37,20 +30,22 @@ See `examples/buildings.example.yaml`, `examples/helpers.example.csv`, and
 
 ### Interactive web app
 
-A single-process [Streamlit](https://streamlit.io) app — no separate
-frontend/backend split, no build step for normal use:
+A single-process [NiceGUI](https://nicegui.io) app — no separate
+frontend/backend split, no build step:
 
 ```
 rostering serve
 ```
 
-Open http://127.0.0.1:8501 (Streamlit's default port; override with
-`--port`). Upload the raw survey export on the People tab, then use the
-"Continue to tags →" button and work through the Tags, Forced friends,
-Buildings (buildings/rooms) and Solver tabs, solve, then drag helpers
-between cells on the Roster tab to adjust. Save named versions, restore/
-delete them, and export the current roster to Excel from the sidebar/Roster
-tab.
+It opens http://127.0.0.1:8000 in your browser (`--port` to change it,
+`--headless` not to open a tab). Upload the raw survey export on the People
+tab, then use "Pokračovat na štítky" and work through the Tags, Forced
+friends, Buildings and Solver tabs, solve, then drag helpers between cells on
+the Roster tab to adjust. Everything that waits on a decision (possible
+returning helpers to link, the Tag import offer, what a re-upload changed)
+collects in the "K vyřízení" panel behind the checklist button in the header.
+Save named versions, restore/delete them from the left drawer, and export the
+current roster to Excel from the Roster tab.
 
 Every Season is stored and labelled (a year plus `jaro`/`podzim`, e.g.
 `2026-jaro`). Uploading with no Season open creates one, with the label
@@ -70,24 +65,13 @@ recent season's roster) and persists separately in `data/buildings-config.yaml`
 — it's saved there whenever you edit it on the Buildings tab, so it survives
 "start over" resets and app restarts.
 
-The app's code lives in `rostering/streamlit_app/` (`app.py` is the entry
-point; `mutations.py` holds the Streamlit-free state-mutation functions the
-tabs call into, mirroring what used to be the FastAPI route handlers).
-The one piece with a JS build step is the drag-and-drop grid, a custom
-Streamlit component at `components/rostering-assignment-grid/` (a React +
-dnd-kit frontend, generated from Streamlit's official CCv2
-`component-template`). To edit its frontend:
-
-```
-cd components/rostering-assignment-grid/rostering_assignment_grid/frontend
-npm install
-npm run build          # rebuild the checked-in bundle after any JS change
-```
-
-While iterating, `npm run dev` in that same directory rebuilds the bundle
-into `frontend/build/` on every save (Vite in `--watch` mode); refresh the
-Streamlit page to pick up each rebuild — Streamlit's CCv2 registers the
-component from the built files, not a live dev server.
+The app's code lives in `rostering/webapp/`: `mutations.py` and
+`forced_groups.py` hold the UI-free state-mutation functions, and `ui/` the
+NiceGUI screens (`ui/app.py` is the page, `ui/tabs/` one module per tab). The
+drag-and-drop roster grid is `ui/grid/`: Python builds its HTML and a small
+hand-written JavaScript module (`roster_grid.js`, served as is) handles the
+dragging and clicking. `rostering serve --reload` restarts the server on code
+changes while you work on it.
 
 ### Standalone executables
 
