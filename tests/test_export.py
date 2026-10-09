@@ -203,10 +203,7 @@ def test_tshirt_sheet_counts_sizes_per_building_with_celkem_and_total(tmp_path):
 
     assert rows == [
         ["Velikost", "A", "B", "Celkem"],
-        ["XS", 0, 0, 0],
         ["S", 0, 1, 1],
-        ["M", 0, 0, 0],
-        ["L", 0, 0, 0],
         ["XL", 2, 0, 2],
         ["XXL", 0, 1, 1],
         ["Celkem", 2, 2, 4],
@@ -225,12 +222,12 @@ def test_tshirt_sheet_unknown_row_appears_only_when_someone_counted_is_unknown(t
     )
     rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
     labels = [r[0] for r in rows]
-    assert labels == ["Velikost", "XS", "S", "M", "L", "XL", "XXL", "Unknown", "Celkem"]
+    assert labels == ["Velikost", "M", "Unknown", "Celkem"]
     assert rows[labels.index("Unknown")] == ["Unknown", 0, 1, 1]
     assert rows[-1] == ["Celkem", 1, 1, 2]
 
 
-def test_tshirt_sheet_lists_a_gendered_cut_whole_only_when_someone_wears_it(tmp_path):
+def test_tshirt_sheet_lists_only_the_sizes_someone_wears(tmp_path):
     helpers = [
         Helper(id=1, name="Anna", tshirt_size="dámské M"),
         Helper(id=2, name="Petr", tshirt_size="M"),
@@ -240,8 +237,7 @@ def test_tshirt_sheet_lists_a_gendered_cut_whole_only_when_someone_wears_it(tmp_
     )
     rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
     labels = [r[0] for r in rows]
-    plain = ["XS", "S", "M", "L", "XL", "XXL"]
-    assert labels == ["Velikost", *plain, *(f"dámské {s}" for s in plain), "Celkem"]
+    assert labels == ["Velikost", "M", "dámské M", "Celkem"]
     assert rows[labels.index("dámské M")] == ["dámské M", 1, 0, 1]
     assert rows[labels.index("M")] == ["M", 0, 1, 1]
     assert rows[-1] == ["Celkem", 1, 1, 2]

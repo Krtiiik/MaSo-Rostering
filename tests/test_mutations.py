@@ -318,7 +318,7 @@ def test_workspace_saved_before_tshirt_sizes_loads_as_unknown(workspace):
     rows = _tshirt_sheet(mutations.export_xlsx_bytes(workspace))
     by_label = {r[0]: r for r in rows}
     assert by_label["Unknown"][1] == 2
-    assert by_label["XS"][1] == 0
+    assert "XS" not in by_label
 
 
 def test_set_tshirt_size_persists_and_shows_in_next_export(workspace):
