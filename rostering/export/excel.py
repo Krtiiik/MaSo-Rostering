@@ -120,6 +120,7 @@ def _large_rooms(
     room_role_counts: dict[RoomKey, dict[Role, int]],
     merged_rooms: set[RoomKey],
     merged_heights: dict[Role, int],
+    room_role_minimums: Optional[dict[RoomKey, dict[Role, int]]] = None,
 ) -> set[RoomKey]:
     """The Rooms drawn across two columns in the export: Large rooms that
     actually need the second column.
@@ -130,7 +131,12 @@ def _large_rooms(
     neighbour in any row; they never overflow. ``merged_heights`` is, per
     Role band, the rows the tallest merged Room group needs there: a group is
     one wide cell that can stretch the band, and a Large room that fits the
-    stretched band needs no second column. See CONTEXT.md, "Large room"."""
+    stretched band needs no second column. ``room_role_minimums`` are the
+    configured minimum headcounts: a Room's band is as tall as its minimum or
+    its placed Helpers, whichever is larger, exactly as ``write_roster`` sizes
+    it, so a Room is only given a second column when that column will hold
+    someone. See CONTEXT.md, "Large room"."""
+    minimums = room_role_minimums or {}
     rooms = {k: v for k, v in room_role_counts.items() if not k[1].endswith(_UNCONFIGURED_SUFFIX)}
     size = {k: sum(v.values()) for k, v in rooms.items()}
     sizes = sorted(s for s in size.values() if s > 0)
@@ -140,22 +146,29 @@ def _large_rooms(
     mid = len(sizes) // 2
     twice_median = sizes[mid] * 2 if len(sizes) % 2 else sizes[mid - 1] + sizes[mid]
     threshold = _LARGE_ROOM_THRESHOLD * Fraction(twice_median, 2)
-    candidates = {k for k, s in size.items() if s > 0 and s >= threshold}
+    candidates = {k for k, s in size.items() if s > 0 and s >= threshold and k not in merged_rooms}
 
-    # K per band = the tallest non-candidate Room in it, or the tallest merged
-    # group if that is taller. A candidate needs a second column only where it
-    # stands taller than that.
-    first_column = {
-        role: max(
-            [rooms[k].get(role, 0) for k in rooms if k not in candidates] + [merged_heights.get(role, 0)]
-        )
-        for role in _ROLE_ORDER
-    }
-    return {
-        k
-        for k in candidates
-        if k not in merged_rooms and any(rooms[k].get(role, 0) > first_column[role] for role in _ROLE_ORDER)
-    }
+    def need(key: RoomKey, role: Role) -> int:
+        return max(rooms[key].get(role, 0), minimums.get(key, {}).get(role, 0))
+
+    # A band's first-column height K is what write_roster draws: the tallest
+    # non-overflow Room (its minimum or placed Helpers), the tallest merged
+    # group, or half the need of an overflow Room, whichever is greatest. A
+    # candidate needs a second column only where it stands taller than K.
+    # Dropping a candidate makes it an ordinary, full-height Room and so can
+    # raise K, hence the loop until the set holds still.
+    while True:
+        first_column = {
+            role: max(
+                [merged_heights.get(role, 0)]
+                + [-(-need(k, role) // 2) if k in candidates else need(k, role) for k in rooms]
+            )
+            for role in _ROLE_ORDER
+        }
+        needing = {k for k in candidates if any(rooms[k].get(role, 0) > first_column[role] for role in _ROLE_ORDER)}
+        if needing == candidates:
+            return candidates
+        candidates = needing
 
 
 def _annotate(helper: Helper | None, fallback_name: str = "") -> str:
@@ -370,7 +383,12 @@ def write_roster(
                 if len(group) > 1:
                     merged_rooms.update((b.name, n) for n in group)
                     merged_heights[solved_role] = max(merged_heights.get(solved_role, 0), group_need(solved_role, b.name, group))
-    overflow_rooms = _large_rooms(room_role_counts, merged_rooms, merged_heights)
+    room_role_minimums: dict[RoomKey, dict[Role, int]] = {
+        (b.name, r.name): {role: cap.minimum for role, cap in r.capacities.items() if cap and role in _ROLE_ORDER}
+        for b in buildings
+        for r in b.rooms
+    }
+    overflow_rooms = _large_rooms(room_role_counts, merged_rooms, merged_heights, room_role_minimums)
 
     # Column layout: one column per physical room — merging only ever
     # collapses *cells within one row*, never the column layout itself — except

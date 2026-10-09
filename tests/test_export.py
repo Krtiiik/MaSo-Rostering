@@ -528,6 +528,7 @@ def test_a_large_room_that_never_exceeds_the_first_column_height_stays_one_colum
 def test_a_room_merged_with_a_neighbour_never_overflows(tmp_path):
     spec = _jaro_like_spec()
     spec["Malá Strana"] = {"M1": _per_role(4), "M2": _per_role(1)}
+    spec["N"]["N1"] = _per_role(8)  # taller than the merged M1 keeps every band
     sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Skenovac": {"Malá Strana": [["M1", "M2"]]}})
 
     assert sheet.room_width("M1") == 1
@@ -752,7 +753,7 @@ def test_a_merged_group_only_stretches_its_own_band(tmp_path):
 
 def test_a_room_merged_in_one_band_stays_one_column_in_every_band(tmp_path):
     # BIG and M2 would both be Large; M2 is merged with S1 for Menič only.
-    spec = {"A": {"BIG": _per_role(4), "M2": _per_role(4), "S1": _per_role(2), "S2": _per_role(2), "S3": _per_role(2)}}
+    spec = {"A": {"BIG": _per_role(8), "M2": _per_role(4), "S1": _per_role(2), "S2": _per_role(2), "S3": _per_role(2)}}
     sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Menic": {"A": [["M2", "S1"]]}})
 
     assert sheet.room_width("M2") == 1
@@ -1069,3 +1070,38 @@ def test_list_sheet_names_never_collide_with_the_roster_or_tshirt_sheets(tmp_pat
     assert len(sheetnames) == 7
     assert len({n.lower() for n in sheetnames}) == 7
     assert all(n and len(n) <= 31 and not n.startswith("'") and not n.endswith("'") for n in sheetnames)
+
+
+def test_configured_minimums_that_make_the_first_column_tall_enough_keep_a_large_room_one_column(tmp_path):
+    # Ordinary Rooms hold 2 per band but are configured for 4, so every band is
+    # 4 rows tall: M1's 4 Helpers per band all fit the first column, and a
+    # second column would stay empty.
+    spec = _jaro_like_spec()
+    minimums = {(b, r): {role: 4 for role in _per_role(1)} for b, rooms in spec.items() for r in rooms if r.startswith("K")}
+    sheet = _overflow_sheet(tmp_path, spec, minimums=minimums)
+
+    assert sheet.room_width("M1") == 1
+    assert sheet.band_height(Role.Opravovatel) == 4
+    assert all(cell is not None for row in sheet.band(Role.Opravovatel, "M1") for cell in row)
+
+
+def test_a_large_room_taller_than_the_minimum_height_still_gets_a_filled_second_column(tmp_path):
+    spec = _jaro_like_spec()
+    spec["Malá Strana"]["M1"] = _per_role(6)
+    minimums = {(b, r): {role: 2 for role in _per_role(1)} for b, rooms in spec.items() for r in rooms if r.startswith("K")}
+    sheet = _overflow_sheet(tmp_path, spec, minimums=minimums)
+
+    assert sheet.room_width("M1") == 2
+    opr = sheet.band(Role.Opravovatel, "M1")
+    assert len(opr) == 3
+    assert all(cell is not None for row in opr for cell in row)
+
+
+def test_a_large_room_no_taller_than_a_merged_neighbours_unmerged_bands_stays_one_column(tmp_path):
+    # M1 is Large but merged, so it stays one column and keeps every band 4 rows
+    # tall; N1's 4 Helpers per band then fit a single column.
+    spec = _jaro_like_spec()
+    spec["Malá Strana"] = {"M1": _per_role(4), "M2": _per_role(1)}
+    sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Skenovac": {"Malá Strana": [["M1", "M2"]]}})
+
+    assert sheet.room_width("N1") == 1
