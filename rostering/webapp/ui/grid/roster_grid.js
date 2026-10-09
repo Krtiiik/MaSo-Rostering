@@ -13,8 +13,32 @@
 
 const DRAG_MIME = "application/x-rostering-chip";
 
+// Auto-scroll while a chip is dragged: within EDGE px of the edge of a
+// scrollable area the area scrolls, faster the closer the pointer is to it.
+const SCROLL_EDGE = 70;
+const SCROLL_MAX_SPEED = 24;
+
 function closest(target, selector) {
   return target instanceof Element ? target.closest(selector) : null;
+}
+
+// The nearest ancestor of ``el`` that scrolls vertically, else the page itself.
+function verticalScroller(el) {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) return node;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+// How far (px per frame, signed) to scroll for a pointer at ``pos`` in the
+// span [lo, hi]: 0 away from the edges.
+function edgeSpeed(pos, lo, hi) {
+  const toLo = pos - lo;
+  const toHi = hi - pos;
+  if (toLo < SCROLL_EDGE) return -SCROLL_MAX_SPEED * Math.min(1, (SCROLL_EDGE - toLo) / SCROLL_EDGE);
+  if (toHi < SCROLL_EDGE) return SCROLL_MAX_SPEED * Math.min(1, (SCROLL_EDGE - toHi) / SCROLL_EDGE);
+  return 0;
 }
 
 function jsonAttr(el, name, fallback) {
@@ -101,6 +125,7 @@ export default {
       const chip = closest(e.target, "[data-kind]");
       if (!chip) return;
       this.drag = this.chipInfo(chip);
+      this.startAutoScroll(e);
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData(DRAG_MIME, "1");
       chip.classList.add("dragging");
@@ -160,7 +185,40 @@ export default {
       if (names.includes(info.name)) return;
       this.$emit("manual_set", { key: d.key, building: d.building, room: d.room ?? null, names: [...names, info.name] });
     },
+    // Scrolls the grid's own horizontal scroller and its vertical one while the
+    // pointer is near their edges. The pointer is tracked on the document, so the
+    // margins around the grid count too (a drag fires no pointer events).
+    startAutoScroll(e) {
+      this.stopAutoScroll();
+      this.pointer = { x: e.clientX, y: e.clientY };
+      this.onDocDragOver = (ev) => {
+        this.pointer = { x: ev.clientX, y: ev.clientY };
+      };
+      document.addEventListener("dragover", this.onDocDragOver, true);
+      const tick = () => {
+        this.scrollFrame = requestAnimationFrame(tick);
+        const { x, y } = this.pointer;
+        const wide = this.$el.querySelector(".table-scroll");
+        if (wide) {
+          const r = wide.getBoundingClientRect();
+          if (y >= r.top && y <= r.bottom) wide.scrollLeft += edgeSpeed(x, r.left, r.right);
+        }
+        const tall = verticalScroller(this.$el);
+        const page = tall === document.scrollingElement || tall === document.documentElement;
+        const top = page ? 0 : tall.getBoundingClientRect().top;
+        const bottom = page ? window.innerHeight : tall.getBoundingClientRect().bottom;
+        tall.scrollTop += edgeSpeed(y, top, bottom);
+      };
+      this.scrollFrame = requestAnimationFrame(tick);
+    },
+    stopAutoScroll() {
+      if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
+      this.scrollFrame = null;
+      if (this.onDocDragOver) document.removeEventListener("dragover", this.onDocDragOver, true);
+      this.onDocDragOver = null;
+    },
     onDragEnd() {
+      this.stopAutoScroll();
       this.dragChip?.classList.remove("dragging");
       for (const cell of this.$el.querySelectorAll(".drop-disabled, .drop-over")) {
         cell.classList.remove("drop-disabled", "drop-over");
