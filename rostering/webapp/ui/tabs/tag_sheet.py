@@ -51,8 +51,8 @@ class _ColourSwatch:
             with self._button:
                 self._picker = ui.color_picker(on_pick=lambda e: self._set(e.color))
         self._picker.set_color(value)
-        # Opens on the preset colours; the spectrum stays one tab away.
-        self._picker.q_color.props(f"default-view=palette :palette='{json.dumps(list(tag_tree.PALETTE))}'")
+        # Opens on Quasar's own palette of preset colours; the spectrum stays one tab away.
+        self._picker.q_color.props("default-view=palette")
         self._paint()
 
     def _set(self, value: str) -> None:
