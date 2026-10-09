@@ -1,0 +1,2937 @@
+{
+ "variants": [
+  {
+   "key": "old",
+   "label": "today (blank=0, Záloha=0)",
+   "kind": "old",
+   "unit": 4,
+   "zaloha": 4,
+   "blank_is_nevadi": true,
+   "concentration": true
+  },
+  {
+   "key": "new_u1",
+   "label": "candidate, u=1",
+   "kind": "new",
+   "unit": 1,
+   "zaloha": 4,
+   "blank_is_nevadi": true,
+   "concentration": true
+  },
+  {
+   "key": "new_u2",
+   "label": "candidate, u=2",
+   "kind": "new",
+   "unit": 2,
+   "zaloha": 4,
+   "blank_is_nevadi": true,
+   "concentration": true
+  },
+  {
+   "key": "new_u4",
+   "label": "candidate, u=4 (anchor)",
+   "kind": "new",
+   "unit": 4,
+   "zaloha": 4,
+   "blank_is_nevadi": true,
+   "concentration": true
+  },
+  {
+   "key": "new_u8",
+   "label": "candidate, u=8",
+   "kind": "new",
+   "unit": 8,
+   "zaloha": 4,
+   "blank_is_nevadi": true,
+   "concentration": true
+  },
+  {
+   "key": "abl_noconc",
+   "label": "u=4 without concentration factor",
+   "kind": "new",
+   "unit": 4,
+   "zaloha": 4,
+   "blank_is_nevadi": true,
+   "concentration": false
+  },
+  {
+   "key": "abl_nozal",
+   "label": "u=4 with free Záloha",
+   "kind": "new",
+   "unit": 4,
+   "zaloha": 0,
+   "blank_is_nevadi": true,
+   "concentration": true
+  },
+  {
+   "key": "abl_blank0",
+   "label": "u=4 with blank=0 (as today)",
+   "kind": "new",
+   "unit": 4,
+   "zaloha": 4,
+   "blank_is_nevadi": false,
+   "concentration": true
+  }
+ ],
+ "seasons": {
+  "2023-podzim": {
+   "season": "2023-podzim",
+   "n_helpers": 113,
+   "config_source": "derived from hand-built roster",
+   "minimum_total": 85,
+   "cameras": 10,
+   "photo_min": 4,
+   "scaled_by": 1.0,
+   "buildings": {
+    "Malá Strana (MS)": [
+     "S3",
+     "S4",
+     "S5",
+     "S9"
+    ],
+    "Karlov": [
+     "M1"
+    ],
+    "Troja": [
+     "T1",
+     "T2"
+    ]
+   },
+   "k_ano_hist": {
+    "0": 17,
+    "1": 52,
+    "2": 23,
+    "3": 12,
+    "4": 7,
+    "5": 2
+   },
+   "blank_hist": {
+    "0": 15,
+    "1": 19,
+    "2": 27,
+    "3": 27,
+    "4": 16,
+    "5": 9
+   }
+  },
+  "2024-jaro": {
+   "season": "2024-jaro",
+   "n_helpers": 94,
+   "config_source": "derived from hand-built roster",
+   "minimum_total": 90,
+   "cameras": 11,
+   "photo_min": 4,
+   "scaled_by": 1.0,
+   "buildings": {
+    "Malá strana (MS)": [
+     "S3",
+     "S4",
+     "S5",
+     "S9"
+    ],
+    "Karlov": [
+     "M1"
+    ],
+    "Impakt": [
+     "N1"
+    ]
+   },
+   "k_ano_hist": {
+    "0": 7,
+    "1": 36,
+    "2": 36,
+    "3": 8,
+    "4": 7
+   },
+   "blank_hist": {
+    "0": 8,
+    "1": 24,
+    "2": 27,
+    "3": 21,
+    "4": 12,
+    "5": 2
+   }
+  },
+  "2024-podzim": {
+   "season": "2024-podzim",
+   "n_helpers": 106,
+   "config_source": "derived from hand-built roster",
+   "minimum_total": 88,
+   "cameras": 10,
+   "photo_min": 4,
+   "scaled_by": 1.0,
+   "buildings": {
+    "Malá Strana (MS)": [
+     "S3",
+     "S4",
+     "S5",
+     "S9"
+    ],
+    "Karlov": [
+     "M1"
+    ],
+    "Impakt": [
+     "N1"
+    ]
+   },
+   "k_ano_hist": {
+    "0": 11,
+    "1": 37,
+    "2": 31,
+    "3": 22,
+    "4": 5
+   },
+   "blank_hist": {
+    "0": 18,
+    "1": 31,
+    "2": 16,
+    "3": 22,
+    "4": 11,
+    "5": 8
+   }
+  },
+  "2025-jaro": {
+   "season": "2025-jaro",
+   "n_helpers": 95,
+   "config_source": "derived from hand-built roster",
+   "minimum_total": 88,
+   "cameras": 8,
+   "photo_min": 4,
+   "scaled_by": 1.0,
+   "buildings": {
+    "Malá Strana (MS)": [
+     "S3",
+     "S4",
+     "S5",
+     "S9"
+    ],
+    "Karlov": [
+     "M1"
+    ],
+    "Impakt": [
+     "N1"
+    ]
+   },
+   "k_ano_hist": {
+    "0": 11,
+    "1": 42,
+    "2": 22,
+    "3": 12,
+    "4": 8
+   },
+   "blank_hist": {
+    "0": 15,
+    "1": 20,
+    "2": 24,
+    "3": 22,
+    "4": 8,
+    "5": 6
+   }
+  },
+  "2025-podzim": {
+   "season": "2025-podzim",
+   "n_helpers": 108,
+   "config_source": "derived from hand-built roster",
+   "minimum_total": 97,
+   "cameras": 10,
+   "photo_min": 4,
+   "scaled_by": 1.0,
+   "buildings": {
+    "Malá Strana (MS)": [
+     "S3",
+     "S4",
+     "S5",
+     "S9"
+    ],
+    "Karlov": [
+     "M1"
+    ],
+    "Impakt": [
+     "N1"
+    ],
+    "Troja": [
+     "T1",
+     "T2"
+    ]
+   },
+   "k_ano_hist": {
+    "0": 27,
+    "1": 52,
+    "2": 23,
+    "3": 5,
+    "4": 1
+   },
+   "blank_hist": {
+    "0": 103,
+    "4": 1,
+    "5": 4
+   }
+  },
+  "2026-jaro": {
+   "season": "2026-jaro",
+   "n_helpers": 114,
+   "config_source": "config.yaml",
+   "minimum_total": 105,
+   "cameras": 11,
+   "photo_min": 5,
+   "scaled_by": 1.0,
+   "buildings": {
+    "Mala Strana": [
+     "S3",
+     "S4",
+     "S5",
+     "S9"
+    ],
+    "Karlov": [
+     "M1"
+    ],
+    "Troja": [
+     "N1",
+     "N4",
+     "N6"
+    ],
+    "Karlin": [
+     "K1"
+    ]
+   },
+   "k_ano_hist": {
+    "0": 16,
+    "1": 73,
+    "2": 23,
+    "3": 1,
+    "4": 1
+   },
+   "blank_hist": {
+    "0": 110,
+    "1": 1,
+    "5": 3
+   }
+  }
+ },
+ "results": {
+  "2023-podzim": {
+   "old": {
+    "levels": {
+     "Ano": 50,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 45,
+     "Záloha": 18
+    },
+    "single_ano": [
+     17,
+     52
+    ],
+    "multi_ano": [
+     33,
+     44
+    ],
+    "multi_ano_k3plus": [
+     18,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Záloha": 2,
+      "Kreslič": 5,
+      "Měnič": 1,
+      "Opravovatel": 1
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "on a blank role": 38,
+     "got Ano": 35,
+     "Záloha": 16
+    },
+    "zaloha": {
+     "total": 18,
+     "had an Ano": 15,
+     "all blank": 2,
+     "Klidně/Nevadí-only (no Ano)": 1
+    },
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 1070.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.6
+   },
+   "new_u1": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 17,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     44,
+     44
+    ],
+    "multi_ano_k3plus": [
+     21,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Skenovač": 2,
+      "Kreslič": 2,
+      "Měnič": 4,
+      "Opravovatel": 1
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "got Ano": 81,
+     "on a blank role": 8
+    },
+    "zaloha": {},
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 136.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.0
+   },
+   "new_u2": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 17,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     44,
+     44
+    ],
+    "multi_ano_k3plus": [
+     21,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Skenovač": 4,
+      "Kreslič": 2,
+      "Opravovatel": 2,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "got Ano": 81,
+     "on a blank role": 8
+    },
+    "zaloha": {},
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 136.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 5.0
+   },
+   "new_u4": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 17,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     44,
+     44
+    ],
+    "multi_ano_k3plus": [
+     21,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Skenovač": 4,
+      "Kreslič": 2,
+      "Opravovatel": 3
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "got Ano": 81,
+     "on a blank role": 8
+    },
+    "zaloha": {},
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 136.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.1
+   },
+   "new_u8": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 17,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     44,
+     44
+    ],
+    "multi_ano_k3plus": [
+     21,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Kreslič": 4,
+      "Skenovač": 2,
+      "Měnič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "got Ano": 81,
+     "on a blank role": 8
+    },
+    "zaloha": {},
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 136.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 5.3
+   },
+   "abl_noconc": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 17,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     44,
+     44
+    ],
+    "multi_ano_k3plus": [
+     21,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Skenovač": 4,
+      "Kreslič": 5
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "got Ano": 81,
+     "on a blank role": 8
+    },
+    "zaloha": {},
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 136.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.3
+   },
+   "abl_nozal": {
+    "levels": {
+     "Ano": 93,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 0,
+     "Záloha": 20
+    },
+    "single_ano": [
+     49,
+     52
+    ],
+    "multi_ano": [
+     44,
+     44
+    ],
+    "multi_ano_k3plus": [
+     21,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Záloha": 9
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "got Ano": 78,
+     "Záloha": 11
+    },
+    "zaloha": {
+     "total": 20,
+     "had an Ano": 3,
+     "all blank": 9,
+     "Klidně/Nevadí-only (no Ano)": 8
+    },
+    "building": [
+     86,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 368.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.3
+   },
+   "abl_blank0": {
+    "levels": {
+     "Ano": 50,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 63,
+     "Záloha": 0
+    },
+    "single_ano": [
+     20,
+     52
+    ],
+    "multi_ano": [
+     30,
+     44
+    ],
+    "multi_ano_k3plus": [
+     17,
+     21
+    ],
+    "all_blank": {
+     "n": 9,
+     "roles": {
+      "Kreslič": 7,
+      "Měnič": 1,
+      "Skenovač": 1
+     }
+    },
+    "partial_blank": {
+     "n": 89,
+     "on a blank role": 54,
+     "got Ano": 35
+    },
+    "zaloha": {},
+    "building": [
+     91,
+     92
+    ],
+    "friend_pairs": [
+     71,
+     71
+    ],
+    "friend_helpers": [
+     81,
+     81
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 810.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.7
+   }
+  },
+  "2024-jaro": {
+   "old": {
+    "levels": {
+     "Ano": 44,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 47,
+     "Záloha": 3
+    },
+    "single_ano": [
+     17,
+     36
+    ],
+    "multi_ano": [
+     27,
+     51
+    ],
+    "multi_ano_k3plus": [
+     9,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Opravovatel": 2
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 45,
+     "got Ano": 37,
+     "Záloha": 2
+    },
+    "zaloha": {
+     "total": 3,
+     "had an Ano": 3,
+     "all blank": 0,
+     "Klidně/Nevadí-only (no Ano)": 0
+    },
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 676.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.8
+   },
+   "new_u1": {
+    "levels": {
+     "Ano": 87,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 7,
+     "Záloha": 0
+    },
+    "single_ano": [
+     36,
+     36
+    ],
+    "multi_ano": [
+     51,
+     51
+    ],
+    "multi_ano_k3plus": [
+     15,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Kreslič": 2
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 5,
+     "got Ano": 79
+    },
+    "zaloha": {},
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 56.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.0
+   },
+   "new_u2": {
+    "levels": {
+     "Ano": 87,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 7,
+     "Záloha": 0
+    },
+    "single_ano": [
+     36,
+     36
+    ],
+    "multi_ano": [
+     51,
+     51
+    ],
+    "multi_ano_k3plus": [
+     15,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Kreslič": 2
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 5,
+     "got Ano": 79
+    },
+    "zaloha": {},
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 56.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.3
+   },
+   "new_u4": {
+    "levels": {
+     "Ano": 87,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 7,
+     "Záloha": 0
+    },
+    "single_ano": [
+     36,
+     36
+    ],
+    "multi_ano": [
+     51,
+     51
+    ],
+    "multi_ano_k3plus": [
+     15,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Kreslič": 2
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 5,
+     "got Ano": 79
+    },
+    "zaloha": {},
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 56.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.7
+   },
+   "new_u8": {
+    "levels": {
+     "Ano": 87,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 7,
+     "Záloha": 0
+    },
+    "single_ano": [
+     36,
+     36
+    ],
+    "multi_ano": [
+     51,
+     51
+    ],
+    "multi_ano_k3plus": [
+     15,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Kreslič": 1,
+      "Skenovač": 1
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 5,
+     "got Ano": 79
+    },
+    "zaloha": {},
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 56.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.0
+   },
+   "abl_noconc": {
+    "levels": {
+     "Ano": 87,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 7,
+     "Záloha": 0
+    },
+    "single_ano": [
+     36,
+     36
+    ],
+    "multi_ano": [
+     51,
+     51
+    ],
+    "multi_ano_k3plus": [
+     15,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Kreslič": 1,
+      "Skenovač": 1
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 5,
+     "got Ano": 79
+    },
+    "zaloha": {},
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 56.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.5
+   },
+   "abl_nozal": {
+    "levels": {
+     "Ano": 87,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 4
+    },
+    "single_ano": [
+     36,
+     36
+    ],
+    "multi_ano": [
+     51,
+     51
+    ],
+    "multi_ano_k3plus": [
+     15,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Záloha": 1,
+      "Kreslič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 2,
+     "got Ano": 79,
+     "Záloha": 3
+    },
+    "zaloha": {
+     "total": 4,
+     "had an Ano": 0,
+     "all blank": 1,
+     "Klidně/Nevadí-only (no Ano)": 3
+    },
+    "building": [
+     64,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 88.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 12.0
+   },
+   "abl_blank0": {
+    "levels": {
+     "Ano": 47,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 47,
+     "Záloha": 0
+    },
+    "single_ano": [
+     17,
+     36
+    ],
+    "multi_ano": [
+     30,
+     51
+    ],
+    "multi_ano_k3plus": [
+     12,
+     15
+    ],
+    "all_blank": {
+     "n": 2,
+     "roles": {
+      "Kreslič": 1,
+      "Skenovač": 1
+     }
+    },
+    "partial_blank": {
+     "n": 84,
+     "on a blank role": 45,
+     "got Ano": 39
+    },
+    "zaloha": {},
+    "building": [
+     68,
+     84
+    ],
+    "friend_pairs": [
+     68,
+     68
+    ],
+    "friend_helpers": [
+     64,
+     64
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 607.3,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.8
+   }
+  },
+  "2024-podzim": {
+   "old": {
+    "levels": {
+     "Ano": 55,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 40,
+     "Záloha": 11
+    },
+    "single_ano": [
+     15,
+     37
+    ],
+    "multi_ano": [
+     40,
+     58
+    ],
+    "multi_ano_k3plus": [
+     22,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Skenovač": 1,
+      "Měnič": 1,
+      "Opravovatel": 1,
+      "Kreslič": 5
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 39,
+     "on a blank role": 32,
+     "Záloha": 9
+    },
+    "zaloha": {
+     "total": 11,
+     "had an Ano": 10,
+     "all blank": 0,
+     "Klidně/Nevadí-only (no Ano)": 1
+    },
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 800.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.6
+   },
+   "new_u1": {
+    "levels": {
+     "Ano": 95,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 11,
+     "Záloha": 0
+    },
+    "single_ano": [
+     37,
+     37
+    ],
+    "multi_ano": [
+     58,
+     58
+    ],
+    "multi_ano_k3plus": [
+     27,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Kreslič": 6,
+      "Skenovač": 1,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 77,
+     "on a blank role": 3
+    },
+    "zaloha": {},
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 88.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.9
+   },
+   "new_u2": {
+    "levels": {
+     "Ano": 95,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 11,
+     "Záloha": 0
+    },
+    "single_ano": [
+     37,
+     37
+    ],
+    "multi_ano": [
+     58,
+     58
+    ],
+    "multi_ano_k3plus": [
+     27,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Kreslič": 5,
+      "Skenovač": 3
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 77,
+     "on a blank role": 3
+    },
+    "zaloha": {},
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 88.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.7
+   },
+   "new_u4": {
+    "levels": {
+     "Ano": 95,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 11,
+     "Záloha": 0
+    },
+    "single_ano": [
+     37,
+     37
+    ],
+    "multi_ano": [
+     58,
+     58
+    ],
+    "multi_ano_k3plus": [
+     27,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Kreslič": 5,
+      "Fotograf": 1,
+      "Skenovač": 1,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 77,
+     "on a blank role": 3
+    },
+    "zaloha": {},
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 88.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.1
+   },
+   "new_u8": {
+    "levels": {
+     "Ano": 95,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 11,
+     "Záloha": 0
+    },
+    "single_ano": [
+     37,
+     37
+    ],
+    "multi_ano": [
+     58,
+     58
+    ],
+    "multi_ano_k3plus": [
+     27,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Měnič": 1,
+      "Kreslič": 7
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 77,
+     "on a blank role": 3
+    },
+    "zaloha": {},
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 88.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.8
+   },
+   "abl_noconc": {
+    "levels": {
+     "Ano": 95,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 11,
+     "Záloha": 0
+    },
+    "single_ano": [
+     37,
+     37
+    ],
+    "multi_ano": [
+     58,
+     58
+    ],
+    "multi_ano_k3plus": [
+     27,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Skenovač": 3,
+      "Fotograf": 1,
+      "Kreslič": 4
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 77,
+     "on a blank role": 3
+    },
+    "zaloha": {},
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 88.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.4
+   },
+   "abl_nozal": {
+    "levels": {
+     "Ano": 88,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 0,
+     "Záloha": 18
+    },
+    "single_ano": [
+     35,
+     37
+    ],
+    "multi_ano": [
+     53,
+     58
+    ],
+    "multi_ano_k3plus": [
+     23,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Záloha": 8
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 72,
+     "Záloha": 8
+    },
+    "zaloha": {
+     "total": 18,
+     "had an Ano": 7,
+     "all blank": 8,
+     "Klidně/Nevadí-only (no Ano)": 3
+    },
+    "building": [
+     80,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 349.3,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 1.8
+   },
+   "abl_blank0": {
+    "levels": {
+     "Ano": 62,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 44,
+     "Záloha": 0
+    },
+    "single_ano": [
+     16,
+     37
+    ],
+    "multi_ano": [
+     46,
+     58
+    ],
+    "multi_ano_k3plus": [
+     25,
+     27
+    ],
+    "all_blank": {
+     "n": 8,
+     "roles": {
+      "Měnič": 1,
+      "Kreslič": 4,
+      "Skenovač": 3
+     }
+    },
+    "partial_blank": {
+     "n": 80,
+     "got Ano": 44,
+     "on a blank role": 36
+    },
+    "zaloha": {},
+    "building": [
+     87,
+     94
+    ],
+    "friend_pairs": [
+     55,
+     55
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 565.3,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.9
+   }
+  },
+  "2025-jaro": {
+   "old": {
+    "levels": {
+     "Ano": 45,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 43,
+     "Záloha": 7
+    },
+    "single_ano": [
+     18,
+     42
+    ],
+    "multi_ano": [
+     27,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Měnič": 1,
+      "Kreslič": 3,
+      "Záloha": 1,
+      "Opravovatel": 1
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "on a blank role": 38,
+     "got Ano": 30,
+     "Záloha": 6
+    },
+    "zaloha": {
+     "total": 7,
+     "had an Ano": 5,
+     "all blank": 1,
+     "Klidně/Nevadí-only (no Ano)": 1
+    },
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 737.3,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 1.2
+   },
+   "new_u1": {
+    "levels": {
+     "Ano": 82,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 13,
+     "Záloha": 0
+    },
+    "single_ano": [
+     42,
+     42
+    ],
+    "multi_ano": [
+     40,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Skenovač": 2,
+      "Měnič": 2,
+      "Kreslič": 1,
+      "Opravovatel": 1
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 67,
+     "on a blank role": 7
+    },
+    "zaloha": {},
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 110.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 1.7
+   },
+   "new_u2": {
+    "levels": {
+     "Ano": 82,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 13,
+     "Záloha": 0
+    },
+    "single_ano": [
+     42,
+     42
+    ],
+    "multi_ano": [
+     40,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Měnič": 2,
+      "Opravovatel": 2,
+      "Skenovač": 2
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 67,
+     "on a blank role": 7
+    },
+    "zaloha": {},
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 110.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 0.8
+   },
+   "new_u4": {
+    "levels": {
+     "Ano": 82,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 13,
+     "Záloha": 0
+    },
+    "single_ano": [
+     42,
+     42
+    ],
+    "multi_ano": [
+     40,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Skenovač": 3,
+      "Měnič": 2,
+      "Kreslič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 67,
+     "on a blank role": 7
+    },
+    "zaloha": {},
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 110.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 1.0
+   },
+   "new_u8": {
+    "levels": {
+     "Ano": 82,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 13,
+     "Záloha": 0
+    },
+    "single_ano": [
+     42,
+     42
+    ],
+    "multi_ano": [
+     40,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Skenovač": 2,
+      "Měnič": 3,
+      "Kreslič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 67,
+     "on a blank role": 7
+    },
+    "zaloha": {},
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 110.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 1.0
+   },
+   "abl_noconc": {
+    "levels": {
+     "Ano": 82,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 13,
+     "Záloha": 0
+    },
+    "single_ano": [
+     42,
+     42
+    ],
+    "multi_ano": [
+     40,
+     42
+    ],
+    "multi_ano_k3plus": [
+     20,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Skenovač": 2,
+      "Kreslič": 1,
+      "Měnič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 67,
+     "on a blank role": 7
+    },
+    "zaloha": {},
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 112.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.2
+   },
+   "abl_nozal": {
+    "levels": {
+     "Ano": 82,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 6,
+     "Záloha": 7
+    },
+    "single_ano": [
+     42,
+     42
+    ],
+    "multi_ano": [
+     40,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Záloha": 5,
+      "Skenovač": 1
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 67,
+     "Záloha": 2,
+     "on a blank role": 5
+    },
+    "zaloha": {
+     "total": 7,
+     "had an Ano": 0,
+     "all blank": 5,
+     "Klidně/Nevadí-only (no Ano)": 2
+    },
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 166.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 2.9
+   },
+   "abl_blank0": {
+    "levels": {
+     "Ano": 51,
+     "Klidně": 0,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 44,
+     "Záloha": 0
+    },
+    "single_ano": [
+     20,
+     42
+    ],
+    "multi_ano": [
+     31,
+     42
+    ],
+    "multi_ano_k3plus": [
+     19,
+     20
+    ],
+    "all_blank": {
+     "n": 6,
+     "roles": {
+      "Měnič": 4,
+      "Opravovatel": 1,
+      "Kreslič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 74,
+     "got Ano": 36,
+     "on a blank role": 38
+    },
+    "zaloha": {},
+    "building": [
+     75,
+     76
+    ],
+    "friend_pairs": [
+     40,
+     41
+    ],
+    "friend_helpers": [
+     49,
+     49
+    ],
+    "yard_old": 0.0,
+    "yard_new_u4": 570.7,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 0.9
+   }
+  },
+  "2025-podzim": {
+   "old": {
+    "levels": {
+     "Ano": 77,
+     "Klidně": 15,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 5,
+     "Záloha": 11
+    },
+    "single_ano": [
+     50,
+     52
+    ],
+    "multi_ano": [
+     27,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Skenovač": 1,
+      "Opravovatel": 1,
+      "Kreslič": 1,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "on a blank role": 1
+    },
+    "zaloha": {
+     "total": 11,
+     "had an Ano": 2,
+     "all blank": 0,
+     "Klidně/Nevadí-only (no Ano)": 9
+    },
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 60.0,
+    "yard_new_u4": 304.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 8.3
+   },
+   "new_u1": {
+    "levels": {
+     "Ano": 81,
+     "Klidně": 23,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 4,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     29,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Kreslič": 2,
+      "Skenovač": 1,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "got Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 92.0,
+    "yard_new_u4": 124.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.0
+   },
+   "new_u2": {
+    "levels": {
+     "Ano": 81,
+     "Klidně": 23,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 4,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     29,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Kreslič": 1,
+      "Opravovatel": 1,
+      "Měnič": 2
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "got Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 92.0,
+    "yard_new_u4": 124.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 4.1
+   },
+   "new_u4": {
+    "levels": {
+     "Ano": 81,
+     "Klidně": 23,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 4,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     29,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Kreslič": 2,
+      "Opravovatel": 1,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "got Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 92.0,
+    "yard_new_u4": 124.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 6.2
+   },
+   "new_u8": {
+    "levels": {
+     "Ano": 81,
+     "Klidně": 23,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 4,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     29,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Opravovatel": 1,
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "got Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 92.0,
+    "yard_new_u4": 124.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 6.2
+   },
+   "abl_noconc": {
+    "levels": {
+     "Ano": 81,
+     "Klidně": 23,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 4,
+     "Záloha": 0
+    },
+    "single_ano": [
+     52,
+     52
+    ],
+    "multi_ano": [
+     29,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Kreslič": 3,
+      "Měnič": 1
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "got Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 92.0,
+    "yard_new_u4": 124.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 3.2
+   },
+   "abl_nozal": {
+    "levels": {
+     "Ano": 79,
+     "Klidně": 19,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 0,
+     "Záloha": 10
+    },
+    "single_ano": [
+     51,
+     52
+    ],
+    "multi_ano": [
+     28,
+     29
+    ],
+    "multi_ano_k3plus": [
+     5,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Záloha": 4
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "got Ano": 1
+    },
+    "zaloha": {
+     "total": 10,
+     "had an Ano": 1,
+     "all blank": 4,
+     "Klidně/Nevadí-only (no Ano)": 5
+    },
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 76.0,
+    "yard_new_u4": 253.3,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 17.8
+   },
+   "abl_blank0": {
+    "levels": {
+     "Ano": 80,
+     "Klidně": 23,
+     "Nevadí": 0,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 5,
+     "Záloha": 0
+    },
+    "single_ano": [
+     51,
+     52
+    ],
+    "multi_ano": [
+     29,
+     29
+    ],
+    "multi_ano_k3plus": [
+     6,
+     6
+    ],
+    "all_blank": {
+     "n": 4,
+     "roles": {
+      "Měnič": 3,
+      "Opravovatel": 1
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "on a blank role": 1
+    },
+    "zaloha": {},
+    "building": [
+     102,
+     104
+    ],
+    "friend_pairs": [
+     77,
+     78
+    ],
+    "friend_helpers": [
+     65,
+     65
+    ],
+    "yard_old": 92.0,
+    "yard_new_u4": 140.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 6.4
+   }
+  },
+  "2026-jaro": {
+   "old": {
+    "levels": {
+     "Ano": 90,
+     "Klidně": 11,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 9
+    },
+    "single_ano": [
+     65,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {
+     "total": 9,
+     "had an Ano": 5,
+     "all blank": 0,
+     "Klidně/Nevadí-only (no Ano)": 4
+    },
+    "building": [
+     87,
+     95
+    ],
+    "friend_pairs": [
+     81,
+     89
+    ],
+    "friend_helpers": [
+     59,
+     60
+    ],
+    "yard_old": 52.0,
+    "yard_new_u4": 312.0,
+    "status": "FEASIBLE",
+    "gap_pct": 5.17,
+    "seconds": 60.3
+   },
+   "new_u1": {
+    "levels": {
+     "Ano": 94,
+     "Klidně": 16,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 0
+    },
+    "single_ano": [
+     70,
+     73
+    ],
+    "multi_ano": [
+     24,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     88,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 72.0,
+    "yard_new_u4": 110.0,
+    "status": "FEASIBLE",
+    "gap_pct": 6.39,
+    "seconds": 60.3
+   },
+   "new_u2": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 14,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 0
+    },
+    "single_ano": [
+     71,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     88,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 64.0,
+    "yard_new_u4": 96.0,
+    "status": "FEASIBLE",
+    "gap_pct": 0.32,
+    "seconds": 60.5
+   },
+   "new_u4": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 14,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 0
+    },
+    "single_ano": [
+     71,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     88,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 64.0,
+    "yard_new_u4": 96.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 51.8
+   },
+   "new_u8": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 14,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 0
+    },
+    "single_ano": [
+     71,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     88,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 64.0,
+    "yard_new_u4": 96.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 27.1
+   },
+   "abl_noconc": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 14,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 0
+    },
+    "single_ano": [
+     71,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     88,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 64.0,
+    "yard_new_u4": 96.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 48.2
+   },
+   "abl_nozal": {
+    "levels": {
+     "Ano": 91,
+     "Klidně": 11,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 8
+    },
+    "single_ano": [
+     66,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {
+     "total": 8,
+     "had an Ano": 5,
+     "all blank": 0,
+     "Klidně/Nevadí-only (no Ano)": 3
+    },
+    "building": [
+     86,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 52.0,
+    "yard_new_u4": 292.0,
+    "status": "FEASIBLE",
+    "gap_pct": 2.05,
+    "seconds": 60.5
+   },
+   "abl_blank0": {
+    "levels": {
+     "Ano": 96,
+     "Klidně": 14,
+     "Nevadí": 1,
+     "Spíš ne": 0,
+     "Ne": 0,
+     "blank": 3,
+     "Záloha": 0
+    },
+    "single_ano": [
+     71,
+     73
+    ],
+    "multi_ano": [
+     25,
+     25
+    ],
+    "multi_ano_k3plus": [
+     2,
+     2
+    ],
+    "all_blank": {
+     "n": 3,
+     "roles": {
+      "Kreslič": 3
+     }
+    },
+    "partial_blank": {
+     "n": 1,
+     "rated, not Ano": 1
+    },
+    "zaloha": {},
+    "building": [
+     88,
+     95
+    ],
+    "friend_pairs": [
+     82,
+     89
+    ],
+    "friend_helpers": [
+     60,
+     60
+    ],
+    "yard_old": 64.0,
+    "yard_new_u4": 96.0,
+    "status": "OPTIMAL",
+    "gap_pct": 0.0,
+    "seconds": 38.8
+   }
+  }
+ },
+ "time_limit": 60,
+ "scale": 60,
+ "seed": 1
+}
