@@ -116,7 +116,12 @@ someone in an Organizer role slot, or by promoting an existing Helper —
 promotion keeps their Person link, name, e-mail and Tags, removes them from the
 Helper pool (clearing their Assignment and lock) and re-points other Helpers'
 Friend preferences that named them, so a promoted Organizer receives no solved
-Role that Season and one person is never both at once (there is no demotion).
+Role that Season and one person is never both at once. The way back is
+**converting to a Helper** (Czech: "Převést na pomocníka"): the Helper keeps the
+Organizer's Person link, name, e-mail, phone, T-shirt size, Can't attend flag and
+Tags (one that would leave them no allowed Room or Role is not carried), has no
+Assignment and joins the Helper pool, and other Helpers' Friend preferences that
+named the Organizer now name them; the slots the Organizer held are emptied.
 An Organizer holds exactly one placement (Building, or
 Building+Room) per Season, set implicitly by assigning them into an
 Organizer role slot — there is no separate placement step, and no placement
