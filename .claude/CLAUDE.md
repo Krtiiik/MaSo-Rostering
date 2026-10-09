@@ -231,9 +231,18 @@ pushing the tag, not just creating it locally.
   budovy, Pravá ruka, Vedoucí místností, Technická podpora: names split on commas,
   Building-level or filed under the first Room the cell covers), the sideways merges
   of every Room-level row (`cell_merges`) and the tall merges (`row_merges`); the
-  names are matched to the Season's Organizers (`read_building_sheet`: unknown or
-  Can't attend names are skipped and reported, nothing is created) and travel
-  as `SeasonView.sheet_pending` beside the draft. `mutations.put_config_from_sheet`
+  names are matched to the Season's Organizers (`read_building_sheet`: an exact
+  normalized-name match is placed, a Can't attend one is skipped and reported,
+  nothing is created) and travel as `SeasonView.sheet_pending` beside the draft.
+  A name with no exact match goes to `pending["unmatched"]`; `put_config_from_sheet`
+  stores those as `state["organizer_slot_offers"]` (`id`, `name`, `role`, `building`,
+  `room`; replaced by each saved sheet), and `get_organizer_slot_offers` lists them
+  for the to-do panel with live `candidates` (`organizers.similar_names` /
+  `name_similarity`: diacritics/case/word-order-insensitive, word by word, so
+  "Terka Nováková" or a surname alone resemble the full name). `accept_organizer_slot_offer`
+  places the picked Organizer like `assign_organizer` and closes the offer,
+  `dismiss_organizer_slot_offer` just closes it; an offer whose slot the layout no
+  longer has is not listed. `mutations.put_config_from_sheet`
   saves layout, merges and slots in one save, after a confirmation naming the slot
   holders it replaces; an Organizer named in several places keeps the last.
 - Tall cells (`rostering/row_merges.py`, `state["row_merges"]` = `{building, room,

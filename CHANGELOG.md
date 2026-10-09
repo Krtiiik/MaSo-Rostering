@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Budovy: a leadership name in a loaded "Pomocníci v místnostech" sheet that matches
+  no Organizer exactly (a nickname, a typo, a surname only) is no longer just
+  skipped: after saving, the K vyřízení panel lists it with the Organizers whose
+  names resemble it ("Zařadit" puts the picked one in the slot, "Nechat prázdné"
+  forgets the name). An Organizer added later is offered for the waiting name too.
+
 ### Changed
 
 - Rozpis: dragging a chip near the edge of the grid (or of the page) now scrolls

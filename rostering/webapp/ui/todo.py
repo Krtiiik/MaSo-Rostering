@@ -42,6 +42,7 @@ def count(session: UiSession) -> int:
         + len(mutations.get_typed_role_link_offers(ws))
         + len(mutations.get_uncertain_matches(ws))
         + len(mutations.get_uncertain_organizer_matches(ws))
+        + len(mutations.get_organizer_slot_offers(ws))
     )
 
 
@@ -69,6 +70,7 @@ class TodoPanel:
             self._typed_role_links()
             self._uncertain_matches()
             self._uncertain_organizer_matches()
+            self._organizer_slot_offers()
 
     # ------------------------------------------------------------------ pieces
     def _warnings(self) -> None:
@@ -332,6 +334,42 @@ class TodoPanel:
             return state
 
         await s.act(reject_all)
+
+
+    def _organizer_slot_offers(self) -> None:
+        """Leadership names from a loaded Buildings sheet that matched no Organizer
+        exactly: the Organizers with a similar name are offered for the slot, to be
+        picked or declined one by one."""
+        s = self.session
+        offers = mutations.get_organizer_slot_offers(s.workspace)
+        if not offers:
+            return
+        ui.label(f"Jména z tabulky budov bez shody ({len(offers)})").classes("font-bold")
+        ui.markdown(
+            "Tato jména z načtené tabulky nejsou mezi organizátory ročníku přesně tak, jak jsou napsána, a proto "
+            "nejsou zařazena. Vyberte, kdo se jimi myslí, nebo místo nechte prázdné. Chybějícího organizátora "
+            f"přidejte na záložce {labels.TAB_PEOPLE}, návrh se pak doplní sám."
+        ).classes("text-sm text-gray-600")
+        for offer in offers:
+            with ui.card().classes("w-full"):
+                ui.markdown(f"**{offer['name']}** — {offer['label']}")
+                if not offer["candidates"]:
+                    ui.label("Žádný organizátor s podobným jménem.").classes("text-sm text-gray-600")
+                for candidate in offer["candidates"]:
+                    ui.label(
+                        f"{candidate['name']} · {_describe(candidate['email'], None)}"
+                        + (f" · nyní zařazen(a): {candidate['placed']}" if candidate["placed"] else "")
+                    ).classes("text-sm")
+                    ui.button(
+                        "Zařadit",
+                        on_click=lambda o=offer["id"], c=candidate["organizer_id"]: s.act(
+                            lambda: mutations.accept_organizer_slot_offer(s.workspace, o, c)
+                        ),
+                    ).props("dense")
+                ui.button(
+                    "Nechat prázdné",
+                    on_click=lambda o=offer["id"]: s.act(lambda: mutations.dismiss_organizer_slot_offer(s.workspace, o)),
+                ).props("flat dense")
 
 
 def _warning(text: str) -> None:
