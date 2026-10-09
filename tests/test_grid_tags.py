@@ -156,3 +156,34 @@ def test_an_empty_filter_dims_nobody(seeded):
     state, _ = seeded
 
     assert mutations.dimmed_helper_ids(state, [], "all") == []
+
+
+def test_the_legend_lists_every_tag_on_the_grid_in_tree_order_with_counts(seeded):
+    state, ids = seeded
+
+    present = mutations.grid_tags_present(state)
+
+    # Roots alphabetically, a child right after its parent; Anna implies GCHD, Petr carries it directly.
+    assert [(t["name"], t["count"], t["direct"]) for t in present] == [
+        ("Foto", 1, True),
+        ("GCHD", 2, True),
+        ("8.M", 1, True),
+    ]
+
+
+def test_a_tag_carried_only_by_implication_is_not_direct_and_an_unused_one_is_left_out(seeded, workspace):
+    state, ids = seeded
+    mutations.set_helper_tags(workspace, 2, [])  # Petr drops GCHD; only Anna still implies it
+    mutations.add_tag(workspace, "Nikdo")
+
+    present = {t["name"]: t for t in mutations.grid_tags_present(workspace.load())}
+
+    assert present["GCHD"]["direct"] is False and present["GCHD"]["count"] == 1
+    assert "Nikdo" not in present
+
+
+def test_the_legend_ignores_people_who_cannot_attend(seeded, workspace):
+    state, ids = seeded
+    mutations.set_cant_attend(workspace, 3, True, confirmed=True)  # Jana, the only Foto carrier
+
+    assert "Foto" not in [t["name"] for t in mutations.grid_tags_present(workspace.load())]

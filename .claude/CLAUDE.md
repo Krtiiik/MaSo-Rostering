@@ -666,7 +666,11 @@ pushing the tag, not just creating it locally.
   `RosterTab._overlay_controls` renders the chips and, with Tags on, the "Filtrovat
   podle štítků" select in tree order and the All of / Any of radio
   (`SeasonView.grid_tag_filter` / `grid_tag_mode`, pruned of deleted Tags on each
-  draw). With Tags off the filter is hidden and dims no one; another Season opens
+  draw). With Tags on, the Tag legend under the filter (`RosterTab._draw_legend`, over
+  `mutations.grid_tags_present`: every Tag carried, directly or by implication,
+  by an attending Helper or Organizer, in tree order with a `count`; `direct` is
+  False when it is only implied, drawn dashed) shows them as pills whose click
+  toggles the filter through the select's own `on_change`. With Tags off the filter is hidden and dims no one; another Season opens
   with the defaults again. Dimming is a `chip-dimmed` class (opacity, restored on
   hover; never a bare `dimmed`, which is a Quasar utility class that lays a dark
   overlay over the nearest positioned ancestor — the whole cell). Covered by `tests/test_grid_tags.py`, `tests/test_webapp_grid.py` and

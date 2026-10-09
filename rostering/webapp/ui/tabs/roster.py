@@ -20,7 +20,7 @@ from rostering.czech import plural
 from rostering.domain import BrokenRule
 from rostering.webapp import mutations
 from rostering.webapp.reveal import reveal_in_file_manager
-from rostering.webapp.ui import dialogs, fix_focus, solving
+from rostering.webapp.ui import dialogs, fix_focus, pills, solving
 from rostering.webapp.ui.grid import RosterGrid
 from rostering.webapp.ui.grid import data as grid_data
 from rostering.webapp.ui.grid.card import HelperCard
@@ -51,6 +51,8 @@ class RosterTab:
         self.card = HelperCard(self._toggle_lock)
         self.broken_open = False
         self.grid: Optional[RosterGrid] = None
+        self._tag_picker: Optional[ui.select] = None
+        self._legend: Optional[ui.row] = None
 
     # ------------------------------------------------------------------ page
     def render(self) -> None:
@@ -194,6 +196,44 @@ class RosterTab:
                 picker.disable()
                 radio.disable()
                 picker.props('label="Zatím žádné štítky"')
+        self._tag_picker = picker
+        # The legend: every Tag someone on the grid carries, as a pill that toggles the filter.
+        self._legend = ui.row().classes("w-full items-center gap-1")
+        self._draw_legend()
+
+    def _draw_legend(self) -> None:
+        """The Tags present on the grid as coloured pills (solid = carried directly,
+        dashed = only by implication); a click adds or removes the Tag in the filter."""
+        view = self.session.view
+        present = mutations.grid_tags_present(self.session.state)
+        self._legend.clear()
+        with self._legend:
+            ui.label("Štítky v mřížce:").classes("text-sm text-gray-600")
+            if not present:
+                ui.label("zatím nikdo žádný nemá").classes("text-sm text-gray-500")
+            for tag in present:
+                chosen = tag["id"] in view.grid_tag_filter
+                style = pills.pill_style(tag["colour"], implied=not tag["direct"])
+                if chosen:
+                    style += "outline:2px solid #1976d2;outline-offset:1px;font-weight:600;"
+                count = tag["count"]
+                shown = ("✓ " if chosen else "") + tag["name"]
+                pill = ui.element("span").style(style + "cursor:pointer;").mark(f"tag-pill-{tag['id']}")
+                with pill:
+                    ui.label(shown)
+                pill.tooltip(
+                    f"{count} {plural(count, 'člověk', 'lidé', 'lidí')}"
+                    + ("" if tag["direct"] else " (štítek je jen odvozený)")
+                    + (" — klikněte pro zrušení filtru" if chosen else " — klikněte pro filtrování")
+                )
+                pill.on("click", lambda _e, tid=tag["id"]: self._toggle_legend_tag(tid))
+
+    def _toggle_legend_tag(self, tag_id: int) -> None:
+        view = self.session.view
+        chosen = [t for t in view.grid_tag_filter if t != tag_id]
+        if len(chosen) == len(view.grid_tag_filter):
+            chosen.append(tag_id)
+        self._tag_picker.value = chosen  # its on_change applies the filter and redraws
 
     def _set_overlay(self, key: str, on: bool) -> None:
         view = self.session.view
@@ -208,6 +248,8 @@ class RosterTab:
         view = self.session.view
         view.grid_tag_filter, view.grid_tag_mode = tag_ids, mode
         self._draw_grid()
+        if self._legend is not None and not self._legend.is_deleted:
+            self._draw_legend()
 
     # ------------------------------------------------------------------ export
     def _export(self) -> None:
