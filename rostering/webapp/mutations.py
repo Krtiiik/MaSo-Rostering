@@ -37,6 +37,7 @@ from rostering.domain import (
 )
 from rostering.export.excel import write_roster
 from rostering.ingest.building_sheet import parse_building_sheet
+from rostering.ingest.gchd_sheet import GchdStudent, read_gchd_sheet
 from rostering.ingest.preferences import parse_role_token
 from rostering.ingest.organizer_survey import ANSWER_FIELDS as ORGANIZER_ANSWER_FIELDS
 from rostering.ingest.organizer_survey import OrganizerRow, parse_organizer_survey
@@ -291,6 +292,7 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
         result = parse_raw_survey(
             tmp_path, organizers=organizers, building_names=[b["name"] for b in loaded["config"]]
         )
+        gchd_students = read_gchd_sheet(tmp_path)
     except ValueError as exc:
         raise RosteringError(str(exc)) from exc
     finally:
@@ -313,7 +315,7 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     if creating:
         state.pop("next_helper_id", None)
     _merge_survey_rows(state, result.helpers, workspace.person_records(), existing)
-    state["ingestion_warnings"] = result.warnings
+    state["ingestion_warnings"] = [*result.warnings, *_apply_gchd_classes(state, gchd_students)]
     state["export_timestamps"] = [t.date().isoformat() for t in result.submission_timestamps]
     if not existing:
         state["assignments"] = []
@@ -331,6 +333,46 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     else:
         workspace.save(state)
     return workspace.load()
+
+
+GCHD_TAG_NAME = "GCHD"
+
+
+def _apply_gchd_classes(state: dict[str, Any], students: Sequence[GchdStudent]) -> list[str]:
+    """Tag the Helpers named on the export's GChD sheet (see CONTEXT.md "GCHD
+    sheet"): the root Tag GCHD, one child Tag per class exactly as the sheet
+    writes it, and each student's class Tag directly on the Helper with the same
+    e-mail. A Tag the Season already has (compared ignoring case) is reused as it
+    is; Tags a Helper carries are only ever added to. Returns warnings for the
+    students no Helper matches and the Tags a Tag constraint kept from a Helper."""
+    if not students:
+        return []
+    tags = state.setdefault("tags", [])
+
+    def tag_named(name: str, parent_id: Optional[int] = None) -> dict:
+        key = tag_tree.name_key(name)
+        existing = next((t for t in tags if tag_tree.name_key(t["name"]) == key), None)
+        return existing or _append_tag(state, name, parent_id=parent_id)
+
+    root = tag_named(GCHD_TAG_NAME)
+    class_tags = {s.school_class: tag_named(s.school_class, root["id"]) for s in students}
+    by_email = {h["email"]: h for h in state["helpers"] if h.get("email")}
+    warnings: list[str] = []
+    unmatched: list[str] = []
+    for student in students:
+        helper = by_email.get(student.email) if student.email else None
+        if helper is None:
+            unmatched.append(student.name or student.email)
+            continue
+        tag = class_tags[student.school_class]
+        _, skipped = _add_valid_tags(state, helper, [tag["id"]])
+        warnings.extend(f"List GChD: {s['tag']} nelze přidat — {s['reason']}" for s in skipped)
+    if unmatched:
+        warnings.append(
+            f"List GChD: {len(unmatched)} {plural(len(unmatched), 'student', 'studenti', 'studentů')} "
+            f"nemá odpověď se stejným e-mailem mezi pomocníky, štítek třídy nedostali: {', '.join(unmatched)}"
+        )
+    return warnings
 
 
 # What a re-upload refreshes on a recognized Helper straight from the latest
@@ -2582,6 +2624,21 @@ def add_tag(
     ``state["tags"]``. Nobody carries a new Tag, so no constraint can strand
     anyone yet."""
     state = workspace.load()
+    _append_tag(state, name, colour=colour, note=note, parent_id=parent_id, rules=rules)
+    workspace.save(state)
+    return state
+
+
+def _append_tag(
+    state: dict[str, Any],
+    name: str,
+    *,
+    colour: Optional[str] = None,
+    note: str = "",
+    parent_id: Optional[int] = None,
+    rules: Sequence[Any] = (),
+) -> dict:
+    """:func:`add_tag` on a loaded state, without saving; returns the new record."""
     tags = state.setdefault("tags", [])
     record = {
         "id": _next_tag_id(state),
@@ -2592,8 +2649,7 @@ def add_tag(
         "rules": _validated_tag_rules(rules),
     }
     tags.append(record)
-    workspace.save(state)
-    return state
+    return record
 
 
 def update_tag(

@@ -59,10 +59,12 @@ class RawSurveyResult:
     submission_timestamps: list[datetime] = field(default_factory=list)
 
 
-def _find_columns(headers: list[str]) -> dict[str, str]:
+def _find_columns(
+    headers: list[str], candidate_table: dict[str, list[str]] = FIELD_HEADER_CANDIDATES
+) -> dict[str, str]:
     normalized_headers = {h: normalize_name(h) for h in headers}
     found: dict[str, str] = {}
-    for field, candidates in FIELD_HEADER_CANDIDATES.items():
+    for field, candidates in candidate_table.items():
         for candidate in candidates:
             norm_candidate = normalize_name(candidate)
             match = next(
