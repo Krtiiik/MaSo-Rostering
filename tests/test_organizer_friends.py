@@ -628,3 +628,173 @@ def test_promotion_is_part_of_versions(workspace, tmp_path):
 
     assert [h["name"] for h in state["helpers"]] == ["Anna", "Petr"]
     assert state["organizers"] == []
+
+
+# -- demotion (Převést na pomocníka) ---------------------------------------------------------
+
+
+def _organizer_state(workspace, *helpers, name="Marie", email="marie@example.test"):
+    _seed(workspace, *helpers)
+    return _create(workspace, name, email)
+
+
+def test_demoting_an_organizer_creates_a_helper_keeping_person_name_contact_and_tags(workspace):
+    marie = _organizer_state(workspace, _helper(2, "Petr"))
+    tag = mutations.add_tag(workspace, "8.M")["tags"][-1]["id"]
+    mutations.set_organizer_tags(workspace, marie, [tag])
+    mutations.update_organizer(workspace, marie, phone="777 111 222", tshirt_size="M")
+    person_id = workspace.load()["organizers"][0]["person_id"]
+
+    state = mutations.demote_organizer(workspace, marie)
+
+    assert state["organizers"] == []
+    helper = state["helpers"][-1]
+    assert (helper["name"], helper["email"], helper["phone"], helper["tshirt_size"]) == (
+        "Marie",
+        "marie@example.test",
+        "777 111 222",
+        "M",
+    )
+    assert helper["person_id"] == person_id
+    assert helper["tags"] == [tag]
+    assert helper["hand_added"] is True
+    assert {"name", "email", "phone", "tshirt_size"} <= set(helper["hand_typed"])
+    assert helper["id"] not in (2,)
+    assert not state["assignments"]
+
+
+def test_demotion_keeps_link_decisions_and_the_absence_flag(workspace):
+    marie = _organizer_state(workspace)
+    state = workspace.load()
+    record = state["organizers"][0]
+    record.update(link_confirmed=True, rejected_person_ids=["other"], cant_attend=True)
+    workspace.save(state)
+
+    helper = mutations.demote_organizer(workspace, marie)["helpers"][-1]
+
+    assert helper["link_confirmed"] is True
+    assert helper["rejected_person_ids"] == ["other"]
+    assert helper["cant_attend"] is True
+
+
+def test_demotion_puts_the_helper_in_the_solver_pool(workspace):
+    marie = _organizer_state(workspace, _helper(2, "Petr"))
+
+    mutations.demote_organizer(workspace, marie)
+    solved = mutations.solve(workspace)
+
+    assert sorted(a["helper_name"] for a in solved["assignments"]) == ["Marie", "Petr"]
+
+
+def test_demoting_an_organizer_with_a_slot_asks_first_then_empties_it_and_stales_the_roster(workspace):
+    marie = _organizer_state(workspace, _helper(2, "Petr"))
+    mutations.assign_organizer(workspace, marie, "VedouciBudovy", "B", None)
+
+    with pytest.raises(mutations.ConfirmationRequired) as excinfo:
+        mutations.demote_organizer(workspace, marie)
+    assert any("Vedoucí budovy" in line for line in excinfo.value.lines)
+    assert [o["id"] for o in workspace.load()["organizers"]] == [marie]  # nothing changed
+
+    state = mutations.demote_organizer(workspace, marie, confirmed=True)
+
+    assert state["manual_roles"]["structural"] == []
+    assert mutations.stale_reasons(state)
+
+
+def test_demoting_an_unplaced_organizer_needs_no_confirmation_and_keeps_the_roster_current(workspace):
+    marie = _organizer_state(workspace, _helper(2, "Petr"))
+    mutations.solve(workspace)
+
+    state = mutations.demote_organizer(workspace, marie)
+
+    assert not mutations.stale_reasons(state)
+    # The newcomer has no Assignment, so the export waits until they are placed.
+    assert mutations.unplaced_reason(state)
+    assert _placed(mutations.place_new_registrants(workspace), state["helpers"][-1]["id"]) is not None
+
+
+def test_demotion_repoints_friend_references_to_the_new_helper(workspace):
+    marie = _organizer_state(workspace)
+    ref = {"organizer_id": marie}
+    state = workspace.load()
+    state["helpers"] = [
+        _helper(2, "Petr", friends=[ref, 3], friend_name_decisions={"Maruška": [ref], "Jana": [3], "Nikdo": None}),
+        _helper(3, "Jana", friends=[ref]),
+    ]
+    workspace.save(state)
+
+    state = mutations.demote_organizer(workspace, marie)
+
+    new_id = state["helpers"][-1]["id"]
+    assert _helper_in(state, 2)["friends"] == [new_id, 3]
+    assert _helper_in(state, 2)["friend_name_decisions"] == {"Maruška": [new_id], "Jana": [3], "Nikdo": None}
+    assert _helper_in(state, 3)["friends"] == [new_id]
+
+
+def test_demotion_bumps_the_organizer_id_high_water_mark(workspace):
+    marie = _organizer_state(workspace)
+
+    state = mutations.demote_organizer(workspace, marie)
+
+    assert state["next_organizer_id"] > marie
+    assert mutations.add_organizer(workspace, "Nová")["organizers"][-1]["id"] > marie
+
+
+def test_a_tag_that_would_strand_the_new_helper_is_named_in_the_confirmation_and_not_carried(workspace):
+    marie = _organizer_state(workspace)
+    must = lambda role: [{"kind": "be", "must": True, "axis": "role", "values": [role]}]  # noqa: E731
+    first = mutations.add_tag(workspace, "Jen oprava", rules=must("Opravovatel"))["tags"][-1]["id"]
+    second = mutations.add_tag(workspace, "Jen foto", rules=must("Fotograf"))["tags"][-1]["id"]
+    mutations.set_organizer_tags(workspace, marie, [first, second])  # an Organizer is judged on Buildings only
+
+    with pytest.raises(mutations.ConfirmationRequired) as excinfo:
+        mutations.demote_organizer(workspace, marie)
+    assert any("Jen foto" in line for line in excinfo.value.lines)
+
+    state = mutations.demote_organizer(workspace, marie, confirmed=True)
+
+    assert state["helpers"][-1]["tags"] == [first]
+    assert not mutations.stale_reasons(state)  # no slot was emptied
+
+
+def test_a_person_who_is_already_a_helper_cannot_be_demoted_into_a_second_record(workspace):
+    marie = _organizer_state(workspace, _helper(2, "Marie"))
+    state = workspace.load()
+    state["helpers"][0]["person_id"] = state["organizers"][0]["person_id"]
+    workspace.save(state)
+
+    with pytest.raises(mutations.RosteringError):
+        mutations.demote_organizer(workspace, marie)
+    assert len(workspace.load()["organizers"]) == 1
+
+
+def test_demoting_an_unknown_organizer_is_an_error(workspace):
+    _seed(workspace)
+
+    with pytest.raises(mutations.RosteringError):
+        mutations.demote_organizer(workspace, 99)
+
+
+def test_a_promoted_helper_can_be_demoted_back_and_keeps_their_person(workspace):
+    _seed(workspace, _helper(1, "Anna", email="anna@example.test"), _helper(2, "Petr", friends=[1]))
+    organizer = mutations.promote_helper(workspace, 1)["organizers"][0]
+
+    state = mutations.demote_organizer(workspace, organizer["id"])
+
+    back = state["helpers"][-1]
+    assert (back["name"], back["person_id"], back["email"]) == ("Anna", organizer["person_id"], "anna@example.test")
+    assert _helper_in(state, 2)["friends"] == [back["id"]]
+
+
+def test_demotion_is_part_of_versions(workspace, tmp_path):
+    mutations.new_season(workspace)
+    path = _survey_file(tmp_path, [("Petr", "petr@example.test", None)])
+    mutations.upload_responses(workspace, path.read_bytes(), "s.xlsx", label="2026-jaro")
+    marie = _create(workspace, "Marie")
+    saved = mutations.save_version(workspace, "before")
+    mutations.demote_organizer(workspace, marie)
+
+    state = mutations.restore_version(workspace, saved["slug"])
+
+    assert [o["name"] for o in state["organizers"]] == ["Marie"]
+    assert [h["name"] for h in state["helpers"]] == ["Petr"]

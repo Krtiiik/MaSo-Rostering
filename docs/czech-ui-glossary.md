@@ -40,6 +40,7 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | Import from an earlier Season | Import z dřívějšího ročníku |
 | Promote classes | Zestárnout třídu |
 | Promote this helper to Organizer | Povýšit na organizátora |
+| Convert this Organizer to a Helper | Převést na pomocníka |
 | Lock / Unlock | Zamknout / Odemknout |
 | Unassigned (grid pool) | Nezařazení |
 | Overlays (Roster tab pills: Friends / Tags / Role satisfaction / Building satisfaction) | Zobrazení (Kamarádi / Štítky / Spokojenost s rolí / Spokojenost s budovou) |

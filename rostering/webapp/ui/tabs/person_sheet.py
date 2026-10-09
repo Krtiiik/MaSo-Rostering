@@ -276,6 +276,10 @@ class PersonSheet:
 
             with ui.row().classes("gap-2 mt-2"):
                 ui.button("Uložit změny", on_click=save_organizer).props("color=primary").mark("person-save")
+                ui.button("Převést na pomocníka", on_click=self._demote).props("flat").tooltip(
+                    "Z organizátora se stane pomocník bez přiřazení: zachová si jméno, e-mail, telefon, velikost trička, "
+                    "štítky i propojení osoby, ale vyprázdní se jeho vedoucí místa; zařadí se při dalším sestavení."
+                ).mark("person-demote")
                 ui.button("Smazat organizátora", on_click=self._delete).props("flat color=negative").mark("person-delete")
             return
 
@@ -363,6 +367,24 @@ class PersonSheet:
                 danger=False,
             ),
             success=f"{person['name']} je nyní organizátor.",
+        )
+
+    async def _demote(self) -> None:
+        s = self.session
+        person = self.person
+        if person is None:
+            return
+        await s.act(
+            lambda confirmed: mutations.demote_organizer(s.workspace, person["id"], confirmed=confirmed),
+            confirm=dialogs.ConfirmSpec(
+                title="Převést na pomocníka?",
+                ok_label="Převést na pomocníka",
+                intro=f"Převedením organizátora **{person['name']}** na pomocníka se ztratí:",
+                caption="Stane se z něj pomocník bez přiřazení, který se zařadí při dalším sestavení. Rozdělení "
+                "pomocníků je neaktuální do dalšího sestavení a do té doby je export zablokovaný.",
+                danger=False,
+            ),
+            success=f"{person['name']} je nyní pomocník.",
         )
 
     # ------------------------------------------------------------------ Answers

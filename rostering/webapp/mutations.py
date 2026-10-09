@@ -1773,8 +1773,8 @@ def promote_helper(workspace: Workspace, helper_id: int, confirmed: bool = False
     (:class:`ConfirmationRequired` names what would go); confirming clears their
     Assignment and lock and every Manual role entry holding them (Additional
     roles are Helper-only, and a slot takes a tracked Organizer) and raises the
-    stale-roster flag. Demotion is not supported. The new Organizer is the last
-    of ``state["organizers"]``."""
+    stale-roster flag. The way back is :func:`demote_organizer`. The new
+    Organizer is the last of ``state["organizers"]``."""
     state = workspace.load()
     helper = _helper_record(state, helper_id)
     impact = cant_attend_impact(state, helper_id)
@@ -1809,6 +1809,93 @@ def promote_helper(workspace: Workspace, helper_id: int, confirmed: bool = False
             for group, entries in state["manual_roles"].items()
         }
         _add_stale_reason(state, f"{helper['name']} se stal(a) organizátorem: vymazáno přiřazení a záznamy rolí")
+    if state["assignments"]:
+        _refresh_friend_pairs(state)
+    workspace.save(state)
+    return state
+
+
+def _tags_lost_on_demotion(state: dict[str, Any], organizer: dict) -> list[str]:
+    """One line per direct Tag of an Organizer that would not carry over to the
+    Helper they become: an Organizer's Tags are only judged on the Building axis,
+    so one can leave a Helper with no allowed Room or Role (the same test
+    :func:`_add_valid_tags` applies to an import)."""
+    probe = {"id": -1, "name": organizer["name"], "tags": []}
+    _, skipped = _add_valid_tags(state, probe, _direct_tag_ids(organizer))
+    return [f"Štítek {s['tag']} se nepřenese: {s['reason']}" for s in skipped]
+
+
+def demote_organizer_impact(state: dict[str, Any], organizer_id: int) -> list[str]:
+    """What converting this Organizer to a Helper would lose, one line each: every
+    slot they hold and every Tag that would leave them with no allowed place. Empty
+    when there is nothing to lose, in which case no confirmation is needed."""
+    record = _organizer_record(state, organizer_id)
+    return [*_organizer_impact(state, organizer_id), *_tags_lost_on_demotion(state, record)]
+
+
+def demote_organizer(workspace: Workspace, organizer_id: int, confirmed: bool = False) -> dict:
+    """Convert an Organizer to a Helper, the reverse of :func:`promote_helper`
+    (see CONTEXT.md "Organizer").
+
+    The Helper keeps the Organizer's Person link (and the link decisions made about
+    it), name, e-mail, phone, T-shirt size, Can't attend flag and direct Tags; they
+    have no Assignment and join the solver pool, so once a roster exists they are
+    an unplaced Helper (the export waits until they are placed). They are a
+    hand-added Helper (the Organizers' sheet answers do not carry over), which a
+    later survey row with their e-mail updates in place. Every other Helper's
+    Friend preference that named the Organizer now names the new Helper (their
+    Helper id is fresh, and the Organizer's is never handed out again). Like
+    promotion, an Organizer holding a slot is only converted once ``confirmed``
+    (:class:`ConfirmationRequired` names the slots that would be emptied, and the
+    Tags that would not carry over because they would leave the Helper no allowed
+    Room or Role); confirming empties those slots and raises the stale-roster flag.
+    A Person who already has a Helper record in the Season is refused. The new
+    Helper is the last of ``state["helpers"]``."""
+    state = workspace.load()
+    organizer = _organizer_record(state, organizer_id)
+    person_id = organizer.get("person_id") or new_person_id()
+    if any(h.get("person_id") == person_id for h in state["helpers"]):
+        raise RosteringError(f"{organizer['name']} už je v tomto ročníku pomocník.")
+    impact = demote_organizer_impact(state, organizer_id)
+    if impact and not confirmed:
+        raise ConfirmationRequired(
+            f"Převedením organizátora {organizer['name']} na pomocníka se ztratí: " + "; ".join(impact) + ". "
+            "Stane se z něj pomocník bez přiřazení, který se zařadí při dalším sestavení, a rozdělení pomocníků "
+            "je do té doby neaktuální.",
+            impact,
+        )
+    helper = helper_to_dict(
+        Helper(
+            id=_next_helper_id(state),
+            name=organizer["name"],
+            email=organizer.get("email"),
+            phone=organizer.get("phone"),
+            tshirt_size=organizer.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
+            person_id=person_id,
+            cant_attend=bool(organizer.get("cant_attend")),
+        )
+    )
+    helper["hand_added"] = True
+    _mark_hand_typed(
+        helper,
+        [f for f in ("name", "email", "phone") if f == "name" or helper.get(f)]
+        + (["tshirt_size"] if helper["tshirt_size"] != UNKNOWN_TSHIRT_SIZE else []),
+    )
+    for key in ("link_confirmed", "rejected_person_ids"):
+        if organizer.get(key):
+            helper[key] = organizer[key]
+    _add_valid_tags(state, helper, _direct_tag_ids(organizer))
+    state["helpers"].append(helper)
+
+    held_slots = bool(_organizer_impact(state, organizer_id))
+    state["organizers"] = [o for o in state["organizers"] if o["id"] != organizer_id]
+    state["next_organizer_id"] = max(int(state.get("next_organizer_id") or 1), organizer_id + 1)
+    state["manual_roles"]["structural"] = [
+        e for e in state["manual_roles"]["structural"] if e.get("organizer_id") != organizer_id
+    ]
+    _repoint_friend(state, {"organizer_id": organizer_id}, helper["id"])
+    if held_slots:
+        _add_stale_reason(state, f"{organizer['name']} se stal(a) pomocníkem: vymazány záznamy rolí")
     if state["assignments"]:
         _refresh_friend_pairs(state)
     workspace.save(state)

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Lidé: an organizer's sheet has a "Převést na pomocníka" button, the way back
+  from "Povýšit na organizátora". The new helper keeps the name, e-mail, phone,
+  T-shirt size, Tags, person link and Can't attend flag, other helpers' friend
+  requests that named the organizer now name them, and the slots they held are
+  emptied after a confirmation (which also names any Tag that would leave them no
+  allowed room or role and so is not carried). They have no placement until the
+  next solve or "Zařadit nové registrované", and the export waits until then.
+
 ## [3.1.1] - 2026-10-09
 
 ### Changed

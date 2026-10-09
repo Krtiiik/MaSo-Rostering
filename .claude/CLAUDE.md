@@ -694,7 +694,15 @@ pushing the tag, not just creating it locally.
   role entries) creates the Organizer (Person link with `link_confirmed` /
   `rejected_person_ids`, name, e-mail, `tags`), removes the Helper, and re-points
   others' `friends` and `friend_name_decisions` via `_repoint_friend`;
-  `delete_organizer` drops an Organizer from them like `delete_helper`. A
+  `delete_organizer` drops an Organizer from them like `delete_helper`.
+  `mutations.demote_organizer` (UI: the Organizer sheet's "Převést na pomocníka") is the
+  reverse: a hand-added Helper carrying the Organizer's `person_id`, link decisions, name,
+  e-mail, phone, T-shirt size, Can't attend flag and Tags (`_add_valid_tags` skips one
+  that would strand them on a Room/Role axis; `demote_organizer_impact` lists those and
+  the slots held, which `ConfirmationRequired` shows), with a fresh Helper id; the
+  Organizer's slots go (stale reason when any), others' friend references are repointed
+  to the Helper id (`_repoint_friend`), and a Person already holding a Helper record of
+  the Season is refused. The Organizers' sheet answers are not carried. A
   re-upload still replaces the whole Helper list, so it brings a promoted
   Helper back into the pool.
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
