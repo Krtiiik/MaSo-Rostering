@@ -66,6 +66,31 @@ async def confirm(spec: ConfirmSpec, *, client: Optional[Client] = None) -> bool
     return bool(result)
 
 
+async def choose(
+    title: str,
+    options: Sequence[tuple[str, object]],
+    *,
+    intro: str = "",
+    caption: str = "",
+    client: Optional[Client] = None,
+) -> object:
+    """Ask which of several actions to take: one button per ``(label, value)``
+    option plus Cancel. The chosen value, or ``None`` when cancelled."""
+    with page_dialog(auto_delete=False, client=client) as dialog, ui.card().classes("min-w-[24rem] max-w-[40rem]"):
+        ui.label(title).classes("text-lg font-bold")
+        if intro:
+            ui.markdown(intro)
+        if caption:
+            ui.label(caption).classes("text-sm text-gray-600")
+        with ui.row().classes("w-full justify-end gap-2 mt-2"):
+            ui.button(CANCEL, on_click=lambda: dialog.submit(None)).props("flat")
+            for index, (label, value) in enumerate(options):
+                ui.button(label, on_click=lambda _, v=value: dialog.submit(v)).props("color=negative").mark(f"choose-{index}")
+    result = await dialog
+    _discard(dialog)
+    return result
+
+
 async def ask_text(
     title: str,
     label: str,

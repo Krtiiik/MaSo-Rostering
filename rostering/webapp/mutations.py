@@ -3795,15 +3795,26 @@ def clear_all_locks(workspace: Workspace) -> dict:
     return state
 
 
-def clear_roster(workspace: Workspace) -> dict:
+def placed_organizer_slots(state: dict[str, Any]) -> int:
+    """How many leadership-slot entries (Organizers placed in a cell, legacy
+    entries included) a Clear roster with ``include_organizers`` would remove."""
+    return len(state["manual_roles"]["structural"])
+
+
+def clear_roster(workspace: Workspace, include_organizers: bool = False) -> dict:
     """Throw the whole roster away and go back to the state before the first
     Solve: every Assignment (locked ones included), the solver's diagnostics
     (status, objective, friend pairs, dropped locks) and the stale flag, which has
     nothing left to be stale about. Helpers, Organizers, Tags, Forced friends
-    groups, the layout and the hand-entered Manual roles are untouched. A no-op
-    with nothing placed."""
+    groups, the layout and the hand-entered Manual roles are untouched, unless
+    ``include_organizers``: then every leadership-slot entry goes too, so no
+    Organizer holds a place (they stay tracked Organizers). A no-op with nothing
+    placed."""
     state = workspace.load()
     state["assignments"] = []
+    if include_organizers:
+        state["manual_roles"]["structural"] = []
+        _sync_placements(state)
     state["diagnostics"] = {
         "status": None,
         "objective_value": None,

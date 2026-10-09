@@ -130,6 +130,22 @@ async def _clear_roster(session: UiSession) -> None:
     intro = f"Všechna přiřazení ({count}) budou odstraněna a výsledek řešení se vynuluje."
     if locked:
         intro += f" Včetně uzamčených: {locked}."
+    slots = mutations.placed_organizer_slots(session.state)
+    if slots:
+        # Organizers sit in the same grid, so ask whether they go with the Helpers.
+        choice = await dialogs.choose(
+            "Vymazat rozdělení pomocníků?",
+            [
+                ("Vymazat vše včetně organizátorů", True),
+                ("Vymazat a ponechat organizátory", False),
+            ],
+            intro=intro,
+            caption=f"Organizátorů zařazených na místech: {slots}. Pomocníci, štítky a ostatní manuální role zůstanou.",
+            client=session.client,
+        )
+        if choice is not None:
+            await session.act(lambda: mutations.clear_roster(session.workspace, include_organizers=bool(choice)))
+        return
     if await dialogs.confirm(
         dialogs.ConfirmSpec(
             title="Vymazat rozdělení pomocníků?",

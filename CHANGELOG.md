@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rozpis: "Vymazat rozdělení" now asks, when Organizers are placed in leadership
+  slots, whether to clear everything including the Organizers or to keep them.
 - Rozpis: only the grid table scrolls sideways; the "Nezařazení" list above it
   stays in place instead of scrolling along with it.
 - Štítky: the tab is now a searchable table of the Tag tree (indented in tree order,

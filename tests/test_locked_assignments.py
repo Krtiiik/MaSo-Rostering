@@ -230,6 +230,24 @@ def test_clear_roster_removes_every_assignment_and_resets_the_solver_result(work
     assert mutations.broken_rules(cleared) == []  # no roster, nothing broken
 
 
+def test_clear_roster_keeps_organizers_unless_asked(workspace):
+    _seed(workspace)
+    mutations.solve(workspace)
+    organizer = mutations.add_organizer(workspace, name="Org Ana")["organizers"][-1]
+    building = mutations.get_state(workspace)["config"][0]["name"]
+    mutations.assign_organizer(workspace, organizer["id"], "VedouciBudovy", building)
+
+    kept = mutations.clear_roster(workspace)
+    assert kept["assignments"] == []
+    assert len(kept["manual_roles"]["structural"]) == 1
+    assert mutations.placed_organizer_slots(kept) == 1
+
+    wiped = mutations.clear_roster(workspace, include_organizers=True)
+    assert wiped["manual_roles"]["structural"] == []
+    assert [o["name"] for o in wiped["organizers"]] == ["Org Ana"]  # still tracked
+    assert wiped["organizers"][0]["building"] is None
+
+
 def test_clear_roster_then_solve_builds_a_fresh_roster(workspace):
     _seed(workspace)
     mutations.solve(workspace)
