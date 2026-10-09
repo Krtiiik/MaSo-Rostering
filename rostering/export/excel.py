@@ -26,7 +26,8 @@ columns in every Role band, chosen automatically at each export: the band's
 first column fills to a sheet-wide height and the second takes the rest. A
 merged Room group stays one wide cell and may stretch its own band, and a
 Large room in that band fills its first column down to the stretched height;
-a Room merged with a neighbour in any room-scoped row is never Large. Export
+a Large room merged with a neighbour in one band stays one wide cell there and
+splits in the others. Export
 only; the in-app grid keeps one column per Room.
 
 A second sheet, "Trička", follows the roster sheet: T-shirt counts per size
@@ -127,7 +128,7 @@ RoomKey = tuple[str, str]  # (building name, room name)
 
 def _large_rooms(
     room_role_counts: dict[RoomKey, dict[Role, int]],
-    merged_rooms: set[RoomKey],
+    merged_in_band: dict[Role, set[RoomKey]],
     merged_heights: dict[Role, int],
     room_role_minimums: Optional[dict[RoomKey, dict[Role, int]]] = None,
 ) -> set[RoomKey]:
@@ -136,15 +137,17 @@ def _large_rooms(
 
     ``room_role_counts`` holds, for every configured Room, how many Helpers it
     has in each of the five Room-band Roles (Záloha and Manual roles are not
-    part of a Room's size). ``merged_rooms`` are Rooms the user merged with a
-    neighbour in any row; they never overflow. ``merged_heights`` is, per
-    Role band, the rows the tallest merged Room group needs there: a group is
-    one wide cell that can stretch the band, and a Large room that fits the
-    stretched band needs no second column. ``room_role_minimums`` are the
-    configured minimum headcounts: a Room's band is as tall as its minimum or
-    its placed Helpers, whichever is larger, exactly as ``write_roster`` sizes
-    it, so a Room is only given a second column when that column will hold
-    someone. See CONTEXT.md, "Large room"."""
+    part of a Room's size). ``merged_in_band`` are, per Role band, the Rooms
+    the user merged with a neighbour in that band: there they stay one wide
+    cell with one name per row, and the Room splits only in the bands where it
+    is not merged. ``merged_heights`` is, per Role band, the rows the tallest
+    merged Room group needs there: a group is one wide cell that can stretch
+    the band, and a Large room that fits the stretched band needs no second
+    column. ``room_role_minimums`` are the configured minimum headcounts: a
+    Room's band is as tall as its minimum or its placed Helpers, whichever is
+    larger, exactly as ``write_roster`` sizes it, so a Room is only given a
+    second column when that column will hold someone. See CONTEXT.md, "Large
+    room"."""
     minimums = room_role_minimums or {}
     rooms = {k: v for k, v in room_role_counts.items() if not k[1].endswith(_UNCONFIGURED_SUFFIX)}
     size = {k: sum(v.values()) for k, v in rooms.items()}
@@ -155,26 +158,37 @@ def _large_rooms(
     mid = len(sizes) // 2
     twice_median = sizes[mid] * 2 if len(sizes) % 2 else sizes[mid - 1] + sizes[mid]
     threshold = _LARGE_ROOM_THRESHOLD * Fraction(twice_median, 2)
-    candidates = {k for k, s in size.items() if s > 0 and s >= threshold and k not in merged_rooms}
+    candidates = {k for k, s in size.items() if s > 0 and s >= threshold}
 
     def need(key: RoomKey, role: Role) -> int:
         return max(rooms[key].get(role, 0), minimums.get(key, {}).get(role, 0))
 
+    def splits_in(key: RoomKey, role: Role) -> bool:
+        return key not in merged_in_band.get(role, ())
+
     # A band's first-column height K is what write_roster draws: the tallest
-    # non-overflow Room (its minimum or placed Helpers), the tallest merged
-    # group, or half the need of an overflow Room, whichever is greatest. A
-    # candidate needs a second column only where it stands taller than K.
-    # Dropping a candidate makes it an ordinary, full-height Room and so can
-    # raise K, hence the loop until the set holds still.
+    # Room that is not split there (its minimum or placed Helpers), the tallest
+    # merged group, or half the need of a split Room, whichever is greatest. A
+    # candidate needs a second column only in a band where it is not merged and
+    # stands taller than K. Dropping a candidate makes it an ordinary,
+    # full-height Room and so can raise K, hence the loop until the set holds
+    # still.
     while True:
         first_column = {
             role: max(
                 [merged_heights.get(role, 0)]
-                + [-(-need(k, role) // 2) if k in candidates else need(k, role) for k in rooms]
+                + [
+                    -(-need(k, role) // 2) if k in candidates and splits_in(k, role) else need(k, role)
+                    for k in rooms
+                ]
             )
             for role in _ROLE_ORDER
         }
-        needing = {k for k in candidates if any(rooms[k].get(role, 0) > first_column[role] for role in _ROLE_ORDER)}
+        needing = {
+            k
+            for k in candidates
+            if any(splits_in(k, role) and rooms[k].get(role, 0) > first_column[role] for role in _ROLE_ORDER)
+        }
         if needing == candidates:
             return candidates
         candidates = needing
@@ -405,32 +419,26 @@ def write_roster(
 
     # Which Rooms are drawn across two columns (a Large room that needs it),
     # judged from the roster as it stands. A Room the user merged with a
-    # neighbour in any of its room-scoped rows never overflows, whichever row
-    # it is merged in and whichever Role band the merge stretches.
+    # neighbour in a Role band stays one wide cell in that band only; merges in
+    # the leader and overlay rows never touch the band layout.
     room_role_counts: dict[RoomKey, dict[Role, int]] = {key: defaultdict(int) for key in room_obj}
     for a in result.assignments:
         if a.role in _ROLE_ORDER and (a.building, a.room) in room_role_counts:
             room_role_counts[(a.building, a.room)][a.role] += 1
-    merged_rooms: set[RoomKey] = set()
+    merged_in_band: dict[Role, set[RoomKey]] = {role: set() for role in _ROLE_ORDER}
     merged_heights: dict[Role, int] = {}
     for b in buildings:
-        room_names = [r.name for r in b.rooms]
-        for structural_role in _ROOM_SCOPED_STRUCTURAL_ROLES:
-            for group in row_groups(structural_role.name, b.name, room_names):
-                if len(group) > 1:
-                    merged_rooms.update((b.name, n) for n in group)
         for solved_role in _ROLE_ORDER:
             for group in role_groups_by_building[solved_role][b.name]:
                 if len(group) > 1:
-                    merged_rooms.update((b.name, n) for n in group)
+                    merged_in_band[solved_role].update((b.name, n) for n in group)
                     merged_heights[solved_role] = max(merged_heights.get(solved_role, 0), group_need(solved_role, b.name, group))
-    merged_rooms.update((c.building, n) for c in tall_cells for n in c.rooms)
     room_role_minimums: dict[RoomKey, dict[Role, int]] = {
         (b.name, r.name): {role: cap.minimum for role, cap in r.capacities.items() if cap and role in _ROLE_ORDER}
         for b in buildings
         for r in b.rooms
     }
-    overflow_rooms = _large_rooms(room_role_counts, merged_rooms, merged_heights, room_role_minimums)
+    overflow_rooms = _large_rooms(room_role_counts, merged_in_band, merged_heights, room_role_minimums)
 
     # Column layout: one column per physical room — merging only ever
     # collapses *cells within one row*, never the column layout itself — except
@@ -451,6 +459,12 @@ def write_roster(
     for start, end in [(0, 0), *building_span.values()]:
         for c in range(start, end + 1):
             col_group_of[c] = (start, end)
+
+    def splits(building_name: str, group: list[str]) -> bool:
+        """Whether this band cell is drawn over two columns: an overflow Room
+        standing alone. The same Room merged with a neighbour in this band is
+        one wide cell, however many columns its Rooms own."""
+        return len(group) == 1 and (building_name, group[0]) in overflow_rooms
 
     def group_col_range(group: list[str], building_name: str) -> tuple[int, int]:
         return room_cols[(building_name, group[0])][0], room_cols[(building_name, group[-1])][1]
@@ -624,7 +638,7 @@ def write_roster(
         for b in buildings:
             for group in groups_by_building[b.name]:
                 need = group_need(solved_role, b.name, group)
-                if (b.name, group[0]) in overflow_rooms:
+                if splits(b.name, group):
                     need = math.ceil(need / 2)
                 max_min = max(max_min, need)
 
@@ -657,7 +671,7 @@ def write_roster(
                     continue
                 for r_offset in range(max_min):
                     data_row = row + r_offset
-                    if (b.name, group[0]) in overflow_rooms:
+                    if splits(b.name, group):
                         # One cell per column: the first column takes the
                         # first K names, the second the rest.
                         slots = [(col_start, col_start, r_offset), (col_end, col_end, max_min + r_offset)]

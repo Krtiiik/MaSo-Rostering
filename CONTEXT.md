@@ -177,7 +177,8 @@ Helpers placed in it across the five Roles other than Záloha, which is
 building-wide — is at least 1.5 times the median size of the Rooms on the
 roster that have Helpers. Judged against the roster as it currently stands,
 so a hand edit or re-solve can change it. A Room the user has merged with a
-neighbour is never Large.
+neighbour in a Role band stays one wide cell in that band only and is split in
+the others; merges in the leader and Additional rows never matter.
 Czech: Velká místnost.
 
 **Building preference**:

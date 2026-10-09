@@ -137,6 +137,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Excel export: a Large room merged with a neighbour is no longer kept in one
+  column in every band. Merges in the leader rows (Pravá ruka, Vedoucí místností),
+  Fotograf, Záloha or the Additional rows never stop a Large room from splitting,
+  and a merge in one Role band only keeps that band one wide cell: the Room still
+  splits in the others (the long N1 Kresliči column now becomes two).
 - Excel export: a Large room is no longer drawn across two columns when the
   second one would stay empty. The band height now counts the Rooms' configured
   minimum headcounts and unmerged Rooms beside a merged Large room, the same as

@@ -553,12 +553,38 @@ def test_a_room_merged_with_a_neighbour_never_overflows(tmp_path):
     assert sheet.room_width("N1") == 2  # unrelated Rooms still overflow
 
 
-def test_a_room_merged_only_in_a_leader_row_never_overflows(tmp_path):
+def test_a_room_merged_only_in_a_leader_row_still_overflows(tmp_path):
     spec = _jaro_like_spec()
     spec["Malá Strana"] = {"M1": _per_role(4), "M2": _per_role(1)}
     sheet = _overflow_sheet(tmp_path, spec, cell_merges={"PravaRuka": {"Malá Strana": [["M1", "M2"]]}})
 
-    assert sheet.room_width("M1") == 1
+    assert sheet.room_width("M1") == 2
+    assert sheet.room_width("M2") == 1
+    # The leader cell spans M1's two columns and M2's one.
+    row = sheet.label_row("Pravá ruka")
+    c0, _ = sheet.room_cols("M1")
+    assert sheet.span(row, c0) == (c0, sheet.room_cols("M2")[1])
+
+
+def test_a_large_room_merged_only_in_fotograf_and_leader_rows_splits_its_other_bands(tmp_path):
+    # The shape of a real autumn sheet: N1 is the big Room with its own Kresliči
+    # column pair, yet sits in merged Fotograf and Pravá ruka cells.
+    spec = _jaro_like_spec()
+    spec["N"]["N2"] = _per_role(2)
+    spec["N"]["N1"] = {**_per_role(4), Role.Kreslic: 8}
+    merges = {
+        "Fotograf": {"N": [["N1", "N2"]]},
+        "PravaRuka": {"N": [["N1", "N2"]]},
+    }
+    sheet = _overflow_sheet(tmp_path, spec, cell_merges=merges)
+
+    assert sheet.room_width("N1") == 2
+    assert sheet.band_height(Role.Kreslic) == 4
+    assert all(cell for row in sheet.band(Role.Kreslic, "N1") for cell in row)
+    # Fotograf stays one wide cell over N1's two columns and N2's one.
+    foto = sheet.band_rows(_ROLE_LABEL[Role.Fotograf])[0]
+    c0, _ = sheet.room_cols("N1")
+    assert sheet.span(foto, c0) == (c0, sheet.room_cols("N2")[1])
 
 
 def test_a_stale_merge_pair_does_not_stop_a_room_overflowing(tmp_path):
@@ -768,16 +794,24 @@ def test_a_merged_group_only_stretches_its_own_band(tmp_path):
     assert all(cell for row in sheet.band(Role.Menic, "BIG") for cell in row)
 
 
-def test_a_room_merged_in_one_band_stays_one_column_in_every_band(tmp_path):
-    # BIG and M2 would both be Large; M2 is merged with S1 for Menič only.
-    spec = {"A": {"BIG": _per_role(8), "M2": _per_role(4), "S1": _per_role(2), "S2": _per_role(2), "S3": _per_role(2)}}
+def test_a_room_merged_in_one_band_stays_one_wide_cell_there_and_splits_in_the_others(tmp_path):
+    # BIG and M2 are both Large; M2 is merged with S1 for Menič only.
+    spec = {"A": {"BIG": _per_role(8), "M2": _per_role(6), "S1": _per_role(2), "S2": _per_role(2), "S3": _per_role(2)}}
     sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Menic": {"A": [["M2", "S1"]]}})
 
-    assert sheet.room_width("M2") == 1
+    assert sheet.room_width("M2") == 2
     assert sheet.room_width("S1") == 1
-    assert sheet.room_width("BIG") == 2  # the unmerged neighbour is unaffected
-    for role in _ROLE_LABEL:  # M2 is one column in every band, not just Menič
-        assert len(sheet.band(role, "M2")[0]) == 1
+    assert sheet.room_width("BIG") == 2
+    # In Menič, M2 and S1 are one cell with one name per row...
+    r0, r1 = sheet.band_rows(_ROLE_LABEL[Role.Menic])
+    m2_first, s1_last = sheet.room_cols("M2")[0], sheet.room_cols("S1")[1]
+    for r in range(r0, r1 + 1):
+        assert sheet.span(r, m2_first) == (m2_first, s1_last)
+    # ...while every other band splits M2 over its two columns.
+    for role in (Role.Opravovatel, Role.Skenovac, Role.Kreslic, Role.Fotograf):
+        assert len(sheet.band(role, "M2")[0]) == 2, role
+        band = sheet.band(role, "M2")
+        assert all(row[0] for row in band) and any(row[1] for row in band), role
 
 
 def test_merges_elsewhere_neither_stop_a_large_room_overflowing_nor_stretch_other_bands(tmp_path):
@@ -1114,14 +1148,17 @@ def test_a_large_room_taller_than_the_minimum_height_still_gets_a_filled_second_
     assert all(cell is not None for row in opr for cell in row)
 
 
-def test_a_large_room_no_taller_than_a_merged_neighbours_unmerged_bands_stays_one_column(tmp_path):
-    # M1 is Large but merged, so it stays one column and keeps every band 4 rows
-    # tall; N1's 4 Helpers per band then fit a single column.
+def test_a_merged_large_room_only_stretches_the_band_it_is_merged_in(tmp_path):
+    # M1 is Large and merged with M2 for Skenovač: that band is 5 tall, but
+    # M1 still splits the others, so N1's 4 Helpers per band overflow too.
     spec = _jaro_like_spec()
     spec["Malá Strana"] = {"M1": _per_role(4), "M2": _per_role(1)}
     sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Skenovac": {"Malá Strana": [["M1", "M2"]]}})
 
-    assert sheet.room_width("N1") == 1
+    assert sheet.band_height(Role.Skenovac) == 5
+    assert sheet.band_height(Role.Opravovatel) == 2
+    assert sheet.room_width("M1") == 2
+    assert sheet.room_width("N1") == 2
 
 
 # ---------------------------------------------------------------------- tall cells
