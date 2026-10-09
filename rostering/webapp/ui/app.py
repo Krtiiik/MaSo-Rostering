@@ -18,6 +18,7 @@ from rostering.webapp.ui import dialogs, todo
 from rostering.webapp.ui.session import UiSession
 from rostering.webapp.ui.sidebar import Sidebar
 from rostering.webapp.ui.tabs.person_sheet import PersonSheet
+from rostering.webapp.ui.tabs.tag_sheet import TagSheet
 
 # The MaSo site's own favicon (https://maso.mff.cuni.cz/favicon.ico).
 _FAVICON = Path(__file__).parent / "assets" / "favicon.ico"
@@ -74,6 +75,7 @@ class Page:
         ui.add_css(_CSS)
         self.session = s = UiSession()
         self.sheet = PersonSheet(s)
+        self.tag_sheet = TagSheet(s)
         self.tabs: dict[str, Callable[[], None]] = {
             labels.TAB_PEOPLE: PeopleTab(s, self.sheet).render,
             labels.TAB_TAGS: TagsTab(s).render,

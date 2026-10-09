@@ -271,7 +271,7 @@ async def test_the_tags_tab_adds_and_removes_carriers_in_one_save(user: User, se
     mutations.set_organizer_tags(seasons, 1, [1])
     await user.open("/")
     await _go(user, labels.TAB_TAGS)
-    user.find(marker="tag-1").click()
+    user.find(marker="tag-table").trigger("rowClick", [{}, {"id": 1}, 0])
     await user.should_see("Kdo štítek nese (1)")
     assert [r["key"] for r in user.find(marker="tag-carriers").elements.pop().selected] == ["o1"]
 
@@ -283,6 +283,30 @@ async def test_the_tags_tab_adds_and_removes_carriers_in_one_save(user: User, se
     state = _state(seasons)
     assert mutations.helper_tags(state, 1)["direct"] == [1]
     assert mutations.organizer_tags(state, 1)["direct"] == []
+
+
+async def test_the_tag_sheet_is_hidden_until_a_row_is_clicked(user: User, seasons):
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    await user.should_see(marker="tag-table")
+    await user.should_not_see(marker="tag-name")
+    assert user.find(marker="tag-table").elements.pop().rows[0]["name"] == "GCHD"
+
+    user.find(marker="tag-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    await user.should_see(marker="tag-name")
+    assert user.find(marker="tag-name").elements.pop().value == "GCHD"
+
+
+async def test_the_new_tag_button_opens_the_create_form_and_then_the_new_tag(user: User, seasons):
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    user.find(marker="add-tag").click()
+    await user.should_see(marker="tag-name")
+    user.find(marker="tag-name").type("Nový")
+    user.find(marker="tag-save").click()
+    await asyncio.sleep(0.2)
+    assert [t["name"] for t in _state(seasons)["tags"]] == ["GCHD", "Nový"]
+    await user.should_see("Kdo štítek nese (0)")
 
 
 # ---------------------------------------------------------------------- Buildings

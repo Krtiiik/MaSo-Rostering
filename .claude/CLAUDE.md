@@ -610,7 +610,7 @@ pushing the tag, not just creating it locally.
   `set_helper_tags` / `add_tag_to_helpers` / `remove_tag_from_helper`. Tags
   are part of every Version, empty after Start over, and stay through a
   re-upload (the recognized record is updated in place); `Workspace` gives a
-  state saved before Tags existed an empty tree on read. UI: `ui/tabs/tags.py`
+  state saved before Tags existed an empty tree on read. UI: `ui/tabs/tags.py` (a searchable table of the tree; a row click sets `SeasonView.selected_tag`) and `ui/tabs/tag_sheet.py` (`TagSheet`, the right-hand sheet with the form, carriers and delete, open exactly while a Tag or `"new"` is selected on the Tags tab)
   (the "2. Štítky" tab) and the Tag picker in a person's sheet in the People tab (`ui/tabs/person_sheet.py`), both drawing pills through `ui/pills.py`.
 - Tag import (`mutations.py`, "Tag import" section; UI in
   `ui/tag_import.py`): `import_from_season(workspace, source_season_id,
