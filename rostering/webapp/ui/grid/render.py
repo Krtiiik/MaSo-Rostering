@@ -426,17 +426,19 @@ def render(view: GridView, merges: dict) -> str:
     parts = []
     unassigned = sorted((hid for hid in view.helpers if hid not in view.assignments), key=lambda i: view.helpers[i]["name"].lower())
     waiting = sorted((o for o in view.organizers if not o["placed"]), key=lambda o: o["name"].lower())
-    if unassigned or waiting:
+    if unassigned:
         parts.append('<div class="unassigned-pool" data-drop="pool"><strong>Nezařazení:</strong>')
-        if unassigned:
-            parts.append('<div class="unassigned-group"><span class="unassigned-group-label">Pomocníci</span>')
-            parts += [helper_chip(view, hid) for hid in unassigned]
-            parts.append("</div>")
-        if waiting:
-            parts.append('<div class="unassigned-group"><span class="unassigned-group-label">Organizátoři</span>')
-            parts += [organizer_chip(view, o, None, removable=False) for o in waiting]
-            parts.append("</div>")
-        parts.append("</div>")
+        parts.append('<div class="unassigned-group"><span class="unassigned-group-label">Pomocníci</span>')
+        parts += [helper_chip(view, hid) for hid in unassigned]
+        parts.append("</div></div>")
+    if waiting:
+        # Sticky below the toolbar, so the waiting Organizers stay in reach of the
+        # leadership rows at the bottom of a long grid (there are too many Helpers
+        # to do the same for them).
+        parts.append('<div class="unassigned-pool organizers-pool" data-drop="pool">')
+        parts.append('<div class="unassigned-group"><span class="unassigned-group-label">Nezařazení organizátoři</span>')
+        parts += [organizer_chip(view, o, None, removable=False) for o in waiting]
+        parts.append("</div></div>")
 
     # Only the table scrolls sideways; the Nezařazení pool above it stays put.
     parts.append('<div class="table-scroll"><table class="roster-grid"><thead><tr><th></th>')
@@ -482,6 +484,7 @@ CSS = """
 .roster-grid-root .unassigned-pool {
   margin-bottom: .75rem; padding: .5rem; border: 1px dashed #bbb; border-radius: 6px; background: #fff;
 }
+.roster-grid-root .organizers-pool { position: sticky; top: var(--roster-toolbar-bottom, 0px); z-index: 15; }
 .roster-grid-root .unassigned-group { display: flex; flex-wrap: wrap; align-items: center; margin-top: 4px; }
 .roster-grid-root .unassigned-group-label { margin-right: 6px; font-size: .85em; opacity: .7; }
 .roster-grid-root .roster-grid { border-collapse: collapse; width: 100%; background: #fff; }
