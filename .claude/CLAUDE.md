@@ -217,6 +217,17 @@ pushing the tag, not just creating it locally.
   the browser's native one too.) The grid replaced a React + dnd-kit Streamlit
   component after a prototype of both (branch `prototype/nicegui-grid`), on the
   condition that every feature carried over.
+- Buildings sheet import (`rostering/ingest/building_sheet.py`,
+  `mutations.read_building_sheet`, the Buildings tab's "Načíst z Excelu"): reads the
+  hand-drawn "Pomocníci v místnostech" table into the config shape, touching
+  neither the Season nor the saved layout; the tab replaces its draft with it. Two
+  header rows above the first labelled row of column A (Buildings as merged cells,
+  Rooms under them; a blank header cell continues the Room before it), Role rows
+  found by label stem (`Opravovatelé`, `Měniči`, … ; other labels are ignored). A
+  coloured cell (`openpyxl` RGB, indexed or theme fill with its tint, spread of
+  channels above `_GRAY_SPREAD`) is one Helper, gray/white/empty none; a merged
+  range counts once, for the Room it covers or the Building when it covers several.
+  Only non-zero counts are written. The roster's `cell_merges` are not read.
 - Equipment eligibility is a **hard** rule (see `CONTEXT.md`), meaning the
   solver bends it only last. Hard rules are never constraints that can make a
   solve infeasible: `rostering/solver/rules.py` relaxes each through a slack

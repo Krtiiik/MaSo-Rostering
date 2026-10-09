@@ -36,6 +36,7 @@ from rostering.domain import (
     parse_tshirt_size,
 )
 from rostering.export.excel import write_roster
+from rostering.ingest.building_sheet import parse_building_sheet
 from rostering.ingest.preferences import parse_role_token
 from rostering.ingest.organizer_survey import ANSWER_FIELDS as ORGANIZER_ANSWER_FIELDS
 from rostering.ingest.organizer_survey import OrganizerRow, parse_organizer_survey
@@ -3525,6 +3526,17 @@ def put_config(workspace: Workspace, buildings: list[dict], config_path: Optiona
     else:
         config_store.save_default_config(buildings, path=config_path)
     return state
+
+
+def read_building_sheet(file_bytes: bytes) -> tuple[list[dict], list[str]]:
+    """The Buildings layout drawn in a "Pomocníci v místnostech" sheet (.xlsx), as
+    ``(buildings, warnings)``. Reads nothing from the Season and saves nothing: the
+    Buildings tab puts the layout into its draft, which is saved like any edit."""
+    try:
+        sheet = parse_building_sheet(file_bytes)
+    except ValueError as exc:
+        raise RosteringError(str(exc)) from exc
+    return sheet.buildings, sheet.warnings
 
 
 def put_solver_config(workspace: Workspace, solver_config: dict) -> dict:

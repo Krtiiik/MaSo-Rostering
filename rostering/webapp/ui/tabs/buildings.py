@@ -7,8 +7,9 @@ from __future__ import annotations
 import copy
 from typing import Optional
 
-from nicegui import ui
+from nicegui import events, ui
 
+from rostering.czech import plural
 from rostering.domain import Role
 from rostering.persistence import config_store
 from rostering.webapp import mutations
@@ -161,6 +162,7 @@ class BuildingsTab:
             if not s.state["helpers"]:
                 solve.disable()
                 ui.label("Nejdřív nahrajte odpovědi pomocníků.").classes("text-sm text-gray-500")
+            self._import_button()
             ui.button("Obnovit výchozí budovy", on_click=self._reset).props("flat").mark("buildings-reset").tooltip(
                 "Nahradí rozložení zde výchozím, které je součástí aplikace. Uloží se až kliknutím na Uložit konfiguraci."
             )
@@ -187,6 +189,38 @@ class BuildingsTab:
         # never blocked or prompted here.
         if self._put() is not None:
             await solving.solve(self.session, open_roster=True)
+
+    def _import_button(self) -> None:
+        """A button that opens the file picker of a hidden Quasar uploader."""
+        uploader = ui.upload(on_upload=self._uploaded, auto_upload=True, max_files=1).props('accept=".xlsx"').classes(
+            "hidden"
+        ).mark("buildings-sheet-upload")
+        ui.button("Načíst z Excelu", icon="upload_file", on_click=lambda: uploader.run_method("pickFiles")).props(
+            "flat"
+        ).mark("buildings-sheet-import").tooltip(
+            "Nahradí rozložení zde tabulkou „Pomocníci v místnostech“ (.xlsx): budovy a místnosti podle sloučených "
+            "buněk záhlaví, počty podle barevných buněk (šedé a prázdné pomocníka nepotřebují). "
+            "Uloží se až kliknutím na Uložit konfiguraci."
+        )
+
+    async def _uploaded(self, e: events.UploadEventArguments) -> None:
+        content = await e.file.read()
+        e.sender.reset()
+        try:
+            buildings, warnings = mutations.read_building_sheet(content)
+        except mutations.RosteringError as exc:
+            ui.notify(str(exc), type="negative", multi_line=True)
+            return
+        self.session.view.buildings_draft = buildings
+        self._structure_changed()
+        rooms = sum(len(b["rooms"]) for b in buildings)
+        ui.notify(
+            f"Načteno: {len(buildings)} {plural(len(buildings), 'budova', 'budovy', 'budov')}, "
+            f"{rooms} {plural(rooms, 'místnost', 'místnosti', 'místností')}. Uložte konfiguraci, aby se použilo.",
+            type="positive",
+        )
+        for line in warnings:
+            ui.notify(line, type="warning", multi_line=True)
 
     def _reset(self) -> None:
         """Replace the draft with the bundled default; nothing is saved."""
