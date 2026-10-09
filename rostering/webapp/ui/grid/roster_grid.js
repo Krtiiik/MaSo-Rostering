@@ -85,16 +85,21 @@ export default {
     };
     document.addEventListener("pointerdown", this.onDocPointerDown);
     document.addEventListener("keydown", this.onDocKeyDown);
-    // The sticky Organizers pool sits right under the sticky toolbar, whose height
-    // changes when its buttons wrap.
+    // The sticky toolbar sits right under the fixed page header, and the sticky
+    // Organizers pool right under the toolbar; both heights change when their
+    // contents wrap.
     const toolbar = document.querySelector(".roster-toolbar");
-    if (toolbar && typeof ResizeObserver !== "undefined") {
+    const header = document.querySelector(".q-header");
+    if (typeof ResizeObserver !== "undefined" && (toolbar || header)) {
       const place = () => {
-        const top = parseFloat(getComputedStyle(toolbar).top) || 0;
-        root.style.setProperty("--roster-toolbar-bottom", `${top + toolbar.offsetHeight}px`);
+        const headerHeight = header ? header.offsetHeight : 0;
+        document.documentElement.style.setProperty("--roster-header-height", `${headerHeight}px`);
+        const top = toolbar ? parseFloat(getComputedStyle(toolbar).top) || 0 : headerHeight;
+        root.style.setProperty("--roster-toolbar-bottom", `${top + (toolbar ? toolbar.offsetHeight : 0)}px`);
       };
       this.toolbarObserver = new ResizeObserver(place);
-      this.toolbarObserver.observe(toolbar);
+      if (toolbar) this.toolbarObserver.observe(toolbar);
+      if (header) this.toolbarObserver.observe(header);
       place();
     }
   },

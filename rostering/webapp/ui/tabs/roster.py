@@ -111,7 +111,9 @@ class RosterTab:
         unplaced = mutations.unplaced_reason(state)
         blockers = mutations.export_blockers(state)
         broken = mutations.broken_rules(state)
-        with ui.card().classes("w-full sticky top-0 z-20 py-2 roster-toolbar"):
+        # Sticks right under the fixed page header, whose height changes when its tabs wrap
+        # (roster_grid.js keeps --roster-header-height current).
+        with ui.card().classes("w-full sticky z-20 py-2 roster-toolbar").style("top: var(--roster-header-height, 0px)"):
             with ui.row().classes("w-full items-center gap-2"):
                 solve_label = (
                     f"Sestavit rozdělení (zachová uzamčených: {locked})"
