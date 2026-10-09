@@ -12,8 +12,14 @@ show those rooms as separate columns. Row-block order top to bottom:
 Vedoucí budovy (building-wide), Pravá ruka and Vedoucí místností (per room,
 each with its own merges), the 6 solved roles (Opravovatel/Měnič/.../
 Fotograf; Záloha is deferred to the bottom to match the historical layout),
-the overlay roles (Uvaděči účastníků, Focení předávání cen, Registrace),
+the overlay roles (Focení předávání cen, Uvaděči účastníků, Registrace),
 then Záloha and Technická podpora. See CLAUDE.md for the role glossary.
+
+Two adjacent rows can also be merged top-to-bottom into a *tall cell* over the
+same Rooms (``tall_cells``, see `rostering.row_merges`): Vedoucí budovy with
+Pravá ruka, Pravá ruka with Vedoucí místností, and the Fotograf band with the
+Focení předávání cen row under it. A tall cell is one merged range holding its
+people once; over Fotograf and Focení it names the Helpers placed as Fotograf.
 
 A Large room (see `_large_rooms` and CONTEXT.md) is drawn across two adjacent
 columns in every Role band, chosen automatically at each export: the band's
@@ -54,6 +60,7 @@ from rostering.domain import (
 )
 from rostering.export.collation import czech_sort_key
 from rostering.export.people import CountedPerson, counted_people, without_absent
+from rostering.row_merges import TallCell
 
 _SHEET_NAME = "Pomocníci v místnostech"
 _TSHIRT_SHEET_NAME = "Trička"
@@ -97,7 +104,8 @@ _OVERLAY_COLORS: dict[OverlayRole, tuple[str, str]] = {
     OverlayRole.FoceniPredavaniCen: ("#C27BA0", "#D9A6C2"),
     OverlayRole.Registrace: ("#B4A7D6", "#D9D2E9"),
 }
-_OVERLAY_ORDER = [OverlayRole.UvadeciUcastniku, OverlayRole.FoceniPredavaniCen, OverlayRole.Registrace]
+# Focení předávání cen first: it sits right under the Fotograf band, so the two can form a tall cell.
+_OVERLAY_ORDER = [OverlayRole.FoceniPredavaniCen, OverlayRole.UvadeciUcastniku, OverlayRole.Registrace]
 
 _WRAP_ROW_HEIGHT = 30
 
@@ -316,6 +324,7 @@ def write_roster(
     manual: ManualRoles,
     out_path: str | Path,
     cell_merges: Optional[dict[str, dict[str, list[list[str]]]]] = None,
+    tall_cells: Optional[list[TallCell]] = None,
 ) -> None:
     comp, result, manual = without_absent(comp, result, manual)
     helper_by_id = {h.id: h for h in comp.helpers}
@@ -340,6 +349,23 @@ def write_roster(
         return annotate_id(entry.helper_id, entry.helper_name or "")
 
     room_obj = {(b.name, r.name): r for b in buildings for r in b.rooms}
+
+    # Tall cells, by their upper/lower row and the first Room of their group.
+    tall_cells = [c for c in (tall_cells or []) if (c.building, c.rooms[0]) in room_obj]
+    tall_upper = {(c.upper, c.building, c.rooms[0]): c for c in tall_cells}
+    tall_lower = {(c.lower, c.building, c.rooms[0]) for c in tall_cells}
+
+    def tall_names(cell: TallCell) -> list[str]:
+        """The people of a leadership tall cell's two roles, once each."""
+        names: list[str] = []
+        for entry in manual.structural:
+            if entry.role.name not in cell.rows or entry.building != cell.building:
+                continue
+            inside = cell.address_room is None if not entry.room else entry.room in cell.rooms
+            name = slot_name(entry)
+            if inside and name not in names:
+                names.append(name)
+        return names
 
     # Each solved Role's row-groups per Building (a merged group is one wide
     # cell for that Role only) and the Helpers placed in each, worked out
@@ -398,6 +424,7 @@ def write_roster(
                 if len(group) > 1:
                     merged_rooms.update((b.name, n) for n in group)
                     merged_heights[solved_role] = max(merged_heights.get(solved_role, 0), group_need(solved_role, b.name, group))
+    merged_rooms.update((c.building, n) for c in tall_cells for n in c.rooms)
     room_role_minimums: dict[RoomKey, dict[Role, int]] = {
         (b.name, r.name): {role: cap.minimum for role, cap in r.capacities.items() if cap and role in _ROLE_ORDER}
         for b in buildings
@@ -530,8 +557,14 @@ def write_roster(
     empty_fmt = cell_format(fill=_EMPTY_SLOT_COLOR, wrap=True, valign="center", top="medium", bottom="medium", left="medium", right="medium")
     ws.set_row(row, _WRAP_ROW_HEIGHT)
     for b in buildings:
-        names = structural_building.get((StructuralRole.VedouciBudovy, b.name), [])
-        write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
+        cell = tall_upper.get((StructuralRole.VedouciBudovy.name, b.name, b.rooms[0].name))
+        names = tall_names(cell) if cell else structural_building.get((StructuralRole.VedouciBudovy, b.name), [])
+        fmt = filled_fmt if names else empty_fmt
+        if cell:
+            start, end = building_span[b.name]
+            ws.merge_range(row, start, row + 1, end, ", ".join(names), fmt)
+        else:
+            write_building_row(row, b.name, ", ".join(names), fmt, track=False)
     row += 1
 
     # ---- Pravá ruka, Vedoucí místností: per room, each with its own merges ----
@@ -540,16 +573,25 @@ def write_roster(
         ws.write(row, 0, structural_role.value, cell_format(fill=label_color, bold=True, top="medium", bottom="medium", left="medium", right="medium"))
         for b in buildings:
             for group in row_groups(structural_role.name, b.name, [r.name for r in b.rooms]):
+                key = (structural_role.name, b.name, group[0])
+                if key in tall_lower:
+                    continue  # covered by the tall cell written in the row above
                 col_start, col_end = group_col_range(group, b.name)
-                names = [n for room_name in group for n in structural_room.get((structural_role, b.name, room_name), [])]
-                top, bottom, left, right = borders(row, row, row, col_start, col_end)
-                if names:
-                    text = ", ".join(names)
-                    fmt = cell_format(fill=data_color, top=top, bottom=bottom, left=left, right=right)
-                    write_cell(row, col_start, col_end, text, fmt)
+                cell = tall_upper.get(key)
+                if cell:
+                    names = tall_names(cell)
                 else:
-                    fmt = cell_format(fill=_EMPTY_SLOT_COLOR, top=top, bottom=bottom, left=left, right=right)
-                    write_cell(row, col_start, col_end, None, fmt)
+                    names = [n for room_name in group for n in structural_room.get((structural_role, b.name, room_name), [])]
+                top, bottom, left, right = borders(row, row, row, col_start, col_end)
+                fmt = (
+                    cell_format(fill=data_color, top=top, bottom=bottom, left=left, right=right)
+                    if names
+                    else cell_format(fill=_EMPTY_SLOT_COLOR, top=top, bottom=bottom, left=left, right=right)
+                )
+                if cell:
+                    ws.merge_range(row, col_start, row + 1, col_end, ", ".join(names), fmt)
+                else:
+                    write_cell(row, col_start, col_end, ", ".join(names) if names else None, fmt)
         row += 1
 
     # ---- Solved roles: Opravovatel, Menic, Skenovac, Kreslic, Fotograf ----
@@ -598,6 +640,21 @@ def write_roster(
             for group in groups_by_building[b.name]:
                 col_start, col_end = group_col_range(group, b.name)
                 names = group_placements.get((solved_role, b.name, tuple(group)), [])
+                if (solved_role.name, b.name, group[0]) in tall_upper:
+                    # One range over the whole band and the Focení row under it
+                    # (the first overlay row), naming the placed Fotografs once.
+                    top, bottom, left, right = borders(row, row, row, col_start, col_end)
+                    fmt = cell_format(
+                        fill=role_data_color if names else _EMPTY_SLOT_COLOR,
+                        wrap=True,
+                        valign="center",
+                        top=top,
+                        bottom=bottom,
+                        left=left,
+                        right=right,
+                    )
+                    ws.merge_range(row, col_start, row + max_min, col_end, ", ".join(names), fmt)
+                    continue
                 for r_offset in range(max_min):
                     data_row = row + r_offset
                     if (b.name, group[0]) in overflow_rooms:
@@ -644,7 +701,27 @@ def write_roster(
         ws.set_row(row, _WRAP_ROW_HEIGHT)
         for b in buildings:
             names = overlay_by_building.get((overlay_role, b.name), [])
-            write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
+            under_tall = sorted(
+                group_col_range(list(c.rooms), b.name)
+                for c in tall_cells
+                if c.lower == overlay_role.name and c.building == b.name
+            )
+            if not under_tall:
+                write_building_row(row, b.name, ", ".join(names), filled_fmt if names else empty_fmt, track=False)
+                continue
+            # The tall cells own their columns (written with the band above); the
+            # columns between them share the Building's names, written once.
+            first_col, last_col = building_span[b.name]
+            segments, start = [], first_col
+            for tall_start, tall_end in under_tall:
+                if tall_start > start:
+                    segments.append((start, tall_start - 1))
+                start = tall_end + 1
+            if start <= last_col:
+                segments.append((start, last_col))
+            for i, (seg_start, seg_end) in enumerate(segments):
+                shown = names if i == 0 else []
+                write_cell(row, seg_start, seg_end, ", ".join(shown) if shown else None, filled_fmt if shown else empty_fmt, track=False)
         row += 1
 
     # ---- Zaloha (no fill, building-wide, matching the historical layout) ----

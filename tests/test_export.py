@@ -1122,3 +1122,115 @@ def test_a_large_room_no_taller_than_a_merged_neighbours_unmerged_bands_stays_on
     sheet = _overflow_sheet(tmp_path, spec, cell_merges={"Skenovac": {"Malá Strana": [["M1", "M2"]]}})
 
     assert sheet.room_width("N1") == 1
+
+
+# ---------------------------------------------------------------------- tall cells
+def _tall_comp():
+    from rostering.domain import Organizer
+
+    buildings = {
+        "Alfa": Building(name="Alfa", rooms=[Room(name="A1"), Room(name="A2")]),
+        "Beta": Building(name="Beta", rooms=[Room(name="B1")]),
+    }
+    helpers = [Helper(id=1, name="Cyril"), Helper(id=2, name="Dana")]
+    organizers = [Organizer(id=1, name="Anna"), Organizer(id=2, name="Bob")]
+    return Competition(buildings=buildings, helpers=helpers, organizers=organizers)
+
+
+def _merged(ws):
+    return {str(r) for r in ws.merged_cells.ranges}
+
+
+def _label_rows(ws):
+    return {ws.cell(row, 1).value: row for row in range(1, ws.max_row + 1) if ws.cell(row, 1).value}
+
+
+def test_the_additional_roles_start_with_focení_right_under_fotograf(tmp_path):
+    out = tmp_path / "roster.xlsx"
+    write_roster(_tall_comp(), SolveResult(assignments=[], status="OPTIMAL", objective_value=0.0), ManualRoles(), out)
+    labels = list(_label_rows(openpyxl.load_workbook(out)["Pomocníci v místnostech"]))
+    assert labels[labels.index("Fotografové") + 1 :][:4] == ["Focení předávání cen", "Uvaděči účastníků", "Registrace", "Záloha"]
+
+
+def test_a_tall_cell_over_two_leadership_rows_is_one_merged_range_naming_everyone_once(tmp_path):
+    from rostering.row_merges import TallCell
+
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="Alfa", organizer_id=1),
+            StructuralAssignment(role=StructuralRole.PravaRuka, building="Alfa", organizer_id=1),
+            StructuralAssignment(role=StructuralRole.PravaRuka, building="Alfa", organizer_id=2),
+            StructuralAssignment(role=StructuralRole.VedouciBudovy, building="Alfa", organizer_id=2),
+        ]
+    )
+    out = tmp_path / "roster.xlsx"
+    write_roster(
+        _tall_comp(),
+        SolveResult(assignments=[], status="OPTIMAL", objective_value=0.0),
+        manual,
+        out,
+        cell_merges={"PravaRuka": {"Alfa": [["A1", "A2"]]}},
+        tall_cells=[TallCell("Alfa", ("A1", "A2"), ("VedouciBudovy", "PravaRuka"))],
+    )
+    ws = openpyxl.load_workbook(out)["Pomocníci v místnostech"]
+    rows = _label_rows(ws)
+    top = rows["Vedoucí budovy"]
+    assert rows["Pravá ruka"] == top + 1
+    assert f"B{top}:C{top + 1}" in _merged(ws)
+    assert ws.cell(top, 2).value == "Anna, Bob"
+    # Beta has no tall cell: its own one-row cells.
+    assert ws.cell(top, 4).value in (None, "")
+    assert f"D{top}:D{top + 1}" not in _merged(ws)
+
+
+def test_a_tall_cell_over_pravá_ruka_and_vedoucí_místností_spans_those_rooms(tmp_path):
+    from rostering.row_merges import TallCell
+
+    manual = ManualRoles(
+        structural=[
+            StructuralAssignment(role=StructuralRole.PravaRuka, building="Alfa", room="A1", organizer_id=1),
+            StructuralAssignment(role=StructuralRole.VedouciMistnosti, building="Alfa", room="A1", organizer_id=1),
+            StructuralAssignment(role=StructuralRole.VedouciMistnosti, building="Beta", room="B1", organizer_id=2),
+        ]
+    )
+    out = tmp_path / "roster.xlsx"
+    write_roster(
+        _tall_comp(),
+        SolveResult(assignments=[], status="OPTIMAL", objective_value=0.0),
+        manual,
+        out,
+        cell_merges={"PravaRuka": {"Alfa": [["A1", "A2"]]}, "VedouciMistnosti": {"Alfa": [["A1", "A2"]]}},
+        tall_cells=[TallCell("Alfa", ("A1", "A2"), ("PravaRuka", "VedouciMistnosti"))],
+    )
+    ws = openpyxl.load_workbook(out)["Pomocníci v místnostech"]
+    pr = _label_rows(ws)["Pravá ruka"]
+    assert f"B{pr}:C{pr + 1}" in _merged(ws) and ws.cell(pr, 2).value == "Anna"
+    assert ws.cell(pr + 1, 4).value == "Bob"  # Beta's Vedoucí místností is untouched
+
+
+def test_a_tall_cell_over_fotograf_and_focení_names_the_placed_fotografs(tmp_path):
+    from rostering.row_merges import TallCell
+
+    comp = _tall_comp()
+    result = SolveResult(
+        assignments=[
+            Assignment(helper_id=1, helper_name="Cyril", building="Alfa", room="A1", role=Role.Fotograf),
+            Assignment(helper_id=2, helper_name="Dana", building="Beta", room="B1", role=Role.Fotograf),
+        ],
+        status="OPTIMAL",
+        objective_value=0.0,
+    )
+    out = tmp_path / "roster.xlsx"
+    write_roster(
+        comp,
+        result,
+        ManualRoles(),
+        out,
+        cell_merges={"Fotograf": {"Alfa": [["A1", "A2"]]}, "FoceniPredavaniCen": {"Alfa": [["A1", "A2"]]}},
+        tall_cells=[TallCell("Alfa", ("A1", "A2"), ("Fotograf", "FoceniPredavaniCen"))],
+    )
+    ws = openpyxl.load_workbook(out)["Pomocníci v místnostech"]
+    rows = _label_rows(ws)
+    foto, foceni = rows["Fotografové"], rows["Focení předávání cen"]
+    assert f"B{foto}:C{foceni}" in _merged(ws) and ws.cell(foto, 2).value == "Cyril"
+    assert ws.cell(foto, 4).value == "Dana" and f"D{foto}:D{foceni}" not in _merged(ws)

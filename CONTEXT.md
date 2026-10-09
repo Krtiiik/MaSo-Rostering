@@ -399,6 +399,23 @@ Participant ushering. An Additional role, scoped to a Room.
 **Focení předávání cen**:
 Photographing the award ceremony. An Additional role, scoped to a Room.
 
+**Tall cell**:
+Two adjacent rows of the roster grid merged top-to-bottom into one cell over
+exactly the same Rooms, the way two spreadsheet cells are merged vertically.
+Only these pairs can be: Vedoucí budovy with Pravá ruka, Pravá ruka with
+Vedoucí místností, and Fotograf with Focení předávání cen. Both rows must
+already have one cell over the same Rooms (Vedoucí budovy's cell is always its
+whole Building), and a row is never in two tall cells over the same Rooms. A
+tall cell is one slot for all its roles: whoever is in it holds both roles
+(over Vedoucí budovy, both at the Building, as an Organizer has a single
+placement), a drop gives both, a chip's × removes both, and splitting it leaves
+them in the upper role only. Over Fotograf and Focení předávání cen it is
+the Helpers placed as Fotograf in its Rooms who count as Focení předávání cen,
+with no entries of their own: merging folds away Focení entries over those
+Rooms. Purely a way of holding and drawing those roles; the Excel roster draws
+it as one merged range.
+Czech: Sloučená buňka přes role.
+
 #### People
 
 **Person**:

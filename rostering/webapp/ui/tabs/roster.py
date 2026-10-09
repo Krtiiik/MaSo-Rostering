@@ -71,6 +71,7 @@ class RosterTab:
         self.grid.on("organizer_drop", lambda e: self._organizer_drop(e.args))
         self.grid.on("manual_set", lambda e: self._manual_set(e.args))
         self.grid.on("cell_merge", lambda e: self._cell_merge(e.args))
+        self.grid.on("row_merge", lambda e: self._row_merge(e.args))
         self.grid.on("lock", lambda e: self._toggle_lock(int(e.args["helper_id"]), bool(e.args["locked"])))
         self.grid.on("card", lambda e: self.card.toggle(self.grid.view, e.args))
         self.grid.on("card_close", lambda: self.card.close())
@@ -384,6 +385,12 @@ class RosterTab:
         s = self.session
         await s.act(
             lambda: mutations.set_cell_merges(s.workspace, args["key"], args["building"], args["pairs"], bool(args["merged"]))
+        )
+
+    async def _row_merge(self, args: dict) -> None:
+        s = self.session
+        await s.act(
+            lambda: mutations.set_row_merge(s.workspace, args["key"], args["building"], args["room"], bool(args["merged"]))
         )
 
     async def _toggle_lock(self, helper_id: int, locked: bool) -> None:

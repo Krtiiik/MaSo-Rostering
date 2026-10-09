@@ -43,6 +43,9 @@ class SeasonView:
     one replaces it (or a Version is restored, minus what ``keep_view`` keeps)."""
 
     buildings_draft: Optional[list[dict]] = None
+    # What came with a layout read from a sheet and waits for its save (see
+    # mutations.read_building_sheet); goes with the draft.
+    sheet_pending: Optional[dict] = None
     solver_draft: Optional[dict] = None
     fix_focus: Optional[FixFocus] = None
     selected_tag: Any = None  # a Tag id, "new" or None
@@ -114,6 +117,7 @@ class UiSession:
         current tab and everything but the drafts (a Version restore)."""
         if keep_view:
             self.view.buildings_draft = None
+            self.view.sheet_pending = None
             self.view.solver_draft = None
         else:
             self.view = SeasonView()

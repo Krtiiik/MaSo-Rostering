@@ -227,7 +227,32 @@ pushing the tag, not just creating it locally.
   coloured cell (`openpyxl` RGB, indexed or theme fill with its tint, spread of
   channels above `_GRAY_SPREAD`) is one Helper, gray/white/empty none; a merged
   range counts once, for the Room it covers or the Building when it covers several.
-  Only non-zero counts are written. The roster's `cell_merges` are not read.
+  Only non-zero counts are written. It also reads the leadership rows (Vedoucí
+  budovy, Pravá ruka, Vedoucí místností, Technická podpora: names split on commas,
+  Building-level or filed under the first Room the cell covers), the sideways merges
+  of every Room-level row (`cell_merges`) and the tall merges (`row_merges`); the
+  names are matched to the Season's Organizers (`read_building_sheet`: unknown or
+  Can't attend names are skipped and reported, nothing is created) and travel
+  as `SeasonView.sheet_pending` beside the draft. `mutations.put_config_from_sheet`
+  saves layout, merges and slots in one save, after a confirmation naming the slot
+  holders it replaces; an Organizer named in several places keeps the last.
+- Tall cells (`rostering/row_merges.py`, `state["row_merges"]` = `{building, room,
+  row}`, `row` the upper row's key and `room` the first Room of the group;
+  `mutations.set_row_merge`, `tall_cells`; see `CONTEXT.md` "Tall cell"): the pure
+  module decides which exist (`tall_cells`, dropped when a row's group no longer
+  matches) and which could be made (`candidates`). The slot mutations
+  (`assign_organizer`, `move_organizer`, `set_slot_holders`, `unassign_organizer`)
+  work on `_cell_roles` / `_slot_cell_entries`, so a tall cell is one slot for both
+  roles; its entries are filed at the Building for a cell over Vedoucí budovy (Pravá
+  ruka at Building level is shown only in such a cell) and under the group's first
+  Room otherwise. `_fold_tall_cell` / `_unfold_tall_cell` are the data effect of
+  merging (union for both roles; Focení entries folded away) and splitting (lower
+  role emptied); `_set_layout` (`put_config`) splits a tall cell the new layout can't
+  hold, and `set_cell_merges` refuses a sideways change that would break one. The
+  grid draws a tall cell once with `rowspan=2` in its upper row (`render._Tall`,
+  event `row_merge`); the export writes it as a merged range (`write_roster(...,
+  tall_cells=...)`). Grid and export order of the lower rows is now Fotograf,
+  Focení předávání cen, Uvaděči účastníků, Registrace, Záloha, Technická podpora.
 - Equipment eligibility is a **hard** rule (see `CONTEXT.md`), meaning the
   solver bends it only last. Hard rules are never constraints that can make a
   solve infeasible: `rostering/solver/rules.py` relaxes each through a slack

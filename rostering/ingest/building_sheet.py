@@ -17,7 +17,23 @@ The sheet's shape (see ``tests/test_building_sheet.py`` for a small one):
   covers: when it sits under a single Room it counts for that Room, when it
   spans several (the Fotograf rows) it counts for the whole Building.
 
-Names and numbers written in the cells are never read.
+Beyond the counts, the sheet also carries who leads and how its cells are merged:
+
+* The leadership rows (``Vedoucí budovy``, ``Pravá ruka``, ``Vedoucí místností``,
+  ``Technická podpora``) hold Organizers' names, several in one cell separated by
+  commas. Each non-empty cell becomes a :class:`SlotCell`: Vedoucí budovy and
+  Technická podpora at the Building, Pravá ruka and Vedoucí místností under the
+  first Room the cell covers.
+* A cell merged sideways over several Rooms in a Room-level row (any Role, Pravá
+  ruka, Vedoucí místností, Focení předávání cen, Uvaděči účastníků) is a sideways
+  merge of those Rooms in that row (``cell_merges``).
+* A cell merged top-to-bottom over two rows that may form a tall cell (see
+  ``rostering.row_merges``) is a tall merge (``row_merges``); its names, written in
+  its top-left cell, belong to both roles, a cell over Vedoucí budovy filed at the
+  Building for both.
+
+Apart from the names of the leadership rows, text written in the cells is never
+read, nor any number.
 """
 from __future__ import annotations
 
@@ -32,6 +48,7 @@ import openpyxl
 from openpyxl.styles.colors import COLOR_INDEX, Color
 
 from rostering.domain import Role, normalize_name
+from rostering.row_merges import TALL_PAIRS
 
 # A label belongs to the Role whose stem the normalized label starts with
 # ("Opravovatelé" -> "opravovatel").
@@ -44,6 +61,30 @@ _ROLE_STEMS: dict[str, Role] = {
     "zaloha": Role.Zaloha,
 }
 
+# Every row group the sheet may carry, by the stem its normalized label starts
+# with: a Role name, a leadership slot or an Additional role (as grid row keys).
+_ROW_STEMS: dict[str, str] = {
+    **{stem: role.name for stem, role in _ROLE_STEMS.items()},
+    "vedoucibudov": "VedouciBudovy",
+    "pravaruk": "PravaRuka",
+    "vedoucimistnost": "VedouciMistnosti",
+    "technickapodpor": "TechnickaPodpora",
+    "foceni": "FoceniPredavaniCen",
+    "uvadec": "UvadeciUcastniku",
+    "registrac": "Registrace",
+}
+# Leadership rows whose cells hold Organizers' names, in the order they are read.
+_SLOT_KEYS = ("VedouciBudovy", "PravaRuka", "VedouciMistnosti", "TechnickaPodpora")
+# The rows with one cell per Room (their sideways merges are read).
+_ROOM_ROW_KEYS = tuple(role.name for role in Role) + (
+    "PravaRuka",
+    "VedouciMistnosti",
+    "FoceniPredavaniCen",
+    "UvadeciUcastniku",
+)
+# Slots held at the Building, whatever the cell covers.
+_BUILDING_SLOTS = ("VedouciBudovy", "TechnickaPodpora")
+
 # Channels of a colour closer together than this make it a gray (or white).
 _GRAY_SPREAD = 12
 
@@ -55,13 +96,44 @@ _DRAWING_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 
 
 @dataclass
+class SlotCell:
+    """The names written in one cell of a leadership row: ``role`` (a
+    ``StructuralRole`` name) at ``building`` and, for a Room-level slot, ``room``
+    (the first Room the cell covers); ``room`` is None for a Building-level one."""
+
+    role: str
+    building: str
+    room: Optional[str]
+    names: list[str]
+
+
+@dataclass
 class BuildingSheet:
     """The layout the sheet describes, in the saved config's shape
-    (``[{name, rooms: [{name, capacities}], capacities}]``), and what the user
-    should look at: Czech lines for a Room the sheet gives no Helper at all."""
+    (``[{name, rooms: [{name, capacities}], capacities}]``), the leadership cells,
+    the sideways merges (``cell_merges``: row key -> Building -> Room pairs) and the
+    tall merges (``row_merges``: ``{building, room, row}``), and what the user
+    should look at: Czech lines for what could not be read."""
 
     buildings: list[dict]
     warnings: list[str] = field(default_factory=list)
+    slots: list[SlotCell] = field(default_factory=list)
+    cell_merges: dict[str, dict[str, list[list[str]]]] = field(default_factory=dict)
+    row_merges: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class _Layout:
+    """One Building as the sheet draws it: its columns and its Rooms."""
+
+    name: str
+    first: int
+    last: int
+    rooms: list[tuple[str, int, int]]  # (name, first column, last column)
+
+    def covered(self, first: int, last: int) -> list[str]:
+        """The Rooms whose columns overlap ``first``..``last``."""
+        return [name for name, a, b in self.rooms if a <= last and first <= b]
 
 
 def parse_building_sheet(content: bytes) -> BuildingSheet:
@@ -121,7 +193,8 @@ class _Reader:
     # ------------------------------------------------------------------ layout
     def read(self) -> BuildingSheet:
         ws = self.ws
-        role_rows = self._role_rows()
+        labelled = self._labelled_rows()
+        role_rows = {Role[key]: rows for key, rows in labelled.items() if key in Role.__members__}
         if not role_rows:
             raise ValueError(
                 "V tabulce jsem nenašel řádky rolí (Opravovatelé, Měniči, Skenovači, Kresliči…) v prvním sloupci."
@@ -136,6 +209,7 @@ class _Reader:
 
         warnings: list[str] = []
         buildings: list[dict] = []
+        layouts: list[_Layout] = []
         seen: set[str] = set()
         for name, first, last in self._building_spans(building_row, room_row):
             if normalize_name(name) in seen:
@@ -146,21 +220,33 @@ class _Reader:
                 warnings.append(f"Budova „{name}“ nemá v záhlaví žádné místnosti, přeskočena.")
                 continue
             buildings.append(self._building(name, rooms, role_rows, warnings))
+            layouts.append(_Layout(name, rooms[0][1], rooms[-1][2], rooms))
         if not buildings:
             raise ValueError("V tabulce jsem nenašel žádnou budovu s místnostmi.")
-        return BuildingSheet(buildings=buildings, warnings=warnings)
+        tall = self._tall_boxes(labelled, layouts, warnings)
+        return BuildingSheet(
+            buildings=buildings,
+            warnings=warnings,
+            slots=self._slots(labelled, layouts, tall, warnings),
+            cell_merges=self._cell_merges(labelled, layouts),
+            row_merges=[
+                {"building": info["building"].name, "room": info["rooms"][0], "row": info["keys"][0]}
+                for info in tall.values()
+            ],
+        )
 
-    def _role_rows(self) -> dict[Role, list[int]]:
-        """Each Role's rows: those its label cell covers (all of a merged one)."""
-        result: dict[Role, list[int]] = {}
+    def _labelled_rows(self) -> dict[str, list[int]]:
+        """Each known row group's rows by key (a Role name, a leadership slot or an
+        Additional role): those its label cell covers (all of a merged one)."""
+        result: dict[str, list[int]] = {}
         for row in range(1, self.ws.max_row + 1):
             anchor_row, _, last_row, _ = self._box(row, 1)
             if anchor_row != row:
                 continue
             label = normalize_name(self._text(row, 1))
-            for stem, role in _ROLE_STEMS.items():
+            for stem, key in _ROW_STEMS.items():
                 if label.startswith(stem):
-                    result.setdefault(role, []).extend(range(row, last_row + 1))
+                    result.setdefault(key, []).extend(range(row, last_row + 1))
                     break
         return result
 
@@ -197,6 +283,92 @@ class _Reader:
                 rooms[-1][2] = end
             col = end + 1
         return [(n, a, b) for n, a, b in rooms]
+
+    # ------------------------------------------------------------------ leadership and merges
+    def _tall_boxes(
+        self, labelled: dict[str, list[int]], layouts: list[_Layout], warnings: list[str]
+    ) -> dict[tuple[int, int], dict]:
+        """The cells merged top-to-bottom over two rows that may form a tall cell,
+        by the (row, column) of their top-left cell: ``keys`` (upper, lower),
+        ``building`` (its :class:`_Layout`) and ``rooms`` (the Rooms it covers).
+        A cell over rows that can't be a tall cell, or one over Vedoucí budovy that
+        doesn't span its whole Building, is reported and left out."""
+        key_of_row = {row: key for key, rows in labelled.items() for row in rows}
+        found: dict[tuple[int, int], dict] = {}
+        for box in sorted(set(self.spans.values())):
+            first_row, first_col, last_row, last_col = box
+            if last_row == first_row or first_col < 2:
+                continue
+            keys = list(dict.fromkeys(key_of_row[r] for r in range(first_row, last_row + 1) if r in key_of_row))
+            if len(keys) < 2:
+                continue
+            where = f"{openpyxl.utils.get_column_letter(first_col)}{first_row}"
+            layout = next((l for l in layouts if l.first <= first_col <= l.last), None)
+            if layout is None:
+                continue
+            rooms = layout.covered(max(first_col, layout.first), min(last_col, layout.last))
+            if len(keys) != 2 or TALL_PAIRS.get(keys[0]) != keys[1]:
+                warnings.append(f"Buňka {where} spojuje řádky, které se spojit nedají ({', '.join(keys)}); vynechána.")
+            elif keys[0] == "VedouciBudovy" and len(rooms) != len(layout.rooms):
+                warnings.append(f"Buňka {where} spojuje Vedoucí budovy s Pravou rukou, ale nepokrývá celou budovu; vynechána.")
+            elif rooms:
+                found[(first_row, first_col)] = {"keys": tuple(keys), "building": layout, "rooms": rooms}
+        return found
+
+    def _slots(
+        self,
+        labelled: dict[str, list[int]],
+        layouts: list[_Layout],
+        tall: dict[tuple[int, int], dict],
+        warnings: list[str],
+    ) -> list[SlotCell]:
+        slots: list[SlotCell] = []
+        for key in _SLOT_KEYS:
+            for row in labelled.get(key, []):
+                seen: set[tuple[int, int]] = set()
+                for col in range(2, self.ws.max_column + 1):
+                    first_row, first_col, _, last_col = self._box(row, col)
+                    if (first_row, first_col) in seen or first_row != row:
+                        continue  # the lower part of a cell whose names sit above
+                    seen.add((first_row, first_col))
+                    names = [n.strip() for n in re.split(r"[,;\n]+", str(self.ws.cell(row, first_col).value or "")) if n.strip()]
+                    if not names:
+                        continue
+                    where = f"{openpyxl.utils.get_column_letter(first_col)}{row}"
+                    layout = next((l for l in layouts if l.first <= first_col <= l.last), None)
+                    rooms = layout.covered(max(first_col, layout.first), min(last_col, layout.last)) if layout else []
+                    if layout is None or not rooms:
+                        warnings.append(f"Jména v buňce {where} nepatří k žádné místnosti, přeskočena.")
+                        continue
+                    keys = tall[(row, first_col)]["keys"] if (row, first_col) in tall else (key,)
+                    for slot in keys:
+                        at_building = slot in _BUILDING_SLOTS or "VedouciBudovy" in keys
+                        slots.append(SlotCell(slot, layout.name, None if at_building else rooms[0], names))
+        return slots
+
+    def _cell_merges(self, labelled: dict[str, list[int]], layouts: list[_Layout]) -> dict[str, dict[str, list[list[str]]]]:
+        """The sideways merges of every Room-level row: a pair of neighbouring Rooms
+        is merged in a row when a merged cell covers both in every row of that
+        row group."""
+        result: dict[str, dict[str, list[list[str]]]] = {}
+        for key in _ROOM_ROW_KEYS:
+            rows = labelled.get(key)
+            if not rows:
+                continue
+            for layout in layouts:
+                order = {name: i for i, (name, _, _) in enumerate(layout.rooms)}
+                per_row = []
+                for row in rows:
+                    pairs: set[tuple[str, str]] = set()
+                    for col in range(layout.first, layout.last + 1):
+                        _, first_col, _, last_col = self._box(row, col)
+                        covered = layout.covered(max(first_col, layout.first), min(last_col, layout.last))
+                        pairs.update(zip(covered, covered[1:]))
+                    per_row.append(pairs)
+                merged = set.intersection(*per_row)
+                if merged:
+                    result.setdefault(key, {})[layout.name] = [list(pair) for pair in sorted(merged, key=lambda pr: order[pr[0]])]
+        return result
 
     # ------------------------------------------------------------------ counts
     def _building(
