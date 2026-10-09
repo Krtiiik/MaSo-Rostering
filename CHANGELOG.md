@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Štítky: the Tag sheet's top bar (name, Smazat štítek, close) stays pinned while
+  the form and the list of carriers scroll.
 - Budovy: "Načíst konfiguraci budov" now saves the loaded layout right away
   (after the usual confirmation about replacing leaders and merged cells) instead
   of leaving it as an unsaved draft.
