@@ -9,7 +9,7 @@ import pytest
 from rostering.domain import Assignment, Role
 from rostering.persistence.serialize import assignment_from_dict, assignment_to_dict
 from rostering.persistence.workspace import Workspace
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 TWO_ROOMS = [
     {

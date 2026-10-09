@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import labels, mutations, session
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import session
 
 
 def render(where: str) -> None:

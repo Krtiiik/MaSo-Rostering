@@ -8,7 +8,8 @@ import streamlit as st
 from rostering import tags as tag_tree
 from rostering.domain import Role
 from rostering.czech import count_helpers, plural
-from rostering.streamlit_app import fix_focus, labels, mutations, session, tag_pills
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import fix_focus, session, tag_pills
 from rostering.streamlit_app.tabs import tag_import_ui
 
 # Session-state keys: the Tag being edited (a Tag id, or _NEW for the create

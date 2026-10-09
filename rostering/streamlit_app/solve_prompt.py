@@ -23,7 +23,8 @@ from typing import Any, Callable
 import streamlit as st
 
 from rostering.czech import plural
-from rostering.streamlit_app import labels, mutations, session
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import session
 
 _NOTE_KEY = "_solve_note"
 _PENDING_KEY = "_solve_pending"

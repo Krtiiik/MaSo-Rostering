@@ -8,7 +8,7 @@ import pytest
 
 from rostering import tags as tag_tree
 from rostering.persistence.workspace import Workspace
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 CONFIG = [
     {

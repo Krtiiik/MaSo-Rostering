@@ -13,7 +13,7 @@ from rostering.domain import Building, Competition, Helper, Role, RoleCapacity, 
 from rostering.persistence.serialize import helper_from_dict
 from rostering.persistence.workspace import Workspace
 from rostering.solver.model import SolverConfig, solve_competition
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 CONFIG = [
     {

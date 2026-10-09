@@ -16,7 +16,7 @@ from rostering.domain import Building, Competition, Helper, Organizer, Role, Rol
 from rostering.persistence.serialize import organizer_from_dict, organizer_to_dict
 from rostering.persistence.workspace import Workspace
 from rostering.solver.model import SolverConfig, solve_competition
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 CONFIG = [
     {

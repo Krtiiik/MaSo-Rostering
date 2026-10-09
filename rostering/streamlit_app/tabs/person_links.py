@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations, session
+from rostering.webapp import mutations
+from rostering.streamlit_app import session
 from rostering.streamlit_app.tabs import tag_import_ui
 
 

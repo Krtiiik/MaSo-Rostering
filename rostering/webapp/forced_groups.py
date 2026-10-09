@@ -25,8 +25,8 @@ from rostering.persistence.serialize import assignment_from_dict
 from rostering.persistence.workspace import Workspace
 from rostering.solver.checker import check_roster
 from rostering.solver.rules import FORCED_FRIENDS_FAMILY
-from rostering.streamlit_app import mutations
-from rostering.streamlit_app.mutations import RosteringError
+from rostering.webapp import mutations
+from rostering.webapp.mutations import RosteringError
 
 ACTIVE = "active"
 CANT_ATTEND = "cant_attend"

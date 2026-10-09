@@ -7,7 +7,7 @@ import pytest
 
 from rostering.domain import Assignment, Building, Competition, Helper, Role, RoleCapacity, Room
 from rostering.solver.model import SolverConfig, solve_competition
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 from tests.test_reupload import (  # noqa: F401  (the fixtures are used by name)
     ANNA,
     JANA,

@@ -1,4 +1,4 @@
-from rostering.streamlit_app import reveal
+from rostering.webapp import reveal
 
 
 def test_windows_selects_the_file_in_explorer(tmp_path, monkeypatch):

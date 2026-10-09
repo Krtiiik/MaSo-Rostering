@@ -12,7 +12,8 @@ import streamlit as st
 
 from rostering import forced_friends
 from rostering.czech import count_helpers
-from rostering.streamlit_app import mutations, session
+from rostering.webapp import mutations
+from rostering.streamlit_app import session
 
 # Session-state keys: the last import's result and the tab that showed its
 # button, the Seasons whose banner was dismissed, and the Helper whose late link

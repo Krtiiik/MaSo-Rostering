@@ -26,7 +26,7 @@ from rostering.persistence.serialize import helper_from_dict, helper_to_dict
 from rostering.persistence.workspace import Workspace
 from rostering.solver.model import SolverConfig, solve_competition
 from rostering.solver.scoring import FriendScoringConfig, FriendScoringMode, build_organizer_requests
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 # -- scoring ------------------------------------------------------------------------
 

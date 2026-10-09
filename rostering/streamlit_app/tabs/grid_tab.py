@@ -29,8 +29,9 @@ from rostering import organizers as organizer_slots
 from rostering.domain import BrokenRule, OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.czech import plural
 from rostering.ingest.mapping import building_keys
-from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
-from rostering.streamlit_app.reveal import reveal_in_file_manager
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import fix_focus, session, solve_prompt
+from rostering.webapp.reveal import reveal_in_file_manager
 from rostering.streamlit_app.tabs import upload_summary_ui
 from rostering_assignment_grid import assignment_grid
 

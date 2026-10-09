@@ -5,7 +5,8 @@ import streamlit as st
 
 from rostering.persistence.serialize import solver_config_from_dict, solver_config_to_dict
 from rostering.solver.model import MAX_ROLE_COST, SolverConfig
-from rostering.streamlit_app import labels, mutations, session, solve_prompt
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import session, solve_prompt
 
 # The five Preference costs in the order the fields are shown, one slider row
 # each: (RoleCosts field, label, widget key).

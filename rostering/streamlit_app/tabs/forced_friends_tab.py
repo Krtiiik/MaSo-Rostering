@@ -7,7 +7,8 @@ from __future__ import annotations
 import streamlit as st
 
 from rostering import forced_friends
-from rostering.streamlit_app import fix_focus, forced_groups, labels as ui_labels, mutations, session
+from rostering.webapp import forced_groups, labels as ui_labels, mutations
+from rostering.streamlit_app import fix_focus, session
 
 _FLASH = "_ff_flash"
 _FOCUS = "_ff_focus"

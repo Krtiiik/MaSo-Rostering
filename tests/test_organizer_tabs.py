@@ -6,7 +6,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from rostering.persistence.workspace import Workspace
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 CONFIG = [
     {

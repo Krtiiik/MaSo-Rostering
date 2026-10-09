@@ -12,7 +12,8 @@ from typing import Optional
 import streamlit as st
 
 from rostering.domain import BrokenRule, FixTarget
-from rostering.streamlit_app import labels, mutations, session
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import session
 
 _KEY = "_fix_focus"
 

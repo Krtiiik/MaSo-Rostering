@@ -5,7 +5,8 @@ from streamlit.testing.v1 import AppTest
 def _app(failure: str = ""):
     import streamlit as st
 
-    from rostering.streamlit_app import mutations, solve_prompt
+    from rostering.webapp import mutations
+    from rostering.streamlit_app import solve_prompt
 
     def work() -> None:
         st.session_state["worked"] = st.session_state.get("worked", 0) + 1

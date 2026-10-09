@@ -7,7 +7,7 @@ import importlib
 import pytest
 
 from rostering.persistence.workspace import Workspace
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 CONFIG = [
     {"name": "Karlín", "rooms": [{"name": "K1", "capacities": {}}, {"name": "K2", "capacities": {}}], "capacities": {}},

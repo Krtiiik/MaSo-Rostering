@@ -13,7 +13,7 @@ from rostering.domain import Assignment, Building, Competition, Helper, Role, Ro
 from rostering.forced_friends import ForcedGroup
 from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
-from rostering.streamlit_app import forced_groups, mutations
+from rostering.webapp import forced_groups, mutations
 
 # The fixtures and builders of the base Forced friends tests.
 from tests.test_forced_friends import TWO_BUILDINGS, _group_named, _placed, _record, _season, workspace  # noqa: F401

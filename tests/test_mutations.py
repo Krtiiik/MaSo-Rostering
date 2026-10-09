@@ -10,7 +10,7 @@ from rostering.domain import Building, Competition, Helper, Preference, Role, Ro
 from rostering.persistence.serialize import solver_config_from_dict
 from rostering.persistence.workspace import Workspace
 from rostering.solver.model import RoleCosts, SolverConfig, SolverWeights, solve_competition
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RAW_2026 = REPO_ROOT / "data" / "seasons" / "2026-jaro" / "raw-response.xlsx"

@@ -9,8 +9,9 @@ import hashlib
 import streamlit as st
 
 from rostering.domain import UNKNOWN_TSHIRT_SIZE
-from rostering.streamlit_app import fix_focus, mutations, session
-from rostering.streamlit_app import labels as ui_labels
+from rostering.webapp import mutations
+from rostering.streamlit_app import fix_focus, session
+from rostering.webapp import labels as ui_labels
 from rostering.streamlit_app import tag_pills
 from rostering.streamlit_app.tabs import person_actions, person_dialog, person_links, tag_import_ui, upload_summary_ui
 _OPEN_LABEL = "⚙️"

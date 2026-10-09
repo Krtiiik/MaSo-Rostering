@@ -26,7 +26,7 @@ from rostering.forced_friends import ForcedGroup
 from rostering.persistence.workspace import Workspace
 from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
-from rostering.streamlit_app import forced_groups, mutations
+from rostering.webapp import forced_groups, mutations
 from rostering.tags import Tag
 
 # -- the solver, on domain objects ------------------------------------------------

@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from rostering.persistence.workspace import Workspace
-from rostering.streamlit_app import forced_groups, mutations
+from rostering.webapp import forced_groups, mutations
 
 _NAME_HEADER = "Tvoje jméno a příjmení"
 _EMAIL_HEADER = "E-mailová adresa"

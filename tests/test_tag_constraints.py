@@ -25,7 +25,7 @@ from rostering.domain import (
 from rostering.persistence.workspace import Workspace
 from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 from rostering.tags import Tag
 
 ROLE_NAMES = [role.name for role in Role]

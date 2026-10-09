@@ -3681,4 +3681,4 @@ def save_export_to_season(workspace: Workspace, data: bytes | None = None) -> Pa
 
 # The Forced friends import section registers itself when its module loads; it
 # builds on this module, so it can only be imported once everything above exists.
-from rostering.streamlit_app import forced_groups as _forced_groups  # noqa: E402,F401
+from rostering.webapp import forced_groups as _forced_groups  # noqa: E402,F401

@@ -28,7 +28,7 @@ from rostering.solver import rules
 from rostering.solver.checker import check_roster, newly_broken
 from rostering.solver.model import SolverConfig, solve_competition
 from rostering.solver.rules import Relaxation, RuleFamily, Tier
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 
 @pytest.fixture

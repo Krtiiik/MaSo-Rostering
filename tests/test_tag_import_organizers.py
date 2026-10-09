@@ -8,7 +8,7 @@ temp-dir workspace with synthetic Seasons (never anything from data/)."""
 import pytest
 
 from rostering.domain import Role
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 from tests.test_tag_import import (  # noqa: F401  (workspace is a fixture)
     ANNA,
     ANNA_NEW,

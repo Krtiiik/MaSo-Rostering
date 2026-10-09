@@ -6,7 +6,8 @@ from __future__ import annotations
 import streamlit as st
 
 from rostering.domain import TSHIRT_SIZES, UNKNOWN_TSHIRT_SIZE, Preference, Role
-from rostering.streamlit_app import mutations, session
+from rostering.webapp import mutations
+from rostering.streamlit_app import session
 from rostering.streamlit_app.tabs import person_actions
 
 _ROLES = [r for r in Role if r != Role.Zaloha]  # Záloha is not a survey Preference

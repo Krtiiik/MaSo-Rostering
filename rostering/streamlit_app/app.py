@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from rostering.webapp import labels, mutations
 from rostering.streamlit_app import (
-    labels,
-    mutations,
     season_header,
     seasons_panel,
     session,

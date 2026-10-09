@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import forced_groups, mutations, session, tag_pills
+from rostering.webapp import forced_groups, mutations
+from rostering.streamlit_app import session, tag_pills
 from rostering.streamlit_app.tabs import helper_forms, person_actions, person_links
 
 # A refused Tag pick's reason, shown once after the rerun, and a counter that

@@ -5,7 +5,7 @@ recognized Helper. Exercised through the mutation layer against a temp-dir
 workspace with the synthetic surveys of ``test_reupload`` (never ``data/``)."""
 import pytest
 
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 from tests.test_reupload import (  # noqa: F401  (the fixtures are used by name)
     ANNA,
     KLARA,

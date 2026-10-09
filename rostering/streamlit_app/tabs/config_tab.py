@@ -7,7 +7,8 @@ import streamlit as st
 
 from rostering.domain import Role
 from rostering.persistence import config_store
-from rostering.streamlit_app import fix_focus, labels, mutations, session, solve_prompt
+from rostering.webapp import labels, mutations
+from rostering.streamlit_app import fix_focus, session, solve_prompt
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
 _ROLE_ORDER = [r.name for r in Role]

@@ -15,7 +15,8 @@ from typing import Callable
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
 
-from rostering.streamlit_app import mutations, session
+from rostering.webapp import mutations
+from rostering.streamlit_app import session
 
 _PENDING = "_pending_person_action"
 _FLASH = "_person_flash"

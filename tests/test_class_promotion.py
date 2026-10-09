@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from rostering.persistence.workspace import Workspace
-from rostering.streamlit_app import mutations
+from rostering.webapp import mutations
 
 _NAME_HEADER = "Tvoje jméno a příjmení"
 _EMAIL_HEADER = "E-mailová adresa"

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from rostering.streamlit_app import mutations, session
+from rostering.webapp import mutations
+from rostering.streamlit_app import session
 
 
 @st.dialog("Obnovit verzi")
