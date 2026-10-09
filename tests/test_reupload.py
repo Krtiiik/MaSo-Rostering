@@ -562,3 +562,26 @@ def test_a_helpers_raw_survey_row_is_kept_and_refreshed_by_a_reupload(workspace)
 
     refreshed = dict((r["question"], r["answer"]) for r in _named(state, "Anna Nováková")["survey_responses"])
     assert refreshed[_BUILDING] == "Malá Strana"
+
+
+def test_a_survey_building_is_matched_to_the_configured_spelling_and_not_reported_as_changed(workspace, tmp_path):
+    rows = [
+        _row("Anna Nováková", ANNA, buildings="Malá Strana (MS - Malostranské nám. 25), Karlov (budova M)"),
+        _row("Petr Svoboda", PETR, buildings="Dejvice (budova D)"),
+    ]
+    _upload(workspace, *rows, label="2026-jaro")
+    layout = [
+        {"name": "Mala Strana", "rooms": [{"name": "M1", "capacities": {"Zaloha": {"minimum": 0}}}], "capacities": {}},
+        {"name": "Karlov", "rooms": [{"name": "K1", "capacities": {"Zaloha": {"minimum": 0}}}], "capacities": {}},
+    ]
+    state = mutations.put_config(workspace, layout)
+    assert _named(state, "Anna Nováková")["building_preferences"] == ["Karlov", "Mala Strana"]
+    # An answer no Building resembles is kept whole and waits for a decision.
+    assert [o["name"] for o in mutations.get_building_match_offers(workspace)] == ["Dejvice (budova D)"]
+
+    mutations.match_building(workspace, "Dejvice (budova D)", ["Karlov"])
+    mutations.move_helper(workspace, _named(workspace.load(), "Anna Nováková")["id"], "Karlov", "K1", "Zaloha")
+    state = _upload(workspace, *rows)
+    assert _named(state, "Anna Nováková")["building_preferences"] == ["Karlov", "Mala Strana"]
+    assert _named(state, "Petr Svoboda")["building_preferences"] == ["Karlov"]
+    assert not _named(state, "Anna Nováková").get("answers_changed")

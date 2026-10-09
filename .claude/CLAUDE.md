@@ -67,6 +67,21 @@ The registration form's place question is a **multi-select checkbox** — model
 it as the acceptable-building set described in `CONTEXT.md`, never as a
 single ranked preference.
 
+Matching it to the layout (`rostering/building_prefs.py`, pure): the survey's
+spelling is rewritten to configured Building names by `reconcile(state)` — run by
+`_set_layout`, `put_config_from_sheet`, `_merge_survey_rows` (on the fresh row, so a
+re-upload is not reported as a changed answer) and `Workspace._read_state` /
+`load_version` for older states. `match_buildings` tries the same normalized name,
+then a shared `building_keys` alias, then one name inside the other (both at least
+3 characters). A name matching none is kept (ingestion keeps an unrecognized
+answer whole instead of dropping it; `parse_raw_survey(building_names=...)` also
+spots the configured names in the answer), listed by `unresolved(state)` /
+`mutations.get_building_match_offers` in the to-do panel (not while no Building is
+configured), and settled by `mutations.match_building`, which stores
+`state["building_matches"]` (survey name -> configured names) so later uploads and
+layouts reuse it. Only Helpers have a Building set; an Organizer's "places"
+answer is display-only.
+
 ## Friend preference (ingestion)
 
 See `CONTEXT.md` for the Friend preference concept and its `mode`/`symmetric`

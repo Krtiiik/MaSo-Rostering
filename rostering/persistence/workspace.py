@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from rostering import forced_friends, tags as tag_tree
+from rostering import building_prefs, forced_friends, tags as tag_tree
 from rostering.domain import ManualRoles
 from rostering.persistence import config_store
 from rostering.persons import PersonRecord, ensure_person_ids, records_from_state
@@ -220,6 +220,8 @@ class Workspace:
         migrated = forced_friends.migrate_state(state)
         # ... and a Tag saved before its constraints were rules carries four allow/deny lists.
         migrated = tag_tree.migrate_state(state) or migrated
+        # ... and a Helper's Building preference may name a Building the layout spells otherwise.
+        migrated = building_prefs.reconcile(state) or migrated
         # ... and one saved before tall cells existed has none.
         state.setdefault("row_merges", [])
         if ensure_person_ids(state) or migrated:
@@ -516,6 +518,7 @@ class Workspace:
         state = _read_json(path)
         forced_friends.migrate_state(state)
         tag_tree.migrate_state(state)
+        building_prefs.reconcile(state)
         return state
 
     def restore_version(self, slug: str) -> Optional[dict[str, Any]]:

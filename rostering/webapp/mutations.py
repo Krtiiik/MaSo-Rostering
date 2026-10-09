@@ -67,6 +67,7 @@ from rostering.persons import build_persons, link_persons, new_person_id, uncert
 from rostering.solver.checker import check_roster, newly_broken, toasts
 from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
+from rostering import building_prefs
 from rostering import forced_friends
 from rostering.placement_rules import Rule
 from rostering import organizers as organizer_slots
@@ -283,10 +284,13 @@ def upload_responses(workspace: Workspace, file_bytes: bytes, filename: str, lab
     :class:`SeasonLabelRequired` is raised and nothing is changed."""
     # A Helper may name one of the Season's Organizers as a friend, so they are
     # candidates when the free-text friend names are resolved.
-    organizers = [organizer_from_dict(o) for o in workspace.load().get("organizers", [])]
+    loaded = workspace.load()
+    organizers = [organizer_from_dict(o) for o in loaded.get("organizers", [])]
     tmp_path = _write_temp(file_bytes, filename)
     try:
-        result = parse_raw_survey(tmp_path, organizers=organizers)
+        result = parse_raw_survey(
+            tmp_path, organizers=organizers, building_names=[b["name"] for b in loaded["config"]]
+        )
     except ValueError as exc:
         raise RosteringError(str(exc)) from exc
     finally:
@@ -451,6 +455,7 @@ def _merge_survey_rows(state: dict[str, Any], rows: list[Helper], known: list, e
     matches, person_ids = _recognize_rows(rows, existing, known)
     id_map = {row.id: (record["id"] if record else _next_helper_id(state)) for row, record in zip(rows, matches)}
     placed = {a["helper_id"] for a in state["assignments"]}
+    config_names = [b["name"] for b in state["config"]]
 
     new_entries: list[dict] = []
     changed_entries: list[dict] = []
@@ -465,6 +470,9 @@ def _merge_survey_rows(state: dict[str, Any], rows: list[Helper], known: list, e
         fresh = helper_to_dict(replace(row, id=helper_id, person_id=person_id, friends=friends))
         fresh["friend_name_order"] = list(row.unresolved_friend_names)
         fresh["survey_tshirt_size"] = row.tshirt_size
+        fresh["building_preferences"] = building_prefs.resolve_preferences(
+            fresh["building_preferences"], config_names, state.get("building_matches")
+        )
         if record is None:
             state["helpers"].append(fresh)
             new_entries.append({"helper_id": helper_id, "name": fresh["name"]})
@@ -3567,6 +3575,7 @@ def _set_layout(state: dict[str, Any], buildings: list[dict]) -> None:
     no longer hold is unmerged as if by hand (the lower role gives up its people)."""
     before = tall_cells(state)
     state["config"] = buildings
+    building_prefs.reconcile(state)
     state["cell_merges"] = _prune_cell_merges(buildings, state.get("cell_merges", {}))
     after = tall_cells(state)
     still = {(c.building, c.rooms, c.rows) for c in after}
@@ -3639,6 +3648,34 @@ def read_building_sheet(workspace: Workspace, file_bytes: bytes) -> tuple[list[d
                 )
     pending = {"slots": slots, "unmatched": unmatched, "cell_merges": sheet.cell_merges, "row_merges": sheet.row_merges}
     return sheet.buildings, pending, warnings
+
+
+def get_building_match_offers(workspace: Workspace) -> list[dict]:
+    """The Building names in Helpers' preferences that match none of the Season's
+    configured Buildings (see :mod:`rostering.building_prefs`), each ``name`` as the
+    survey gave it, ``helpers`` (who gave it) and ``candidates`` (every configured
+    Building to choose from). Judged live, so a layout that gains the Building
+    clears the offer; until a name is matched, its Helpers have no usable Building
+    preference."""
+    if workspace.open_season() is None:
+        return []
+    state = workspace.load()
+    candidates = [b["name"] for b in state["config"]]
+    return [{**offer, "candidates": candidates} for offer in building_prefs.unresolved(state)]
+
+
+def match_building(workspace: Workspace, name: str, buildings: list[str]) -> dict:
+    """Decide which configured Buildings the survey's ``name`` means: every Helper
+    who gave it now has those, and the decision is kept for later uploads."""
+    state = workspace.load()
+    known = [b["name"] for b in state["config"]]
+    chosen = [b for b in known if b in set(buildings)]
+    if not chosen:
+        raise RosteringError("Vyberte alespoň jednu budovu.")
+    state.setdefault("building_matches", {})[name] = chosen
+    building_prefs.reconcile(state)
+    workspace.save(state)
+    return state
 
 
 def _place_text(building: str, room: Optional[str]) -> str:
@@ -3771,6 +3808,7 @@ def put_config_from_sheet(
     notes = warnings if warnings is not None else []
 
     state["config"] = buildings
+    building_prefs.reconcile(state)
     state["cell_merges"] = _prune_cell_merges(buildings, pending.get("cell_merges") or {})
     cells = tall_rows.tall_cells(buildings, state["cell_merges"], pending.get("row_merges") or [])
     state["row_merges"] = [tall_rows.to_record(c) for c in cells]

@@ -229,17 +229,27 @@ def _split_free_text_names(raw: object) -> list[str]:
     return [part.strip() for part in _FREE_TEXT_NAME_SEPARATORS.split(text) if part.strip()]
 
 
-def _resolve_buildings(raw: object, warnings: list[str], row_label: str) -> frozenset[str]:
+def _resolve_buildings(
+    raw: object, warnings: list[str], row_label: str, building_names: Sequence[str] = ()
+) -> frozenset[str]:
     # The place question is multi-select, but each option's own label can
     # itself contain commas (e.g. "Impakt + Troja (budova N, budova T, ...)"),
     # so splitting into comma-separated tokens first is unreliable. Instead,
-    # scan the whole normalized answer for every known building alias.
+    # scan the whole normalized answer for every known building alias, and for
+    # the name of every Building the Season is already configured with.
     text = _cell_str(raw)
     if not text:
         return frozenset()
     resolved = resolve_building_aliases(text)
+    norm_text = normalize_name(text)
+    resolved |= {
+        name for name in building_names if len(normalize_name(name)) >= 3 and normalize_name(name) in norm_text
+    }
     if not resolved:
+        # Kept whole, so the to-do panel can ask which Building it means rather
+        # than the Helper silently having no preference.
         warnings.append(f"{row_label}: nerozpoznaná preference budovy {text!r}")
+        return frozenset({text})
     return frozenset(resolved)
 
 
@@ -358,11 +368,14 @@ def resolve_friend_names(
     return resolved, unresolved
 
 
-def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> RawSurveyResult:
+def parse_raw_survey(
+    path: str | Path, organizers: Sequence[Organizer] = (), building_names: Sequence[str] = ()
+) -> RawSurveyResult:
     """Parse a raw survey export. ``organizers`` (the Season's tracked
     Organizers, if any) join the Helpers as candidates when free-text friend
     names are resolved, so a Helper can name an Organizer; a name both carry
-    resolves to the Helper."""
+    resolves to the Helper. ``building_names`` (the Season's configured Buildings)
+    are recognised in the place answer besides the built-in aliases."""
     df = pd.read_excel(path)
     headers = list(df.columns)
     columns = _find_columns(headers)
@@ -399,7 +412,9 @@ def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> 
         name = names[idx - 1]
         role_preferences = _role_preferences_for_row(row, columns)
         building_preferences = (
-            _resolve_buildings(row.get(building_col), warnings, name) if building_col else frozenset()
+            _resolve_buildings(row.get(building_col), warnings, name, building_names)
+            if building_col
+            else frozenset()
         )
         can_bring_notebook, can_bring_camera = (
             _resolve_equipment(row.get(equipment_col)) if equipment_col else (False, False)

@@ -185,7 +185,11 @@ Czech: Velká místnost.
 The set of Buildings a Helper marked as acceptable on the survey (a
 multi-select question, not a single ranked choice). Satisfied if the
 Helper's assigned Building is in the set, or the set is empty (no
-preference expressed).
+preference expressed). The survey spells a Building its own way, so a stored
+preference is matched to the Season's configured Buildings (same name ignoring
+diacritics, a known alias, or one name inside the other) and rewritten to their
+names; one that matches none waits in the to-do panel until the user says which
+Building(s) it means.
 Czech: Preferované budovy.
 
 **Equipment eligibility**:

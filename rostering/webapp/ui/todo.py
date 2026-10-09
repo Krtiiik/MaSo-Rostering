@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 from nicegui import ui
 
+from rostering.czech import plural
 from rostering.persistence.workspace import Workspace
 from rostering.webapp import labels, mutations
 from rostering.webapp.ui import tag_import
@@ -107,6 +108,7 @@ def count(session: UiSession) -> int:
         + len(_query(session, mutations.get_uncertain_matches))
         + len(_query(session, mutations.get_uncertain_organizer_matches))
         + len(_query(session, mutations.get_organizer_slot_offers))
+        + len(_query(session, mutations.get_building_match_offers))
     )
 
 
@@ -150,6 +152,7 @@ class TodoPanel:
             self._uncertain_matches()
             self._uncertain_organizer_matches()
             self._organizer_slot_offers()
+            self._building_match_offers()
 
     # ------------------------------------------------------------------ pieces
     def _warnings(self) -> None:
@@ -476,6 +479,37 @@ class TodoPanel:
                     "Nechat prázdné",
                     on_click=lambda o=offer["id"]: s.act(lambda: mutations.dismiss_organizer_slot_offer(s.workspace, o)),
                 ).props("flat dense")
+
+    def _building_match_offers(self) -> None:
+        """Building names from the survey that match no configured Building (not even
+        by an alias or a part of the name): which Building they mean is picked here,
+        and every Helper who gave the name gets it."""
+        s = self.session
+        offers = _query(s, mutations.get_building_match_offers)
+        if not offers:
+            return
+        ui.label(f"Budovy z dotazníku bez shody ({len(offers)})").classes("font-bold")
+        ui.markdown(
+            "Tyto budovy z dotazníku se nepodařilo přiřadit k žádné budově v konfiguraci, a proto se u pomocníků "
+            "zatím nepočítají jako preference. Vyberte, které budovy se jimi myslí (i více), nebo je nejdřív "
+            f"doplňte na záložce {labels.TAB_BUILDINGS}."
+        ).classes("text-sm text-gray-600")
+        for offer in offers:
+            with ui.card().classes("w-full"):
+                n_helpers = len(offer["helpers"])
+                ui.markdown(f"**{offer['name']}** — {n_helpers} {plural(n_helpers, 'pomocník', 'pomocníci', 'pomocníků')}")
+                ui.label(", ".join(offer["helpers"])).classes("text-sm text-gray-600")
+                pick = (
+                    ui.select(offer["candidates"], multiple=True, label="Odpovídající budovy")
+                    .props("use-chips")
+                    .classes("w-full")
+                )
+                ui.button(
+                    "Přiřadit",
+                    on_click=lambda n=offer["name"], p=pick: s.act(
+                        lambda: mutations.match_building(s.workspace, n, list(p.value or []))
+                    ),
+                ).props("dense")
 
 
 def _warning(text: str) -> None:

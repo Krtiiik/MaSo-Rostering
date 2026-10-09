@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Helpers' Building preferences are matched to the Season's configured Buildings
+  (ignoring diacritics and case, by known aliases such as Křižíkova = Karlín, and by
+  part of the name; "Impakt + Troja" becomes both Buildings when the layout splits
+  them) whenever the layout is saved, a Buildings sheet is loaded, a survey is
+  uploaded or an older Season is opened. Before, a preference spelled differently
+  from the layout was silently ignored in the Lidé tab, the grid and the solver.
+- A survey Building that matches nothing is kept (it used to be dropped) and
+  listed in K vyřízení, where you pick the Building(s) it means; the choice is
+  remembered for later uploads.
+
 ## [3.1.1] - 2026-10-09
 
 ### Changed
