@@ -102,7 +102,7 @@ _EMPTY_SLOT_COLOR = "#F2F2F2"
 
 _OVERLAY_COLORS: dict[OverlayRole, tuple[str, str]] = {
     OverlayRole.UvadeciUcastniku: ("#D5A6BD", "#EAD1DC"),
-    OverlayRole.FoceniPredavaniCen: ("#C27BA0", "#D9A6C2"),
+    OverlayRole.FoceniPredavaniCen: _ROLE_COLORS[Role.Fotograf],  # same green as Fotograf, which it forms a tall cell with
     OverlayRole.Registrace: ("#B4A7D6", "#D9D2E9"),
 }
 # Focení předávání cen first: it sits right under the Fotograf band, so the two can form a tall cell.

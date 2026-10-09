@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Budovy: "Načíst konfiguraci budov" now saves the loaded layout right away
   (after the usual confirmation about replacing leaders and merged cells) instead
   of leaving it as an unsaved draft.
+- Export: the Focení předávání cen row now has the same green as Fotograf (it sits
+  right under that band and forms a tall cell with it).
 
 ### Added
 
