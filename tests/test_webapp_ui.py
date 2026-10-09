@@ -354,6 +354,22 @@ async def test_solving_over_unlocked_assignments_asks_first_then_solves(user: Us
     assert {a["helper_id"] for a in _state(seasons)["assignments"]} == {1, 2}
 
 
+async def test_save_and_solve_asks_over_the_redrawn_tab_then_solves(user: User, seasons):
+    # Saving redraws the tab the button sits in; the confirmation must survive that.
+    mutations.move_helper(seasons, 1, "Karlín", "K1", "Zaloha")
+    await user.open("/")
+    await _go(user, labels.TAB_BUILDINGS)
+    user.find(marker="save-and-solve").click()
+    await user.should_see("Nahradit neuzamčená přiřazení?")
+    user.find(marker="confirm-ok").click()
+    for _ in range(100):
+        await asyncio.sleep(0.1)
+        if len(_state(seasons)["assignments"]) == 2:
+            break
+    assert {a["helper_id"] for a in _state(seasons)["assignments"]} == {1, 2}
+    await user.should_see(marker="roster-grid")  # the Roster tab is shown
+
+
 # ---------------------------------------------------------------------- Roster grid
 async def _roster(user: User, seasons):
     mutations.move_helper(seasons, 1, "Karlín", "K1", "Zaloha")

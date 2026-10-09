@@ -11,7 +11,9 @@ per-Season view state.
 """
 from __future__ import annotations
 
+import asyncio
 import inspect
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
@@ -21,6 +23,8 @@ from rostering.domain import FixTarget
 from rostering.persistence.workspace import Workspace
 from rostering.webapp import labels, mutations
 from rostering.webapp.ui import dialogs
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,11 +59,15 @@ class SeasonView:
 
 class UiSession:
     def __init__(self, workspace: Optional[Workspace] = None) -> None:
+        # The page this session belongs to: dialogs open on it even from a
+        # handler whose own view a refresh has already replaced.
+        self.client = ui.context.client
         self.workspace = workspace or Workspace()
         self.state: dict[str, Any] = self.workspace.load()
         self.view = SeasonView()
         self.active_tab: str = labels.TABS[0]
         self._listeners: list[Callable[[], None]] = []
+        self._refresh_pending = False
 
     # ------------------------------------------------------------------ refresh
     def on_change(self, callback: Callable[[], None]) -> None:
@@ -67,8 +75,26 @@ class UiSession:
         self._listeners.append(callback)
 
     def refresh(self) -> None:
+        """Redraw the views on the next turn of the event loop (several changes
+        in one handler redraw once). Deferred so the handler that asked can still
+        use its own view (notify, open a dialog) before the redraw replaces it."""
+        if self._refresh_pending:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # no event loop (plain synchronous use): redraw now
+            self._redraw()
+            return
+        self._refresh_pending = True
+        loop.call_soon(self._redraw)
+
+    def _redraw(self) -> None:
+        self._refresh_pending = False
         for callback in list(self._listeners):
-            callback()
+            try:
+                callback()
+            except Exception:  # one broken view must not keep the others stale
+                _log.exception("Redrawing a view failed")
 
     def apply(self, new_state: dict[str, Any]) -> None:
         self.state = new_state
@@ -109,12 +135,25 @@ class UiSession:
         ``confirm``, ``mutation`` takes ``confirmed``: a ``ConfirmationRequired``
         opens the confirmation (its ``lines`` listed) and, on yes, runs it again
         confirmed. Returns the mutation's result, or ``None`` when it was refused
-        or declined. A mutation that returns no state (``None``) re-reads it."""
+        or declined. A mutation that returns no state (``None``) re-reads it.
+        Runs on the page itself, so it works even after a redraw replaced the
+        view whose handler called it."""
+        with self.client:
+            return await self._act(mutation, confirm=confirm, success=success, replaced=replaced)
+
+    async def _act(
+        self,
+        mutation: Callable[..., Any],
+        *,
+        confirm: Optional[dialogs.ConfirmSpec],
+        success: Optional[str],
+        replaced: bool,
+    ) -> Optional[Any]:
         try:
             result = await _maybe_await(mutation(confirmed=False) if confirm else mutation())
         except mutations.ConfirmationRequired as exc:
             assert confirm is not None
-            if not await dialogs.confirm(confirm.with_lines(exc.lines)):
+            if not await dialogs.confirm(confirm.with_lines(exc.lines), client=self.client):
                 return None
             try:
                 result = await _maybe_await(mutation(confirmed=True))

@@ -157,7 +157,7 @@ class BuildingsTab:
         s = self.session
         with ui.row().classes("sticky bottom-0 w-full items-center gap-2 bg-white border-t py-2 z-10"):
             ui.button("Uložit konfiguraci", on_click=self._save).props("outline").mark("buildings-save")
-            solve = ui.button("Uložit a sestavit rozdělení", on_click=self._save_and_solve).props("color=primary")
+            solve = ui.button("Uložit a sestavit rozdělení", on_click=self._save_and_solve).props("color=primary").mark("save-and-solve")
             if not s.state["helpers"]:
                 solve.disable()
                 ui.label("Nejdřív nahrajte odpovědi pomocníků.").classes("text-sm text-gray-500")

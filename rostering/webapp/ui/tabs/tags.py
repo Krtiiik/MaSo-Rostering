@@ -209,7 +209,8 @@ class TagsTab:
         lines = _delete_lines(s.state, tag)
         intro = f"Smazáním štítku **{tag['name']}** se změní:" if lines else f"Smazat štítek **{tag['name']}**?"
         if not await dialogs.confirm(
-            dialogs.ConfirmSpec(title="Smazat štítek?", ok_label="Smazat štítek", intro=intro, lines=tuple(lines))
+            dialogs.ConfirmSpec(title="Smazat štítek?", ok_label="Smazat štítek", intro=intro, lines=tuple(lines)),
+            client=self.session.client,
         ):
             return
         if await s.act(lambda: mutations.delete_tag(s.workspace, tag["id"], confirmed=True), success=f"Smazáno: {tag['name']}.") is not None:

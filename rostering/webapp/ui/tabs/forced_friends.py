@@ -115,7 +115,7 @@ class ForcedFriendsTab:
 
     async def _edit(self, group: Optional[dict]) -> None:
         s = self.session
-        with ui.dialog() as dialog, ui.card().classes("w-[40rem] max-w-full"):
+        with dialogs.page_dialog(client=self.session.client) as dialog, ui.card().classes("w-[40rem] max-w-full"):
             ui.label("Nová skupinka" if group is None else f"Upravit {group['name']}").classes("text-lg font-bold")
             name = ui.input("Název", value=group["name"] if group else "").classes("w-full")
             people = ui.select(
@@ -161,6 +161,7 @@ class ForcedFriendsTab:
                 title="Rozpustit skupinku?",
                 ok_label="Rozpustit skupinku",
                 intro=f"Rozpustit skupinku **{group['name']}**? Její členové zůstanou, jen už nebudou vynuceně spolu.",
-            )
+            ),
+            client=self.session.client,
         ):
             await s.act(lambda: forced_groups.dissolve_group(s.workspace, group["id"]), success=f"Rozpuštěno: {group['name']}.")

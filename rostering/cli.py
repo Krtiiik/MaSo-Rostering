@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -54,10 +55,16 @@ def _cmd_solve(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
+    if args.reload:
+        # NiceGUI's reloader re-executes the main script, so development runs go
+        # through a script of their own (see rostering/webapp/ui/dev_server.py).
+        script = Path(__file__).resolve().parent / "webapp" / "ui" / "dev_server.py"
+        command = [sys.executable, str(script), "--host", args.host, "--port", str(args.port)]
+        return subprocess.call(command + (["--headless"] if args.headless else []))
     # Imported here: the other commands must not need the web stack.
     from rostering.webapp.ui.app import run
 
-    run(host=args.host, port=args.port, show=not args.headless, reload=args.reload)
+    run(host=args.host, port=args.port, show=not args.headless)
     return 0
 
 

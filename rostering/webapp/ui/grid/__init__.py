@@ -20,7 +20,10 @@ class RosterGrid(ui.element, component="roster_grid.js"):
 
     def __init__(self) -> None:
         super().__init__()
-        ui.add_css(render.CSS)
+        # Once per page: the Roster tab builds a new grid on every redraw.
+        if not getattr(self.client, "_roster_grid_css", False):
+            ui.add_css(render.CSS)
+            self.client._roster_grid_css = True  # type: ignore[attr-defined]
         self._props["html"] = ""
         self._props["friends-on"] = False
         self.view: Optional[data.GridView] = None

@@ -66,6 +66,7 @@ class Sidebar:
             value=season["label"],
             hint=labels.SEASON_LABEL_HELP,
             ok_label="Uložit označení",
+            client=self.session.client,
         )
         if label is None:
             return
@@ -81,7 +82,8 @@ class Sidebar:
                     "Ztratíte tento ročník jako zdroj pro import štítků a každou osobu, kterou znáte jen z něj; "
                     "smažou se s ním i všechny jeho uložené verze."
                 ),
-            )
+            ),
+            client=self.session.client,
         ):
             await self.session.act(lambda: mutations.delete_season(self.session.workspace, season["id"]))
 
@@ -139,7 +141,8 @@ class Sidebar:
                     "pomocníky, budovami a všemi dalšími úpravami provedenými od té doby). "
                     "Označení ročníku se nevrací."
                 ),
-            )
+            ),
+            client=self.session.client,
         ):
             return
         s = self.session
@@ -157,6 +160,7 @@ class Sidebar:
                 title="Smazat verzi",
                 ok_label="Smazat",
                 intro=f"Smazat uloženou verzi **{version['name']}**? Nelze vrátit zpět.",
-            )
+            ),
+            client=self.session.client,
         ):
             await self.session.act(lambda: mutations.delete_version(self.session.workspace, version["slug"]))

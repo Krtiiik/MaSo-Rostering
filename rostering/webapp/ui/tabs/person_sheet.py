@@ -320,7 +320,7 @@ class PersonSheet:
             spec = dialogs.ConfirmSpec(
                 title=spec.title, ok_label=spec.ok_label, intro=f"Smazat **{person['name']}**?", caption=spec.caption
             )
-        if not await dialogs.confirm(spec.with_lines(lines)):
+        if not await dialogs.confirm(spec.with_lines(lines), client=self.session.client):
             return
         await s.act(lambda: run(s.workspace, person["id"], confirmed=True), success=f"Smazán {noun}: {person['name']}.")
 
@@ -560,7 +560,8 @@ class PersonSheet:
                         title="Zrušit propojení?",
                         ok_label="Zrušit propojení",
                         intro=f"Pomocník **{helper['name']}** přestane být propojen se svými dřívějšími záznamy.",
-                    )
+                    ),
+                    client=self.session.client,
                 ):
                     await s.act(lambda: mutations.unlink_helper(s.workspace, helper_id))
 
@@ -594,7 +595,7 @@ class PersonSheet:
 async def add_helper(session: UiSession) -> None:
     """The "Add helper" dialog: a name and a contact are required, everything
     else optional (blank, like an unanswered survey row)."""
-    with ui.dialog() as dialog, ui.card().classes("w-[44rem] max-w-full"):
+    with dialogs.page_dialog(client=session.client) as dialog, ui.card().classes("w-[44rem] max-w-full"):
         ui.label("Přidat pomocníka").classes("text-lg font-bold")
         with ui.row().classes("w-full gap-4 no-wrap"):
             name = ui.input("Jméno (povinné)").classes("grow").mark("new-name")
@@ -631,7 +632,7 @@ async def add_helper(session: UiSession) -> None:
 
 
 async def add_organizer(session: UiSession) -> None:
-    with ui.dialog() as dialog, ui.card().classes("w-[32rem] max-w-full"):
+    with dialogs.page_dialog(client=session.client) as dialog, ui.card().classes("w-[32rem] max-w-full"):
         ui.label("Přidat organizátora").classes("text-lg font-bold")
         name = ui.input("Jméno (povinné)").classes("w-full").mark("new-name")
         email = ui.input("E-mail (volitelný)").classes("w-full").tooltip(

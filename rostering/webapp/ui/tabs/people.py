@@ -125,6 +125,7 @@ class PeopleTab:
                 hint="Rok a jaro (leden až červen) nebo podzim (červenec až prosinec); mezi uloženými ročníky jedinečné.",
                 ok_label="Vytvořit ročník a načíst odpovědi",
                 intro=intro,
+                client=self.session.client,
             )
             if label is None:
                 return

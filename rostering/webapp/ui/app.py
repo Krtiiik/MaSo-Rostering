@@ -8,7 +8,8 @@ refreshes the views after it.
 """
 from __future__ import annotations
 
-from typing import Callable
+from pathlib import Path
+from typing import Callable, Optional
 
 from nicegui import ui
 
@@ -41,6 +42,7 @@ async def _migrate_legacy(session: UiSession) -> None:
                 hint=labels.SEASON_LABEL_HELP,
                 ok_label="Uložit jako tento ročník",
                 intro=intro,
+                client=session.client,
             )
             if label is None:
                 return
@@ -138,7 +140,8 @@ class Page:
                 title="Začít znovu?",
                 ok_label="Začít znovu",
                 intro="Otevřený ročník se vyprázdní. Jeho označení a uložené verze zůstanou.",
-            )
+            ),
+            client=self.session.client,
         ):
             await self.session.act(lambda: mutations.reset_workspace(self.session.workspace), replaced=True)
 
@@ -151,8 +154,9 @@ async def root() -> None:
     ui.timer(0.1, lambda: _migrate_legacy(page.session), once=True)
 
 
-def run(*, host: str, port: int, show: bool, reload: bool = False) -> None:
-    """Serve the app (blocking)."""
+def run(*, host: str, port: int, show: bool, reload: bool = False, watch: Optional[Path] = None) -> None:
+    """Serve the app (blocking). ``reload`` (development only, see
+    ``dev_server.py``) restarts it when a file under ``watch`` changes."""
     ui.run(
         root,
         host=host,
@@ -160,6 +164,8 @@ def run(*, host: str, port: int, show: bool, reload: bool = False) -> None:
         title=labels.APP_TITLE,
         show=show,
         reload=reload,
+        uvicorn_reload_dirs=str(watch or "."),
+        uvicorn_reload_includes="*.py, *.js",
         favicon="🗂️",
         language="cs",
         reconnect_timeout=30,

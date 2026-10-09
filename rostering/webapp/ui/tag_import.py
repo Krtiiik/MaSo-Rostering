@@ -14,6 +14,7 @@ from nicegui import ui
 from rostering import forced_friends
 from rostering.czech import count_helpers
 from rostering.webapp import mutations
+from rostering.webapp.ui import dialogs
 from rostering.webapp.ui.session import UiSession
 
 _GROUPS_KEY = "forced_groups"  # the Forced friends section of the offer (see forced_groups)
@@ -29,7 +30,7 @@ async def open_import(session: UiSession, where: str) -> None:
     workspace = session.workspace
     offer = mutations.tag_import_offer(workspace)
     sources = {s["id"]: s for s in offer["sources"]}
-    with ui.dialog() as dialog, ui.card().classes("w-[44rem] max-w-full"):
+    with dialogs.page_dialog(client=session.client) as dialog, ui.card().classes("w-[44rem] max-w-full"):
         ui.label("Import z dřívějšího ročníku").classes("text-lg font-bold")
         if not sources:
             ui.label("Zatím není uložen žádný dřívější ročník, takže není co importovat.")
@@ -228,7 +229,7 @@ async def open_promotion(session: UiSession) -> None:
         chosen.update({tag_id: field.value or "" for tag_id, field in extra_names.items()})
         return chosen
 
-    with ui.dialog() as dialog, ui.card().classes("w-[44rem] max-w-full"):
+    with dialogs.page_dialog(client=session.client) as dialog, ui.card().classes("w-[44rem] max-w-full"):
         ui.label("Zestárnutí třídy").classes("text-lg font-bold")
         if offer["nothing_to_promote"]:
             ui.label("Teď není co zestárnout: žádný štítek třídy nezaostává o školní rok.")

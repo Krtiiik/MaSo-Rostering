@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Optional
 
-from nicegui import run, ui
+from nicegui import Client, run, ui
 
 from rostering.czech import plural
 from rostering.webapp import labels, mutations
@@ -27,10 +27,10 @@ SOLVING_TITLE = "Sestavuji rozdělení…"
 PLACING_TITLE = "Zařazuji…"
 
 
-async def run_in_modal(title: str, work: Callable[[], Any]) -> Optional[Any]:
+async def run_in_modal(title: str, work: Callable[[], Any], *, client: Optional[Client] = None) -> Optional[Any]:
     """Run blocking ``work`` off the event loop under an undismissible dialog.
     Returns its result, or ``None`` after showing the failure."""
-    with ui.dialog().props("persistent") as dialog, ui.card().classes("min-w-[22rem] items-center"):
+    with dialogs.page_dialog(auto_delete=False, client=client).props("persistent") as dialog, ui.card().classes("min-w-[22rem] items-center"):
         ui.label(title).classes("text-lg font-bold")
         spinner = ui.spinner(size="lg")
         message = ui.label("Může to chvíli trvat, čekejte prosím.").classes("text-sm text-gray-600")
@@ -44,7 +44,7 @@ async def run_in_modal(title: str, work: Callable[[], Any]) -> Optional[Any]:
         error = f"Neočekávaná chyba: {exc}"
     else:
         dialog.close()
-        dialog.delete()
+        dialogs._discard(dialog)
         return result
     spinner.delete()
     message.text = error
@@ -52,7 +52,7 @@ async def run_in_modal(title: str, work: Callable[[], Any]) -> Optional[Any]:
     with message.parent_slot.parent:
         ui.button("Zavřít", on_click=dialog.close)
     await dialog
-    dialog.delete()
+    dialogs._discard(dialog)
     return None
 
 
@@ -62,6 +62,27 @@ def _announce_dropped_locks(state: dict) -> None:
 
 
 async def solve(session: UiSession, *, open_roster: bool = False) -> bool:
+    """A full Solve of the saved Season, confirmed first when it would replace
+    unlocked Assignments. ``open_roster`` shows the Roster tab afterwards. Runs
+    on the page itself (the calling view may be redrawn by the save before it)."""
+    with session.client:
+        return await _solve(session, open_roster=open_roster)
+
+
+async def place_new(session: UiSession) -> None:
+    """Place only the unassigned Helpers; everyone placed stays exactly where
+    they are, so no confirmation is needed."""
+    with session.client:
+        await _place_new(session)
+
+
+async def clear_roster(session: UiSession) -> None:
+    """Remove every Assignment, locked ones too, after confirming."""
+    with session.client:
+        await _clear_roster(session)
+
+
+async def _solve(session: UiSession, *, open_roster: bool = False) -> bool:
     """A full Solve of the saved Season, confirmed first when it would replace
     unlocked Assignments. ``open_roster`` shows the Roster tab afterwards."""
     count = mutations.unlocked_assignments_replaced(session.state)
@@ -76,10 +97,11 @@ async def solve(session: UiSession, *, open_roster: bool = False) -> bool:
                 f"{count} neuzamčených přiřazení bude nahrazeno.",
             ),
             danger=False,
-        )
+        ),
+        client=session.client,
     ):
         return False
-    solved = await run_in_modal(SOLVING_TITLE, lambda: mutations.solve(session.workspace))
+    solved = await run_in_modal(SOLVING_TITLE, lambda: mutations.solve(session.workspace), client=session.client)
     if solved is None:
         return False
     if open_roster:
@@ -89,11 +111,11 @@ async def solve(session: UiSession, *, open_roster: bool = False) -> bool:
     return True
 
 
-async def place_new(session: UiSession) -> None:
+async def _place_new(session: UiSession) -> None:
     """Place only the unassigned Helpers; everyone placed stays exactly where
     they are, so no confirmation is needed."""
     newcomers = len(mutations.unplaced_helpers(session.state))
-    placed = await run_in_modal(PLACING_TITLE, lambda: mutations.place_new_registrants(session.workspace))
+    placed = await run_in_modal(PLACING_TITLE, lambda: mutations.place_new_registrants(session.workspace), client=session.client)
     if placed is None:
         return
     session.apply(placed)
@@ -102,7 +124,7 @@ async def place_new(session: UiSession) -> None:
     ui.notify(f"Zařazeno: {newcomers} {noun}; všichni ostatní zůstali, kde byli.", type="positive")
 
 
-async def clear_roster(session: UiSession) -> None:
+async def _clear_roster(session: UiSession) -> None:
     count = len(session.state["assignments"])
     locked = mutations.locked_count(session.state)
     intro = f"Všechna přiřazení ({count}) budou odstraněna a výsledek řešení se vynuluje."
@@ -114,6 +136,7 @@ async def clear_roster(session: UiSession) -> None:
             ok_label="Vymazat rozdělení",
             intro=intro,
             caption="Pomocníci, štítky a manuální role zůstanou.",
-        )
+        ),
+        client=session.client,
     ):
         await session.act(lambda: mutations.clear_roster(session.workspace))

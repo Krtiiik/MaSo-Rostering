@@ -102,7 +102,7 @@ def helper_chip(view: GridView, helper_id: int) -> str:
     classes += ["unsatisfied"] if unsatisfied else []
     classes += ["broken"] if broken else []
     classes += ["locked"] if locked else []
-    classes += ["dimmed"] if helper_id in view.dimmed_helper_ids else []
+    classes += ["chip-dimmed"] if helper_id in view.dimmed_helper_ids else []
     classes += ["tag-striped"] if stripes else []
     if role_fit is not None:
         classes.append("role-fit-ok" if role_fit else "role-fit-bad")
@@ -160,7 +160,7 @@ def organizer_chip(view: GridView, organizer: dict, source: Optional[dict], remo
     broken = organizer.get("broken") or []
     classes = ["manual-chip", "organizer-chip"]
     classes += ["tag-striped"] if stripes else []
-    classes += ["dimmed"] if organizer.get("dimmed") else []
+    classes += ["chip-dimmed"] if organizer.get("dimmed") else []
     classes += ["broken"] if broken else []
     attrs = _attrs(
         class_=" ".join(classes),
@@ -413,8 +413,8 @@ CSS = """
 .roster-grid-root .helper-chip.locked { border: 2px solid #262730; padding: 1px 5px; }
 .roster-grid-root .helper-chip-answers-changed { color: #e0a800; font-weight: 700; }
 .roster-grid-root .helper-chip-forced { cursor: help; }
-.roster-grid-root .helper-chip.dimmed, .roster-grid-root .manual-chip.dimmed { opacity: .3; }
-.roster-grid-root .helper-chip.dimmed:hover, .roster-grid-root .manual-chip.dimmed:hover { opacity: 1; }
+.roster-grid-root .helper-chip.chip-dimmed, .roster-grid-root .manual-chip.chip-dimmed { opacity: .3; }
+.roster-grid-root .helper-chip.chip-dimmed:hover, .roster-grid-root .manual-chip.chip-dimmed:hover { opacity: 1; }
 .roster-grid-root .helper-chip.dragging, .roster-grid-root .organizer-chip.dragging { opacity: .5; }
 .roster-grid-root .helper-chip.unsatisfied { border-color: #e0a800; background: #fff6e0; }
 .roster-grid-root .helper-chip.friend-highlight-satisfied { outline: 2px solid #21c354; outline-offset: 1px; }
