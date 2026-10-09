@@ -17,7 +17,17 @@ import re
 from html import escape
 from typing import Iterable, Optional
 
-from rostering.webapp.ui.grid.data import GridRow, GridView, building_groups, group_adjacent
+from rostering.webapp.ui.grid.data import (
+    PREFERENCE_LABELS,
+    GridRow,
+    GridView,
+    building_groups,
+    group_adjacent,
+)
+from rostering.domain import Preference
+
+# Preference level (5 Ano .. 1 Ne) -> its Czech wording, for the role-fit tooltip.
+ROLE_FIT_LABELS = {Preference[name].value: label for name, label in PREFERENCE_LABELS.items()}
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 # How much of a Tag's colour goes into its stripe; the rest is the chip's own
@@ -105,14 +115,14 @@ def helper_chip(view: GridView, helper_id: int) -> str:
     classes += ["chip-dimmed"] if helper_id in view.dimmed_helper_ids else []
     classes += ["tag-striped"] if stripes else []
     if role_fit is not None:
-        classes.append("role-fit-ok" if role_fit else "role-fit-bad")
+        classes.append(f"role-fit-{role_fit}")
     if building_fit is not None:
         classes.append("building-fit-ok" if building_fit else "building-fit-bad")
     title = _title(
         [
             *broken,
             "Má nesplněné přání být s kamarádem" if unsatisfied else "",
-            "" if role_fit is None else ("Spokojen/a s rolí" if role_fit else "Nespokojen/a s rolí"),
+            "" if role_fit is None else f"Přání pro tuto roli: {ROLE_FIT_LABELS[role_fit]}",
             "" if building_fit is None else ("Spokojen/a s budovou" if building_fit else "Nespokojen/a s budovou"),
             (tag_title(h["tags"]) or "") if view.tags_on else "",
         ]
@@ -425,14 +435,17 @@ CSS = """
 .roster-grid-root .helper-chip.friend-highlight-requester, .roster-grid-root .organizer-chip.friend-highlight-requester {
   outline: 2px solid #9c27b0; outline-offset: 1px;
 }
-.roster-grid-root .helper-chip.role-fit-ok, .roster-grid-root .helper-chip.role-fit-bad {
+.roster-grid-root .helper-chip[class*="role-fit-"] {
   border-left-width: 4px; padding-left: 3px;
 }
 .roster-grid-root .helper-chip.building-fit-ok, .roster-grid-root .helper-chip.building-fit-bad {
   border-top-width: 3px; padding-top: 0;
 }
-.roster-grid-root .helper-chip.role-fit-ok { border-left-color: #21c354; }
-.roster-grid-root .helper-chip.role-fit-bad { border-left-color: #dc3545; }
+.roster-grid-root .helper-chip.role-fit-5 { border-left-color: #21c354; }
+.roster-grid-root .helper-chip.role-fit-4 { border-left-color: #9acd32; }
+.roster-grid-root .helper-chip.role-fit-3 { border-left-color: #f5d800; }
+.roster-grid-root .helper-chip.role-fit-2 { border-left-color: #fd7e14; }
+.roster-grid-root .helper-chip.role-fit-1 { border-left-color: #dc3545; }
 .roster-grid-root .helper-chip.building-fit-ok { border-top-color: #21c354; }
 .roster-grid-root .helper-chip.building-fit-bad { border-top-color: #dc3545; }
 .roster-grid-root .helper-chip.tag-striped, .roster-grid-root .manual-chip.tag-striped { background-clip: padding-box; }

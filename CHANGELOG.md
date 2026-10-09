@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows their Tags and the Forced friends groups that bind them, and has an
   "Upravit" button that opens the same person sheet as a click on their row in
   the People tab.
+- Roster grid: the "Spokojenost s rolí" overlay is now a five-step gradient
+  instead of green/red. The chip's left border shows the Helper's preference for
+  the Role they are placed in: Ano green, Klidně yellow-green, Nevadí yellow
+  (also a blank answer), Spíš ne orange, Ne red. The tooltip names the answer.
 - Roster grid: every Organizer role cell (Vedoucí budovy, Pravá ruka, Vedoucí
   místností and Technická podpora) can now hold several Organizers, by typing
   names or dropping chips. Adding someone no longer replaces the holder; the

@@ -657,10 +657,12 @@ pushing the tag, not just creating it locally.
   `data-friends` / `data-requesters`) and the persistent orange unsatisfied
   marker (off = neither); the details card's friend lists are not an overlay.
   *Role satisfaction* (`role_fit`) gives a placed chip a thick left border and
-  *Building satisfaction* (`building_fit`) a thick top border, green/red
+  *Building satisfaction* (`building_fit`) a thick top border
   (`GridView.role_fit` / `building_fit`, `.role-fit-*` / `.building-fit-*` in
-  `render.CSS`): a Role is satisfied at Nevadí or better (blank = Nevadí, Záloha
-  unjudged), a Building when it is in the helper's `acceptable_buildings`
+  `render.CSS`). Role satisfaction is a five-step gradient on the preference
+  level for the placed Role (`role_fit` returns 5..1, `.role-fit-5` green, 4
+  yellow-green, 3 yellow, 2 orange, 1 red; blank = Nevadí, Záloha unjudged);
+  Building satisfaction stays green/red: satisfied when the Building is in the helper's `acceptable_buildings`
   (`grid.data.acceptable_buildings`, matched with `building_keys`; empty Building
   preference = every Building). *Tags* stripes each chip (Helper and Organizer
   alike) into equal segments, one per **direct** Tag in its colour
