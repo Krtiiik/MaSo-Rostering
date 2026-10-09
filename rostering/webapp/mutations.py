@@ -329,6 +329,7 @@ _SURVEY_FIELDS = (
     "can_bring_camera",
     "email",
     "phone",
+    "survey_responses",
 )
 # The answers whose change matters for a placed Helper, in the order the
 # summary and the marker list them.
@@ -394,8 +395,12 @@ def _refresh_from_survey(record: dict, fresh: dict) -> None:
     unresolved = fresh["friend_name_order"]
     typed = set(record.get("hand_typed") or [])
     for field in _SURVEY_FIELDS:
-        if field not in typed:
+        if field in typed:
+            continue
+        if field in fresh:
             record[field] = fresh[field]
+        else:  # an optional key the serializer leaves out when empty
+            record.pop(field, None)
 
     if "tshirt_size" not in typed:
         baseline = record.get("survey_tshirt_size")

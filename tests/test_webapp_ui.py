@@ -515,3 +515,20 @@ async def test_start_over_asks_first(user: User, seasons):
     user.find(marker="confirm-ok").click()
     await asyncio.sleep(0.1)
     assert _state(seasons)["helpers"] == []
+
+
+async def test_the_person_sheet_lists_a_helpers_raw_survey_responses(user: User, seasons):
+    state = _state(seasons)
+    state["helpers"][0]["survey_responses"] = [
+        {"question": "Tvoje jméno a příjmení", "answer": "Anna"},
+        {"question": "Něco navíc, co aplikace nečte", "answer": "Mám rád/a koláče"},
+        {"question": "Poznámka", "answer": ""},
+    ]
+    seasons.save(state)
+    await user.open("/")  # the open page still holds the state it loaded
+    user.find(marker="helper-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    await user.should_see(marker="person-name")
+    user.find(kind=ui.tab, content="Odpovědi z dotazníku").click()
+    await user.should_see("Něco navíc, co aplikace nečte")
+    await user.should_see("Mám rád/a koláče")
+    await user.should_see("— bez odpovědi —")

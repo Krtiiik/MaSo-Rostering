@@ -460,3 +460,24 @@ def test_a_missing_phone_column_leaves_phones_empty_without_a_warning(tmp_path):
 def test_a_numeric_phone_cell_is_kept_as_text(tmp_path):
     path = _write_phone_survey(tmp_path, [777888999], "Telefonní číslo")
     assert parse_raw_survey(path).helpers[0].phone == "777888999"
+
+
+# ---- raw responses ----
+
+
+def test_every_column_of_the_row_is_kept_as_a_raw_response_even_when_not_parsed(tmp_path):
+    survey = generate_survey(3)
+    survey["Něco navíc, co aplikace nečte"] = ["Mám rád/a koláče", None, 42.0]
+    path = tmp_path / "survey.xlsx"
+    survey.to_excel(path, index=False)
+
+    result = parse_raw_survey(path)
+
+    first = dict(result.helpers[0].survey_responses)
+    assert [q for q, _ in result.helpers[0].survey_responses] == list(survey.columns)
+    assert first["Něco navíc, co aplikace nečte"] == "Mám rád/a koláče"
+    assert first["Tvoje jméno a příjmení"] == result.helpers[0].name
+    assert first["Časová značka"] == "5. 1. 2026 08:00:00"
+    # A blank cell stays in the list as an empty answer; a whole number loses its ".0".
+    assert dict(result.helpers[1].survey_responses)["Něco navíc, co aplikace nečte"] == ""
+    assert dict(result.helpers[2].survey_responses)["Něco navíc, co aplikace nečte"] == "42"
