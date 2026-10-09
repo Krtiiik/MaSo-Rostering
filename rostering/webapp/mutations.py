@@ -1619,24 +1619,17 @@ def _place_organizer(
 ) -> None:
     """Put an Organizer in a slot cell. They hold exactly one placement, so any
     entry of theirs elsewhere is removed (the placement moves); entries of theirs
-    at this same Building/Room in other slots stay. A single-holder cell drops
-    its previous holder, an untracked legacy entry included. An Organizer flagged
-    Can't attend holds nothing (like a Helper, they are not on the roster)."""
+    at this same Building/Room in other slots stay. A cell takes any number of
+    Organizers; the others already in it stay. An Organizer flagged Can't attend
+    holds nothing (like a Helper, they are not on the roster)."""
     record = _organizer_record(state, organizer_id)
     if record.get("cant_attend"):
         raise RosteringError(f"{record['name']} je označen(a) jako Nemůže se zúčastnit: před přidělením místa to zrušte.")
-    kept = []
-    for entry in state["manual_roles"]["structural"]:
-        if entry.get("organizer_id") == organizer_id and not _same_place(entry, building, room):
-            continue
-        if (
-            slot in organizer_slots.SINGLE_HOLDER_ROLES
-            and entry["role"] == slot.name
-            and _same_place(entry, building, room)
-            and entry.get("organizer_id") != organizer_id
-        ):
-            continue
-        kept.append(entry)
+    kept = [
+        entry
+        for entry in state["manual_roles"]["structural"]
+        if not (entry.get("organizer_id") == organizer_id and not _same_place(entry, building, room))
+    ]
     if not any(e.get("organizer_id") == organizer_id and e["role"] == slot.name and _same_place(e, building, room) for e in kept):
         kept.append(
             {
@@ -1875,9 +1868,8 @@ def assign_organizer(
     ``building`` and, for a Room-scoped slot, ``room``. This is the only way an
     Organizer is placed: a Room-scoped slot gives Building and Room, a
     Building-scoped one the Building. Assigning them to a slot at another
-    placement moves the placement and removes their previous slot entries. A
-    single-holder cell (Vedoucí budovy, Pravá ruka, Vedoucí místností) drops its
-    previous holder. An address that does not fit the slot's scope is a
+    placement moves the placement and removes their previous slot entries. Any
+    slot cell can hold several Organizers. An address that does not fit the slot's scope is a
     structural error, but a placement is never refused for the Broken rules it
     may cause."""
     state = workspace.load()
@@ -1976,7 +1968,7 @@ def set_slot_holders(
     and spacing) picks them, one nobody tracks creates an Organizer on the spot,
     and a name of an untracked legacy entry already in the cell keeps that entry.
     Whoever is no longer named is removed from the cell (an Organizer left with no
-    slot loses their placement). A single-holder slot keeps only the last name."""
+    slot loses their placement)."""
     state = workspace.load()
     slot = _checked_slot(state, role, building, room)
     room = room or None
@@ -2001,8 +1993,6 @@ def set_slot_holders(
         if picked is None:
             picked = _new_organizer(workspace, state, name, None)
         desired.append(("organizer", picked["id"]))
-    if slot in organizer_slots.SINGLE_HOLDER_ROLES:
-        desired = desired[-1:]
 
     cell_ids = {id(e) for e in cell}
     keep_legacy = {id(entry) for kind, entry in desired if kind == "legacy"}

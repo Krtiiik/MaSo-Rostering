@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Roster grid: every Organizer role cell (Vedoucí budovy, Pravá ruka, Vedoucí
+  místností and Technická podpora) can now hold several Organizers, by typing
+  names or dropping chips. Adding someone no longer replaces the holder; the
+  Excel export already listed several names comma-separated.
+
 ## [3.0.0] - 2026-10-09
 
 ### Changed

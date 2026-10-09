@@ -265,8 +265,7 @@ def _manual_cell(
     controls: str,
 ) -> str:
     """One manual-role cell: its names as chips, a click on its background opens
-    a name field (until a single-holder slot holds someone), and it takes the
-    drops its row allows."""
+    a name field, and it takes the drops its row allows."""
     if rooms is None:
         entries = [e for e in view.entries if e["key"] == row.key and e["building"] == building and e["room"] is None]
     else:
@@ -287,7 +286,6 @@ def _manual_cell(
             chips.append(organizer_chip(view, organizer, source, removable=True))
         else:
             chips.append(manual_chip(view, e, duplicate_cell=row.duplicate_drop))
-    can_add = not row.single_entry or not entries
     drop = "org" if row.organizer else ("dup" if row.duplicate_drop else None)
     attrs = _attrs(
         data_drop=drop,
@@ -296,12 +294,10 @@ def _manual_cell(
         data_room=rooms[0] if rooms else None,
         data_rooms=json.dumps(rooms) if rooms is not None else None,
         data_names=json.dumps([e["name"] for e in entries]),
-        data_edit="1" if can_add else None,
-        data_single="1" if row.single_entry else None,
+        data_edit="1",
         data_list="grid-organizer-names" if row.organizer else "grid-helper-names",
     )
-    classes = ["grid-cell", "manual-cell"] + (["manual-cell-editable"] if can_add else [])
-    return _cell(classes, colspan, attrs, "Kliknutím přidáte jméno" if can_add else None, "".join(chips), controls)
+    return _cell(["grid-cell", "manual-cell", "manual-cell-editable"], colspan, attrs, "Kliknutím přidáte jméno", "".join(chips), controls)
 
 
 def _manual_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]]) -> str:
