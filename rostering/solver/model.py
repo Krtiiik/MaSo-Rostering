@@ -44,6 +44,7 @@ from rostering.domain import (
     RoleCapacity,
     Room,
     SolveResult,
+    group_adjacent_rooms,
 )
 from rostering.ingest.mapping import building_keys
 from rostering.solver.rules import (
@@ -99,6 +100,11 @@ class RoleCosts:
 # Every objective term is multiplied by this so the CP-SAT costs stay integers
 # once a cost is scaled by a fraction; the reported objective divides it out.
 OBJECTIVE_SCALE = 60
+
+# Cost, in the weights' unit, of each person placed over an even share of a
+# merged cell (see the balance term in ``solve_competition``). Fixed: it is a
+# tie-breaker-with-teeth, above one unmet friend request, not a setting.
+GROUP_BALANCE_WEIGHT = 10
 
 
 @dataclass
@@ -295,6 +301,33 @@ def solve_competition(
         if weighted:
             penalty_terms.append(weighted * (1 - satisfied))
             ordinary_max += weighted
+
+    # A Building-wide count of a Role (e.g. "2 Fotograf in this Building") whose
+    # row is merged into several cells in the grid should be spread over those
+    # cells, not piled into one. Soft: each person over an even share of a cell
+    # costs ``GROUP_BALANCE_WEIGHT``. A Building with no merge for the Role is
+    # left alone (its Rooms are not a spread the user asked for).
+    for building in buildings:
+        room_ids = building_rooms.get(building.name, [])
+        if len(room_ids) != len(building.rooms):
+            continue  # the synthetic-room fallback
+        for role, cap in building.capacities.items():
+            if not cap.minimum:
+                continue
+            merges = comp.cell_merges.get(role.name, {}).get(building.name, [])
+            groups = group_adjacent_rooms([r.name for r in building.rooms], merges)
+            if len(groups) < 2 or len(groups) == len(building.rooms):
+                continue
+            share = -(-cap.minimum // len(groups))  # ceiling
+            start = 0
+            for group in groups:
+                group_rooms = room_ids[start : start + len(group)]
+                start += len(group)
+                excess = model.NewIntVar(0, len(helpers), f"balance_{building.name}_{role.name}_{group[0]}")
+                model.Add(excess >= sum(role_room_var[h.id, role, rid] for rid in group_rooms for h in helpers) - share)
+                weight = GROUP_BALANCE_WEIGHT * scale
+                penalty_terms.append(weight * excess)
+                ordinary_max += weight * len(helpers)
 
     ordinary_objective = sum(penalty_terms)
     units_by_tier: dict[Tier, int] = {}

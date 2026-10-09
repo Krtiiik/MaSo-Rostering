@@ -151,6 +151,7 @@ def _build_competition(state: dict[str, Any]) -> Competition:
         tags=_tag_definitions(state),
         organizers=organizers,
         forced_groups=forced_friends.groups_from_state(state),
+        cell_merges=state.get("cell_merges", {}),
     )
 
 

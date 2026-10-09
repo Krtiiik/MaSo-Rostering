@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rozdělení: když je počet role (např. 2 Fotografové) zadaný pro celou budovu a řádek
+  té role je v rozpisu sloučený do několika buněk (např. 4 místnosti jako 2 + 2), řešič
+  teď role rozloží rovnoměrně mezi sloučené buňky (1 + 1), místo aby je dal do jedné.
+  Je to měkké pravidlo: přednost mají povinná pravidla.
 - Rozpis: dragging a chip near the edge of the grid (or of the page) now scrolls
   it automatically, faster the closer the pointer is to the edge.
 - Rozpis: the unassigned Organizers now stay pinned under the toolbar while the
