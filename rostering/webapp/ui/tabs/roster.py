@@ -146,7 +146,7 @@ class RosterTab:
                         clear_locks.set_enabled(bool(locked))
                         ui.separator()
                         clear = ui.menu_item("Vymazat rozdělení", on_click=lambda: solving.clear_roster(s))
-                        clear.set_enabled(bool(assignments))
+                        clear.set_enabled(bool(assignments) or bool(mutations.placed_organizer_slots(s.state)))
                 ui.space()
                 if broken:
                     count = len(broken)
