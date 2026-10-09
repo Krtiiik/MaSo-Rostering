@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rozpis: only the grid table scrolls sideways; the "Nezařazení" list above it
   stays in place instead of scrolling along with it.
+- Štítky: the tab is now a searchable table of the Tag tree (indented in tree order,
+  with Helper and Organizer counts), like the People tab. A Tag's form, carriers
+  and delete are in a sheet that slides in from the right when its row is clicked
+  ("Nový štítek" opens it empty) and is hidden otherwise.
 - Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
   the Helpers table header, the same as the Organizers' "Načíst organizátory",
   instead of the upload card at the top of the tab. With no Season open the tab
