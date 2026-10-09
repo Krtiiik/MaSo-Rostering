@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names or dropping chips. Adding someone no longer replaces the holder; the
   Excel export already listed several names comma-separated.
 
+### Fixed
+
+- The roster grid's details card, when it opens above the clicked person, now sits
+  right next to them instead of floating well above.
+
 ## [3.0.0] - 2026-10-09
 
 ### Changed

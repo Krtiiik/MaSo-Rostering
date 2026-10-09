@@ -180,3 +180,12 @@ def test_a_leadership_slot_still_takes_more_names_once_held(workspace):
     cell = re.search(r'<td [^>]*data-key="VedouciBudovy"[^>]*data-building="Karlín"[^>]*>', html).group(0)
     assert "data-edit" in cell
     assert re.search(r'data-oid="%d"' % boss, html)
+
+
+def test_details_card_flipped_above_is_anchored_by_its_bottom_edge():
+    from rostering.webapp.ui.grid.card import CURSOR_OFFSET, card_position
+
+    below = card_position(100, 100, 1200, 800)
+    assert below.startswith(f"top:{100 + CURSOR_OFFSET}px")
+    above = card_position(100, 780, 1200, 800)
+    assert above.startswith(f"bottom:{800 - (780 - CURSOR_OFFSET)}px")
