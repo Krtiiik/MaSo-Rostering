@@ -176,6 +176,29 @@ def test_the_card_lists_organizers_among_the_friends_by_where_they_are(workspace
     assert card["different"] == ["Cyril", "Far (organizátor)"]
 
 
+def test_the_organizer_card_gives_placement_contact_and_who_asked_for_them(workspace):
+    ids = _name_organizers(workspace, Boss=("Karlín", "K1"), Waiting=(None, None))
+    mutations.update_organizer(workspace, ids["Boss"], email="boss@example.cz", phone="123 456", tshirt_size="L")
+
+    boss = data.organizer_card_data(_view(workspace), ids["Boss"])
+
+    assert boss["name"] == "Boss"
+    assert boss["placement"] == "Karlín · K1"
+    assert boss["slots"] == ["Vedoucí místností · Karlín · K1"]
+    assert (boss["phone"], boss["email"], boss["tshirt_size"]) == ("123 456", "boss@example.cz", "L")
+    assert boss["requested_by"] == ["Anna"]
+    waiting = data.organizer_card_data(_view(workspace), ids["Waiting"])
+    assert (waiting["placement"], waiting["slots"], waiting["tshirt_size"]) == ("", [], "")
+
+
+def test_the_organizer_card_is_missing_for_one_who_cannot_attend(workspace):
+    ids = _name_organizers(workspace, Away=("Troja", None))
+    mutations.set_organizer_cant_attend(workspace, ids["Away"], True, confirmed=True)
+
+    assert data.organizer_card_data(_view(workspace), ids["Away"]) is None
+    assert data.organizer_card_data(_view(workspace), 999) is None
+
+
 def test_the_html_wires_organizer_requests_into_the_chips(workspace):
     ids = _name_organizers(workspace, Near=("Karlín", "K1"), Far=("Troja", None))
     html = render.render(_view(workspace), {})

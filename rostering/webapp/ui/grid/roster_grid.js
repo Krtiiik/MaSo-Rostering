@@ -9,7 +9,8 @@
 // names} (a duplicate drop or a chip's ×; names are never typed); cell_merge
 // {key, building, pairs, merged}; row_merge {key, building, room, merged} (a tall
 // cell: the cell's row merged with the one under it, or split again); lock
-// {helper_id, locked}; card {helper_id, x, y, width, height}; card_close.
+// {helper_id, locked}; card {helper_id | organizer_id, x, y, width, height};
+// card_close.
 
 const DRAG_MIME = "application/x-rostering-chip";
 
@@ -77,7 +78,7 @@ export default {
     // chip's own click switches it), and on Escape.
     this.onDocPointerDown = (e) => {
       if (!document.querySelector(".helper-card")) return;
-      if (closest(e.target, ".helper-card") || closest(e.target, ".helper-chip")) return;
+      if (closest(e.target, ".helper-card") || closest(e.target, ".helper-chip, .organizer-chip")) return;
       this.$emit("card_close");
     };
     this.onDocKeyDown = (e) => {
@@ -275,6 +276,17 @@ export default {
         if (!cell) return;
         const names = jsonAttr(cell, "data-names", []).filter((n) => n !== remove.dataset.remove);
         this.$emit("manual_set", { key: cell.dataset.key, building: cell.dataset.building, room: cell.dataset.room ?? null, names });
+        return;
+      }
+      const organizer = closest(e.target, ".organizer-chip");
+      if (organizer) {
+        this.$emit("card", {
+          organizer_id: Number(organizer.dataset.oid),
+          x: e.clientX,
+          y: e.clientY,
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
         return;
       }
       const chip = closest(e.target, ".helper-chip");

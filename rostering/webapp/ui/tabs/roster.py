@@ -50,7 +50,7 @@ class RosterTab:
     def __init__(self, session: UiSession, sheet: PersonSheet) -> None:
         self.session = session
         self.sheet = sheet
-        self.card = HelperCard(self._toggle_lock, lambda helper_id: self.sheet.show("helper", helper_id))
+        self.card = HelperCard(self._toggle_lock, lambda kind, person_id: self.sheet.show(kind, person_id))
         self.broken_open = False
         self.grid: Optional[RosterGrid] = None
         self._tag_picker: Optional[ui.select] = None

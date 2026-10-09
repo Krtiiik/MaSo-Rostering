@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
-from rostering.domain import OverlayRole, Preference, Role, StructuralRole, normalize_name
+from rostering.domain import UNKNOWN_TSHIRT_SIZE, OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.row_merges import TallCell, candidates
 from rostering.ingest.mapping import building_keys
 from rostering.webapp import labels, mutations
@@ -218,6 +218,11 @@ def grid_organizers(
             "id": o["id"],
             "name": o["name"],
             "placed": o.get("building") is not None,
+            "building": o.get("building"),
+            "room": o.get("room"),
+            "phone": o.get("phone"),
+            "email": o.get("email"),
+            "tshirt_size": o.get("tshirt_size"),
             "tags": organizer_pills.get(o["id"]),
             "dimmed": o["id"] in dimmed_organizer_ids,
             "broken": organizer_broken.get(o["id"], []),
@@ -458,4 +463,31 @@ def card_data(view: GridView, helper_id: int) -> Optional[dict]:
         "requested_by": [names[r] for r in view.requesters.get(helper_id, [])],
         "tags": h["tags"],
         "forced_groups": h["forced_groups"],
+    }
+
+
+def organizer_card_data(view: GridView, organizer_id: int) -> Optional[dict]:
+    """The details card of one Organizer: where they are placed and in which
+    leadership slots, their contact details and T-shirt size, their Tags (shown
+    whatever the Overlays) and the Helpers who asked to be with them. None for an
+    Organizer who is not on the grid (unknown, or can't attend)."""
+    o = next((x for x in view.organizers if x["id"] == organizer_id), None)
+    if o is None:
+        return None
+    names = {i: x["name"] for i, x in view.helpers.items()}
+    slots = [
+        " · ".join(filter(None, [StructuralRole[e["key"]].value, e["building"], e["room"]]))
+        for e in view.entries
+        if e.get("organizer_id") == organizer_id and e["key"] in STRUCTURAL_ROLE_NAMES
+    ]
+    tshirt = o["tshirt_size"]
+    return {
+        "name": o["name"],
+        "placement": " · ".join(filter(None, [o["building"], o["room"]])),
+        "slots": slots,
+        "phone": o["phone"] or "",
+        "email": o["email"] or "",
+        "tshirt_size": "" if tshirt in (None, UNKNOWN_TSHIRT_SIZE) else tshirt,
+        "requested_by": [names[r] for r in view.organizer_requesters.get(organizer_id, []) if r in names],
+        "tags": o["tags"],
     }
