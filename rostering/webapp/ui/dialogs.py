@@ -41,7 +41,7 @@ async def confirm(spec: ConfirmSpec) -> bool:
             ui.button(CANCEL, on_click=lambda: dialog.submit(False)).props("flat")
             ui.button(spec.ok_label, on_click=lambda: dialog.submit(True)).props(
                 "color=negative" if spec.danger else "color=primary"
-            )
+            ).mark("confirm-ok")
     result = await dialog
     dialog.delete()
     return bool(result)
@@ -61,11 +61,11 @@ async def ask_text(
         ui.label(title).classes("text-lg font-bold")
         if intro:
             ui.markdown(intro)
-        field = ui.input(label, value=value).props(f'hint="{hint}"' if hint else "").classes("w-full")
+        field = ui.input(label, value=value).props(f'hint="{hint}"' if hint else "").classes("w-full").mark("ask-field")
         field.on("keydown.enter", lambda: dialog.submit(field.value))
         with ui.row().classes("w-full justify-end gap-2 mt-2"):
             ui.button(CANCEL, on_click=lambda: dialog.submit(None)).props("flat")
-            ui.button(ok_label, on_click=lambda: dialog.submit(field.value)).props("color=primary")
+            ui.button(ok_label, on_click=lambda: dialog.submit(field.value)).props("color=primary").mark("ask-ok")
     result = await dialog
     dialog.delete()
     if result is None:

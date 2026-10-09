@@ -100,23 +100,3 @@ def test_a_slot_address_that_does_not_fit_is_refused(workspace):
 
     with pytest.raises(mutations.RosteringError):
         mutations.move_organizer(workspace, boss, "VedouciMistnosti", "Karlín")
-
-
-def test_the_grid_lists_attending_organizers_and_which_ones_wait_unplaced(workspace):
-    # (grid_tab registers the grid component on import, which needs the Streamlit
-    # runtime's component manager; imported inside the test like test_grid_overlays.)
-    from rostering.streamlit_app.tabs import grid_tab
-
-    placed = _create(workspace, "Placed")
-    waiting = _create(workspace, "Waiting")
-    absent = _create(workspace, "Absent")
-    mutations.assign_organizer(workspace, placed, "VedouciBudovy", "Karlín")
-    mutations.set_organizer_cant_attend(workspace, absent, True)
-    state = mutations.get_state(workspace)
-
-    listed = grid_tab._grid_organizers(state, {}, [waiting], {placed: ["rule broken"]})
-
-    assert [(o["id"], o["placed"], o["dimmed"], o["broken"]) for o in listed] == [
-        (placed, True, False, ["rule broken"]),
-        (waiting, False, True, []),
-    ]

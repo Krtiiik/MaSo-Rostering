@@ -99,7 +99,7 @@ class TagsTab:
                 if organizer_counts[tag.id]:
                     n = organizer_counts[tag.id]
                     count += f" + {n} " + plural(n, "organizátor", "organizátoři", "organizátorů")
-                item = ui.item(on_click=lambda tid=tag.id: self._select(tid)).classes(
+                item = ui.item(on_click=lambda tid=tag.id: self._select(tid)).mark(f"tag-{tag.id}").classes(
                     "rounded" + (" bg-blue-50" if tag.id == selected else "")
                 )
                 with item:
@@ -253,7 +253,7 @@ class TagsTab:
             with ui.row().classes("w-full items-center"):
                 ui.label(f"Kdo štítek nese ({len(carriers) + len(organizer_carriers)})").classes("text-lg font-bold grow")
                 search = ui.input(placeholder="Hledat…").props("dense clearable").classes("w-56")
-                save = ui.button("Uložit změny").props("color=primary")
+                save = ui.button("Uložit změny").props("color=primary").mark("tag-carriers-save")
             if not rows:
                 ui.label("Zatím nejsou žádní pomocníci ani organizátoři.").classes("text-sm text-gray-500")
                 return
@@ -267,7 +267,7 @@ class TagsTab:
                 row_key="key",
                 selection="multiple",
                 pagination={"rowsPerPage": 0},
-            ).props("flat dense hide-bottom virtual-scroll").classes("w-full max-h-[32rem]")
+            ).props("flat dense hide-bottom virtual-scroll").classes("w-full max-h-[32rem]").mark("tag-carriers")
             table.bind_filter_from(search, "value")
             table.selected = [r for r in rows if r["key"] in current]
 

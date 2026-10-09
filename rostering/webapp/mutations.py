@@ -1,10 +1,9 @@
-"""State-mutation functions for the Streamlit app.
+"""State-mutation functions for the web app.
 
-Each function mirrors one route of the old FastAPI backend
-(``rostering/webapp/api.py``, since deleted): it takes the workspace plus
-whatever the UI just did, mutates the JSON-shaped workspace state, persists
-it, and returns the new state dict. Kept free of any Streamlit import so it
-can be unit-tested directly and reused unchanged by any future caller.
+Each function takes the workspace plus whatever the UI just did, mutates the
+JSON-shaped workspace state, persists it, and returns the new state dict. Kept
+free of any UI import (the NiceGUI screens live in ``rostering.webapp.ui``) so
+it can be unit-tested directly and reused unchanged by any caller.
 """
 from __future__ import annotations
 

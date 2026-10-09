@@ -41,31 +41,28 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install rostering + the assignment-grid component (non-editable)
+      - name: Install rostering (non-editable)
         # Non-editable on purpose: the built executable must not depend on
-        # this checkout's file layout at run time. The grid component's
-        # built JS/CSS bundle is committed to git (see README.md), so this
+        # this checkout's file layout at run time. The web app has no frontend
+        # build step (the roster grid's JS is plain package data), so this
         # needs no Node/npm step.
         run: |
           pip install .
-          pip install ./components/rostering-assignment-grid
           pip install pyinstaller
 
       - name: Build with PyInstaller
         run: pyinstaller packaging/rostering.spec --noconfirm --clean
 
-      - name: Verify the Streamlit app files were bundled
-        # rostering.streamlit_app.app is only ever loaded by file path (see
-        # rostering/cli.py's _cmd_serve), never `import`ed by other code, so
-        # PyInstaller's import-graph analysis can silently drop it (and the
-        # rest of streamlit_app/) even though the CLI/solve smoke tests and
-        # the `serve` HTTP check below all still pass — curling `/` only
-        # fetches the static shell and never triggers script execution.
+      - name: Verify the web app's files were bundled
+        # NiceGUI loads every element's JavaScript (the roster grid's
+        # roster_grid.js included) from the folder next to its module, as data
+        # files PyInstaller's import analysis does not see. The `serve` HTTP
+        # check below only fetches the page shell, so check the files exist.
         shell: bash
         run: |
           set -eux
-          APP=dist/rostering/_internal/rostering/streamlit_app/app.py
-          test -f "$APP"
+          test -f dist/rostering/_internal/rostering/webapp/ui/grid/roster_grid.js
+          test -d dist/rostering/_internal/nicegui/static
 
       - name: Smoke-test the built executable (CLI)
         shell: bash
@@ -100,13 +97,8 @@ jobs:
           BIN=dist/rostering/rostering
           if [ "${{ matrix.os }}" = "windows-latest" ]; then BIN="dist/rostering/rostering.exe"; fi
 
-          # Preempt Streamlit's first-run interactive email prompt, which
-          # would otherwise hang a headless/non-TTY launch forever waiting
-          # on stdin (see .claude/skills/run-rostering/SKILL.md).
-          mkdir -p ~/.streamlit
-          printf '[browser]\ngatherUsageStats = false\n' > ~/.streamlit/config.toml
-          printf '[general]\nemail = ""\n' > ~/.streamlit/credentials.toml
-
+          BIN="$GITHUB_WORKSPACE/$BIN"
+          cd "$RUNNER_TEMP"  # NiceGUI keeps its .nicegui/ storage in the working directory
           export ROSTERING_WORKSPACE_DIR="$RUNNER_TEMP/rostering-smoke-workspace"
           export ROSTERING_BUILDINGS_CONFIG_PATH="$RUNNER_TEMP/rostering-smoke-buildings.yaml"
           "$BIN" serve --port 8501 --headless < /dev/null > "$RUNNER_TEMP/serve.log" 2>&1 &

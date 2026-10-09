@@ -103,7 +103,7 @@ class Sidebar:
                 field.value = ""
 
         with ui.row().classes("w-full items-center no-wrap gap-1"):
-            field = ui.input(placeholder="Název verze…").props("dense").classes("grow")
+            field = ui.input(placeholder="Název verze…").props("dense").classes("grow").mark("version-name")
             field.on("keydown.enter", save)
             ui.button(icon="save", on_click=save).props("flat dense round").tooltip(
                 "Uložit aktuální stav jako verzi"
@@ -123,7 +123,7 @@ class Sidebar:
                         with ui.row().classes("gap-0"):
                             ui.button(icon="restore", on_click=lambda ver=v: self._restore(ver)).props(
                                 "flat dense round"
-                            ).tooltip("Obnovit")
+                            ).tooltip("Obnovit").mark("restore-version")
                             ui.button(icon="delete", on_click=lambda ver=v: self._delete_version(ver)).props(
                                 "flat dense round"
                             ).tooltip("Smazat")

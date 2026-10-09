@@ -10,10 +10,6 @@ data/
 /.claude/*
 !/.claude/skills/
 !/.claude/agents/
-# ...except symlinks a package (e.g. streamlit) installs into the venv and
-# the harness auto-links in — not project content, and the link target
-# (inside .venv/) wouldn't exist on another checkout anyway.
-/.claude/skills/developing-with-streamlit
 /.agents/
 
 __pycache__/
@@ -30,9 +26,5 @@ roster.xlsx
 
 node_modules/
 
-# The assignment-grid custom Streamlit component's built JS/CSS bundle IS
-# committed (see README.md "Setup") so installing the two editable packages
-# is enough to run the app — no Node/npm needed unless editing its JS.
-# Override the blanket "build/" rule above just for it.
-!components/rostering-assignment-grid/rostering_assignment_grid/frontend/build/
-!components/rostering-assignment-grid/rostering_assignment_grid/frontend/build/**
+# NiceGUI's per-run storage (created in the working directory by `rostering serve`).
+.nicegui/

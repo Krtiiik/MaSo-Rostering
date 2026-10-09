@@ -10,11 +10,11 @@ dependencies = [
     "pandas>=2.0",
     "openpyxl>=3.1",
     "pydantic>=2.0",
-    "streamlit>=1.47",
+    "nicegui>=3.17",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 packaging = ["pyinstaller>=6.10"]
 
 [project.scripts]
@@ -29,10 +29,11 @@ include = ["rostering*"]
 
 [tool.setuptools.package-data]
 "rostering.persistence" = ["default-buildings-config.yaml"]
-
-# The drag-and-drop assignment-grid custom Streamlit component
-# (components/rostering-assignment-grid/) is a separate installable
-# package, not part of this distribution — see README.md "Setup".
+# The roster grid's browser half, served by NiceGUI as is (no build step).
+"rostering.webapp.ui.grid" = ["*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The web app's tests drive NiceGUI's async user simulation.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

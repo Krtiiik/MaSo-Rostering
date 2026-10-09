@@ -4,23 +4,12 @@
 #   pyinstaller packaging/rostering.spec --noconfirm --clean
 #
 # Produces a one-directory build under dist/rostering/ containing the
-# executable plus all supporting files — deliberately not --onefile,
-# because two things below need real files on disk at runtime rather than
-# bytecode packed into PyInstaller's PYZ archive:
-#
-# 1. Streamlit's ``bootstrap.run`` reads the app's script source
-#    (rostering/streamlit_app/*.py) from a real file path at run time, not
-#    via a normal Python import.
-# 2. The rostering-assignment-grid custom Streamlit component (CCv2) is
-#    discovered via ``importlib.util.find_spec`` and then reads a sibling
-#    ``pyproject.toml`` (for its declared ``asset_dir``) and the built
-#    frontend/build/*.js/*.css files next to its own __init__.py — see that
-#    package's docstring and rostering/CLAUDE.md.
-#
-# ``module_collection_mode: "pyz+py"`` for these packages forces PyInstaller
-# to *also* unpack their plain .py sources onto disk (in addition to the
-# normal compiled bytecode used for imports), which keeps ``__file__``-based
-# lookups like the two above working unmodified.
+# executable plus all supporting files — deliberately not --onefile, because
+# the web app needs real files on disk at runtime: NiceGUI serves its own
+# static files and every element's JavaScript (and the roster grid's
+# rostering/webapp/ui/grid/roster_grid.js) from the folder next to the module
+# that declares it, found through ``__file__``. ``collect_all`` puts those data
+# files beside the modules, so those lookups work unmodified.
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all
@@ -31,13 +20,10 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for pkg in ("streamlit", "ortools", "rostering_assignment_grid", "rostering"):
-    # "rostering" must be collect_all'd too, not just left to the import
-    # graph: rostering.streamlit_app.app is never `import`ed by any other
-    # module (streamlit.web.bootstrap loads it by file path instead), so
-    # PyInstaller's static analysis alone never discovers it and the whole
-    # streamlit_app/ package (app.py, tabs/, mutations.py, session.py,
-    # versions_sidebar.py) would silently be missing from the frozen build.
+for pkg in ("nicegui", "ortools", "rostering"):
+    # "rostering" is collect_all'd too, not just left to the import graph: its
+    # package data (the bundled default buildings config, the grid's JS) is
+    # not Python and so invisible to PyInstaller's import analysis.
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas
     binaries += pkg_binaries
@@ -53,11 +39,6 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    module_collection_mode={
-        "streamlit": "pyz+py",
-        "rostering_assignment_grid": "pyz+py",
-        "rostering": "pyz+py",
-    },
     noarchive=False,
     optimize=0,
 )

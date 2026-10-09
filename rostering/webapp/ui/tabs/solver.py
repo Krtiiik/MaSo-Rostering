@@ -63,13 +63,13 @@ class SolverTab:
                 "Nevadí; Záloha nemá hodnocení, má proto vlastní cenu). Jednotka škáluje všechny ceny; zvyšte ji, aby "
                 f"preference rolí vážily víc než budova a přání kamarádů. Každá cena je 0 až {MAX_ROLE_COST}."
             ).classes("text-sm text-gray-600")
-            self._number(weights, "role_cost_unit", "Jednotka cen rolí", minimum=0).classes("w-56")
+            self._number(weights, "role_cost_unit", "Jednotka cen rolí", minimum=0).classes("w-56").mark("cost-unit")
             role_costs = draft["role_costs"]
             with ui.grid(columns="9rem 6rem 1fr 3rem").classes("w-full items-center gap-x-3 gap-y-1"):
                 for position, (field, label) in enumerate(_PREFERENCE_COST_FIELDS):
                     self._cost_row(role_costs, field, label, stars=len(_PREFERENCE_COST_FIELDS) - position)
                 self._cost_row(role_costs, *_ZALOHA_COST_FIELD)
-            ui.button("Obnovit výchozí ceny rolí", on_click=self._restore_role_cost_defaults).props("flat")
+            ui.button("Obnovit výchozí ceny rolí", on_click=self._restore_role_cost_defaults).props("flat").mark("restore-costs")
 
         with ui.card().classes("w-full max-w-[48rem]"):
             ui.label("Hledání a kamarádi").classes("text-lg font-bold")
@@ -121,7 +121,7 @@ class SolverTab:
         role_costs[field] = value
         slider = ui.slider(
             min=0, max=MAX_ROLE_COST, step=1, value=value, on_change=lambda e: self._set(role_costs, field, int(e.value))
-        )
+        ).mark(f"cost-{field}")
         ui.label().bind_text_from(slider, "value", lambda v: str(int(v)))
 
     def _restore_role_cost_defaults(self) -> None:
@@ -135,7 +135,7 @@ class SolverTab:
     @ui.refreshable_method
     def _unsaved(self) -> None:
         if _normalized(self.draft) != _normalized(self.session.state["solver_config"]):
-            ui.chip("Neuložené změny", icon="warning", color="warning").props("outline")
+            ui.chip("Neuložené změny", icon="warning", color="warning").props("outline").mark("unsaved")
 
     def _footer(self) -> None:
         s = self.session

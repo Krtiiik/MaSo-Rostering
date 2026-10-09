@@ -61,7 +61,7 @@ class BuildingsTab:
         buildings = self.draft
         for bi, building in enumerate(buildings):
             self._building(buildings, bi, fix.building if fix else None)
-        ui.button("Přidat budovu", icon="add", on_click=self._add_building).props("flat")
+        ui.button("Přidat budovu", icon="add", on_click=self._add_building).props("flat").mark("add-building")
         self._footer()
 
     def _changed(self) -> None:
@@ -148,7 +148,7 @@ class BuildingsTab:
     @ui.refreshable_method
     def _unsaved(self) -> None:
         if has_unsaved_changes(self.session.state, self.draft):
-            ui.chip("Neuložené změny", icon="warning", color="warning").props("outline").tooltip(
+            ui.chip("Neuložené změny", icon="warning", color="warning").props("outline").mark("unsaved").tooltip(
                 "Rozložení zde se uloží, až kliknete na Uložit konfiguraci (nebo Uložit a sestavit rozdělení). "
                 "Znovunačtení stránky je zahodí."
             )
@@ -156,12 +156,12 @@ class BuildingsTab:
     def _footer(self) -> None:
         s = self.session
         with ui.row().classes("sticky bottom-0 w-full items-center gap-2 bg-white border-t py-2 z-10"):
-            ui.button("Uložit konfiguraci", on_click=self._save).props("outline")
+            ui.button("Uložit konfiguraci", on_click=self._save).props("outline").mark("buildings-save")
             solve = ui.button("Uložit a sestavit rozdělení", on_click=self._save_and_solve).props("color=primary")
             if not s.state["helpers"]:
                 solve.disable()
                 ui.label("Nejdřív nahrajte odpovědi pomocníků.").classes("text-sm text-gray-500")
-            ui.button("Obnovit výchozí budovy", on_click=self._reset).props("flat").tooltip(
+            ui.button("Obnovit výchozí budovy", on_click=self._reset).props("flat").mark("buildings-reset").tooltip(
                 "Nahradí rozložení zde výchozím, které je součástí aplikace. Uloží se až kliknutím na Uložit konfiguraci."
             )
             self._unsaved()

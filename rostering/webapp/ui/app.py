@@ -83,7 +83,12 @@ class Page:
             with ui.column().classes("gap-0"):
                 ui.label(labels.APP_TITLE).classes("text-lg font-bold leading-tight")
                 self.season_label = ui.label().classes("text-xs text-gray-600 leading-tight")
-            self.tab_strip = ui.tabs(on_change=self._tab_clicked).props("dense no-caps inline-label").classes("grow")
+            self.tab_strip = (
+                ui.tabs(on_change=self._tab_clicked)
+                .props("dense no-caps inline-label")
+                .classes("grow")
+                .mark("step-tabs")
+            )
             with self.tab_strip:
                 for name in labels.TABS:
                     ui.tab(name)
@@ -92,7 +97,7 @@ class Page:
                 ui.tooltip("K vyřízení")
             with ui.button(icon="more_vert").props("flat round"):
                 with ui.menu():
-                    ui.menu_item("Začít znovu", on_click=self._start_over)
+                    ui.menu_item("Začít znovu", on_click=self._start_over).mark("start-over")
 
         with ui.left_drawer(value=True, bordered=True).props("width=300").classes("bg-white p-3") as left:
             Sidebar(s).render()
@@ -138,16 +143,18 @@ class Page:
             await self.session.act(lambda: mutations.reset_workspace(self.session.workspace), replaced=True)
 
 
-@ui.page("/")
-async def index() -> None:
+async def root() -> None:
+    """The page: NiceGUI 3's single root function (``ui.run(root)``), one
+    :class:`Page` (and :class:`UiSession`) per browser tab."""
     page = Page()
-    await ui.context.client.connected()
-    await _migrate_legacy(page.session)
+    # Once the page is up: the legacy migration may need to ask in a dialog.
+    ui.timer(0.1, lambda: _migrate_legacy(page.session), once=True)
 
 
 def run(*, host: str, port: int, show: bool, reload: bool = False) -> None:
     """Serve the app (blocking)."""
     ui.run(
+        root,
         host=host,
         port=port,
         title=labels.APP_TITLE,

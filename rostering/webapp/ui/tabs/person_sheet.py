@@ -242,7 +242,7 @@ class PersonSheet:
 
         if kind == "organizer":
             with ui.row().classes("w-full gap-4 no-wrap"):
-                name = ui.input("Jméno", value=person["name"]).classes("grow")
+                name = ui.input("Jméno", value=person["name"]).classes("grow").mark("person-name")
                 email = ui.input("E-mail", value=person.get("email") or "").classes("grow")
 
             async def save_organizer() -> None:
@@ -252,12 +252,12 @@ class PersonSheet:
                 )
 
             with ui.row().classes("gap-2 mt-2"):
-                ui.button("Uložit změny", on_click=save_organizer).props("color=primary")
-                ui.button("Smazat organizátora", on_click=self._delete).props("flat color=negative")
+                ui.button("Uložit změny", on_click=save_organizer).props("color=primary").mark("person-save")
+                ui.button("Smazat organizátora", on_click=self._delete).props("flat color=negative").mark("person-delete")
             return
 
         with ui.row().classes("w-full gap-4 no-wrap"):
-            name = ui.input("Jméno", value=person["name"]).classes("grow")
+            name = ui.input("Jméno", value=person["name"]).classes("grow").mark("person-name")
             email = ui.input("E-mail", value=person.get("email") or "").classes("grow")
             phone = ui.input("Telefon / jiný kontakt", value=person.get("phone") or "").classes("grow")
         collisions = ui.column().classes("gap-0")
@@ -282,12 +282,12 @@ class PersonSheet:
             )
 
         with ui.row().classes("gap-2 mt-2"):
-            ui.button("Uložit změny", on_click=save_helper).props("color=primary")
+            ui.button("Uložit změny", on_click=save_helper).props("color=primary").mark("person-save")
             ui.button("Povýšit na organizátora", on_click=self._promote).props("flat").tooltip(
                 "Vyřadí je z množiny pomocníků: zachovají si jméno, e-mail, štítky i propojení osoby, ale "
                 "nedostanou žádnou sestavenou roli; zařadí se tím, že jim v rozdělení přidělíte vedoucí místo."
             )
-            ui.button("Smazat pomocníka", on_click=self._delete).props("flat color=negative")
+            ui.button("Smazat pomocníka", on_click=self._delete).props("flat color=negative").mark("person-delete")
 
     async def _delete(self) -> None:
         """Delete the person, after confirming (listing what goes with them)."""
@@ -384,7 +384,7 @@ class PersonSheet:
             label="Štítky (přímé)",
             value=list(own["direct"]),
             on_change=picked,
-        ).props("use-chips").classes("w-full")
+        ).props("use-chips").classes("w-full").mark("person-tags")
         pills_box = ui.html("")
         show_pills()
 
@@ -439,7 +439,7 @@ class PersonSheet:
                     value=value,
                     label=_UNRESOLVED_PLACEHOLDER,
                     on_change=lambda e, n=name, d=was_decided, ids=decided: self._match(n, list(e.value or []), d, ids),
-                ).props("use-chips").classes("grow")
+                ).props("use-chips").classes("grow").mark("person-match")
 
     async def _match(self, name: str, choice: list[str], was_decided: bool, decided: Optional[list]) -> None:
         if not choice:
@@ -491,7 +491,7 @@ class PersonSheet:
                 lambda: mutations.update_helper(s.workspace, helper["id"], friends=picked),
             )
 
-        friends_select(s.state, helper["id"], helper.get("friends", []), on_change=changed)
+        friends_select(s.state, helper["id"], helper.get("friends", []), on_change=changed).mark("person-friends")
 
     def _forced_signature(self) -> Any:
         return [r for r in forced_groups.friend_requests(self.session.state) if r["helper_id"] == self.person_id]
@@ -528,7 +528,7 @@ class PersonSheet:
 
         ui.select(
             labels, multiple=True, label="Vynucení kamarádi v místnosti", value=forced, on_change=changed
-        ).props("use-chips").classes("w-full").tooltip(
+        ).props("use-chips").classes("w-full").mark("person-forced").tooltip(
             "Přání být s kamarádem je jen přání. Vynucením vznikne skupinka dvou lidí, kteří musí sdílet "
             "místnost (a tedy i budovu); samotné přání zůstane, jak bylo. Skupinky najdete na záložce "
             "„Vynucené skupinky kamarádů“."
@@ -597,8 +597,8 @@ async def add_helper(session: UiSession) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-[44rem] max-w-full"):
         ui.label("Přidat pomocníka").classes("text-lg font-bold")
         with ui.row().classes("w-full gap-4 no-wrap"):
-            name = ui.input("Jméno (povinné)").classes("grow")
-            contact = ui.input("Kontakt (povinný)").classes("grow").tooltip(
+            name = ui.input("Jméno (povinné)").classes("grow").mark("new-name")
+            contact = ui.input("Kontakt (povinný)").mark("new-contact").classes("grow").tooltip(
                 "E-mailová adresa umožní propojit s touto osobou pozdější odpověď ankety ze stejné adresy; "
                 "cokoli jiného (třeba telefon) se uchová jen pro zobrazení a párování se vrátí ke jménu."
             )
@@ -626,14 +626,14 @@ async def add_helper(session: UiSession) -> None:
 
         with ui.row().classes("w-full justify-end gap-2"):
             ui.button("Zrušit", on_click=dialog.close).props("flat")
-            ui.button("Přidat pomocníka", on_click=submit).props("color=primary")
+            ui.button("Přidat pomocníka", on_click=submit).props("color=primary").mark("new-submit")
     dialog.open()
 
 
 async def add_organizer(session: UiSession) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-[32rem] max-w-full"):
         ui.label("Přidat organizátora").classes("text-lg font-bold")
-        name = ui.input("Jméno (povinné)").classes("w-full")
+        name = ui.input("Jméno (povinné)").classes("w-full").mark("new-name")
         email = ui.input("E-mail (volitelný)").classes("w-full").tooltip(
             "E-mailová adresa zaznamenaná v dřívějším ročníku ho propojí s touto osobou."
         )
@@ -646,5 +646,5 @@ async def add_organizer(session: UiSession) -> None:
 
         with ui.row().classes("w-full justify-end gap-2"):
             ui.button("Zrušit", on_click=dialog.close).props("flat")
-            ui.button("Přidat organizátora", on_click=submit).props("color=primary")
+            ui.button("Přidat organizátora", on_click=submit).props("color=primary").mark("new-submit")
     dialog.open()

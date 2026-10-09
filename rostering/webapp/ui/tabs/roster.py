@@ -62,7 +62,7 @@ class RosterTab:
         self._warnings()
         self._toolbar()
         self._export_note()
-        self.grid = RosterGrid().classes("w-full")
+        self.grid = RosterGrid().classes("w-full").mark("roster-grid")
         self.grid.on("helper_drop", lambda e: self._drop(e.args))
         self.grid.on("organizer_drop", lambda e: self._organizer_drop(e.args))
         self.grid.on("manual_set", lambda e: self._manual_set(e.args))
@@ -113,7 +113,7 @@ class RosterTab:
                     if locked
                     else ("Sestavit znovu" if assignments else "Sestavit rozdělení")
                 )
-                ui.button(solve_label, icon="auto_fix_high", on_click=lambda: solving.solve(s)).props("color=primary")
+                ui.button(solve_label, icon="auto_fix_high", on_click=lambda: solving.solve(s)).props("color=primary").mark("solve")
                 place = ui.button("Zařadit nové registrované", icon="person_add", on_click=lambda: solving.place_new(s))
                 place.props("outline").tooltip(
                     "Zařadí jen nezařazené pomocníky; všichni už zařazení zůstanou přesně tam, kde jsou."

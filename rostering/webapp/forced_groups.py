@@ -2,7 +2,7 @@
 ``rostering.forced_friends`` for the rule and ``CONTEXT.md`` for the concept).
 
 Kept apart from ``mutations`` (which it builds on) so the group lifecycle lives
-in one place; Streamlit-free like it, so tests and the panel share it.
+in one place; UI-free like it, so tests and the screens share it.
 
 A group is a dict in ``state["forced_groups"]``: ``id`` (from the high-water
 mark ``state["next_forced_group_id"]``, never reused), ``name``, ``axes``

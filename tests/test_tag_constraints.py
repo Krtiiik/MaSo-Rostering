@@ -757,7 +757,7 @@ def test_a_tag_saved_before_constraints_existed_has_none(workspace):
 
 
 def test_a_tag_rule_has_a_go_fix_button_to_the_tags_tab(workspace):
-    from rostering.streamlit_app import fix_focus
+    from rostering.webapp.ui import fix_focus
 
     _seed_roster(workspace)
     state = mutations.move_helper(workspace, 1, "Impakt", "Impakt-R1", "Zaloha")

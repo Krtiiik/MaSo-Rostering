@@ -379,7 +379,7 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
         broken_cells=broken_cells,
         broken_rooms=broken_rooms,
         broken_helpers=broken_helpers,
-        dimmed_helper_ids=set(mutations.dimmed_helper_ids(state, list(filter_tags), filter_mode)),
+        dimmed_helper_ids=set(mutations.dimmed_helper_ids(state, list(filter_tags), filter_mode)) & set(helpers),
         friend_status=friend_status,
         requesters=requesters,
     )

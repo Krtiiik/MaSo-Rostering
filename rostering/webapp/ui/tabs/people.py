@@ -172,12 +172,12 @@ class PeopleTab:
         with ui.row().classes("w-full items-center mt-4"):
             ui.label(title).classes("text-lg font-bold grow")
             search = ui.input(placeholder="Hledat…").props("dense clearable").classes("w-64")
-            ui.button("Přidat", icon="add", on_click=add).props("flat")
+            ui.button("Přidat", icon="add", on_click=add).props("flat").mark(f"add-{kind}")
             if extra is not None:
                 extra()
         table = ui.table(rows=rows, columns=columns, row_key="id", pagination={"rowsPerPage": 0}).classes(
             "w-full"
-        ).props("flat bordered dense hide-bottom")
+        ).props("flat bordered dense hide-bottom").mark(f"{kind}-table")
         table.bind_filter_from(search, "value")
         table.add_slot("body-cell-name", _NAME_SLOT)
         table.add_slot("body-cell-tags", _TAGS_SLOT)

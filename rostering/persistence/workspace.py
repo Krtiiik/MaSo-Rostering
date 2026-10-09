@@ -131,7 +131,7 @@ class Workspace:
             # "next_organizer_id" and are never reused.
             "organizers": [],
             # The Season's Forced friends groups (see rostering.forced_friends
-            # and streamlit_app.forced_groups): id, name, axes and members (each
+            # and webapp.forced_groups): id, name, axes and members (each
             # a Person, by person_id). Part of every Version and cleared by
             # Start over; ids come from the high-water mark
             # "next_forced_group_id" and are never reused.
