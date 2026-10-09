@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rozpis: helpers sharing a cell now sit side by side and wrap onto another
+  line only when they no longer fit the column, instead of always stacking.
 - Rozpis: "Vymazat rozdělení" now asks, when Organizers are placed in leadership
   slots, whether to clear everything including the Organizers or to keep them.
 - Rozpis: only the grid table scrolls sideways; the "Nezařazení" list above it
