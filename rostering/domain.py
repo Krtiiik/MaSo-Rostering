@@ -6,6 +6,7 @@ is unclear.
 """
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
@@ -92,18 +93,60 @@ def normalize_email(value: Optional[str]) -> Optional[str]:
     return text or None
 
 
-# The T-shirt sizes the survey answer may resolve to, in the order the
-# "Trička" sheet lists them. Extend this tuple (nothing else) to accept a new
-# size such as "XXXL".
-TSHIRT_SIZES: tuple[str, ...] = ("XS", "S", "M", "L", "XL", "XXL")
+# The plain (ungendered) T-shirt sizes. Extend this tuple (nothing else) to
+# accept a new size such as "XXXL"; every cut below follows.
+PLAIN_TSHIRT_SIZES: tuple[str, ...] = ("XS", "S", "M", "L", "XL", "XXL")
+# The cuts a size may be prefixed with ("pánské M", "dámské S"), canonical
+# spelling. A gendered size is a different shirt in the order, so it is its own
+# size, not a size plus a flag.
+TSHIRT_CUTS: tuple[str, ...] = ("pánské", "dámské")
+# Every size the survey answer may resolve to, in the order the "Trička" sheet
+# lists them: plain, then each cut.
+TSHIRT_SIZES: tuple[str, ...] = PLAIN_TSHIRT_SIZES + tuple(
+    f"{cut} {size}" for cut in TSHIRT_CUTS for size in PLAIN_TSHIRT_SIZES
+)
 UNKNOWN_TSHIRT_SIZE = "Unknown"
+
+# Stems of the words naming a cut once diacritics and case are gone, so
+# "Pánské", "pansky" and "muzske" all land on a cut. Words that may
+# sit around the size without meaning anything ("tričko", "velikost").
+_CUT_STEMS: dict[str, str] = {
+    "pansk": "pánské",
+    "muzsk": "pánské",
+    "damsk": "dámské",
+    "zensk": "dámské",
+}
+_TSHIRT_FILLER = {"tricko", "triko", "velikost", "vel", "unisex"}
+
+
+def _fold(text: str) -> str:
+    """Lower-case ``text`` with its diacritics removed."""
+    decomposed = unicodedata.normalize("NFKD", text.lower())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
 def parse_tshirt_size(value: Optional[str]) -> Optional[str]:
-    """The canonical size in ``TSHIRT_SIZES`` that ``value`` names, ignoring
-    case and surrounding whitespace, or None if it names none of them."""
-    text = (value or "").strip().upper()
-    return text if text in TSHIRT_SIZES else None
+    """The canonical size in ``TSHIRT_SIZES`` that ``value`` names, or None if
+    it names none of them. Case, surrounding whitespace and diacritics are
+    ignored, the size may be plain (``"M"``) or carry a cut before or after it
+    (``"pánské M"``, ``"Dámské - S"``, ``"XL dámské"``), and a filler word such
+    as "tričko" is allowed. A cut with no size, two sizes or any other word is
+    not recognized."""
+    words = re.findall(r"[a-z0-9]+", _fold(value or ""))
+    sizes, cuts = [], []
+    for word in words:
+        if word.upper() in PLAIN_TSHIRT_SIZES:
+            sizes.append(word.upper())
+        elif word in _TSHIRT_FILLER:
+            continue
+        else:
+            cut = next((c for stem, c in _CUT_STEMS.items() if word.startswith(stem)), None)
+            if cut is None:
+                return None
+            cuts.append(cut)
+    if len(sizes) != 1 or len(set(cuts)) > 1:
+        return None
+    return f"{cuts[0]} {sizes[0]}" if cuts else sizes[0]
 
 
 @dataclass(frozen=True)

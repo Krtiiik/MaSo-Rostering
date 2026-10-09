@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from rostering.domain import Helper, Preference, Role
+from rostering.domain import Helper, Preference, Role, parse_tshirt_size
 from rostering.ingest.legacy import load_helpers_csv, write_helpers_csv
 from rostering.ingest.raw_survey import parse_raw_survey
 from tests.survey_factory import UNRESOLVABLE_FRIEND, generate_survey, write_survey
@@ -155,14 +155,46 @@ def test_tshirt_size_unrecognized_value_is_unknown_with_warning_naming_helper_an
 
 
 def test_tshirt_size_free_text_and_blank_are_unknown_with_warning(tmp_path):
-    path = _write_survey(tmp_path, ["Anna", "Petr", "Klara"], ["dámské M", None, "XXXL"])
+    path = _write_survey(tmp_path, ["Anna", "Petr", "Klara"], ["blue shirt", None, "XXXL"])
     result = parse_raw_survey(path)
     assert [h.tshirt_size for h in result.helpers] == ["Unknown", "Unknown", "Unknown"]
     size_warnings = [w for w in result.warnings if "trička" in w]
     assert len(size_warnings) == 3
-    assert "Anna" in size_warnings[0] and "dámské M" in size_warnings[0]
+    assert "Anna" in size_warnings[0] and "blue shirt" in size_warnings[0]
     assert "Petr" in size_warnings[1]
     assert "Klara" in size_warnings[2] and "XXXL" in size_warnings[2]
+
+
+def test_tshirt_size_gender_prefixed_sizes_are_stored_as_their_own_size(tmp_path):
+    path = _write_survey(
+        tmp_path,
+        ["A", "B", "C", "D", "E"],
+        ["pánské M", "Dámské S", " dámské  xl ", "Pánské tričko L", "plain M"],
+    )
+    result = parse_raw_survey(path)
+    assert [h.tshirt_size for h in result.helpers] == ["pánské M", "dámské S", "dámské XL", "pánské L", "Unknown"]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("M", "M"),
+        ("pánské M", "pánské M"),
+        ("PANSKE m", "pánské M"),
+        ("dámské - S", "dámské S"),
+        ("Dámské: xxl", "dámské XXL"),
+        ("XL dámské", "dámské XL"),
+        ("pánský L", "pánské L"),
+        ("dámské", None),
+        ("pánské dámské M", None),
+        ("pánské M L", None),
+        ("menší M", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_parse_tshirt_size_is_flexible_about_the_gender_prefix(text, expected):
+    assert parse_tshirt_size(text) == expected
 
 
 def test_tshirt_size_missing_column_warns_once_and_leaves_every_helper_unknown(tmp_path):

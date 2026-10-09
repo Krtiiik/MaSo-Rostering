@@ -230,6 +230,23 @@ def test_tshirt_sheet_unknown_row_appears_only_when_someone_counted_is_unknown(t
     assert rows[-1] == ["Celkem", 1, 1, 2]
 
 
+def test_tshirt_sheet_lists_a_gendered_cut_whole_only_when_someone_wears_it(tmp_path):
+    helpers = [
+        Helper(id=1, name="Anna", tshirt_size="dámské M"),
+        Helper(id=2, name="Petr", tshirt_size="M"),
+    ]
+    comp, result, manual = _tshirt_fixture(
+        helpers, [(1, "A", Role.Opravovatel), (2, "B", Role.Opravovatel)]
+    )
+    rows = _read_tshirt_sheet(tmp_path, comp, result, manual)
+    labels = [r[0] for r in rows]
+    plain = ["XS", "S", "M", "L", "XL", "XXL"]
+    assert labels == ["Velikost", *plain, *(f"dámské {s}" for s in plain), "Celkem"]
+    assert rows[labels.index("dámské M")] == ["dámské M", 1, 0, 1]
+    assert rows[labels.index("M")] == ["M", 0, 1, 1]
+    assert rows[-1] == ["Celkem", 1, 1, 2]
+
+
 def test_tshirt_sheet_only_lists_buildings_that_have_rooms(tmp_path):
     helpers = [Helper(id=1, name="Anna", tshirt_size="M")]
     comp, result, manual = _tshirt_fixture(

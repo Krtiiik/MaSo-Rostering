@@ -178,10 +178,14 @@ export's `(n)` tag).
 Czech: Způsobilost dle vybavení.
 
 **T-shirt size**:
-A Helper's shirt size, one of XS, S, M, L, XL, XXL, or **Unknown** when the
-survey answer is blank or unrecognizable (or a Hand-added Helper has none).
+A Helper's shirt size, one of XS, S, M, L, XL, XXL, optionally prefixed with a
+cut ("pánské M", "dámské S" — a different shirt in the order, so its own size),
+or **Unknown** when the survey answer is blank or unrecognizable (or a
+Hand-added Helper has none). The survey answer is read flexibly: case,
+diacritics, separators and word order don't matter ("Dámské - S", "XL pánské").
 Editable by hand on the Helper. Counted per Building, by the Building the
-person is placed in, for the shirt order.
+person is placed in, for the shirt order; a cut gets its rows in the "Trička"
+sheet only once someone wears it.
 Czech: Velikost trička (Unknown: Neznámá).
 
 **Tag**:

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- T-shirt sizes may be prefixed with a cut ("pánské M", "dámské S"). The survey
+  answer is read flexibly (case, diacritics, separators and word order), plain
+  sizes still work, the size can be picked by hand, and the "Trička" sheet lists
+  a cut's rows once someone wears it.
 - Roster grid: while the Štítky overlay is on, a "Štítky v mřížce" row under the
   Zobrazení chips shows every Tag that anyone on the grid carries as a coloured
   pill (solid = carried directly, dashed = only by implication), in tree order,
