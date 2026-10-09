@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Roster grid: the details card a click on a helper's chip opens now also
+  shows their Tags and the Forced friends groups that bind them, and has an
+  "Upravit" button that opens the same person sheet as a click on their row in
+  the People tab.
 - Roster grid: every Organizer role cell (Vedoucí budovy, Pravá ruka, Vedoucí
   místností and Technická podpora) can now hold several Organizers, by typing
   names or dropping chips. Adding someone no longer replaces the holder; the

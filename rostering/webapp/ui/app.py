@@ -77,7 +77,7 @@ class Page:
             labels.TAB_FORCED: ForcedFriendsTab(s).render,
             labels.TAB_BUILDINGS: BuildingsTab(s).render,
             labels.TAB_SOLVER: SolverTab(s).render,
-            labels.TAB_ROSTER: RosterTab(s).render,
+            labels.TAB_ROSTER: RosterTab(s, self.sheet).render,
         }
 
         with ui.header(elevated=True).classes("bg-white text-black items-center gap-2 px-4 py-1"):

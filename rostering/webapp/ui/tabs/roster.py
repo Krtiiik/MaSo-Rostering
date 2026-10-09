@@ -25,6 +25,7 @@ from rostering.webapp.ui.grid import RosterGrid
 from rostering.webapp.ui.grid import data as grid_data
 from rostering.webapp.ui.grid.card import HelperCard
 from rostering.webapp.ui.session import UiSession
+from rostering.webapp.ui.tabs.person_sheet import PersonSheet
 
 # How the Broken rules name each rule family, in tier order. A family not listed
 # (registered later through rostering.solver.rules) falls back to its own name.
@@ -46,9 +47,10 @@ _OVERLAYS_HELP = (
 
 
 class RosterTab:
-    def __init__(self, session: UiSession) -> None:
+    def __init__(self, session: UiSession, sheet: PersonSheet) -> None:
         self.session = session
-        self.card = HelperCard(self._toggle_lock)
+        self.sheet = sheet
+        self.card = HelperCard(self._toggle_lock, lambda helper_id: self.sheet.show("helper", helper_id))
         self.broken_open = False
         self.grid: Optional[RosterGrid] = None
         self._tag_picker: Optional[ui.select] = None

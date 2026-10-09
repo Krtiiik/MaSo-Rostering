@@ -251,7 +251,8 @@ pushing the tag, not just creating it locally.
   writes it. The grid reports a toggle as the `lock` event (`{helper_id,
   locked}`, from ctrl/cmd-click on a placed chip or the details card's
   Lock/Unlock button). The details card (`grid/card.py`) opens on a plain click
-  on a chip (never on hover, so it can't block a drag); one is open at a time,
+  on a chip (never on hover, so it can't block a drag); it also lists the Helper's Tags and Forced friends groups and its "Upravit" button
+  opens the shared `PersonSheet` (`HelperCard(on_toggle_lock, on_edit)`); one is open at a time,
   and clicking the same chip again, Escape, a press anywhere outside a chip or
   the card, or starting a drag closes it. It survives the tab's redraws
   (`HelperCard` keeps which one is open).
