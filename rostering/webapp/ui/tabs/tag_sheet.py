@@ -75,7 +75,7 @@ class TagSheet:
             )
         # Closed by Escape: the selection goes with it.
         self.dialog.on_value_change(self._dialog_toggled)
-        session.on_change(self.sync, view=True)
+        session.on_change(self.sync, on="tab")  # shown on the Tags step only
 
     # ------------------------------------------------------------------ lifecycle
     def close(self) -> None:

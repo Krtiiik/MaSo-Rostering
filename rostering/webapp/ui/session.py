@@ -26,6 +26,10 @@ from rostering.webapp.ui import dialogs
 
 _log = logging.getLogger(__name__)
 
+# What a redraw is for, narrowest first: another step shown, view state changed
+# (and so possibly any step), the Season's data changed (everything).
+_SCOPES = ("tab", "view", "data")
+
 
 @dataclass
 class FixFocus:
@@ -73,36 +77,38 @@ class UiSession:
         # Step label -> "does it hold unsaved changes?"; a step with a guard that
         # says yes can't be left by :meth:`switch_tab`.
         self.leave_guards: dict[str, Callable[[], bool]] = {}
-        # (callback, also on a view-only redraw?)
-        self._listeners: list[tuple[Callable[[], None], bool]] = []
-        self._pending: Optional[str] = None  # "view" or "all" while a redraw is scheduled
+        # (callback, the narrowest change it redraws on: see :meth:`on_change`)
+        self._listeners: list[tuple[Callable[[], None], str]] = []
+        self._pending: Optional[str] = None  # the widest scope scheduled, while a redraw is
         # Results of the queries the views share (see :meth:`cached`), dropped
         # whenever anything may have changed.
         self._cache: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ refresh
-    def on_change(self, callback: Callable[[], None], *, view: bool = False) -> None:
+    def on_change(self, callback: Callable[[], None], *, on: str = "data") -> None:
         """Call ``callback`` after every :meth:`apply` (views refresh themselves).
-        With ``view``, also after :meth:`refresh_view`: for what shows the
-        session's view state (the active step, its selection, ...)."""
-        self._listeners.append((callback, view))
+        ``on`` widens that: ``"view"`` also after :meth:`refresh_view` (for what
+        shows the session's view state: a selection, a draft, ...), ``"tab"``
+        also after :meth:`switch_tab` (for what depends on the active step)."""
+        assert on in _SCOPES
+        self._listeners.append((callback, on))
 
     def refresh(self) -> None:
         """Redraw the views on the next turn of the event loop (several changes
         in one handler redraw once). Deferred so the handler that asked can still
         use its own view (notify, open a dialog) before the redraw replaces it."""
         self._cache.clear()
-        self._schedule("all")
+        self._schedule("data")
 
     def refresh_view(self) -> None:
-        """Redraw only what shows the view state (the active step, the Tag
-        sheet, the header's step tabs) after a change of view state alone: the
-        Season's data is as it was, so the header's to-do count, the to-do panel
-        and the sidebar, which read every stored Season, are left alone."""
+        """Redraw only what shows the view state (the steps, the Tag sheet) after
+        a change of view state alone: the Season's data is as it was, so the
+        header's to-do count, the to-do panel and the sidebar, which read every
+        stored Season, are left alone."""
         self._schedule("view")
 
     def _schedule(self, scope: str) -> None:
-        if self._pending == "all" or self._pending == scope:
+        if self._pending is not None and _SCOPES.index(self._pending) >= _SCOPES.index(scope):
             return
         try:
             loop = asyncio.get_running_loop()
@@ -119,8 +125,9 @@ class UiSession:
             self._redraw(scope)
 
     def _redraw(self, scope: str) -> None:
-        for callback, view in list(self._listeners):
-            if scope == "view" and not view:
+        width = _SCOPES.index(scope)
+        for callback, on in list(self._listeners):
+            if _SCOPES.index(on) > width:
                 continue
             try:
                 callback()
@@ -171,7 +178,7 @@ class UiSession:
                 )
                 return False
         self.active_tab = tab
-        self.refresh_view()
+        self._schedule("tab")
         return True
 
     # ------------------------------------------------------------------ actions

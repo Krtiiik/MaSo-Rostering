@@ -111,12 +111,20 @@ class Page:
         with ui.right_drawer(value=False, bordered=True).props("width=420 overlay").classes("bg-white p-3") as right:
             todo.TodoPanel(s, right).render()
 
-        with ui.column().classes("w-full p-4 gap-3"):
-            self.main()
+        # One panel per step, each drawn once and kept alive in the browser:
+        # showing another step only switches the panel. A step is redrawn when
+        # it is shown after a change (``_stale``), the shown one at once.
+        self._steps: dict[str, ui.column] = {}
+        self._stale: set[str] = set(labels.TABS)
+        with ui.tab_panels(value=s.active_tab, animated=False).classes("w-full bg-transparent") as self.panels:
+            for name in labels.TABS:
+                with ui.tab_panel(name).classes("p-4"):
+                    self._steps[name] = ui.column().classes("w-full gap-3")
         s.on_change(self._update_header)
-        s.on_change(self._redraw_step, view=True)
+        s.on_change(self._steps_changed, on="view")
+        s.on_change(self._show_step, on="tab")
         self._update_header()
-        self.tab_strip.value = s.active_tab
+        self._show_step()
 
     def _tab_clicked(self, e) -> None:
         if e.value and e.value != self.session.active_tab and not self.session.switch_tab(e.value):
@@ -132,13 +140,21 @@ class Page:
         self.todo_badge.text = str(waiting)
         self.todo_badge.set_visibility(waiting > 0)
 
-    def _redraw_step(self) -> None:
-        self.tab_strip.value = self.session.active_tab
-        self.main.refresh()
+    def _steps_changed(self) -> None:
+        """The data or the view state changed: every step may show it."""
+        self._stale.update(labels.TABS)
 
-    @ui.refreshable_method
-    def main(self) -> None:
-        self.tabs[self.session.active_tab]()
+    def _show_step(self) -> None:
+        """Show the active step, redrawing it first if it is stale."""
+        active = self.session.active_tab
+        self.tab_strip.value = active
+        if active in self._stale:
+            self._stale.discard(active)
+            container = self._steps[active]
+            container.clear()
+            with container:
+                self.tabs[active]()
+        self.panels.value = active
 
     async def _start_over(self) -> None:
         if await dialogs.confirm(
