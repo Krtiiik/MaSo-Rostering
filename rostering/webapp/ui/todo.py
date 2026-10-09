@@ -8,10 +8,11 @@ Organizers (the summary of the last Organizers' import, with what it left to
 review). Link edits never change a Helper or Organizer id."""
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 from nicegui import ui
 
+from rostering.persistence.workspace import Workspace
 from rostering.webapp import labels, mutations
 from rostering.webapp.ui import tag_import
 from rostering.webapp.ui.session import UiSession
@@ -21,39 +22,59 @@ def _describe(email: str | None, phone: str | None) -> str:
     return f"{email or 'bez e-mailu'} · telefon {phone}" if phone else (email or "bez e-mailu")
 
 
+def _query(session: UiSession, query: Callable[[Workspace], Any]) -> Any:
+    """``query(workspace)``, shared by the header's count and the panel within
+    one redraw (each reads every stored Season)."""
+    return session.cached(f"todo.{query.__name__}", lambda: query(session.workspace))
+
+
 def count(session: UiSession) -> int:
     """How many items the panel shows (the badge on its header button)."""
     if mutations.get_open_season(session.workspace) is None:
         return 0
     state = session.state
-    ws = session.workspace
     shown = [
         bool(mutations.stale_reasons(state)),
         bool(mutations.unplaced_reason(state)),
-        mutations.upload_summary(ws) is not None,
+        _query(session, mutations.upload_summary) is not None,
         tag_import.banner_visible(session),
         tag_import.late_link_offer(session) is not None,
         tag_import.late_link_organizer_offer(session) is not None,
-        mutations.organizer_upload_summary(ws) is not None,
+        _query(session, mutations.organizer_upload_summary) is not None,
         bool(session.view.import_summary and session.view.import_summary["where"] == "todo"),
     ]
     return (
         sum(shown)
-        + len(mutations.get_typed_role_link_offers(ws))
-        + len(mutations.get_uncertain_matches(ws))
-        + len(mutations.get_uncertain_organizer_matches(ws))
-        + len(mutations.get_organizer_slot_offers(ws))
+        + len(_query(session, mutations.get_typed_role_link_offers))
+        + len(_query(session, mutations.get_uncertain_matches))
+        + len(_query(session, mutations.get_uncertain_organizer_matches))
+        + len(_query(session, mutations.get_organizer_slot_offers))
     )
 
 
 class TodoPanel:
-    def __init__(self, session: UiSession) -> None:
+    """Drawn only while its ``drawer`` is open: it reads every stored Season."""
+
+    def __init__(self, session: UiSession, drawer: ui.right_drawer) -> None:
         self.session = session
-        session.on_change(self.render.refresh)
+        self.drawer = drawer
+        session.on_change(self._on_change)
+        drawer.on_value_change(self._toggled)
+
+    def _on_change(self) -> None:
+        if self.drawer.value:
+            self.render.refresh()
+
+    def _toggled(self, e) -> None:
+        if e.value:  # what it shows may have changed since it was last drawn
+            self.session.forget_cached()
+            self.render.refresh()
 
     @ui.refreshable_method
     def render(self) -> None:
         s = self.session
+        if not self.drawer.value:
+            return
         with ui.column().classes("w-full gap-3"):
             ui.label("K vyřízení").classes("text-lg font-bold")
             if mutations.get_open_season(s.workspace) is None:
@@ -88,7 +109,7 @@ class TodoPanel:
 
     def _upload_summary(self) -> None:
         s = self.session
-        summary = mutations.upload_summary(s.workspace)
+        summary = _query(s, mutations.upload_summary)
         if summary is None:
             return
         with ui.card().classes("w-full"):
@@ -124,7 +145,7 @@ class TodoPanel:
 
     def _organizer_upload_summary(self) -> None:
         s = self.session
-        summary = mutations.organizer_upload_summary(s.workspace)
+        summary = _query(s, mutations.organizer_upload_summary)
         if summary is None:
             return
         with ui.card().classes("w-full"):
@@ -192,7 +213,7 @@ class TodoPanel:
     def _typed_role_links(self) -> None:
         """Names typed into a Manual role for someone unregistered that a Helper
         has since matched, offered a link to that Helper."""
-        offers = mutations.get_typed_role_link_offers(self.session.workspace)
+        offers = _query(self.session, mutations.get_typed_role_link_offers)
         if not offers:
             return
         ui.label(f"Napsaná jména rolí shodná s pomocníkem ({len(offers)})").classes("font-bold")
@@ -225,7 +246,7 @@ class TodoPanel:
     def _uncertain_matches(self) -> None:
         """Same-name Persons proposed for a new Helper, to be confirmed or rejected
         one by one. Unreviewed candidates stay unlinked."""
-        entries = mutations.get_uncertain_matches(self.session.workspace)
+        entries = _query(self.session, mutations.get_uncertain_matches)
         if not entries:
             return
         ui.label(f"Možní vracející se pomocníci ({len(entries)})").classes("font-bold")
@@ -289,7 +310,7 @@ class TodoPanel:
     def _uncertain_organizer_matches(self) -> None:
         """Same-name Persons proposed for an Organizer, to be confirmed or
         rejected one by one. Unreviewed candidates stay unlinked."""
-        entries = mutations.get_uncertain_organizer_matches(self.session.workspace)
+        entries = _query(self.session, mutations.get_uncertain_organizer_matches)
         if not entries:
             return
         ui.label(f"Možní vracející se organizátoři ({len(entries)})").classes("font-bold")
@@ -341,7 +362,7 @@ class TodoPanel:
         exactly: the Organizers with a similar name are offered for the slot, to be
         picked or declined one by one."""
         s = self.session
-        offers = mutations.get_organizer_slot_offers(s.workspace)
+        offers = _query(s, mutations.get_organizer_slot_offers)
         if not offers:
             return
         ui.label(f"Jména z tabulky budov bez shody ({len(offers)})").classes("font-bold")

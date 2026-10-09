@@ -615,3 +615,28 @@ def test_the_default_workspace_keeps_everything_under_the_gitignored_data_dir(mo
     assert workspace_module.default_seasons_root() == tmp_path / "iso" / "seasons"
     monkeypatch.setenv("ROSTERING_SEASONS_DIR", str(tmp_path / "s"))
     assert workspace_module.default_seasons_root() == tmp_path / "s"
+
+
+# ---------------------------------------------------------------- read caching
+def test_what_the_seasons_hold_follows_every_save(workspace):
+    _create(workspace, "2025-podzim", names=("Anna",))
+    assert [r.name for r in workspace.person_records()] == ["Anna"]
+    assert workspace.list_seasons()[0]["helper_count"] == 1
+
+    state = workspace.load()
+    state["helpers"][0]["name"] = "Anna Nová"
+    state["helpers"].append({**state["helpers"][0], "id": 2, "name": "Petr", "person_id": "p-petr"})
+    workspace.save(state)
+    assert sorted(r.name for r in workspace.person_records()) == ["Anna Nová", "Petr"]
+    assert workspace.list_seasons()[0]["helper_count"] == 2
+
+
+def test_a_state_file_changed_by_another_writer_is_read_again(workspace):
+    _create(workspace, "2025-podzim", names=("Anna",))
+    assert [r.name for r in workspace.person_records()] == ["Anna"]
+
+    path = workspace.open_season_dir() / "state.json"
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state["helpers"][0]["name"] = "Anička"
+    path.write_text(json.dumps(state), encoding="utf-8")  # not through the Workspace
+    assert [r.name for r in workspace.person_records()] == ["Anička"]

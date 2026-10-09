@@ -99,7 +99,7 @@ class Page:
             with self.tab_strip:
                 for name in labels.TABS:
                     ui.tab(name)
-            with ui.button(icon="checklist", on_click=lambda: right.toggle()).props("flat round"):
+            with ui.button(icon="checklist", on_click=lambda: right.toggle()).props("flat round").mark("todo-button"):
                 self.todo_badge = ui.badge(color="warning").props("floating")
                 ui.tooltip("K vyřízení")
             with ui.button(icon="more_vert").props("flat round"):
@@ -109,12 +109,14 @@ class Page:
         with ui.left_drawer(value=True, bordered=True).props("width=300").classes("bg-white p-3") as left:
             Sidebar(s).render()
         with ui.right_drawer(value=False, bordered=True).props("width=420 overlay").classes("bg-white p-3") as right:
-            todo.TodoPanel(s).render()
+            todo.TodoPanel(s, right).render()
 
         with ui.column().classes("w-full p-4 gap-3"):
             self.main()
-        s.on_change(self._refresh)
+        s.on_change(self._update_header)
+        s.on_change(self._redraw_step, view=True)
         self._update_header()
+        self.tab_strip.value = s.active_tab
 
     def _tab_clicked(self, e) -> None:
         if e.value and e.value != self.session.active_tab and not self.session.switch_tab(e.value):
@@ -126,13 +128,12 @@ class Page:
         self.season_label.text = (
             f"Ročník {season['label']}" if season else "Nový ročník — zatím neuloženo; vytvoří se nahráním odpovědí"
         )
-        self.tab_strip.value = s.active_tab
         waiting = todo.count(s)
         self.todo_badge.text = str(waiting)
         self.todo_badge.set_visibility(waiting > 0)
 
-    def _refresh(self) -> None:
-        self._update_header()
+    def _redraw_step(self) -> None:
+        self.tab_strip.value = self.session.active_tab
         self.main.refresh()
 
     @ui.refreshable_method

@@ -73,35 +73,71 @@ class UiSession:
         # Step label -> "does it hold unsaved changes?"; a step with a guard that
         # says yes can't be left by :meth:`switch_tab`.
         self.leave_guards: dict[str, Callable[[], bool]] = {}
-        self._listeners: list[Callable[[], None]] = []
-        self._refresh_pending = False
+        # (callback, also on a view-only redraw?)
+        self._listeners: list[tuple[Callable[[], None], bool]] = []
+        self._pending: Optional[str] = None  # "view" or "all" while a redraw is scheduled
+        # Results of the queries the views share (see :meth:`cached`), dropped
+        # whenever anything may have changed.
+        self._cache: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ refresh
-    def on_change(self, callback: Callable[[], None]) -> None:
-        """Call ``callback`` after every :meth:`apply` (views refresh themselves)."""
-        self._listeners.append(callback)
+    def on_change(self, callback: Callable[[], None], *, view: bool = False) -> None:
+        """Call ``callback`` after every :meth:`apply` (views refresh themselves).
+        With ``view``, also after :meth:`refresh_view`: for what shows the
+        session's view state (the active step, its selection, ...)."""
+        self._listeners.append((callback, view))
 
     def refresh(self) -> None:
         """Redraw the views on the next turn of the event loop (several changes
         in one handler redraw once). Deferred so the handler that asked can still
         use its own view (notify, open a dialog) before the redraw replaces it."""
-        if self._refresh_pending:
+        self._cache.clear()
+        self._schedule("all")
+
+    def refresh_view(self) -> None:
+        """Redraw only what shows the view state (the active step, the Tag
+        sheet, the header's step tabs) after a change of view state alone: the
+        Season's data is as it was, so the header's to-do count, the to-do panel
+        and the sidebar, which read every stored Season, are left alone."""
+        self._schedule("view")
+
+    def _schedule(self, scope: str) -> None:
+        if self._pending == "all" or self._pending == scope:
             return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:  # no event loop (plain synchronous use): redraw now
-            self._redraw()
+            self._redraw(scope)
             return
-        self._refresh_pending = True
-        loop.call_soon(self._redraw)
+        if self._pending is None:
+            loop.call_soon(self._redraw_pending)
+        self._pending = scope
 
-    def _redraw(self) -> None:
-        self._refresh_pending = False
-        for callback in list(self._listeners):
+    def _redraw_pending(self) -> None:
+        scope, self._pending = self._pending, None
+        if scope is not None:
+            self._redraw(scope)
+
+    def _redraw(self, scope: str) -> None:
+        for callback, view in list(self._listeners):
+            if scope == "view" and not view:
+                continue
             try:
                 callback()
             except Exception:  # one broken view must not keep the others stale
                 _log.exception("Redrawing a view failed")
+
+    def cached(self, key: str, compute: Callable[[], Any]) -> Any:
+        """``compute()``, computed once until the next :meth:`refresh`: for the
+        queries several views make on every redraw (the to-do items, ...)."""
+        if key not in self._cache:
+            self._cache[key] = compute()
+        return self._cache[key]
+
+    def forget_cached(self) -> None:
+        """Drop what :meth:`cached` holds (another browser tab may have changed
+        the stored Seasons since): for a view drawn outside a redraw."""
+        self._cache.clear()
 
     def apply(self, new_state: dict[str, Any]) -> None:
         self.state = new_state
@@ -135,7 +171,7 @@ class UiSession:
                 )
                 return False
         self.active_tab = tab
-        self.refresh()
+        self.refresh_view()
         return True
 
     # ------------------------------------------------------------------ actions

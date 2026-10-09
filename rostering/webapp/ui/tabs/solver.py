@@ -137,7 +137,7 @@ class SolverTab:
         draft = self.draft
         draft["weights"]["role_cost_unit"] = defaults["weights"]["role_cost_unit"]
         draft["role_costs"] = dict(defaults["role_costs"])
-        self.session.refresh()
+        self.session.refresh_view()
 
     # ------------------------------------------------------------------ footer
     @ui.refreshable_method
@@ -151,7 +151,7 @@ class SolverTab:
     def _revert(self) -> None:
         """Throw the draft away; the form shows what the Season has saved."""
         self.session.view.solver_draft = None
-        self.session.refresh()
+        self.session.refresh_view()
 
     def _footer(self) -> None:
         s = self.session

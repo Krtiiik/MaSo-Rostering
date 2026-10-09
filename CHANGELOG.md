@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Switching steps, selecting or closing a Tag and toggling the grid's overlays no
+  longer recount the to-do items across every stored Season, and the to-do panel
+  is drawn only while open: with several stored Seasons a step switch went from
+  seconds to well under a second.
 - Export: the "Trička" sheet lists only the sizes someone is counted in, instead of
   always showing XS–XXL with zero rows.
 - Štítky: the Tag sheet's top bar (name, Smazat štítek, close) stays pinned while

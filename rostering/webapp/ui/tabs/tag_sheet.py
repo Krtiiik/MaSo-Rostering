@@ -75,7 +75,7 @@ class TagSheet:
             )
         # Closed by Escape: the selection goes with it.
         self.dialog.on_value_change(self._dialog_toggled)
-        session.on_change(self.sync)
+        session.on_change(self.sync, view=True)
 
     # ------------------------------------------------------------------ lifecycle
     def close(self) -> None:
@@ -83,13 +83,13 @@ class TagSheet:
         self.session.view.selected_tag = None
         self.dialog.close()
         self._signature = None
-        self.session.refresh()
+        self.session.refresh_view()
 
     def _dialog_toggled(self, e) -> None:
         if not e.value and self.session.view.selected_tag is not None:
             self.session.view.selected_tag = None
             self._signature = None
-            self.session.refresh()
+            self.session.refresh_view()
 
     def _target(self) -> tuple[Optional[object], Optional[dict]]:
         """The selection to show: (``NEW`` | Tag id | None, the Tag's record)."""
