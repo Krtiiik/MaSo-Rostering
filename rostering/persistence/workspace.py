@@ -73,6 +73,53 @@ def _read_json(path: Path) -> Any:
 
 def _write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    _digests.pop(str(path), None)
+
+
+class _Digest:
+    """What scanning the Seasons and recognizing Persons read from one stored
+    Season's ``state.json``, kept while the file is unchanged: the views redraw
+    after every click and would otherwise parse every stored Season again."""
+
+    def __init__(self) -> None:
+        self.identity: Optional[dict[str, str]] = None
+        self.helper_count = 0
+        self.records: Optional[list[PersonRecord]] = None  # filled on first use
+
+
+# state.json path -> ((mtime_ns, size) it was read at, its digest). A write
+# through _write_json drops the entry; the file stamp catches any other writer.
+_digests: dict[str, tuple[tuple[int, int], _Digest]] = {}
+
+
+def _stamp(path: Path) -> Optional[tuple[int, int]]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _digest(state_path: Path) -> Optional[_Digest]:
+    """The digest of a ``state.json`` (read now unless cached and unchanged),
+    or None when it is missing or unreadable."""
+    stamp = _stamp(state_path)
+    if stamp is None:
+        return None
+    cached = _digests.get(str(state_path))
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    try:
+        state = _read_json(state_path)
+    except (OSError, ValueError):
+        return None
+    digest = _Digest()
+    identity = state.get("season") if isinstance(state, dict) else None
+    if isinstance(identity, dict) and identity.get("id") and normalize_label(identity.get("label")):
+        digest.identity = {"id": identity["id"], "label": normalize_label(identity["label"])}
+    digest.helper_count = len(state.get("helpers", [])) if isinstance(state, dict) else 0
+    _digests[str(state_path)] = (stamp, digest)
+    return digest
 
 
 class Workspace:
@@ -186,7 +233,16 @@ class Workspace:
         records carry, so a deleted or emptied Season no longer contributes."""
         records: list[PersonRecord] = []
         for season_dir, identity in self._scan():
-            records.extend(records_from_state(identity, self._read_state(season_dir)))
+            digest = _digest(season_dir / "state.json")
+            if digest is None or digest.records is None:
+                season_records = records_from_state(identity, self._read_state(season_dir))
+                # _read_state may have written ids back: digest the file as it is now.
+                digest = _digest(season_dir / "state.json")
+                if digest is not None:
+                    digest.records = season_records
+            else:
+                season_records = digest.records
+            records.extend(season_records)
         return records
 
     def stored_state(self, season_id: str) -> Optional[dict[str, Any]]:
@@ -235,13 +291,10 @@ class Workspace:
         state_path = season_dir / "state.json"
         if not season_dir.is_dir() or not state_path.is_file():
             return None
-        try:
-            identity = _read_json(state_path).get("season")
-        except (OSError, ValueError, AttributeError):
+        digest = _digest(state_path)
+        if digest is None or digest.identity is None:
             return None
-        if not isinstance(identity, dict) or not identity.get("id") or not normalize_label(identity.get("label")):
-            return None
-        return {"id": identity["id"], "label": normalize_label(identity["label"])}
+        return dict(digest.identity)
 
     def _scan(self) -> Iterable[tuple[Path, dict[str, str]]]:
         for season_dir in sorted(self.root.iterdir()):
@@ -296,10 +349,8 @@ class Workspace:
         open_id = (self.open_season() or {}).get("id")
         seasons = []
         for season_dir, identity in self._scan():
-            try:
-                helper_count = len(_read_json(season_dir / "state.json").get("helpers", []))
-            except (OSError, ValueError):
-                helper_count = 0
+            digest = _digest(season_dir / "state.json")
+            helper_count = digest.helper_count if digest is not None else 0
             seasons.append(
                 {**identity, "helper_count": helper_count, "open": identity["id"] == open_id}
             )

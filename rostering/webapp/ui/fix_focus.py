@@ -65,7 +65,7 @@ def render_callout(session: UiSession, tab: str) -> Optional[FixTarget]:
 
     def dismiss() -> None:
         session.view.fix_focus = None
-        session.refresh()
+        session.refresh_view()
 
     with ui.row().classes("w-full items-center gap-2 rounded bg-blue-50 px-3 py-2 no-wrap"):
         ui.icon("build", color="primary")

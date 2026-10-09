@@ -50,7 +50,7 @@ class TagsTab:
 
     def _select(self, tag_id) -> None:
         self.session.view.selected_tag = tag_id
-        self.session.refresh()
+        self.session.refresh_view()
 
     def _table(self, state: dict) -> None:
         s = self.session

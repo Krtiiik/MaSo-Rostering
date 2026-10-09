@@ -132,7 +132,8 @@ def render_summary(session: UiSession, where: str) -> None:
 def banner_visible(session: UiSession) -> bool:
     if session.view.import_banner_dismissed or mutations.get_open_season(session.workspace) is None:
         return False
-    return bool(mutations.tag_import_offer(session.workspace)["banner"])
+    offer = session.cached("tag_import_offer", lambda: mutations.tag_import_offer(session.workspace))
+    return bool(offer["banner"])
 
 
 def render_banner(session: UiSession) -> None:

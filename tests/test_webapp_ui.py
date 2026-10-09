@@ -3,6 +3,7 @@ a temp-dir Season seeded with synthetic Helpers and Organizers (never data/):
 the page, the People tab and person sheet, Tags, Buildings, Solver, the Roster
 tab's grid events, the Solve modal and the sidebar."""
 import asyncio
+import functools
 import io
 
 import pytest
@@ -99,6 +100,42 @@ async def test_the_page_shows_the_open_season_and_the_six_steps(user: User):
 async def test_switching_tabs_shows_that_step(user: User):
     await _go(user, labels.TAB_SOLVER)
     await user.should_see("Ceny rolí")
+
+
+@pytest.fixture
+def review_list_reads(monkeypatch) -> list[int]:
+    """Counts the reads of the review list, which goes through every stored
+    Season (one entry per read)."""
+    reads: list[int] = []
+    real = mutations.get_uncertain_matches
+
+    @functools.wraps(real)
+    def counted(workspace):
+        reads.append(1)
+        return real(workspace)
+
+    monkeypatch.setattr(mutations, "get_uncertain_matches", counted)
+    return reads
+
+
+async def test_switching_tabs_reads_no_stored_season(user: User, review_list_reads):
+    # The Season's data is as it was: the to-do count and panel are left alone.
+    for tab in (labels.TAB_TAGS, labels.TAB_ROSTER, labels.TAB_PEOPLE):
+        await _go(user, tab)
+    assert review_list_reads == []
+
+
+async def test_a_change_reads_the_review_list_once_for_the_header_and_the_open_panel(
+    user: User, seasons, review_list_reads
+):
+    user.find(marker="todo-button").click()
+    await asyncio.sleep(0.2)
+    review_list_reads.clear()
+
+    user.find(marker="helper-table").trigger("cant_attend", {"id": 1, "value": True})
+    await asyncio.sleep(0.2)
+    assert _state(seasons)["helpers"][0]["cant_attend"] is True
+    assert review_list_reads == [1]
 
 
 # ---------------------------------------------------------------------- People
@@ -803,6 +840,7 @@ async def test_loading_the_organizers_sheet_fills_the_table_and_the_todo_summary
     loaded = [r for r in rows if r["name"] != "Boss"]
     assert sorted(r["phone"] == "—" for r in loaded) == [False, False, False, True]  # row 2 left it blank
     assert any(r["tshirt"].startswith(("pánské", "dámské")) for r in loaded)
+    user.find(marker="todo-button").click()  # the to-do panel is drawn only while open
     await user.should_see("Co změnilo poslední nahrání organizátorů")
     assert _state(seasons)["organizer_upload_summary"]["new"]
 
@@ -842,7 +880,9 @@ async def test_a_returning_organizer_is_offered_for_review_in_the_todo_panel(use
     frame.to_excel(buffer, index=False)
     mutations.import_organizers(seasons, buffer.getvalue(), "organizers.xlsx")
     await user.open("/")
+    await user.should_not_see("Možní vracející se organizátoři (1)")  # drawn only while open
 
+    user.find(marker="todo-button").click()
     await user.should_see("Možní vracející se organizátoři (1)")
     user.find(kind=ui.button, content="Propojit").click()
     await asyncio.sleep(0.2)

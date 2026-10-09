@@ -70,7 +70,7 @@ class BuildingsTab:
         self._unsaved.refresh()
 
     def _structure_changed(self) -> None:
-        self.session.refresh()
+        self.session.refresh_view()
 
     # ------------------------------------------------------------------ one Building
     def _building(self, buildings: list[dict], bi: int, fix_building: Optional[str]) -> None:

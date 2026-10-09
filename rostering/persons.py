@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any, Iterable, Optional
 
 from rostering.domain import normalize_email, normalize_name
@@ -61,7 +62,7 @@ class PersonRecord:
     link_confirmed: bool = False
     kind: str = "helper"  # "helper" or "organizer"
 
-    @property
+    @cached_property  # read many times per review list; the record is frozen
     def name_key(self) -> str:
         return normalize_name(self.name)
 
@@ -169,6 +170,13 @@ def uncertain_candidates(
     for record in records:
         by_person.setdefault(record.person_id, []).append(record)
     rejected_pairs = {frozenset((r.person_id, other)) for r in records for other in r.rejected}
+    # Normalized name -> person id -> that Person's records with the name, the
+    # Persons in the order ``by_person`` has them (so equally recent candidates
+    # keep a stable order).
+    person_order = {person_id: index for index, person_id in enumerate(by_person)}
+    by_name: dict[str, dict[str, list[PersonRecord]]] = {}
+    for record in records:
+        by_name.setdefault(record.name_key, {}).setdefault(record.person_id, []).append(record)
 
     proposals: dict[int, list[Candidate]] = {}
     for helper in records:
@@ -177,12 +185,12 @@ def uncertain_candidates(
         if len(by_person[helper.person_id]) > 1:
             continue
         found: list[Candidate] = []
-        for person_id, group in by_person.items():
+        named = by_name[helper.name_key]
+        for person_id in sorted(named, key=person_order.__getitem__):
             if person_id == helper.person_id or frozenset((helper.person_id, person_id)) in rejected_pairs:
                 continue
-            same_name = [
-                r for r in group if r.name_key == helper.name_key and (r.season_id != season_id or r.kind == kind)
-            ]
+            group = by_person[person_id]
+            same_name = [r for r in named[person_id] if r.season_id != season_id or r.kind == kind]
             if not same_name:
                 continue
             best = max(same_name, key=lambda r: r.recency)

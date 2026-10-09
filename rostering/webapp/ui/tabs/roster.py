@@ -245,7 +245,7 @@ class RosterTab:
         chosen = set(view.grid_overlays) | {key} if on else set(view.grid_overlays) - {key}
         view.grid_overlays = [k for k in grid_data.OVERLAYS if k in chosen]
         if key == grid_data.TAGS_OVERLAY:
-            self.session.refresh()  # shows or hides the Tag filter
+            self.session.refresh_view()  # shows or hides the Tag filter
         else:
             self._draw_grid()
 
@@ -265,7 +265,7 @@ class RosterTab:
             ui.notify(str(exc), type="negative", multi_line=True)
             return
         s.view.export_path = str(path)
-        s.refresh()
+        s.refresh_view()
 
     def _export_note(self) -> None:
         """Where the last export went, with a button revealing it in the file
