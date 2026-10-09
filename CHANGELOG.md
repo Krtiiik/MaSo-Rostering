@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Vynucené skupinky kamarádů: a group is now a list of rules that all must hold,
+  instead of three ticks. A rule either makes the members share a building, a
+  room or a role, or says every member must (or must not) be in some buildings or
+  rooms, or have some roles. A group of one person can now pin them. Existing
+  groups carry over as "musí sdílet …" rules. Rules that cannot all hold, or that
+  no member's Tags allow, are refused; a rule naming a building or room this
+  Season lacks is ignored and flagged. An Organizer can now be in a group with a
+  role rule (a warning says it does not apply to them).
+
 - Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
   the Helpers table header, the same as the Organizers' "Načíst organizátory",
   instead of the upload card at the top of the tab. With no Season open the tab

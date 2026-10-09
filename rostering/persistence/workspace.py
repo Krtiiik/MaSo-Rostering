@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from rostering import forced_friends
 from rostering.domain import ManualRoles
 from rostering.persistence import config_store
 from rostering.persons import PersonRecord, ensure_person_ids, records_from_state
@@ -131,7 +132,7 @@ class Workspace:
             # "next_organizer_id" and are never reused.
             "organizers": [],
             # The Season's Forced friends groups (see rostering.forced_friends
-            # and webapp.forced_groups): id, name, axes and members (each
+            # and webapp.forced_groups): id, name, rules and members (each
             # a Person, by person_id). Part of every Version and cleared by
             # Start over; ids come from the high-water mark
             # "next_forced_group_id" and are never reused.
@@ -163,7 +164,9 @@ class Workspace:
         state.setdefault("organizers", [])
         # ... and one saved before Forced friends groups existed has none.
         state.setdefault("forced_groups", [])
-        if ensure_person_ids(state):
+        # ... and a group saved before rules existed carries axes instead.
+        migrated = forced_friends.migrate_state(state)
+        if ensure_person_ids(state) or migrated:
             _write_json(path, state)
         return state
 
@@ -450,7 +453,9 @@ class Workspace:
         path = self._version_path(slug)
         if not path.exists():
             return None
-        return _read_json(path)
+        state = _read_json(path)
+        forced_friends.migrate_state(state)
+        return state
 
     def restore_version(self, slug: str) -> Optional[dict[str, Any]]:
         """Roll the open Season's state back to a Version. Everything the

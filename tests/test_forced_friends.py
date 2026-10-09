@@ -22,7 +22,7 @@ from rostering.domain import (
     Room,
     RuleInstance,
 )
-from rostering.forced_friends import ForcedGroup
+from rostering.forced_friends import ForcedGroup, share_rules
 from rostering.persistence.workspace import Workspace
 from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
@@ -55,7 +55,7 @@ def _helper(hid, **extra):
 
 
 def _group(gid, axes, *hids, name=None):
-    return ForcedGroup(id=gid, name=name or f"G{gid}", axes=tuple(axes), person_ids=tuple(f"p{h}" for h in hids))
+    return ForcedGroup(id=gid, name=name or f"G{gid}", rules=share_rules(*axes), person_ids=tuple(f"p{h}" for h in hids))
 
 
 def _competition(buildings, helpers, groups, tags=()):
@@ -168,7 +168,7 @@ def test_a_member_who_cant_attend_is_ignored():
 def test_a_member_who_is_not_registered_is_ignored_and_a_group_of_one_constrains_nothing():
     helpers = [_helper(1, building_preferences=frozenset({"A"})), _helper(2, building_preferences=frozenset({"B"}))]
     # p9 registered nobody this Season; with p2 absent the group has one active member.
-    group = ForcedGroup(id=1, name="G", axes=("building",), person_ids=("p1", "p9"))
+    group = ForcedGroup(id=1, name="G", rules=share_rules("building"), person_ids=("p1", "p9"))
     comp = _competition([_building("A"), _building("B")], helpers, [group])
 
     result = solve_competition(comp, _solver_config())
@@ -189,7 +189,7 @@ def test_a_group_that_cannot_hold_still_yields_a_roster_and_is_reported():
     assert len(result.assignments) == 2
     (broken,) = result.broken_rules
     assert broken.family == "forced_friends"
-    assert broken.instance == RuleInstance("forced_friends", (1, "building"))
+    assert broken.instance == RuleInstance("forced_friends", (1, "share:building"))
     assert broken.amount == 1
     assert broken.line.startswith("Skupinka Rodina")
 
@@ -329,13 +329,14 @@ def _group_named(state, name):
     return next(g for g in forced_groups.list_groups(state) if g["name"] == name)
 
 
-def test_a_group_has_a_required_name_axes_and_members_who_are_persons(workspace):
+def test_a_group_has_a_required_name_rules_and_members_who_are_persons(workspace):
     _season(workspace)
 
     state = forced_groups.add_group(workspace, "Rodina", ["p1", "p2"], ["room"])
 
     group = _group_named(state, "Rodina")
-    assert group["axes"] == ["building", "room"]  # ticking Room implies Building
+    assert group["rules"] == [{"kind": "share", "axis": "room"}]
+    assert group["rule_texts"] == ["musí sdílet místnost"]
     assert [(m["person_id"], m["name"], m["state"]) for m in group["members"]] == [
         ("p1", "Anna", "active"),
         ("p2", "Petr", "active"),
@@ -344,12 +345,12 @@ def test_a_group_has_a_required_name_axes_and_members_who_are_persons(workspace)
     assert forced_groups.list_groups(mutations.get_state(workspace)) == forced_groups.list_groups(state)  # saved
 
 
-def test_a_group_needs_a_name_and_at_least_one_axis(workspace):
+def test_a_group_needs_a_name_and_at_least_one_rule(workspace):
     _season(workspace)
 
     with pytest.raises(mutations.RosteringError, match="název"):
         forced_groups.add_group(workspace, "  ", ["p1", "p2"], ["building"])
-    with pytest.raises(mutations.RosteringError, match="osu"):
+    with pytest.raises(mutations.RosteringError, match="pravidlo"):
         forced_groups.add_group(workspace, "Rodina", ["p1", "p2"], [])
     assert forced_groups.list_groups(mutations.get_state(workspace)) == []
 
@@ -366,10 +367,10 @@ def test_a_group_can_be_renamed_and_edited(workspace):
     state = forced_groups.add_group(workspace, "Rodina", ["p1", "p2"], ["building"])
     gid = _group_named(state, "Rodina")["id"]
 
-    state = forced_groups.update_group(workspace, gid, name="Tým", person_ids=["p1", "p2", "p3"], axes=["role"])
+    state = forced_groups.update_group(workspace, gid, name="Tým", person_ids=["p1", "p2", "p3"], rules=["role"])
 
     group = _group_named(state, "Tým")
-    assert group["axes"] == ["role"]
+    assert group["rules"] == [{"kind": "share", "axis": "role"}]
     assert [m["person_id"] for m in group["members"]] == ["p1", "p2", "p3"]
     with pytest.raises(mutations.RosteringError, match="název"):
         forced_groups.update_group(workspace, gid, name="")
@@ -381,8 +382,8 @@ def test_a_person_may_belong_to_several_groups_which_stay_separate(workspace):
     state = forced_groups.add_group(workspace, "Two", ["p2", "p3"], ["role"])
 
     assert [g["name"] for g in forced_groups.list_groups(state)] == ["One", "Two"]
-    assert _group_named(state, "One")["axes"] == ["building"]
-    assert _group_named(state, "Two")["axes"] == ["role"]
+    assert _group_named(state, "One")["rules"] == [{"kind": "share", "axis": "building"}]
+    assert _group_named(state, "Two")["rules"] == [{"kind": "share", "axis": "role"}]
 
 
 def test_a_solve_through_the_workspace_honours_the_groups(workspace):
@@ -504,7 +505,7 @@ def test_editing_a_groups_members_or_axes_after_a_solve_makes_the_roster_stale(w
     solved = mutations.solve(workspace)
     assert mutations.stale_reasons(solved) == []
 
-    state = forced_groups.update_group(workspace, gid, axes=["role"])
+    state = forced_groups.update_group(workspace, gid, rules=["role"])
 
     assert state["assignments"] == solved["assignments"]  # nobody moved
     assert any("Rodina" in reason for reason in mutations.stale_reasons(state))
@@ -577,7 +578,7 @@ def test_a_hand_move_that_splits_a_group_shows_as_a_broken_rule_and_still_applie
     after = mutations.move_helper(workspace, 2, "B", "B1", "Skenovac")
 
     (broken,) = mutations.broken_rules(after)
-    assert broken.instance == RuleInstance("forced_friends", (gid, "room"))
+    assert broken.instance == RuleInstance("forced_friends", (gid, "share:room"))
     assert broken.fix.tab == "forced_friends" and broken.fix.group_id == gid
     assert set(broken.helper_ids) == {1, 2}
     assert mutations.move_toast_lines(before, after) == [broken.line]

@@ -10,7 +10,7 @@ anything from data/); the solver tests drive it on domain objects.
 import pytest
 
 from rostering.domain import Assignment, Building, Competition, Helper, Role, RoleCapacity, Room, RuleInstance
-from rostering.forced_friends import ForcedGroup
+from rostering.forced_friends import ForcedGroup, share_rules
 from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
 from rostering.webapp import forced_groups, mutations
@@ -43,7 +43,7 @@ def _solve_pinned(buildings, helpers, group, pins):
 
 def test_a_split_room_group_names_its_members_and_the_rooms_they_are_split_across():
     helpers = [_helper(1, "Anna"), _helper(2, "Petr"), _helper(3, "Jana")]
-    group = ForcedGroup(id=1, name="Rodina", axes=("building", "room"), person_ids=("p1", "p2", "p3"))
+    group = ForcedGroup(id=1, name="Rodina", rules=share_rules("building", "room"), person_ids=("p1", "p2", "p3"))
     pins = [_pin(1, "Anna", "A", "N4"), _pin(2, "Petr", "A", "N4"), _pin(3, "Jana", "A", "N6")]
 
     comp, result = _solve_pinned([_building("A", "N4", "N6")], helpers, group, pins)
@@ -55,7 +55,7 @@ def test_a_split_room_group_names_its_members_and_the_rooms_they_are_split_acros
 
 def test_the_line_lists_every_place_the_group_is_split_across():
     helpers = [_helper(1, "Anna"), _helper(2, "Petr"), _helper(3, "Jana")]
-    group = ForcedGroup(id=1, name="Rodina", axes=("building",), person_ids=("p1", "p2", "p3"))
+    group = ForcedGroup(id=1, name="Rodina", rules=share_rules("building"), person_ids=("p1", "p2", "p3"))
     pins = [_pin(1, "Anna", "A", "A1"), _pin(2, "Petr", "B", "B1"), _pin(3, "Jana", "C", "C1")]
 
     _comp, result = _solve_pinned([_building("A", "A1"), _building("B", "B1"), _building("C", "C1")], helpers, group, pins)
@@ -66,7 +66,7 @@ def test_the_line_lists_every_place_the_group_is_split_across():
 
 def test_a_role_group_line_names_the_roles():
     helpers = [_helper(1, "Anna"), _helper(2, "Petr")]
-    group = ForcedGroup(id=1, name="Tým", axes=("role",), person_ids=("p1", "p2"))
+    group = ForcedGroup(id=1, name="Tým", rules=share_rules("role"), person_ids=("p1", "p2"))
     pins = [_pin(1, "Anna", "A", "A1", Role.Skenovac), _pin(2, "Petr", "A", "A1", Role.Menic)]
 
     _comp, result = _solve_pinned([_building("A", "A1")], helpers, group, pins)
@@ -77,7 +77,7 @@ def test_a_role_group_line_names_the_roles():
 
 def test_two_rooms_of_one_name_in_different_buildings_are_told_apart():
     helpers = [_helper(1, "Anna"), _helper(2, "Petr")]
-    group = ForcedGroup(id=1, name="Rodina", axes=("building", "room"), person_ids=("p1", "p2"))
+    group = ForcedGroup(id=1, name="Rodina", rules=share_rules("building", "room"), person_ids=("p1", "p2"))
     pins = [_pin(1, "Anna", "A", "N4"), _pin(2, "Petr", "B", "N4")]
 
     _comp, result = _solve_pinned([_building("A", "N4"), _building("B", "N4")], helpers, group, pins)
@@ -164,9 +164,9 @@ def test_the_grid_marks_the_members_of_a_group_in_force_with_the_groups_that_bin
     marks = mutations.grid_forced_groups(state)
 
     assert marks == {
-        1: ["Rodina (shodné: budova, místnost)"],
-        2: ["Rodina (shodné: budova, místnost)", "Tým (shodné: role)"],
-        3: ["Tým (shodné: role)"],
+        1: ["Rodina (musí sdílet budovu; musí sdílet místnost)"],
+        2: ["Rodina (musí sdílet budovu; musí sdílet místnost)", "Tým (musí sdílet roli)"],
+        3: ["Tým (musí sdílet roli)"],
     }
 
 
@@ -178,8 +178,8 @@ def test_the_grid_does_not_mark_a_dormant_group_nor_a_member_who_cant_attend(wor
     state = mutations.set_cant_attend(workspace, 3, True)
 
     assert mutations.grid_forced_groups(state) == {
-        1: ["Rodina (shodné: budova)"],
-        2: ["Rodina (shodné: budova)"],
+        1: ["Rodina (musí sdílet budovu)"],
+        2: ["Rodina (musí sdílet budovu)"],
     }
 
 
@@ -279,14 +279,14 @@ def test_editing_a_groups_people_or_axes_is_refused_on_an_empty_intersection_but
     gid = _group_named(forced_groups.add_group(workspace, "Tým", ["p1", "p2"], ["role"]), "Tým")["id"]
 
     with pytest.raises(mutations.RosteringError, match="budovu"):
-        forced_groups.update_group(workspace, gid, axes=["building"])
+        forced_groups.update_group(workspace, gid, rules=["building"])
     state = mutations.get_state(workspace)
-    assert _group_named(state, "Tým")["axes"] == ["role"]  # nothing changed
+    assert _group_named(state, "Tým")["rules"] == [{"kind": "share", "axis": "role"}]  # nothing changed
 
     state = forced_groups.update_group(workspace, gid, name="Tým B")
-    assert _group_named(state, "Tým B")["axes"] == ["role"]
+    assert _group_named(state, "Tým B")["rules"] == [{"kind": "share", "axis": "role"}]
 
-    forced_groups.update_group(workspace, gid, person_ids=["p1", "p3"], axes=["building"])  # Jana is unrestricted
+    forced_groups.update_group(workspace, gid, person_ids=["p1", "p3"], rules=["building"])  # Jana is unrestricted
     with pytest.raises(mutations.RosteringError, match="Petr"):
         forced_groups.update_group(workspace, gid, person_ids=["p1", "p2"])
 
@@ -303,7 +303,7 @@ def test_a_group_already_at_odds_can_still_be_renamed(workspace):
 
     state = forced_groups.update_group(workspace, gid, name="Rodinka")
 
-    assert _group_named(state, "Rodinka")["axes"] == ["building"]
+    assert _group_named(state, "Rodinka")["rules"] == [{"kind": "share", "axis": "building"}]
 
 
 def test_a_tag_change_that_would_empty_a_groups_intersection_is_refused(workspace):
@@ -368,4 +368,4 @@ def test_capacity_and_fixed_assignment_clashes_do_not_block_a_group(workspace):
     group = _group_named(state, "Rodina")
     assert group["status"] == "violated"
     assert mutations.solve(workspace)  # a solve still returns a roster, with the group as a Broken rule
-    assert any(b.instance == RuleInstance("forced_friends", (group["id"], "room")) for b in mutations.broken_rules(mutations.get_state(workspace)))
+    assert any(b.instance == RuleInstance("forced_friends", (group["id"], "share:room")) for b in mutations.broken_rules(mutations.get_state(workspace)))

@@ -244,7 +244,7 @@ async def test_the_forced_picker_forces_and_unforces_a_friend(user: User, season
     user.find(marker="person-forced").elements.pop().value = ["h2"]
     await asyncio.sleep(0.1)
     (group,) = _state(seasons)["forced_groups"]
-    assert (group["name"], group["axes"]) == ("Anna + Bára", ["building", "room"])
+    assert (group["name"], group["rules"]) == ("Anna + Bára", [{"kind": "share", "axis": "room"}])
 
     user.find(marker="person-forced").elements.pop().value = []
     await asyncio.sleep(0.1)
@@ -264,6 +264,79 @@ async def test_the_forced_friends_tab_shows_member_states_and_badges(user: User,
     await user.should_see("Rodina")
     await user.should_see("Anna (nezařazený organizátor, neaktivní),")
     await user.should_see("Role se na Anna neuplatní")
+
+
+async def test_the_forced_friends_card_lists_its_rules_and_warns_about_places_it_lacks(user: User, seasons):
+    from rostering.forced_friends import Rule
+    from rostering.webapp import forced_groups
+
+    people = {h["id"]: h["person_id"] for h in _state(seasons)["helpers"]}
+    forced_groups.add_group(
+        seasons,
+        "Pevná",
+        [people[1]],
+        [Rule.be("building", ["Karlín"]), Rule.be("role", ["Fotograf"], must=False)],
+    )
+    state = _state(seasons)
+    state["forced_groups"][0]["rules"].append(Rule.be("building", ["Troja"], must=False).to_dict())
+    seasons.save(state)
+    await user.open("/")
+    await _go(user, labels.TAB_FORCED)
+    await user.should_see("Členové musí být v budově Karlín")
+    await user.should_see("Členové nesmí mít roli Fotograf")
+    await user.should_see("budova Troja v tomto ročníku není")
+
+
+async def test_a_forced_friends_group_is_made_from_a_list_of_rules_in_the_dialog(user: User, seasons):
+    people = {h["id"]: h["person_id"] for h in _state(seasons)["helpers"]}
+    await user.open("/")
+    await _go(user, labels.TAB_FORCED)
+    user.find("Nová skupinka").click()
+    await user.should_see(marker="group-name")
+    user.find(marker="group-name").type("Pevná")
+    user.find(marker="group-people").elements.pop().value = [people[1], people[2]]
+    user.find(marker="rule-op-0").elements.pop().value = "be_must"  # the first row: musí být v ...
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-axis-0").elements.pop().value = "building"
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-values-0").elements.pop().value = ["Karlín"]
+    user.find(marker="rule-add").click()
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-axis-1").elements.pop().value = "room"  # the second row still shares: now a Room
+    user.find(marker="group-save").click()
+    await asyncio.sleep(0.2)
+
+    (group,) = _state(seasons)["forced_groups"]
+    assert group["name"] == "Pevná"
+    assert group["rules"] == [
+        {"kind": "be", "must": True, "axis": "building", "values": ["Karlín"]},
+        {"kind": "share", "axis": "room"},
+    ]
+    await user.should_see("Členové musí být v budově Karlín")
+    await user.should_see("Členové musí sdílet místnost")
+
+
+async def test_the_dialog_refuses_contradictory_rules_and_keeps_the_group_unsaved(user: User, seasons):
+    people = {h["id"]: h["person_id"] for h in _state(seasons)["helpers"]}
+    await user.open("/")
+    await _go(user, labels.TAB_FORCED)
+    user.find("Nová skupinka").click()
+    await user.should_see(marker="group-name")
+    user.find(marker="group-name").type("Pevná")
+    user.find(marker="group-people").elements.pop().value = [people[1]]
+    user.find(marker="rule-op-0").elements.pop().value = "be_must"
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-values-0").elements.pop().value = ["Karlín"]
+    user.find(marker="rule-add").click()
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-op-1").elements.pop().value = "be_not"
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-values-1").elements.pop().value = ["Karlín"]
+    user.find(marker="group-save").click()
+    await asyncio.sleep(0.2)
+
+    assert _state(seasons)["forced_groups"] == []
+    await user.should_see("si odporují")
 
 
 # ---------------------------------------------------------------------- Tags

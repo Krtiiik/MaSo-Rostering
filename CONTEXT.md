@@ -255,34 +255,41 @@ Czech: Přání být s kamarádem (one request: žádost o kamaráda).
 
 **Forced friends group**:
 A named, user-authored hard constraint: a set of people — Persons, each
-resolving in a Season to a Helper or to "not registered" — who must share every
-axis the group selects — Building, Room, and/or Role (Room implies Building).
-Distinct from Friend preference, which is a soft survey request the solver may
+resolving in a Season to a Helper or to "not registered" — bound by a list of
+rules that must all hold at once. A rule is either to share a Building, a Room or
+a Role (never negated), or that every member must or must not be in some
+Buildings or Rooms, or have some Roles (a set: any of them). Distinct from Friend preference, which is a soft survey request the solver may
 leave unsatisfied. A person may belong to several groups; overlapping groups are
-never merged. A group is inactive while it has fewer than two active members; a
-member who is Can't attend or not registered this Season is not active (a Can't
+never merged. A rule binds from two active members when it shares, from one when
+it places or assigns a Role, so a group of one can pin a person; a group no rule of
+which binds is dormant. A member who is Can't attend or not registered this Season is not active (a Can't
 attend member stays in the group, flagged, and is restored on un-flagging; a
 member not registered this Season is shown dim as "not registered" and becomes
 live if they later register and are recognized as the same Person). Groups are
 saved per Season, in Versions, cleared by Start over and kept on re-upload.
-Creating a group or changing its people or axes after a solve moves no one and
-makes the roster stale; dissolving one does so only if it was active and its
-members currently satisfy it. A group shows a status: active, dormant (with the
+Creating a group or changing its people or rules after a solve moves no one and
+makes the roster stale; dissolving one does so only if a rule was pulling placed
+members and they currently satisfy it. A rule naming a Building or Room this
+Season's layout lacks is inert and flagged on the group; a group whose rules
+provably contradict each other (nobody could meet them all) or repeat one is
+refused. A group shows a status: active, dormant (with the
 reason) or violated by the roster as it stands, and its member chips are marked
 on the roster grid. It is refused when its members' effective allowed Buildings
-(a Room group counts as Building) or Roles, from their Tags, have nothing in
-common on an axis it shares, and a Tag change that would cause that is refused;
+(a Room counts as its Building) or Roles, from their Tags, have nothing in
+common on an axis it shares, or leave a member nothing that the group's must-be-in
+and must-have-role rules allow, and a Tag change that would cause that is refused;
 size, capacity and fixed or locked Assignments never block. An Organizer can be
 a member: a placed one is active and anchors the group at their placement (the
-Building axis, and the Room axis when they hold a Room; a Room axis on an
-Organizer who only leads a Building enforces just the Building), an unplaced one
-is not active. An Organizer never takes part in the Role axis, since they have no
-solved Role: they cannot be added to a group that shares Role, and a member who
-becomes an Organizer (promotion) keeps their place in the group with the Role axis
-not applied to them, shown as a badge "Role not applied to <name>". Dragging a
+Building rules, and the Room rules when they hold a Room; a room rule on an
+Organizer who only leads a Building is judged by their Building as far as that
+goes), an unplaced one is not active. An Organizer never takes part in a Role
+rule, since they have no solved Role: they may be in a group with one, which
+shows a warning "Role se na <name> neuplatní" (as does a room rule met by a
+Building-level Organizer), and a member who becomes an Organizer (promotion)
+keeps their place in the group. Dragging a
 Helper away from a group with a placed Organizer breaks the group like any other.
 A resolved Friend preference can be hardened with "make forced", which creates a
-new group of those two people with the Room axis and leaves the Friend preference
+new group of those two people with the one rule to share a Room and leaves the Friend preference
 as it was. A group belongs to the people in it, not to one Season, so it carries
 over to a later Season in the same "Import from an earlier Season" offer as Tag
 import, as its second section after Tags (see **Tag import**): every group of the
@@ -291,7 +298,7 @@ the members not registered here as dim "not registered" placeholders (a group le
 with fewer than two active members is imported inactive), each group ticked in one
 overview of its returning and missing members. An import copies, never shares (the
 source Season is never edited), skips a group already present with the same members
-and axes, and carries no link that is still unreviewed.
+and rules, and carries no link that is still unreviewed.
 Czech: Vynucená skupinka kamarádů ("make forced": Vynutit).
 
 **Assignment**:
