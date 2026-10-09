@@ -167,15 +167,16 @@ class RosterTab:
                     selected=key in view.grid_overlays,
                     on_selection_change=lambda e, k=key: self._set_overlay(k, e.sender.selected),
                 ).props("outline color=primary")
-            if grid_data.TAGS_OVERLAY not in view.grid_overlays:
-                return
-            tags = s.state.get("tags") or []
-            known = {t["id"] for t in tags}
-            # A Tag deleted since the filter was chosen.
-            view.grid_tag_filter = [t for t in view.grid_tag_filter if t in known]
-            names = {t["id"]: t["name"] for t in tags}
-            ordered = [t.id for t, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in tags])]
-            ui.separator().props("vertical").classes("mx-2")
+        if grid_data.TAGS_OVERLAY not in view.grid_overlays:
+            return
+        tags = s.state.get("tags") or []
+        known = {t["id"] for t in tags}
+        # A Tag deleted since the filter was chosen.
+        view.grid_tag_filter = [t for t in view.grid_tag_filter if t in known]
+        names = {t["id"]: t["name"] for t in tags}
+        ordered = [t.id for t, _ in tag_tree.tree_order([tag_tree.tag_from_dict(t) for t in tags])]
+        # Its own row under the chips, not beside them.
+        with ui.row().classes("w-full items-center gap-1"):
             picker = ui.select(
                 {tid: names[tid] for tid in ordered},
                 multiple=True,
