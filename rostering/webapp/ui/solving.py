@@ -127,10 +127,13 @@ async def _place_new(session: UiSession) -> None:
 async def _clear_roster(session: UiSession) -> None:
     count = len(session.state["assignments"])
     locked = mutations.locked_count(session.state)
-    intro = f"Všechna přiřazení ({count}) budou odstraněna a výsledek řešení se vynuluje."
-    if locked:
-        intro += f" Včetně uzamčených: {locked}."
     slots = mutations.placed_organizer_slots(session.state)
+    if count:
+        intro = f"Všechna přiřazení ({count}) budou odstraněna a výsledek řešení se vynuluje."
+        if locked:
+            intro += f" Včetně uzamčených: {locked}."
+    else:
+        intro = "Žádní pomocníci nejsou zařazeni."
     if slots:
         # Organizers sit in the same grid, so ask whether they go with the Helpers.
         choice = await dialogs.choose(
