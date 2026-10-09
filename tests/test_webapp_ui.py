@@ -325,10 +325,44 @@ async def test_loading_a_sheet_fills_the_buildings_draft_without_saving(user: Us
     assert [b["name"] for b in _state(seasons)["config"]] == ["Karlín", "Impakt"]  # only the draft changed
 
     user.find(marker="buildings-save").click()
+    await user.should_see("Nahradit vedoucí a sloučené buňky?")  # a sheet replaces the leaders held now
+    user.find(marker="confirm-ok").click()
+    await asyncio.sleep(0.2)
     await user.should_not_see(marker="unsaved")
     saved = _state(seasons)["config"]
     assert [b["name"] for b in saved] == ["Nová budova"]
     assert saved[0]["rooms"] == [{"name": "X1", "capacities": {"Opravovatel": {"minimum": 1}}}]
+
+
+async def test_saving_a_sheet_with_leaders_asks_before_replacing_the_slots(user: User, seasons):
+    import openpyxl
+    from nicegui.elements.upload_files import SmallFileUpload
+    from openpyxl.styles import PatternFill
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["B1"], ws["B2"], ws["A3"], ws["A4"] = "Nová budova", "X1", "Vedoucí budovy", "Opravovatelé"
+    ws["B3"] = "Boss, Neznámý Člověk"
+    ws["B4"].fill = PatternFill("solid", fgColor="FFFFE599")
+    content = io.BytesIO()
+    wb.save(content)
+
+    await _go(user, labels.TAB_BUILDINGS)
+    uploader = user.find(marker="buildings-sheet-upload").elements.pop()
+    await uploader.handle_uploads([SmallFileUpload(name="rooms.xlsx", content_type="", _data=content.getvalue())])
+    await user.should_see("není mezi organizátory")
+    await user.should_see(marker="unsaved")
+    assert [(e["role"], e["building"]) for e in _state(seasons)["manual_roles"]["structural"]] == [("VedouciBudovy", "Karlín")]
+
+    user.find(marker="buildings-save").click()
+    await user.should_see("Nahradit vedoucí a sloučené buňky?")
+    user.find(marker="confirm-ok").click()
+    await asyncio.sleep(0.2)
+
+    state = _state(seasons)
+    assert [b["name"] for b in state["config"]] == ["Nová budova"]
+    assert [(e["role"], e["building"], e["organizer_id"]) for e in state["manual_roles"]["structural"]] == [("VedouciBudovy", "Nová budova", 1)]
+    await user.should_not_see(marker="unsaved")
 
 
 # ---------------------------------------------------------------------- Solver
@@ -509,6 +543,31 @@ async def test_lock_and_organizer_drop_and_merge_events(user: User, seasons):
     )
     await asyncio.sleep(0.1)
     assert _state(seasons)["cell_merges"]["Zaloha"]["Karlín"] == [["K1", "K2"]]
+
+
+async def test_merging_two_leadership_rows_into_a_tall_cell_and_dropping_into_it(user: User, seasons):
+    await _roster(user, seasons)  # the grid is redrawn after every change: find it afresh each time
+    # Karlín has K1, K2: Pravá ruka over both, so it can meet Vedoucí budovy (Boss holds that).
+    user.find(marker="roster-grid").trigger("cell_merge", {"key": "PravaRuka", "building": "Karlín", "pairs": [["K1", "K2"]], "merged": True})
+    await asyncio.sleep(0.1)
+    user.find(marker="roster-grid").trigger("row_merge", {"key": "VedouciBudovy", "building": "Karlín", "room": "K1", "merged": True})
+    await asyncio.sleep(0.1)
+    state = _state(seasons)
+    assert state["row_merges"] == [{"building": "Karlín", "room": "K1", "row": "VedouciBudovy"}]
+    assert {(e["role"], e["organizer_id"]) for e in state["manual_roles"]["structural"]} == {
+        ("VedouciBudovy", 1),
+        ("PravaRuka", 1),
+    }
+    # The sideways merge under a tall cell is refused; the cell stays.
+    user.find(marker="roster-grid").trigger("cell_merge", {"key": "PravaRuka", "building": "Karlín", "pairs": [["K1", "K2"]], "merged": False})
+    await user.should_see("Nejdřív ji rozdělte")
+    assert len(_state(seasons)["row_merges"]) == 1
+
+    user.find(marker="roster-grid").trigger("row_merge", {"key": "VedouciBudovy", "building": "Karlín", "room": "K1", "merged": False})
+    await asyncio.sleep(0.1)
+    state = _state(seasons)
+    assert state["row_merges"] == []
+    assert {(e["role"], e["organizer_id"]) for e in state["manual_roles"]["structural"]} == {("VedouciBudovy", 1)}
 
 
 async def test_a_leadership_slot_takes_a_typed_organizer_name(user: User, seasons):

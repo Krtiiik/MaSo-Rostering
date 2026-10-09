@@ -69,6 +69,7 @@ from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
 from rostering import forced_friends
 from rostering import organizers as organizer_slots
+from rostering import row_merges as tall_rows
 from rostering import tags as tag_tree
 
 
@@ -2181,6 +2182,44 @@ def dismiss_organizer_upload_summary(workspace: Workspace) -> dict:
     return state
 
 
+def tall_cells(state: dict[str, Any]) -> list[tall_rows.TallCell]:
+    """The Season's tall cells that still hold (see ``rostering.row_merges``)."""
+    return tall_rows.tall_cells(state["config"], state.get("cell_merges", {}), state.get("row_merges", []))
+
+
+def _cell_roles(
+    state: dict[str, Any], role: str, building: str, room: Optional[str]
+) -> list[tuple[StructuralRole, Optional[str]]]:
+    """The leadership slots that share the grid cell at ``role``/``building``/
+    ``room`` with their address: just the one, or both roles of a tall cell
+    (filed at the Building for a cell over Vedoucí budovy, else under the
+    group's first Room)."""
+    slot = _slot_role(role)
+    cell = tall_rows.find_cell(tall_cells(state), slot.name, building, room or None)
+    if cell is None:
+        return [(slot, room or None)]
+    return [(_slot_role(row), cell.address_room) for row in cell.rows]
+
+
+def _slot_cell_entries(state: dict[str, Any], role: str, building: str, room: Optional[str]) -> list[dict]:
+    """The slot entries held in the grid cell at ``role``/``building``/``room``:
+    those of its role at that address, or in a tall cell those of both roles
+    anywhere in the cell."""
+    structural = state["manual_roles"]["structural"]
+    slot = _slot_role(role)
+    cell = tall_rows.find_cell(tall_cells(state), slot.name, building, room or None)
+    if cell is None:
+        return [e for e in structural if e["role"] == slot.name and _same_place(e, building, room or None)]
+    return [e for e in structural if _in_tall_cell(e, cell)]
+
+
+def _in_tall_cell(entry: dict, cell: tall_rows.TallCell) -> bool:
+    if entry["role"] not in cell.rows or entry.get("building") != cell.building:
+        return False
+    entry_room = entry.get("room") or None
+    return cell.address_room is None if entry_room is None else entry_room in cell.rooms
+
+
 def assign_organizer(
     workspace: Workspace, organizer_id: int, role: str, building: str, room: Optional[str] = None
 ) -> dict:
@@ -2195,8 +2234,9 @@ def assign_organizer(
     may cause."""
     state = workspace.load()
     _organizer_record(state, organizer_id)
-    slot = _checked_slot(state, role, building, room)
-    _place_organizer(state, organizer_id, slot, building, room or None)
+    _checked_slot(state, role, building, room)
+    for cell_slot, cell_room in _cell_roles(state, role, building, room):
+        _place_organizer(state, organizer_id, cell_slot, building, cell_room)
     workspace.save(state)
     return state
 
@@ -2218,21 +2258,21 @@ def move_organizer(
     _organizer_record(state, organizer_id)
     slot = _checked_slot(state, role, building, room)
     room = room or None
+    targets = _cell_roles(state, slot.name, building, room)
     if source:
         source_slot = _slot_role(source["role"])
         source_room = source.get("room") or None
-        if (source_slot, source["building"], source_room) == (slot, building, room):
+        source_targets = _cell_roles(state, source_slot.name, source["building"], source_room)
+        if source["building"] == building and {(r.name, a) for r, a in source_targets} == {(r.name, a) for r, a in targets}:
             return state
+        in_source = {id(e) for e in _slot_cell_entries(state, source_slot.name, source["building"], source_room)}
         state["manual_roles"]["structural"] = [
             e
             for e in state["manual_roles"]["structural"]
-            if not (
-                e.get("organizer_id") == organizer_id
-                and e["role"] == source_slot.name
-                and _same_place(e, source["building"], source_room)
-            )
+            if not (e.get("organizer_id") == organizer_id and id(e) in in_source)
         ]
-    _place_organizer(state, organizer_id, slot, building, room)
+    for target_slot, target_room in targets:
+        _place_organizer(state, organizer_id, target_slot, building, target_room)
     workspace.save(state)
     return state
 
@@ -2244,13 +2284,10 @@ def unassign_organizer(
     clears their placement; they stay a tracked Organizer."""
     state = workspace.load()
     _organizer_record(state, organizer_id)
-    slot = _slot_role(role)
+    _slot_role(role)
     structural = state["manual_roles"]["structural"]
-    kept = [
-        e
-        for e in structural
-        if not (e.get("organizer_id") == organizer_id and e["role"] == slot.name and _same_place(e, building, room))
-    ]
+    in_cell = {id(e) for e in _slot_cell_entries(state, role, building, room)}
+    kept = [e for e in structural if not (e.get("organizer_id") == organizer_id and id(e) in in_cell)]
     if len(kept) == len(structural):
         raise RosteringError("Tento organizátor toto místo nedrží.")
     state["manual_roles"]["structural"] = kept
@@ -2293,7 +2330,8 @@ def set_slot_holders(
     state = workspace.load()
     slot = _checked_slot(state, role, building, room)
     room = room or None
-    cell = [e for e in state["manual_roles"]["structural"] if e["role"] == slot.name and _same_place(e, building, room)]
+    targets = _cell_roles(state, slot.name, building, room)
+    cell = _slot_cell_entries(state, slot.name, building, room)
     legacy_in_cell = {normalize_name(_slot_entry_name(state, e)): e for e in cell if e.get("organizer_id") is None}
     in_cell = {e["organizer_id"] for e in cell if e.get("organizer_id") is not None}
 
@@ -2325,9 +2363,13 @@ def set_slot_holders(
         or (e.get("organizer_id") is None and id(e) in keep_legacy)
         or (e.get("organizer_id") in keep_ids)
     ]
+    held = {(e["role"], e["organizer_id"]) for e in cell if e.get("organizer_id") is not None}
     for kind, value in desired:
-        if kind == "organizer" and value not in in_cell:
-            _place_organizer(state, value, slot, building, room)
+        if kind != "organizer":
+            continue
+        for target_slot, target_room in targets:
+            if (target_slot.name, value) not in held:
+                _place_organizer(state, value, target_slot, building, target_room)
     _sync_placements(state)
     workspace.save(state)
     return state
@@ -3512,14 +3554,33 @@ def tag_origin_labels(state: dict[str, Any], tag_id: int) -> list[str]:
     ]
 
 
+def _set_layout(state: dict[str, Any], buildings: list[dict]) -> None:
+    """Replace the Season's Buildings/Rooms layout in ``state`` (not saved). Merges
+    that no longer name adjacent Rooms are dropped; a tall cell the new layout can
+    no longer hold is unmerged as if by hand (the lower role gives up its people)."""
+    before = tall_cells(state)
+    state["config"] = buildings
+    state["cell_merges"] = _prune_cell_merges(buildings, state.get("cell_merges", {}))
+    after = tall_cells(state)
+    still = {(c.building, c.rooms, c.rows) for c in after}
+    buildings_left = {b["name"] for b in buildings}
+    unfolded = False
+    for cell in before:
+        if (cell.building, cell.rooms, cell.rows) not in still and cell.building in buildings_left:
+            _unfold_tall_cell(state, cell)
+            unfolded = True
+    state["row_merges"] = [tall_rows.to_record(c) for c in after]
+    if unfolded:
+        _sync_placements(state)
+
+
 def put_config(workspace: Workspace, buildings: list[dict], config_path: Optional[Path] = None) -> dict:
     try:
         config_from_list(buildings)
     except (KeyError, ValueError) as exc:
         raise RosteringError(f"Neplatná konfigurace: {exc}") from exc
     state = workspace.load()
-    state["config"] = buildings
-    state["cell_merges"] = _prune_cell_merges(buildings, state.get("cell_merges", {}))
+    _set_layout(state, buildings)
     workspace.save(state)
     if config_path is None:
         config_store.save_default_config(buildings)
@@ -3528,15 +3589,120 @@ def put_config(workspace: Workspace, buildings: list[dict], config_path: Optiona
     return state
 
 
-def read_building_sheet(file_bytes: bytes) -> tuple[list[dict], list[str]]:
-    """The Buildings layout drawn in a "Pomocníci v místnostech" sheet (.xlsx), as
-    ``(buildings, warnings)``. Reads nothing from the Season and saves nothing: the
-    Buildings tab puts the layout into its draft, which is saved like any edit."""
+def read_building_sheet(workspace: Workspace, file_bytes: bytes) -> tuple[list[dict], dict, list[str]]:
+    """What a "Pomocníci v místnostech" sheet (.xlsx) describes, as ``(buildings,
+    pending, warnings)``. Reads the Season's Organizers but changes and saves
+    nothing: the Buildings tab puts ``buildings`` into its draft and keeps
+    ``pending`` (the leadership names matched to Organizers by name, the sideways
+    merges and the tall merges) until the layout is saved with
+    :func:`put_config_from_sheet`. A name that matches no Organizer of the Season,
+    or one who can't attend, is skipped and reported in ``warnings``."""
     try:
         sheet = parse_building_sheet(file_bytes)
     except ValueError as exc:
         raise RosteringError(str(exc)) from exc
-    return sheet.buildings, sheet.warnings
+    state = workspace.load()
+    warnings = list(sheet.warnings)
+    by_name: dict[str, dict] = {}
+    for organizer in sorted(state["organizers"], key=lambda o: (bool(o.get("cant_attend")), o["id"])):
+        by_name.setdefault(normalize_name(organizer["name"]), organizer)
+    slots: list[dict] = []
+    for cell in sheet.slots:
+        label = StructuralRole[cell.role].value
+        for name in cell.names:
+            organizer = by_name.get(normalize_name(name))
+            if organizer is None:
+                warnings.append(
+                    f"„{name}“ ({label}, {cell.building}) není mezi organizátory ročníku, přeskočeno. "
+                    "Přidejte ho/ji nejdřív na kartě Lidé a načtěte tabulku znovu."
+                )
+            elif organizer.get("cant_attend"):
+                warnings.append(f"{organizer['name']} má příznak Nemůže se zúčastnit ({label}, {cell.building}), přeskočeno.")
+            else:
+                slots.append(
+                    {"role": cell.role, "building": cell.building, "room": cell.room, "organizer_id": organizer["id"]}
+                )
+    pending = {"slots": slots, "cell_merges": sheet.cell_merges, "row_merges": sheet.row_merges}
+    return sheet.buildings, pending, warnings
+
+
+def _place_text(building: str, room: Optional[str]) -> str:
+    return f"{building}, {room}" if room else building
+
+
+def put_config_from_sheet(
+    workspace: Workspace,
+    buildings: list[dict],
+    pending: dict,
+    config_path: Optional[Path] = None,
+    confirmed: bool = False,
+    warnings: Optional[list[str]] = None,
+) -> dict:
+    """Save a layout read from a sheet together with what came with it (see
+    :func:`read_building_sheet`), in one save: the four leadership slots are
+    cleared and filled with the sheet's Organizers (an Organizer named in two
+    places keeps the last, being placed once), the sideways merges and the tall
+    merges are replaced by the sheet's. Unless ``confirmed``, it first raises
+    ``ConfirmationRequired`` naming the slot holders and merges that go. Anything
+    that no longer fits the layout (a Room the draft renamed, an Organizer
+    deleted since) is skipped and appended to ``warnings``."""
+    try:
+        config_from_list(buildings)
+    except (KeyError, ValueError) as exc:
+        raise RosteringError(f"Neplatná konfigurace: {exc}") from exc
+    state = workspace.load()
+    if not confirmed:
+        lines = [
+            f"{StructuralRole[e['role']].value}: {_slot_entry_name(state, e)} ({_place_text(e['building'], e.get('room'))})"
+            for e in state["manual_roles"]["structural"]
+        ]
+        if any(state.get("cell_merges", {}).values()) or state.get("row_merges"):
+            lines.append("Sloučené buňky v mřížce (budou nahrazeny sloučením z tabulky)")
+        if lines:
+            raise ConfirmationRequired("Načtená tabulka nahradí vedoucí a sloučené buňky.", lines)
+    notes = warnings if warnings is not None else []
+
+    state["config"] = buildings
+    state["cell_merges"] = _prune_cell_merges(buildings, pending.get("cell_merges") or {})
+    cells = tall_rows.tall_cells(buildings, state["cell_merges"], pending.get("row_merges") or [])
+    state["row_merges"] = [tall_rows.to_record(c) for c in cells]
+    state["manual_roles"]["structural"] = []
+    rooms = {b["name"]: [r["name"] for r in b["rooms"]] for b in buildings}
+    for entry in pending.get("slots") or []:
+        organizer = next((o for o in state["organizers"] if o["id"] == entry["organizer_id"]), None)
+        if organizer is None or organizer.get("cant_attend"):
+            continue
+        slot = _slot_role(entry["role"])
+        room = entry.get("room")
+        try:
+            organizer_slots.check_slot(slot, entry["building"], room, rooms)
+        except ValueError:
+            notes.append(
+                f"{organizer['name']} ({slot.value}, {_place_text(entry['building'], room)}): "
+                "takové místo v uložené konfiguraci není, přeskočeno."
+            )
+            continue
+        held = [e for e in state["manual_roles"]["structural"] if e.get("organizer_id") == organizer["id"]]
+        if any(not _same_place(e, entry["building"], room) for e in held):
+            notes.append(
+                f"{organizer['name']} je v tabulce na více místech, platí poslední: {_place_text(entry['building'], room)}."
+            )
+        _place_organizer(state, organizer["id"], slot, entry["building"], room)
+    # Pravá ruka at the Building exists only inside a tall cell with Vedoucí budovy;
+    # one whose cell did not survive would be hidden from the grid, so it goes.
+    live = tall_rows.tall_cells(buildings, state["cell_merges"], state["row_merges"])
+    state["manual_roles"]["structural"] = [
+        e
+        for e in state["manual_roles"]["structural"]
+        if not (e["role"] == "PravaRuka" and not e.get("room") and tall_rows.find_cell(live, "PravaRuka", e["building"], None) is None)
+    ]
+    _sync_placements(state)
+    workspace.save(state)
+    if config_path is None:
+        config_store.save_default_config(buildings)
+    else:
+        config_store.save_default_config(buildings, path=config_path)
+    return state
 
 
 def put_solver_config(workspace: Workspace, solver_config: dict) -> dict:
@@ -3937,7 +4103,82 @@ def set_cell_merges(workspace: Workspace, row_key: str, building: str, pairs: li
         by_building.pop(building, None)
     if not by_building:
         cell_merges.pop(row_key, None)
+    held = tall_rows.tall_cells(state["config"], state.get("cell_merges", {}), state.get("row_merges", []))
+    if len(tall_rows.tall_cells(state["config"], cell_merges, state.get("row_merges", []))) < len(held):
+        raise RosteringError("Buňka je sloučená přes více rolí. Nejdřív ji rozdělte (⊟ ve spodní části buňky).")
     state["cell_merges"] = cell_merges
+    workspace.save(state)
+    return state
+
+
+_STRUCTURAL_KEYS = {r.name for r in StructuralRole}
+
+
+def _fold_tall_cell(state: dict[str, Any], cell: tall_rows.TallCell) -> None:
+    """The data effect of merging two rows into a tall cell (not saved): the cell
+    becomes one slot for both roles. For two leadership roles every Organizer in
+    either gets both, all filed at the cell's address. Focení předávání cen
+    follows the placed Fotografs from then on, so its own entries over these
+    Rooms are folded away."""
+    if cell.upper in _STRUCTURAL_KEYS:
+        people: list[int] = []
+        for entry in state["manual_roles"]["structural"]:
+            organizer_id = entry.get("organizer_id")
+            if organizer_id is not None and organizer_id not in people and _in_tall_cell(entry, cell):
+                people.append(organizer_id)
+        for organizer_id in people:
+            if _organizer_record(state, organizer_id).get("cant_attend"):
+                continue
+            for row in cell.rows:
+                _place_organizer(state, organizer_id, _slot_role(row), cell.building, cell.address_room)
+    else:
+        state["manual_roles"]["overlay"] = [
+            entry
+            for entry in state["manual_roles"]["overlay"]
+            if not (entry["role"] == cell.lower and entry.get("building") == cell.building and entry.get("room") in cell.rooms)
+        ]
+
+
+def _unfold_tall_cell(state: dict[str, Any], cell: tall_rows.TallCell) -> None:
+    """The data effect of splitting a tall cell (not saved): everyone stays in
+    the upper role only and the lower one is left empty. Fotograf and Focení
+    need nothing, as Focení holds no entries of its own over a tall cell."""
+    if cell.upper in _STRUCTURAL_KEYS:
+        state["manual_roles"]["structural"] = [
+            e for e in state["manual_roles"]["structural"] if not (e["role"] == cell.lower and _in_tall_cell(e, cell))
+        ]
+
+
+def set_row_merge(workspace: Workspace, row_key: str, building: str, room: str, merged: bool) -> dict:
+    """Merge the row ``row_key`` with the one under it into a tall cell over the
+    cell group starting at ``room`` of ``building``, or split that tall cell
+    again (see ``rostering.row_merges``). Merging is only possible where both rows
+    have a cell over exactly the same Rooms (see ``row_merges.candidates``). A
+    tall cell is one slot for all its roles: merging gives everyone in it both
+    roles, splitting leaves them in the upper role only."""
+    state = workspace.load()
+    saved = state.get("row_merges", [])
+    held = tall_cells(state)
+    if merged:
+        cell = next(
+            (
+                c
+                for c in tall_rows.candidates(state["config"], state.get("cell_merges", {}), saved)
+                if (c.upper, c.building, c.rooms[0]) == (row_key, building, room)
+            ),
+            None,
+        )
+        if cell is None:
+            raise RosteringError("Tyto dvě role nelze sloučit: obě musí mít buňku přes stejné místnosti.")
+        state["row_merges"] = [tall_rows.to_record(c) for c in held] + [tall_rows.to_record(cell)]
+        _fold_tall_cell(state, cell)
+    else:
+        cell = next((c for c in held if (c.upper, c.building, c.rooms[0]) == (row_key, building, room)), None)
+        if cell is None:
+            raise RosteringError("Taková sloučená buňka přes role neexistuje.")
+        state["row_merges"] = [tall_rows.to_record(c) for c in held if c is not cell]
+        _unfold_tall_cell(state, cell)
+    _sync_placements(state)
     workspace.save(state)
     return state
 
@@ -3994,7 +4235,9 @@ def export_xlsx_bytes(workspace: Workspace) -> bytes:
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         tmp_path = Path(tmp.name)
     try:
-        write_roster(comp, result, manual, tmp_path, cell_merges=state.get("cell_merges", {}))
+        write_roster(
+            comp, result, manual, tmp_path, cell_merges=state.get("cell_merges", {}), tall_cells=tall_cells(state)
+        )
         return tmp_path.read_bytes()
     finally:
         tmp_path.unlink(missing_ok=True)

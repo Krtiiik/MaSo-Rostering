@@ -25,6 +25,7 @@ from rostering.webapp.ui.grid.data import (
     group_adjacent,
 )
 from rostering.domain import Preference
+from rostering.row_merges import TallCell
 
 # Preference level (5 Ano .. 1 Ne) -> its Czech wording, for the role-fit tooltip.
 ROLE_FIT_LABELS = {Preference[name].value: label for name, label in PREFERENCE_LABELS.items()}
@@ -216,9 +217,48 @@ def manual_chip(view: GridView, entry: dict, duplicate_cell: bool) -> str:
 
 
 # ---------------------------------------------------------------------- cells
-def _merge_controls(row_key: str, building: str, rooms: list[str], next_group: Optional[tuple[str, list[str]]]) -> str:
+class _Tall:
+    """The tall cells of one render, indexed by their row and the first Room of
+    their group (a tall cell is drawn once, in its upper row, over two rows)."""
+
+    def __init__(self, view: GridView) -> None:
+        self.upper = {(c.upper, c.building, c.rooms[0]): c for c in view.tall}
+        self.lower = {(c.lower, c.building, c.rooms[0]) for c in view.tall}
+        self.can_merge = {(c.upper, c.building, c.rooms[0]) for c in view.tall_candidates}
+
+    def involved(self, row_key: str, building: str, first_room: str) -> bool:
+        key = (row_key, building, first_room)
+        return key in self.upper or key in self.lower
+
+
+def _tall_controls(row_key: str, building: str, first_room: str, tall: "_Tall") -> str:
+    """The bottom-edge handle that merges a cell with the one under it, or the
+    button that splits a tall cell again."""
+    key = (row_key, building, first_room)
+    attrs = _attrs(data_key=row_key, data_building=building, data_room=first_room)
+    if key in tall.upper:
+        return (
+            '<button type="button" class="cell-unmerge-handle cell-unmerge-tall" '
+            'title="Kliknutím sloučenou buňku přes více rolí opět rozdělíte; lidé zůstanou v horní roli" '
+            f'{attrs} data-row-merge="0">⊟</button>'
+        )
+    if key in tall.can_merge:
+        return (
+            '<div class="cell-vmerge-handle" title="Kliknutím sloučíte s buňkou pod touto (obě role budou společné)" '
+            f'{attrs} data-row-merge="1"></div>'
+        )
+    return ""
+
+
+def _merge_controls(
+    row_key: str,
+    building: str,
+    rooms: list[str],
+    next_group: Optional[tuple[str, list[str]]],
+    next_blocked: bool = False,
+) -> str:
     parts = []
-    if next_group is not None and next_group[0] == building:
+    if next_group is not None and next_group[0] == building and not next_blocked:
         pairs = json.dumps([[rooms[-1], next_group[1][0]]])
         parts.append(
             f'<div class="cell-merge-handle" title="Kliknutím sloučíte s další buňkou" '
@@ -233,21 +273,33 @@ def _merge_controls(row_key: str, building: str, rooms: list[str], next_group: O
     return "".join(parts)
 
 
-def _cell(classes: list[str], colspan: int, attrs: str, title: Optional[str], content: str, controls: str) -> str:
+def _cell(
+    classes: list[str], colspan: int, attrs: str, title: Optional[str], content: str, controls: str, rowspan: int = 1
+) -> str:
     title_attr = f' title="{_attr(title)}"' if title else ""
     span = f' colspan="{colspan}"' if colspan > 1 else ""
+    span += f' rowspan="{rowspan}"' if rowspan > 1 else ""
     return (
         f'<td class="{" ".join(classes)}"{span} {attrs}{title_attr}>'
         f'<div class="grid-cell-inner">{content}</div>{controls}</td>'
     )
 
 
-def _role_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]]) -> str:
+def _next_blocked(row_key: str, groups: list[tuple[str, list[str]]], i: int, tall: _Tall) -> bool:
+    """Whether the cell after ``groups[i]`` is part of a tall cell, so a sideways
+    merge into it would change that cell's Rooms."""
+    return i + 1 < len(groups) and tall.involved(row_key, groups[i + 1][0], groups[i + 1][1][0])
+
+
+def _role_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]], tall: _Tall) -> str:
     cells = []
     by_cell: dict[tuple, list[int]] = {}
     for helper_id, a in view.assignments.items():
         by_cell.setdefault((a["building"], a["room"], a["role"]), []).append(helper_id)
     for i, (building, rooms) in enumerate(groups):
+        if (row.key, building, rooms[0]) in tall.lower:
+            continue  # covered by the tall cell above
+        is_tall = (row.key, building, rooms[0]) in tall.upper
         lines: list[str] = []
         ids: list[int] = []
         for room in rooms:
@@ -256,14 +308,18 @@ def _role_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]])
                     lines.append(line)
             ids += by_cell.get((building, room, row.key), [])
         ids.sort(key=lambda hid: view.helpers[hid]["name"].lower())
+        controls = "" if is_tall else _merge_controls(
+            row.key, building, rooms, groups[i + 1] if i + 1 < len(groups) else None, _next_blocked(row.key, groups, i, tall)
+        )
         cells.append(
             _cell(
-                ["grid-cell"] + (["broken"] if lines else []),
+                ["grid-cell"] + (["broken"] if lines else []) + (["tall-cell"] if is_tall else []),
                 len(rooms),
                 _attrs(data_drop="role", data_building=building, data_room=rooms[0], data_role=row.key),
                 _title(lines),
                 "".join(helper_chip(view, hid) for hid in ids),
-                _merge_controls(row.key, building, rooms, groups[i + 1] if i + 1 < len(groups) else None),
+                controls + _tall_controls(row.key, building, rooms[0], tall),
+                rowspan=2 if is_tall else 1,
             )
         )
     return "".join(cells)
@@ -276,10 +332,15 @@ def _manual_cell(
     rooms: Optional[list[str]],
     colspan: int,
     controls: str,
+    tall: Optional[TallCell] = None,
 ) -> str:
     """One manual-role cell: its names as chips (removable by their ×), filled
-    only by the drops its row allows; nothing can be typed into it."""
-    if rooms is None:
+    only by the drops its row allows; nothing can be typed into it. A tall cell
+    shows the people of both its roles once."""
+    if tall is not None:
+        entries = _tall_entries(view, tall)
+        rooms = list(tall.rooms) if tall.address_room is not None else None
+    elif rooms is None:
         entries = [e for e in view.entries if e["key"] == row.key and e["building"] == building and e["room"] is None]
     else:
         # Entries stay keyed to their exact Room even when shown merged.
@@ -295,7 +356,11 @@ def _manual_cell(
                 "dimmed": e.get("dimmed"),
                 "broken": e.get("broken"),
             }
-            source = {"key": row.key, "building": e["building"] or building, "room": e["room"]}
+            source = (
+                {"key": tall.upper, "building": tall.building, "room": tall.address_room}
+                if tall is not None
+                else {"key": row.key, "building": e["building"] or building, "room": e["room"]}
+            )
             chips.append(organizer_chip(view, organizer, source, removable=True))
         else:
             chips.append(manual_chip(view, e, duplicate_cell=row.duplicate_drop))
@@ -308,19 +373,51 @@ def _manual_cell(
         data_rooms=json.dumps(rooms) if rooms is not None else None,
         data_names=json.dumps([e["name"] for e in entries]),
     )
-    return _cell(["grid-cell", "manual-cell"], colspan, attrs, None, "".join(chips), controls)
-
-
-def _manual_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]]) -> str:
-    if row.scope == "room":
-        cells = []
-        for i, (building, rooms) in enumerate(groups):
-            controls = _merge_controls(row.key, building, rooms, groups[i + 1] if i + 1 < len(groups) else None)
-            cells.append(_manual_cell(view, row, building, rooms, len(rooms), controls))
-        return "".join(cells)
-    return "".join(
-        _manual_cell(view, row, building, None, len(rooms), "") for building, rooms in building_groups(view.rooms)
+    return _cell(
+        ["grid-cell", "manual-cell"] + (["tall-cell"] if tall is not None else []),
+        colspan,
+        attrs,
+        None,
+        "".join(chips),
+        controls,
+        rowspan=2 if tall is not None else 1,
     )
+
+
+def _tall_entries(view: GridView, cell: TallCell) -> list[dict]:
+    """The slot entries of a tall cell's two roles, one per person: a Building-level
+    cell holds the Building's entries, a Room-level one those of its Rooms."""
+    entries, seen = [], set()
+    for e in view.entries:
+        if e["key"] not in cell.rows or e["building"] != cell.building:
+            continue
+        inside = cell.address_room is None if e["room"] is None else e["room"] in cell.rooms
+        who = e["organizer_id"] if e.get("organizer_id") is not None else ("name", e["name"])
+        if inside and who not in seen:
+            seen.add(who)
+            entries.append(e)
+    return entries
+
+
+def _manual_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]], tall: _Tall) -> str:
+    cells = []
+    if row.scope == "room":
+        for i, (building, rooms) in enumerate(groups):
+            key = (row.key, building, rooms[0])
+            if key in tall.lower:
+                continue  # covered by the tall cell above
+            cell = tall.upper.get(key)
+            controls = "" if cell else _merge_controls(
+                row.key, building, rooms, groups[i + 1] if i + 1 < len(groups) else None, _next_blocked(row.key, groups, i, tall)
+            )
+            controls += _tall_controls(row.key, building, rooms[0], tall)
+            cells.append(_manual_cell(view, row, building, rooms, len(rooms), controls, cell))
+        return "".join(cells)
+    for building, rooms in building_groups(view.rooms):
+        cell = tall.upper.get((row.key, building, rooms[0]))
+        controls = _tall_controls(row.key, building, rooms[0], tall)
+        cells.append(_manual_cell(view, row, building, None, len(rooms), controls, cell))
+    return "".join(cells)
 
 
 # ---------------------------------------------------------------------- the grid
@@ -353,6 +450,7 @@ def render(view: GridView, merges: dict) -> str:
         parts.append(f'<th class="room-header{" broken" if lines else ""}"{title}>{escape(r["room"])}</th>')
     parts.append("</tr></thead><tbody>")
     previous: Optional[GridRow] = None
+    tall = _Tall(view)
     for row in view.rows:
         # The Organizer rows and the Helper rows are set apart by a heavy line
         # wherever one kind follows the other.
@@ -362,7 +460,7 @@ def render(view: GridView, merges: dict) -> str:
             note = f'<span class="row-label-note">{LINK_ICON} {"Organizátorská role" if row.organizer else "Manuální role"}</span>'
         parts.append(f'<tr{side}><th class="row-label">{escape(row.label)}{note}</th>')
         groups = row_groups_for(view, merges, row.key)
-        parts.append(_role_row(view, row, groups) if row.kind == "role" else _manual_row(view, row, groups))
+        parts.append(_role_row(view, row, groups, tall) if row.kind == "role" else _manual_row(view, row, groups, tall))
         parts.append("</tr>")
         previous = row
     parts.append("</tbody></table></div>")
@@ -408,6 +506,13 @@ CSS = """
   z-index: 5; opacity: .6;
 }
 .roster-grid-root .cell-unmerge-handle:hover { opacity: 1; background: #e6f4ff; }
+.roster-grid-root .cell-vmerge-handle {
+  position: absolute; left: 0; right: 0; bottom: -4px; height: 8px; cursor: pointer; z-index: 5;
+  background: #d5dae1; opacity: .35;
+}
+.roster-grid-root .cell-vmerge-handle:hover { opacity: 1; background: #1c83e1; }
+.roster-grid-root .cell-unmerge-tall { top: auto; bottom: 2px; }
+.roster-grid-root .tall-cell { background: #f4f9ff; }
 .roster-grid-root .helper-chip {
   display: inline-block; margin: 1px; padding: 2px 6px; border-radius: 10px; background: #eef1f5;
   border: 1px solid #d5dae1; cursor: grab; user-select: none; white-space: nowrap;

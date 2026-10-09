@@ -3,13 +3,16 @@ state plus the Overlays and Tag filter chosen on the Roster tab. No NiceGUI in
 here, so it is tested directly; ``render`` turns it into the grid's HTML.
 
 Layout: the columns are always one per physical Room, grouped under their
-Building. Rows, top to bottom: the leadership slots (Organizer rows), the six
-solver Roles, the Additional roles, then Technická podpora (see CONTEXT.md). Any
+Building. Rows, top to bottom: the leadership slots (Organizer rows), the five
+solver Roles up to Fotograf, the Additional roles (Focení předávání cen first, so
+it sits under Fotograf), Záloha, then Technická podpora (see CONTEXT.md). Any
 *one row* (a solver Role, or a Room-scoped manual role) can merge two or more of
 its own adjacent cells into one wider cell, like merging cells within a single
 spreadsheet row; every other row for the same Rooms is unaffected
 (``state["cell_merges"]``, see ``rostering.domain.group_adjacent_rooms``). That
-is purely presentational: Assignments always name exact Rooms.
+is purely presentational: Assignments always name exact Rooms. Two adjacent rows
+can also be merged top-to-bottom into a *tall cell* over the same Rooms
+(``state["row_merges"]``, see ``rostering.row_merges``).
 
 Friend relations are derived from each Helper's own ``friends`` list (what they
 wrote on the form, resolved to ids) and the current Assignments — deliberately
@@ -22,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
 from rostering.domain import OverlayRole, Preference, Role, StructuralRole, normalize_name
+from rostering.row_merges import TallCell, candidates
 from rostering.ingest.mapping import building_keys
 from rostering.webapp import labels, mutations
 
@@ -43,12 +47,12 @@ MANUAL_ROWS_BEFORE = [
     (StructuralRole.PravaRuka, "room", False),
     (StructuralRole.VedouciMistnosti, "room", False),
 ]
-MANUAL_ROWS_AFTER = [
-    (OverlayRole.UvadeciUcastniku, "room", True),
+MANUAL_ROWS_ADDITIONAL = [
     (OverlayRole.FoceniPredavaniCen, "room", True),
+    (OverlayRole.UvadeciUcastniku, "room", True),
     (OverlayRole.Registrace, "building", True),
-    (StructuralRole.TechnickaPodpora, "building", False),
 ]
+MANUAL_ROWS_LAST = [(StructuralRole.TechnickaPodpora, "building", False)]
 STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
 
 # The Czech wording of the form (see rostering.ingest.preferences), for the
@@ -96,8 +100,10 @@ def grid_rows() -> list[GridRow]:
         )
 
     rows = [manual(*spec) for spec in MANUAL_ROWS_BEFORE]
-    rows += [GridRow(kind="role", key=name, label=ROLE_LABELS[name]) for name in ROLE_ORDER]
-    rows += [manual(*spec) for spec in MANUAL_ROWS_AFTER]
+    rows += [GridRow(kind="role", key=name, label=ROLE_LABELS[name]) for name in ROLE_ORDER if name != RESERVE_ROLE]
+    rows += [manual(*spec) for spec in MANUAL_ROWS_ADDITIONAL]
+    rows += [GridRow(kind="role", key=RESERVE_ROLE, label=ROLE_LABELS[RESERVE_ROLE])]
+    rows += [manual(*spec) for spec in MANUAL_ROWS_LAST]
     return rows
 
 
@@ -271,6 +277,9 @@ class GridView:
     # are separate id spaces, hence the separate maps.
     organizer_status: dict[int, dict[int, bool]] = field(default_factory=dict)
     organizer_requesters: dict[int, list[int]] = field(default_factory=dict)
+    # Tall cells that hold, and those that could be made now (see rostering.row_merges).
+    tall: list[TallCell] = field(default_factory=list)
+    tall_candidates: list[TallCell] = field(default_factory=list)
 
     @property
     def friends_on(self) -> bool:
@@ -415,6 +424,8 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
         requesters=requesters,
         organizer_status=organizer_status,
         organizer_requesters=organizer_requesters,
+        tall=mutations.tall_cells(state),
+        tall_candidates=candidates(state["config"], state.get("cell_merges", {}), state.get("row_merges", [])),
     )
 
 

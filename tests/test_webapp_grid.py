@@ -91,7 +91,11 @@ def test_rows_put_the_leadership_slots_first_and_mark_the_organizer_rows():
     assert keys[:3] == ["VedouciBudovy", "PravaRuka", "VedouciMistnosti"]
     assert keys[-1] == "TechnickaPodpora"
     assert [r.key for r in rows if r.organizer] == ["VedouciBudovy", "PravaRuka", "VedouciMistnosti", "TechnickaPodpora"]
-    assert [r.key for r in rows if r.duplicate_drop] == ["UvadeciUcastniku", "FoceniPredavaniCen", "Registrace"]
+    assert [r.key for r in rows if r.duplicate_drop] == ["FoceniPredavaniCen", "UvadeciUcastniku", "Registrace"]
+    # Focení předávání cen sits right under Fotograf so the two can form a tall cell; Záloha follows
+    # the Additional roles.
+    assert keys[keys.index("Fotograf") + 1] == "FoceniPredavaniCen"
+    assert keys[-3:] == ["Registrace", "Zaloha", "TechnickaPodpora"] or keys[-2:] == ["Zaloha", "TechnickaPodpora"]
 
 
 def test_a_helper_who_cannot_attend_is_not_on_the_grid_at_all(workspace):
@@ -289,3 +293,49 @@ def test_details_card_flipped_above_is_anchored_by_its_bottom_edge():
     assert below.startswith(f"top:{100 + CURSOR_OFFSET}px")
     above = card_position(100, 780, 1200, 800)
     assert above.startswith(f"bottom:{800 - (780 - CURSOR_OFFSET)}px")
+
+
+# ---------------------------------------------------------------------- tall cells
+def _html(workspace) -> str:
+    return render.render(_view(workspace), mutations.get_state(workspace)["cell_merges"])
+
+
+def test_a_cell_with_a_partner_row_over_the_same_rooms_offers_a_tall_merge(workspace):
+    html = _html(workspace)
+    # Vedoucí budovy meets Pravá ruka only once Pravá ruka spans the whole Building.
+    assert 'data-row-merge="1"' in html
+    offered = re.findall(r'class="cell-vmerge-handle"[^>]*data-key="(\w+)"[^>]*data-building="([^"]+)"', html)
+    assert ("VedouciBudovy", "Karlín") not in offered
+    assert ("PravaRuka", "Karlín") in offered  # Pravá ruka and Vedoucí místností both have K1 alone
+
+
+def test_a_tall_cell_is_drawn_once_over_two_rows_with_both_roles_people(workspace):
+    anna = mutations.add_organizer(workspace, "Anna")["organizers"][-1]["id"]
+    mutations.assign_organizer(workspace, anna, "VedouciBudovy", "Karlín")
+    mutations.set_cell_merges(workspace, "PravaRuka", "Karlín", [["K1", "K2"]], True)
+    mutations.set_row_merge(workspace, "VedouciBudovy", "Karlín", "K1", True)
+
+    html = _html(workspace)
+
+    tall = re.search(r'<td [^>]*rowspan="2"[^>]*data-key="VedouciBudovy"[^>]*>(.*?)</td>', html, re.S)
+    assert tall is not None and 'colspan="2"' in tall.group(0)
+    assert tall.group(1).count('data-oid="%d"' % anna) == 1  # once, not once per role
+    assert 'data-row-merge="0"' in tall.group(1)
+    # Pravá ruka's cell over Karlín is covered by it; Troja's is still there.
+    assert len(re.findall(r'<td [^>]*data-key="PravaRuka"[^>]*data-building="Karlín"', html)) == 0
+    assert len(re.findall(r'<td [^>]*data-key="PravaRuka"[^>]*data-building="Troja"', html)) == 1
+    # A sideways merge next to a tall cell would change its Rooms, so none is offered there.
+    assert 'data-merge=' not in tall.group(0)
+
+
+def test_a_tall_cell_over_fotograf_holds_the_photographers_and_hides_the_focení_cell(workspace):
+    mutations.move_helper(workspace, 2, "Karlín", "K1", "Fotograf")
+    for row in ("Fotograf", "FoceniPredavaniCen"):
+        mutations.set_cell_merges(workspace, row, "Karlín", [["K1", "K2"]], True)
+    mutations.set_row_merge(workspace, "Fotograf", "Karlín", "K1", True)
+
+    html = _html(workspace)
+
+    tall = re.search(r'<td [^>]*rowspan="2"[^>]*data-role="Fotograf"[^>]*>(.*?)</td>', html, re.S)
+    assert tall is not None and 'data-hid="2"' in tall.group(1) and 'data-drop="role"' in tall.group(0)
+    assert len(re.findall(r'<td [^>]*data-key="FoceniPredavaniCen"[^>]*data-building="Karlín"', html)) == 0

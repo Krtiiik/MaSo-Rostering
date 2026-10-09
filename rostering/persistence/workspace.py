@@ -110,6 +110,11 @@ class Workspace:
             # same rooms are unaffected. Empty by default: the unmerged,
             # one-column-per-room layout for every row.
             "cell_merges": {},
+            # Tall cells (see rostering.row_merges): {building, room, row} for
+            # each pair of adjacent rows merged top-to-bottom over the same
+            # Rooms. Presentational like cell_merges, but a merged cell holds
+            # one set of people for all its roles. Part of every Version.
+            "row_merges": [],
             # Why the roster is stale (see mutations.stale_reasons): set by an
             # edit that invalidates it without moving anyone, cleared by a full
             # Solve, and blocks Export while non-empty. Part of every Version.
@@ -163,6 +168,8 @@ class Workspace:
         state.setdefault("organizers", [])
         # ... and one saved before Forced friends groups existed has none.
         state.setdefault("forced_groups", [])
+        # ... and one saved before tall cells existed has none.
+        state.setdefault("row_merges", [])
         if ensure_person_ids(state):
             _write_json(path, state)
         return state

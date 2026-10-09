@@ -13,7 +13,7 @@ from rostering.czech import plural
 from rostering.domain import Role
 from rostering.persistence import config_store
 from rostering.webapp import mutations
-from rostering.webapp.ui import fix_focus, solving
+from rostering.webapp.ui import dialogs, fix_focus, solving
 from rostering.webapp.ui.session import UiSession
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
@@ -37,9 +37,10 @@ def layout_key(buildings: list[dict]) -> list:
     ]
 
 
-def has_unsaved_changes(state: dict, buildings: list[dict]) -> bool:
-    """Whether the drafted layout differs from what the open Season has saved."""
-    return layout_key(buildings) != layout_key(state["config"])
+def has_unsaved_changes(state: dict, buildings: list[dict], sheet_pending: Optional[dict] = None) -> bool:
+    """Whether the drafted layout differs from what the open Season has saved, or
+    a sheet's leaders and merges are waiting to be saved with it."""
+    return sheet_pending is not None or layout_key(buildings) != layout_key(state["config"])
 
 
 class BuildingsTab:
@@ -148,7 +149,7 @@ class BuildingsTab:
     # ------------------------------------------------------------------ footer
     @ui.refreshable_method
     def _unsaved(self) -> None:
-        if has_unsaved_changes(self.session.state, self.draft):
+        if has_unsaved_changes(self.session.state, self.draft, self.session.view.sheet_pending):
             ui.chip("Neuložené změny", icon="warning", color="warning").props("outline").mark("unsaved").tooltip(
                 "Rozložení zde se uloží, až kliknete na Uložit konfiguraci (nebo Uložit a sestavit rozdělení). "
                 "Znovunačtení stránky je zahodí."
@@ -168,26 +169,50 @@ class BuildingsTab:
             )
             self._unsaved()
 
-    def _put(self) -> Optional[dict]:
+    async def _put(self) -> Optional[dict]:
         """Save the draft to the open Season (a copy, so later edits to the draft
-        never reach the saved state through a shared reference)."""
-        try:
-            saved = mutations.put_config(self.session.workspace, copy.deepcopy(self.draft))
-        except mutations.RosteringError as exc:
-            ui.notify(str(exc), type="negative", multi_line=True)
+        never reach the saved state through a shared reference). A layout read from
+        a sheet is saved together with its leaders and merges, which replace the
+        Season's own after a confirmation."""
+        s = self.session
+        pending = s.view.sheet_pending
+        if pending is None:
+            try:
+                saved = mutations.put_config(s.workspace, copy.deepcopy(self.draft))
+            except mutations.RosteringError as exc:
+                ui.notify(str(exc), type="negative", multi_line=True)
+                return None
+            s.apply(saved)
+            return saved
+        notes: list[str] = []
+        saved = await s.act(
+            lambda confirmed: mutations.put_config_from_sheet(
+                s.workspace, copy.deepcopy(self.draft), pending, confirmed=confirmed, warnings=notes
+            ),
+            confirm=dialogs.ConfirmSpec(
+                title="Nahradit vedoucí a sloučené buňky?",
+                ok_label="Nahradit a uložit",
+                intro="Uložením načtené tabulky se **nahradí** obsazení rolí Vedoucí budovy, Pravá ruka, "
+                "Vedoucí místností a Technická podpora i sloučené buňky v mřížce:",
+                caption="Organizátory to nesmaže, jen jim zruší zařazení, které tabulka nepotvrdí.",
+            ),
+        )
+        if saved is None:
             return None
-        self.session.apply(saved)
+        s.view.sheet_pending = None
+        for line in notes:
+            ui.notify(line, type="warning", multi_line=True)
         return saved
 
-    def _save(self) -> None:
-        if self._put() is not None:
+    async def _save(self) -> None:
+        if await self._put() is not None:
             ui.notify("Konfigurace uložena.", type="positive")
 
     async def _save_and_solve(self) -> None:
         # Saved first, so the confirmation counts against the new layout (a
         # removed Room drops its locks). Removing a Room that holds a lock is
         # never blocked or prompted here.
-        if self._put() is not None:
+        if await self._put() is not None:
             await solving.solve(self.session, open_roster=True)
 
     def _import_button(self) -> None:
@@ -199,7 +224,8 @@ class BuildingsTab:
             "flat"
         ).mark("buildings-sheet-import").tooltip(
             "Nahradí rozložení zde tabulkou „Pomocníci v místnostech“ (.xlsx): budovy a místnosti podle sloučených "
-            "buněk záhlaví, počty podle barevných buněk (šedé a prázdné pomocníka nepotřebují). "
+            "buněk záhlaví, počty podle barevných buněk (šedé a prázdné pomocníka nepotřebují). Načte i organizátory "
+            "v rolích vedoucích (podle jména, musí už být v ročníku) a sloučené buňky, i ty přes více rolí. "
             "Uloží se až kliknutím na Uložit konfiguraci."
         )
 
@@ -207,16 +233,20 @@ class BuildingsTab:
         content = await e.file.read()
         e.sender.reset()
         try:
-            buildings, warnings = mutations.read_building_sheet(content)
+            buildings, pending, warnings = mutations.read_building_sheet(self.session.workspace, content)
         except mutations.RosteringError as exc:
             ui.notify(str(exc), type="negative", multi_line=True)
             return
         self.session.view.buildings_draft = buildings
+        self.session.view.sheet_pending = pending
         self._structure_changed()
         rooms = sum(len(b["rooms"]) for b in buildings)
+        leaders = len(pending["slots"])
         ui.notify(
             f"Načteno: {len(buildings)} {plural(len(buildings), 'budova', 'budovy', 'budov')}, "
-            f"{rooms} {plural(rooms, 'místnost', 'místnosti', 'místností')}. Uložte konfiguraci, aby se použilo.",
+            f"{rooms} {plural(rooms, 'místnost', 'místnosti', 'místností')}, "
+            f"{leaders} {plural(leaders, 'zařazení organizátora', 'zařazení organizátorů', 'zařazení organizátorů')}. "
+            "Uložte konfiguraci, aby se použilo.",
             type="positive",
         )
         for line in warnings:
@@ -225,4 +255,5 @@ class BuildingsTab:
     def _reset(self) -> None:
         """Replace the draft with the bundled default; nothing is saved."""
         self.session.view.buildings_draft = config_store.load_bundled_config()
+        self.session.view.sheet_pending = None
         self._structure_changed()

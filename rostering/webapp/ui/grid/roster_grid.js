@@ -6,8 +6,10 @@
 //
 // Events: helper_drop {helper_id, building, room, role}; organizer_drop
 // {organizer_id, key, building, room, source}; manual_set {key, building, room,
-// names} (a duplicate drop or a chip's ×; names are never typed); cell_merge {key, building, pairs, merged}; lock {helper_id, locked};
-// card {helper_id, x, y, width, height}; card_close.
+// names} (a duplicate drop or a chip's ×; names are never typed); cell_merge
+// {key, building, pairs, merged}; row_merge {key, building, room, merged} (a tall
+// cell: the cell's row merged with the one under it, or split again); lock
+// {helper_id, locked}; card {helper_id, x, y, width, height}; card_close.
 
 const DRAG_MIME = "application/x-rostering-chip";
 
@@ -169,6 +171,17 @@ export default {
     },
     // ------------------------------------------------------------ clicks
     onClick(e) {
+      const rowMerge = closest(e.target, "[data-row-merge]");
+      if (rowMerge) {
+        e.stopPropagation();
+        this.$emit("row_merge", {
+          key: rowMerge.dataset.key,
+          building: rowMerge.dataset.building,
+          room: rowMerge.dataset.room,
+          merged: rowMerge.dataset.rowMerge === "1",
+        });
+        return;
+      }
       const merge = closest(e.target, "[data-merge]");
       if (merge) {
         e.stopPropagation();

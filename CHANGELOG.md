@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rozpis and the Excel export: Focení předávání cen now sits directly under Fotograf
+  (so they can form a tall cell), ahead of Uvaděči účastníků and Registrace; Záloha
+  follows the Additional roles in the grid, as it already did in the export.
 - Rozpis: only the grid table scrolls sideways; the "Nezařazení" list above it
   stays in place instead of scrolling along with it.
 - Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
@@ -29,7 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each Role's count is the number of coloured cells in its rows under the Room,
   gray, white and empty cells needing nobody; a merged slot counts once, for the
   Room it sits under or, when it spans several Rooms (the Fotograf rows), for the
-  whole Building. Names and numbers in the cells are ignored.
+  whole Building. The same file also fills in the leaders and merges: names in
+  the Vedoucí budovy, Pravá ruka, Vedoucí místností and Technická podpora rows
+  (matched to the Season's Organizers by name; unknown ones are reported and
+  skipped) and the sheet's merged cells, including cells merged over two roles.
+  They are applied by "Uložit konfiguraci" in the same save, after asking before
+  the current leaders and merges are replaced.
+- Rozpis: a tall cell. Vedoucí budovy + Pravá ruka, Pravá ruka + Vedoucí místností
+  and Fotograf + Focení předávání cen can be merged top-to-bottom wherever both
+  rows have one cell over the same Rooms (a handle on the cell's bottom edge, ⊟ to
+  split it). The cell is one slot for both roles: dropping an Organizer gives them
+  both and × removes both (over Vedoucí budovy they stay at the Building); splitting
+  leaves them in the upper role. A Fotograf + Focení cell counts the placed
+  Fotografs as Focení. The Excel export draws it as one merged range.
 - Lidé: adding an Organizer by hand or importing the Organizers' sheet now tries
   again to match every friend name still unresolved (the survey's own rules, so
   an ambiguous or unrelated name stays on the list). A name that now resolves is

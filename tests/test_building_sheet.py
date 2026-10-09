@@ -145,8 +145,170 @@ def test_a_file_that_is_not_a_workbook_is_refused():
         parse_building_sheet(b"not a spreadsheet")
 
 
-def test_the_mutation_raises_a_rostering_error_instead():
+@pytest.fixture
+def workspace(tmp_path, monkeypatch):
+    from rostering.persistence.workspace import Workspace
+
+    monkeypatch.setenv("ROSTERING_SEASONS_DIR", str(tmp_path / "seasons"))
+    workspace = Workspace()
+    workspace.create_season("2026-jaro")
+    return workspace
+
+
+def test_the_mutation_raises_a_rostering_error_instead(workspace):
     with pytest.raises(mutations.RosteringError, match="přečíst"):
-        mutations.read_building_sheet(b"not a spreadsheet")
-    buildings, warnings = mutations.read_building_sheet(_sheet(_two_buildings))
-    assert [b["name"] for b in buildings] == ["Alfa", "Beta"] and warnings == []
+        mutations.read_building_sheet(workspace, b"not a spreadsheet")
+    buildings, pending, warnings = mutations.read_building_sheet(workspace, _sheet(_two_buildings))
+    assert [b["name"] for b in buildings] == ["Alfa", "Beta"]
+    # The fixture names Jiří Cihelka as Vedoucí budovy, and the Season has no Organizer of that name.
+    assert len(warnings) == 1 and "Jiří Cihelka" in warnings[0]
+    assert pending["slots"] == [] and pending["row_merges"] == []
+
+
+# ---------------------------------------------------------------------- leaders and merges
+def _with_leaders(ws) -> None:
+    """Alfa: rooms A1, A2, A3 (columns B-D); Beta: B1, B2 (E-F). Rows: 3 Vedoucí
+    budovy, 4 Pravá ruka, 5 Vedoucí místností, 6 Skenovači, 7 Fotografové, 8 Focení
+    předávání cen, 9 Technická podpora."""
+    ws.merge_cells("B1:D1")
+    ws.merge_cells("E1:F1")
+    _put(ws, "B1", "Alfa")
+    _put(ws, "E1", "Beta")
+    for cell, name in {"B2": "A1", "C2": "A2", "D2": "A3", "E2": "B1", "F2": "B2"}.items():
+        _put(ws, cell, name)
+    for row, label in enumerate(
+        ["Vedoucí budovy", "Pravá ruka", "Vedoucí místností", "Skenovači", "Fotografové", "Focení předávání cen", "Technická podpora"],
+        start=3,
+    ):
+        _put(ws, f"A{row}", label)
+    ws.merge_cells("B3:D4")  # Alfa: one leader for both rows, over the whole Building
+    _put(ws, "B3", "Anna Nováková")
+    ws.merge_cells("E3:F3")
+    _put(ws, "E3", "Bob Beran")
+    ws.merge_cells("E4:F4")
+    _put(ws, "E4", "Cyril Cerny, Dana Dvorakova")
+    _put(ws, "B5", "Eva Ehrlichova")
+    ws.merge_cells("C5:D5")
+    _put(ws, "C5", "Filip Fiala")
+    _put(ws, "E5", "Gita Gabrielova")
+    for col in "BCDEF":
+        _put(ws, f"{col}6", fill=NEEDED)
+    ws.merge_cells("B7:C8")  # Fotograf over A1+A2 with Focení under it
+    ws.merge_cells("E7:F7")
+    for cell in ("B7", "D7", "E7"):
+        _put(ws, cell, fill=NEEDED)
+    _put(ws, "B9", "Hana Horka, Ivo Ivanek")
+    _put(ws, "F9", "Jan Janda")
+
+
+def test_leadership_cells_become_slots_at_the_building_or_the_first_room_they_cover():
+    slots = parse_building_sheet(_sheet(_with_leaders)).slots
+    assert [(c.role, c.building, c.room, c.names) for c in slots] == [
+        ("VedouciBudovy", "Alfa", None, ["Anna Nováková"]),
+        ("PravaRuka", "Alfa", None, ["Anna Nováková"]),  # filed at the Building: the cell is tall with Vedoucí budovy
+        ("VedouciBudovy", "Beta", None, ["Bob Beran"]),
+        ("PravaRuka", "Beta", "B1", ["Cyril Cerny", "Dana Dvorakova"]),
+        ("VedouciMistnosti", "Alfa", "A1", ["Eva Ehrlichova"]),
+        ("VedouciMistnosti", "Alfa", "A2", ["Filip Fiala"]),  # the cell covers A2 and A3
+        ("VedouciMistnosti", "Beta", "B1", ["Gita Gabrielova"]),
+        ("TechnickaPodpora", "Alfa", None, ["Hana Horka", "Ivo Ivanek"]),
+        ("TechnickaPodpora", "Beta", None, ["Jan Janda"]),
+    ]
+
+
+def test_merged_cells_become_sideways_and_tall_merges():
+    sheet = parse_building_sheet(_sheet(_with_leaders))
+    assert sheet.cell_merges == {
+        "PravaRuka": {"Alfa": [["A1", "A2"], ["A2", "A3"]], "Beta": [["B1", "B2"]]},
+        "VedouciMistnosti": {"Alfa": [["A2", "A3"]]},
+        "Fotograf": {"Alfa": [["A1", "A2"]], "Beta": [["B1", "B2"]]},
+        "FoceniPredavaniCen": {"Alfa": [["A1", "A2"]]},
+    }
+    assert sheet.row_merges == [
+        {"building": "Alfa", "room": "A1", "row": "VedouciBudovy"},
+        {"building": "Alfa", "room": "A1", "row": "Fotograf"},
+    ]
+
+
+def test_a_tall_cell_that_cannot_exist_is_reported_and_left_out():
+    def build(ws) -> None:
+        _with_leaders(ws)
+        ws.unmerge_cells("B3:D4")
+        ws.merge_cells("B3:C4")  # Vedoucí budovy over only part of Alfa, with Pravá ruka under it
+
+    sheet = parse_building_sheet(_sheet(build))
+    assert {"building": "Alfa", "room": "A1", "row": "VedouciBudovy"} not in sheet.row_merges
+    assert any("nepokrývá celou budovu" in line for line in sheet.warnings)
+
+
+def test_names_are_matched_to_organizers_by_name_and_the_rest_reported(workspace):
+    for name in ("Anna Nováková", "Bob Beran", "Dana Dvorakova", "Hana Horka"):
+        mutations.add_organizer(workspace, name)
+    state = mutations.get_state(workspace)
+    next(o for o in state["organizers"] if o["name"] == "Bob Beran")["cant_attend"] = True
+    workspace.save(state)
+
+    _, pending, warnings = mutations.read_building_sheet(workspace, _sheet(_with_leaders))
+
+    by_id = {o["id"]: o["name"] for o in mutations.get_state(workspace)["organizers"]}
+    assert [(e["role"], e["building"], e["room"], by_id[e["organizer_id"]]) for e in pending["slots"]] == [
+        ("VedouciBudovy", "Alfa", None, "Anna Nováková"),
+        ("PravaRuka", "Alfa", None, "Anna Nováková"),
+        ("PravaRuka", "Beta", "B1", "Dana Dvorakova"),
+        ("TechnickaPodpora", "Alfa", None, "Hana Horka"),
+    ]
+    assert any("Cyril Cerny" in line and "není mezi organizátory" in line for line in warnings)
+    assert any("Bob Beran" in line and "Nemůže se zúčastnit" in line for line in warnings)
+    assert pending["row_merges"][0]["row"] == "VedouciBudovy"
+
+
+def test_saving_a_sheet_replaces_the_leaders_and_merges_in_one_save(workspace, tmp_path):
+    ids = {n: mutations.add_organizer(workspace, n)["organizers"][-1]["id"] for n in ("Anna Nováková", "Dana Dvorakova", "Old Boss")}
+    mutations.put_config(workspace, [{"name": "Alfa", "capacities": {}, "rooms": [{"name": "A1", "capacities": {}}]}], config_path=tmp_path / "c.yaml")
+    mutations.assign_organizer(workspace, ids["Old Boss"], "VedouciBudovy", "Alfa")
+    buildings, pending, _ = mutations.read_building_sheet(workspace, _sheet(_with_leaders))
+
+    with pytest.raises(mutations.ConfirmationRequired) as asked:
+        mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml")
+    assert asked.value.lines == ["Vedoucí budovy: Old Boss (Alfa)"]
+    assert [b["name"] for b in mutations.get_state(workspace)["config"]] == ["Alfa"]  # nothing changed yet
+
+    notes: list[str] = []
+    state = mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True, warnings=notes)
+
+    assert [b["name"] for b in state["config"]] == ["Alfa", "Beta"]
+    held = {(e["role"], e["building"], e.get("room"), e["organizer_id"]) for e in state["manual_roles"]["structural"]}
+    assert held == {
+        ("VedouciBudovy", "Alfa", None, ids["Anna Nováková"]),
+        ("PravaRuka", "Alfa", None, ids["Anna Nováková"]),
+        ("PravaRuka", "Beta", "B1", ids["Dana Dvorakova"]),
+    }
+    assert state["row_merges"] == [
+        {"building": "Alfa", "room": "A1", "row": "VedouciBudovy"},
+        {"building": "Alfa", "room": "A1", "row": "Fotograf"},
+    ]
+    assert state["cell_merges"]["Fotograf"] == {"Alfa": [["A1", "A2"]], "Beta": [["B1", "B2"]]}
+    assert {o["name"]: (o["building"], o["room"]) for o in state["organizers"]} == {
+        "Anna Nováková": ("Alfa", None),
+        "Dana Dvorakova": ("Beta", "B1"),
+        "Old Boss": (None, None),
+    }
+    assert notes == []
+
+
+def test_an_organizer_named_in_two_places_is_placed_at_the_last_with_a_note(workspace, tmp_path):
+    anna = mutations.add_organizer(workspace, "Anna Nováková")["organizers"][-1]["id"]
+
+    def build(ws) -> None:
+        _with_leaders(ws)
+        _put(ws, "F9", "Anna Nováková")
+
+    buildings, pending, _ = mutations.read_building_sheet(workspace, _sheet(build))
+    notes: list[str] = []
+    state = mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True, warnings=notes)
+
+    assert {(e["role"], e["building"], e.get("room")) for e in state["manual_roles"]["structural"] if e["organizer_id"] == anna} == {
+        ("TechnickaPodpora", "Beta", None)
+    }
+    assert any("Anna Nováková je v tabulce na více místech" in line for line in notes)
+    assert state["row_merges"][0]["row"] == "VedouciBudovy"
