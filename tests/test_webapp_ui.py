@@ -108,6 +108,12 @@ async def test_the_people_tab_lists_organizers_and_helpers(user: User):
     assert [r["name"] for r in _rows(user, "helper-table")] == ["Anna", "Bára"]
 
 
+async def test_both_tables_load_their_sheet_with_a_header_button(user: User):
+    user.find(kind=ui.button, content="Načíst pomocníky")
+    user.find(kind=ui.button, content="Načíst organizátory")
+    await user.should_not_see("Soubor s odpověďmi")
+
+
 async def test_ticking_a_helpers_cant_attend_flags_them(user: User, seasons):
     user.find(marker="helper-table").trigger("cant_attend", {"id": 1, "value": True})
     await asyncio.sleep(0.1)
@@ -522,7 +528,7 @@ async def test_start_over_asks_first(user: User, seasons):
 async def _upload_organizers(user: User, content: bytes) -> None:
     from nicegui.elements.upload_files import SmallFileUpload
 
-    uploader = user.find(marker="organizer-upload").elements.pop()
+    uploader = user.find(marker="organizers-upload").elements.pop()
     await uploader.handle_uploads([SmallFileUpload(name="organizers.xlsx", content_type="", _data=content)])
     await asyncio.sleep(0.3)
 

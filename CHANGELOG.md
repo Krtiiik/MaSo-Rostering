@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
+  the Helpers table header, the same as the Organizers' "Načíst organizátory",
+  instead of the upload card at the top of the tab. With no Season open the tab
+  shows just that button.
+
 ### Added
 
 - Lidé: "Načíst organizátory" in the Organizers table loads the Organizers'

@@ -288,8 +288,10 @@ pushing the tag, not just creating it locally.
   toolbar and disables Export, the to-do panel lists it too. Can't attend is a
   checkbox in the People tables' rows and in the person sheet's Details
   (`person_sheet.set_cant_attend`); flagging a placed person asks first.
-- People tab (`tabs/people.py`, "1. Lidé"): the upload card (it creates the
-  Season when none is open, asking for the label), a summary, then two
+- People tab (`tabs/people.py`, "1. Lidé"): the "Načíst pomocníky" button in the
+  Helpers table header (same `_import_button` as the Organizers' "Načíst
+  organizátory"; with no Season open it is the only thing on the tab and
+  creates the Season, asking for the label), a summary, then two
   `ui.table`s — Organizers above, Helpers below — with search, sorting, the
   Can't attend checkbox and the Tag pills in the row (Vue cell slots emitting
   `cant_attend` / `open_friends`). A click on a row opens the person sheet
