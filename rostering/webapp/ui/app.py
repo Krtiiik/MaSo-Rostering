@@ -19,6 +19,9 @@ from rostering.webapp.ui.session import UiSession
 from rostering.webapp.ui.sidebar import Sidebar
 from rostering.webapp.ui.tabs.person_sheet import PersonSheet
 
+# The MaSo site's own favicon (https://maso.mff.cuni.cz/favicon.ico).
+_FAVICON = Path(__file__).parent / "assets" / "favicon.ico"
+
 _CSS = """
 body { background: #f7f7f9; }
 .nicegui-content { padding: 0; }
@@ -166,7 +169,7 @@ def run(*, host: str, port: int, show: bool, reload: bool = False, watch: Option
         reload=reload,
         uvicorn_reload_dirs=str(watch or "."),
         uvicorn_reload_includes="*.py, *.js",
-        favicon="🗂️",
+        favicon=_FAVICON,
         language="cs",
         reconnect_timeout=30,
     )

@@ -31,6 +31,8 @@ include = ["rostering*"]
 "rostering.persistence" = ["default-buildings-config.yaml"]
 # The roster grid's browser half, served by NiceGUI as is (no build step).
 "rostering.webapp.ui.grid" = ["*.js"]
+# The page icon (the MaSo site's favicon).
+"rostering.webapp.ui" = ["assets/*.ico"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
