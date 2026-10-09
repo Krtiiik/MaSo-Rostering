@@ -118,6 +118,24 @@ def review_list_reads(monkeypatch) -> list[int]:
     return reads
 
 
+async def test_a_step_is_kept_while_away_and_redrawn_after_a_change(user: User, seasons):
+    table = user.find(marker="helper-table").elements.pop()
+    await _go(user, labels.TAB_TAGS)
+    await _go(user, labels.TAB_PEOPLE)
+    assert user.find(marker="helper-table").elements.pop() is table  # shown again, not rebuilt
+
+    await _go(user, labels.TAB_TAGS)  # a change made on another step ...
+    user.find(marker="tag-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    await user.should_see(marker="tag-carriers")
+    user.find(marker="tag-carriers").trigger("selection", {"added": True, "rows": [{"key": "h1"}], "keys": ["h1"]})
+    user.find(marker="tag-carriers-save").click()
+    await asyncio.sleep(0.2)
+    assert mutations.helper_tags(_state(seasons), 1)["direct"] == [1]
+    await _go(user, labels.TAB_PEOPLE)  # ... shows once the step is shown again
+    assert user.find(marker="helper-table").elements.pop() is not table
+    assert "GCHD" in str(_rows(user, "helper-table")[0])
+
+
 async def test_switching_tabs_reads_no_stored_season(user: User, review_list_reads):
     # The Season's data is as it was: the to-do count and panel are left alone.
     for tab in (labels.TAB_TAGS, labels.TAB_ROSTER, labels.TAB_PEOPLE):
@@ -884,11 +902,32 @@ async def test_a_returning_organizer_is_offered_for_review_in_the_todo_panel(use
 
     user.find(marker="todo-button").click()
     await user.should_see("Možní vracející se organizátoři (1)")
-    user.find(kind=ui.button, content="Propojit").click()
+    review = user.find(marker="organizer-review").elements.pop()
+    assert "Dana Stará" in review.content and "Propojit" in review.content
+    user.find(marker="organizer-review").trigger("click", 0)  # its first button: Propojit
     await asyncio.sleep(0.2)
     organizer = _state(seasons)["organizers"][0]
     assert organizer["link_confirmed"] is True
     assert not mutations.get_uncertain_organizer_matches(seasons)
+
+
+async def test_a_returning_helper_can_be_rejected_from_the_todo_panel(user: User, seasons):
+    mutations.new_season(seasons)
+    seasons.create_season("2025-podzim")
+    mutations.add_helper(seasons, "Cyril Starý", "cyril@old.cz")
+    mutations.new_season(seasons)
+    seasons.create_season("2026-podzim")
+    mutations.add_helper(seasons, "Cyril Starý", "cyril@new.cz")
+    await user.open("/")
+    user.find(marker="todo-button").click()
+    await user.should_see("Možní vracející se pomocníci (1)")
+    review = user.find(marker="helper-review").elements.pop()
+    assert "Cyril Starý" in review.content and "ročník 2025-podzim" in review.content
+
+    user.find(marker="helper-review").trigger("click", 1)  # Není to tatáž osoba
+    await asyncio.sleep(0.2)
+    assert not mutations.get_uncertain_matches(seasons)
+    assert _state(seasons)["helpers"][0]["rejected_person_ids"]
 
 
 async def test_the_person_sheet_lists_a_helpers_raw_survey_responses(user: User, seasons):

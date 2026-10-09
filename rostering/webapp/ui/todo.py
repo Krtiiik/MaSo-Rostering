@@ -8,6 +8,8 @@ Organizers (the summary of the last Organizers' import, with what it left to
 review). Link edits never change a Helper or Organizer id."""
 from __future__ import annotations
 
+import inspect
+from html import escape
 from typing import Any, Callable
 
 from nicegui import ui
@@ -20,6 +22,62 @@ from rostering.webapp.ui.session import UiSession
 
 def _describe(email: str | None, phone: str | None) -> str:
     return f"{email or 'bez e-mailu'} · telefon {phone}" if phone else (email or "bez e-mailu")
+
+
+# A review list can hold hundreds of entries: it is drawn as one HTML block with
+# one click handler (as the roster grid is), not as a widget per line. Its
+# buttons carry Quasar's own button classes, so they look like ``ui.button``.
+_BUTTON = (
+    "q-btn q-btn-item non-selectable no-outline q-btn--rectangle q-btn--actionable q-focusable q-hoverable "
+    "q-btn--dense {kind}"
+)
+_PRIMARY = _BUTTON.format(kind="q-btn--standard bg-primary text-white")
+_FLAT = _BUTTON.format(kind="q-btn--flat text-primary")
+# The clicked button's action number, or nothing for a click elsewhere.
+_CLICK_JS = "(e) => { const b = e.target.closest('[data-act]'); if (b) emit(Number(b.dataset.act)); }"
+
+
+class _Review:
+    """Builds one review list's HTML; each button runs the action it was added with."""
+
+    def __init__(self) -> None:
+        self.parts: list[str] = []
+        self.actions: list[Callable[[], Any]] = []
+
+    def button(self, label: str, action: Callable[[], Any], primary: bool = True) -> str:
+        self.actions.append(action)
+        return (
+            f'<button type="button" class="{_PRIMARY if primary else _FLAT}" data-act="{len(self.actions) - 1}">'
+            '<span class="q-focus-helper"></span>'
+            '<span class="q-btn__content text-center col items-center q-anchor--skip justify-center row">'
+            f'<span class="block">{escape(label)}</span></span></button>'
+        )
+
+    def show(self, mark: str) -> None:
+        actions = self.actions
+
+        async def clicked(e) -> None:
+            index = e.args
+            if isinstance(index, int) and 0 <= index < len(actions):
+                result = actions[index]()
+                if inspect.isawaitable(result):
+                    await result
+
+        ui.html("".join(self.parts), sanitize=False).classes("w-full column q-gutter-y-sm").on(
+            "click", clicked, js_handler=_CLICK_JS
+        ).mark(mark)
+
+
+def _card(head: str, lines: list[str]) -> str:
+    return '<div class="q-card q-pa-md column q-gutter-y-xs">' + head + "".join(lines) + "</div>"
+
+
+def _line(text: str, cls: str = "text-sm") -> str:
+    return f'<div class="{cls}">{escape(text)}</div>'
+
+
+def _buttons(*buttons: str) -> str:
+    return '<div class="row q-gutter-x-sm">' + "".join(buttons) + "</div>"
 
 
 def _query(session: UiSession, query: Callable[[Workspace], Any]) -> Any:
@@ -255,36 +313,51 @@ class TodoPanel:
             "ale jiný (nebo žádný) e-mail, takže **nejsou propojeni**, dokud to nepotvrdíte. Telefon je jen "
             "nápověda. Co nechcete posoudit, zůstane nepropojené."
         ).classes("text-sm text-gray-600")
+        review = _Review()
         for entry in entries:
-            with ui.card().classes("w-full"):
-                ui.markdown(f"**{entry['helper_name']}** — {_describe(entry['helper_email'], entry['helper_phone'])}")
-                for candidate in entry["candidates"]:
-                    merges_into = candidate["merges_into"]
-                    ui.label(
+            lines = []
+            for candidate in entry["candidates"]:
+                merges_into = candidate["merges_into"]
+                lines.append(
+                    _line(
                         f"{candidate['name']} · "
                         + ("manuálně přidán v tomto ročníku" if merges_into else f"ročník {candidate['season']}")
                         + f" · {_describe(candidate['email'], candidate['phone'])}"
-                    ).classes("text-sm")
-                    if merges_into:
-                        ui.label(
+                    )
+                )
+                if merges_into:
+                    lines.append(
+                        _line(
                             "Sloučení zachová pomocníka, kterého jste přidali (jeho přiřazení, zámek, štítky a role) "
-                            "a to, co jste nechali prázdné, doplní z tohoto řádku ankety."
-                        ).classes("text-xs text-gray-600")
-                    with ui.row().classes("gap-2"):
-                        ui.button(
+                            "a to, co jste nechali prázdné, doplní z tohoto řádku ankety.",
+                            "text-xs text-grey-7",
+                        )
+                    )
+                lines.append(
+                    _buttons(
+                        review.button(
                             "Sloučit" if merges_into else "Propojit",
-                            on_click=lambda h=entry["helper_id"], p=candidate["person_id"], m=merges_into: self._link_edit(
+                            lambda h=entry["helper_id"], p=candidate["person_id"], m=merges_into: self._link_edit(
                                 mutations.link_helper, h, p, tagged_helper_id=m
                             ),
-                        ).props("dense")
-                        ui.button(
+                        ),
+                        review.button(
                             "Není to tatáž osoba",
-                            on_click=lambda h=entry["helper_id"], p=candidate["person_id"]: self._link_edit(
+                            lambda h=entry["helper_id"], p=candidate["person_id"]: self._link_edit(
                                 mutations.reject_person_match, h, p
                             ),
-                        ).props("flat dense")
-                if len(entry["candidates"]) > 1:
-                    ui.button("Ani jedna z nich", on_click=lambda e=entry: self._reject_all(e)).props("flat dense")
+                            primary=False,
+                        ),
+                    )
+                )
+            if len(entry["candidates"]) > 1:
+                lines.append(_buttons(review.button("Ani jedna z nich", lambda e=entry: self._reject_all(e), False)))
+            head = (
+                f"<div><b>{escape(entry['helper_name'])}</b> — "
+                f"{escape(_describe(entry['helper_email'], entry['helper_phone']))}</div>"
+            )
+            review.parts.append(_card(head, lines))
+        review.show("helper-review")
 
     async def _reject_all(self, entry: dict) -> None:
         s = self.session
@@ -319,31 +392,43 @@ class TodoPanel:
             "takže **nejsou propojeni**, dokud to nepotvrdíte. Telefon je jen nápověda. Co nechcete posoudit, "
             "zůstane nepropojené."
         ).classes("text-sm text-gray-600")
+        review = _Review()
         for entry in entries:
-            with ui.card().classes("w-full"):
-                ui.markdown(f"**{entry['organizer_name']}** — {_describe(entry['organizer_email'], None)}")
-                for candidate in entry["candidates"]:
-                    ui.label(
+            lines = []
+            for candidate in entry["candidates"]:
+                lines.append(
+                    _line(
                         f"{candidate['name']} · ročník {candidate['season']} · "
                         f"{_describe(candidate['email'], candidate['phone'])}"
-                    ).classes("text-sm")
-                    with ui.row().classes("gap-2"):
-                        ui.button(
+                    )
+                )
+                lines.append(
+                    _buttons(
+                        review.button(
                             "Propojit",
-                            on_click=lambda o=entry["organizer_id"], p=candidate["person_id"]: self._organizer_link_edit(
+                            lambda o=entry["organizer_id"], p=candidate["person_id"]: self._organizer_link_edit(
                                 mutations.link_organizer, o, p
                             ),
-                        ).props("dense")
-                        ui.button(
+                        ),
+                        review.button(
                             "Není to tatáž osoba",
-                            on_click=lambda o=entry["organizer_id"], p=candidate["person_id"]: self._organizer_link_edit(
+                            lambda o=entry["organizer_id"], p=candidate["person_id"]: self._organizer_link_edit(
                                 mutations.reject_organizer_match, o, p
                             ),
-                        ).props("flat dense")
-                if len(entry["candidates"]) > 1:
-                    ui.button("Ani jedna z nich", on_click=lambda e=entry: self._reject_all_organizer(e)).props(
-                        "flat dense"
+                            primary=False,
+                        ),
                     )
+                )
+            if len(entry["candidates"]) > 1:
+                lines.append(
+                    _buttons(review.button("Ani jedna z nich", lambda e=entry: self._reject_all_organizer(e), False))
+                )
+            head = (
+                f"<div><b>{escape(entry['organizer_name'])}</b> — "
+                f"{escape(_describe(entry['organizer_email'], None))}</div>"
+            )
+            review.parts.append(_card(head, lines))
+        review.show("organizer-review")
 
     async def _reject_all_organizer(self, entry: dict) -> None:
         s = self.session

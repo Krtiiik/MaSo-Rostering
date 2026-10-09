@@ -146,13 +146,19 @@ pushing the tag, not just creating it locally.
   `dialogs.py` (awaitable dialogs; they nest), `solving.py` (Solve / Place new
   registrants / Clear roster), `todo.py`, `tag_import.py`, `fix_focus.py` and
   one module per tab in `tabs/`. Views redraw from the session's state after
-  every mutation; there is no widget-key bookkeeping. A change of view state
-  alone (step, Tag selection, overlays, drafts) calls `refresh_view`, which
-  redraws only listeners registered with `on_change(..., view=True)` (the step
-  and the Tag sheet), never the header's to-do count, the to-do panel or the
-  sidebar, which read every stored Season; `refresh` redraws all. The to-do
+  every mutation; there is no widget-key bookkeeping. Each step is drawn
+  into its own kept-alive `ui.tab_panel` (`Page._show_step`): showing another
+  step only switches the panel, and a step is redrawn when shown after a change
+  (`Page._stale`). Redraws have a scope (`session._SCOPES`): `switch_tab` reaches
+  only listeners registered `on_change(..., on="tab")` (the step, the Tag sheet),
+  `refresh_view` (a change of view state alone: Tag selection, overlays, drafts)
+  also those with `on="view"` (marks every step stale), and `refresh` everything,
+  including the header's to-do count, the to-do panel and the sidebar, which read
+  every stored Season. The to-do
   queries go through `UiSession.cached` (shared by the badge and the panel until
-  the next `refresh`), the panel is drawn only while its drawer is open, and
+  the next `refresh`), the panel is drawn only while its drawer is open, its
+  review lists are one `ui.html` block each with one delegated click handler
+  (`todo._Review`, buttons with Quasar's classes and `data-act`), and
   `Workspace` keeps each stored Season's identity, Helper count and Person
   records per `state.json` stamp (`_digest`, dropped by `_write_json`). Single-workspace
   design: the Workspace is the one open Season —
