@@ -102,11 +102,11 @@ event name `render.py` / the Roster tab use still matches what
 ## 5. Verify and commit
 
 ```bash
-"E:/Code/.venvs/rostering/Scripts/pytest.exe" -q
+.venv/Scripts/pytest.exe -q   # repo-local venv; takes ~90 s, use a long timeout
 ```
 
-All tests must pass before committing (see the venv path in project
-memory if this path is stale). Then:
+All tests must pass before committing (if `.venv` is missing, look for
+the venv path in project memory). Then:
 
 ```bash
 git add <every file touched above>
