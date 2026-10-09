@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-09
+
+### Changed
+
+- Steps are kept once drawn: switching back to a step shows it at once instead of
+  rebuilding it (it is redrawn only if something changed meanwhile).
+- K vyřízení: the lists of possible returning helpers and organizers draw and
+  update about twice as fast with many entries.
+
 ## [3.1.0] - 2026-10-09
 
 ### Changed
@@ -27,10 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer recount the to-do items across every stored Season, and the to-do panel
   is drawn only while open: with several stored Seasons a step switch went from
   seconds to well under a second.
-- Steps are kept once drawn: switching back to a step shows it at once instead of
-  rebuilding it (it is redrawn only if something changed meanwhile).
-- K vyřízení: the lists of possible returning helpers and organizers draw and
-  update about twice as fast with many entries.
 - Export: the "Trička" sheet lists only the sizes someone is counted in, instead of
   always showing XS–XXL with zero rows.
 - Štítky: the Tag sheet's top bar (name, Smazat štítek, close) stays pinned while
