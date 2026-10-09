@@ -54,29 +54,10 @@ def _cmd_solve(args: argparse.Namespace) -> int:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
-    # Runs Streamlit in-process via its bootstrap module rather than
-    # shelling out to `sys.executable -m streamlit`: the latter breaks in a
-    # PyInstaller-frozen executable, where sys.executable is the app itself,
-    # not a Python interpreter that understands `-m`.
-    from streamlit.web import bootstrap
+    # Imported here: the other commands must not need the web stack.
+    from rostering.webapp.ui.app import run
 
-    app_path = str(Path(__file__).resolve().parent / "streamlit_app" / "app.py")
-    # Streamlit defaults global.developmentMode to True whenever its own
-    # __file__ doesn't look like a normal site-packages install (true inside
-    # a PyInstaller-frozen executable) — and refuses --server.port while
-    # that's on. This is a real install either way, so force it off.
-    flag_options: dict = {
-        "server_address": args.host,
-        "server_port": args.port,
-        "global_developmentMode": False,
-    }
-    if args.reload:
-        flag_options["server_runOnSave"] = True
-    if args.headless:
-        flag_options["server_headless"] = True
-
-    bootstrap.load_config_options(flag_options=flag_options)
-    bootstrap.run(app_path, False, [], flag_options)
+    run(host=args.host, port=args.port, show=not args.headless, reload=args.reload)
     return 0
 
 
