@@ -277,8 +277,8 @@ def _manual_cell(
     colspan: int,
     controls: str,
 ) -> str:
-    """One manual-role cell: its names as chips, a click on its background opens
-    a name field, and it takes the drops its row allows."""
+    """One manual-role cell: its names as chips (removable by their ×), filled
+    only by the drops its row allows; nothing can be typed into it."""
     if rooms is None:
         entries = [e for e in view.entries if e["key"] == row.key and e["building"] == building and e["room"] is None]
     else:
@@ -307,10 +307,8 @@ def _manual_cell(
         data_room=rooms[0] if rooms else None,
         data_rooms=json.dumps(rooms) if rooms is not None else None,
         data_names=json.dumps([e["name"] for e in entries]),
-        data_edit="1",
-        data_list="grid-organizer-names" if row.organizer else "grid-helper-names",
     )
-    return _cell(["grid-cell", "manual-cell", "manual-cell-editable"], colspan, attrs, "Kliknutím přidáte jméno", "".join(chips), controls)
+    return _cell(["grid-cell", "manual-cell"], colspan, attrs, None, "".join(chips), controls)
 
 
 def _manual_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]]) -> str:
@@ -329,12 +327,6 @@ def _manual_row(view: GridView, row: GridRow, groups: list[tuple[str, list[str]]
 def render(view: GridView, merges: dict) -> str:
     """The whole grid: the Nezařazení pool, then the table."""
     parts = []
-    parts.append('<datalist id="grid-helper-names">')
-    parts += [f'<option value="{_attr(n)}"></option>' for n in view.helper_names]
-    parts.append('</datalist><datalist id="grid-organizer-names">')
-    parts += [f'<option value="{_attr(n)}"></option>' for n in view.organizer_names]
-    parts.append("</datalist>")
-
     unassigned = sorted((hid for hid in view.helpers if hid not in view.assignments), key=lambda i: view.helpers[i]["name"].lower())
     waiting = sorted((o for o in view.organizers if not o["placed"]), key=lambda o: o["name"].lower())
     if unassigned or waiting:
@@ -449,7 +441,6 @@ CSS = """
 .roster-grid-root .helper-chip.building-fit-ok { border-top-color: #21c354; }
 .roster-grid-root .helper-chip.building-fit-bad { border-top-color: #dc3545; }
 .roster-grid-root .helper-chip.tag-striped, .roster-grid-root .manual-chip.tag-striped { background-clip: padding-box; }
-.roster-grid-root .manual-cell-editable { cursor: text; }
 .roster-grid-root .row-label-note {
   display: flex; align-items: center; gap: 3px; font-size: .8em; font-style: italic; font-weight: 400; opacity: .7;
 }
@@ -467,10 +458,6 @@ CSS = """
   border: none; background: none; cursor: pointer; padding: 0; line-height: 1; color: inherit; opacity: .6;
 }
 .roster-grid-root .manual-chip-remove:hover { opacity: 1; }
-.roster-grid-root .manual-cell-input {
-  display: block; margin: 2px; min-width: 90px; border: 1px solid #d5dae1; border-radius: 10px; padding: 2px 6px;
-  font: inherit; background: #fff;
-}
 .roster-grid-root .grid-cell.broken {
   background: color-mix(in srgb, #dc3545 9%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #dc3545 45%, transparent);

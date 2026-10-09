@@ -259,8 +259,6 @@ class GridView:
     assignments: dict[int, dict]  # helper id -> Assignment
     entries: list[dict]
     organizers: list[dict]
-    helper_names: list[str]
-    organizer_names: list[str]
     overlays: list[str]
     broken_cells: dict[tuple, list[str]] = field(default_factory=dict)  # (building, room, role) -> lines
     broken_rooms: dict[tuple, list[str]] = field(default_factory=dict)  # (building, room) -> lines
@@ -408,9 +406,6 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
         assignments=assignments,
         entries=manual_entries(state, organizer_pills, dimmed_organizers, organizer_broken),
         organizers=grid_organizers(state, organizer_pills, dimmed_organizers, organizer_broken),
-        helper_names=sorted({h["name"] for h in attending}, key=str.lower),
-        # An Organizer who can't attend is not offered for a slot.
-        organizer_names=sorted({o["name"] for o in state["organizers"] if not o.get("cant_attend")}, key=str.lower),
         overlays=overlays,
         broken_cells=broken_cells,
         broken_rooms=broken_rooms,

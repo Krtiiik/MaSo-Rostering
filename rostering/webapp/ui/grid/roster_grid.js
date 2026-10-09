@@ -6,7 +6,7 @@
 //
 // Events: helper_drop {helper_id, building, room, role}; organizer_drop
 // {organizer_id, key, building, room, source}; manual_set {key, building, room,
-// names}; cell_merge {key, building, pairs, merged}; lock {helper_id, locked};
+// names} (a duplicate drop or a chip's ×; names are never typed); cell_merge {key, building, pairs, merged}; lock {helper_id, locked};
 // card {helper_id, x, y, width, height}; card_close.
 
 const DRAG_MIME = "application/x-rostering-chip";
@@ -207,43 +207,6 @@ export default {
         });
         return;
       }
-      if (closest(e.target, ".manual-chip, input")) return; // a chip is not the cell
-      const cell = closest(e.target, "td[data-edit]");
-      if (cell) this.openNameField(cell);
-    },
-    // A click on a manual cell opens a name field: Enter saves (and, in a cell
-    // taking several names, stays open for the next), leaving it saves and
-    // closes, Escape cancels.
-    openNameField(cell) {
-      if (cell.querySelector("input.manual-cell-input")) return;
-      const input = document.createElement("input");
-      input.className = "manual-cell-input";
-      input.setAttribute("list", cell.dataset.list);
-      cell.querySelector(".grid-cell-inner").appendChild(input);
-      input.focus();
-      let cancelled = false;
-      let names = jsonAttr(cell, "data-names", []);
-      const commit = (keepOpen) => {
-        const value = input.value.trim();
-        if (value && !names.includes(value)) {
-          names = [...names, value];
-          this.$emit("manual_set", { key: cell.dataset.key, building: cell.dataset.building, room: cell.dataset.room ?? null, names });
-        }
-        input.value = "";
-        if (!keepOpen) input.remove();
-      };
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          commit(true);
-        } else if (e.key === "Escape") {
-          cancelled = true;
-          input.remove();
-        }
-      });
-      input.addEventListener("blur", () => {
-        if (!cancelled && input.isConnected) commit(false);
-      });
     },
     // ------------------------------------------------------------ friend hover
     // With the Friends overlay on, hovering a Helper outlines the friends they

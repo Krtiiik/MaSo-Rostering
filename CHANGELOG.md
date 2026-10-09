@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Roster grid: nothing can be typed into the grid any more. A manual-role cell
+  (Organizer and Additional roles) is filled only by dragging a chip onto it, as
+  before, and a chip is taken out with its ×; the name field and its name
+  suggestions are gone.
 - Roster grid: the details card a click on a helper's chip opens now also
   shows their Tags and the Forced friends groups that bind them, and has an
   "Upravit" button that opens the same person sheet as a click on their row in

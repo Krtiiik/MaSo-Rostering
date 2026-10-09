@@ -336,7 +336,7 @@ A Manual role for Building/Room leadership or support duties, independent
 of the assignee's solved Role — filled only by a tracked Organizer. A slot
 entry saved before Organizers existed (a registered Helper's id or a
 hand-typed name) is a legacy entry: still shown and exported, marked as not
-yet a tracked Organizer, until replaced by picking one.
+yet a tracked Organizer, until replaced by dragging one in.
 Czech: Organizátorská role.
 _Avoid_: Structural role
 

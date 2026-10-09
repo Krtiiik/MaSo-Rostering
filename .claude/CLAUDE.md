@@ -32,8 +32,9 @@ named roles belong to each. Implementation details not in the glossary:
   (stricter) — so a helper can only be tagged into the slot for their own
   building/room, not a different one.
 - A manual role's cell in the grid is the same table cell as a solver role's
-  (`render._manual_cell`): names are chips, and a click on the cell opens a name
-  field (`roster_grid.js` `openNameField`). The row label marks the row as
+  (`render._manual_cell`): names are chips, and nothing can be typed into the
+  grid — a cell is filled only by dropping a chip on it and a chip leaves it by
+  its × (both the `manual_set` event). The row label marks the row as
   "Manuální role" / "Organizátorská role" (italic, with the Material `link_2` icon
   inlined as an SVG, `render.LINK_ICON`). Organizer rows and Helper rows (solver
   roles, Additional roles) are separated by a heavy `row-side-start` line.
@@ -54,11 +55,11 @@ named roles belong to each. Implementation details not in the glossary:
   (`move_manual_role_impact` gives the lines) and changes nothing; the Roster
   tab's `_drop` (the `helper_drop` event) asks through `UiSession.act`'s
   confirmation and calls it again confirmed.
-- In the roster grid, all three Additional roles can be filled either by
+- In the roster grid, all three Additional roles are filled by
   drag-and-dropping a helper's existing chip onto their own building's/room's
   overlay cell (which duplicates them into that slot without moving their
-  solved assignment — shown with a dotted border to mark it as a duplicate)
-  or by typing/picking a name as with any other manual role.
+  solved assignment — shown with a dotted border to mark it as a duplicate);
+  there is no typing.
 
 ## Building preference is a SET, not a single choice
 
@@ -201,8 +202,8 @@ pushing the tag, not just creating it locally.
   marks, the details card), `render.py` turns it into escaped HTML whose
   `data-*` attributes carry everything the browser needs, and `RosterGrid`
   shows it through `roster_grid.js`, a plain ES-module Vue component that turns
-  native HTML5 drag-and-drop, clicks, the friend hover and the manual-role name
-  fields into events (`helper_drop`, `organizer_drop`, `manual_set`,
+  native HTML5 drag-and-drop, clicks, the friend hover and the chip removals
+  into events (`helper_drop`, `organizer_drop`, `manual_set`,
   `cell_merge`, `lock`, `card`, `card_close`) by delegation on its root. It
   decides nothing the HTML does not say. The JS ships as package data of
   `rostering` (`pyproject.toml`), so one `pip install` is enough. (Never name a
@@ -713,8 +714,8 @@ pushing the tag, not just creating it locally.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid
-  (typed/picked from a name list; the two room-scoped Additional roles also
-  accept dropping a helper's existing chip onto their own room's cell) and
+  (by dropping chips, never typing; the Additional roles take a helper's
+  existing chip onto their own building's/room's cell) and
   merged in at export time.
 - The web app's buildings/rooms layout defaults to a bundled copy of the most
   recent season's config and persists separately in
