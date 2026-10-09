@@ -111,7 +111,7 @@ class RosterTab:
         unplaced = mutations.unplaced_reason(state)
         blockers = mutations.export_blockers(state)
         broken = mutations.broken_rules(state)
-        with ui.card().classes("w-full sticky top-0 z-20 py-2"):
+        with ui.card().classes("w-full sticky top-0 z-20 py-2 roster-toolbar"):
             with ui.row().classes("w-full items-center gap-2"):
                 solve_label = (
                     f"Sestavit rozdělení (zachová uzamčených: {locked})"

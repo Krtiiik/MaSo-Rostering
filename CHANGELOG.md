@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rozpis: the unassigned Organizers now stay pinned under the toolbar while the
+  grid scrolls, so they can be dragged to Technická podpora on a short screen.
+  (Unassigned Helpers still scroll away.)
 - Rozpis: helpers sharing a cell now sit side by side and wrap onto another
   line only when they no longer fit the column, instead of always stacking.
 - Rozpis: "Vymazat rozdělení" now asks, when Organizers are placed in leadership
