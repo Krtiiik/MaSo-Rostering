@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Roster grid: while the Štítky overlay is on, a "Štítky v mřížce" row under the
+  Zobrazení chips shows every Tag that anyone on the grid carries as a coloured
+  pill (solid = carried directly, dashed = only by implication), in tree order,
+  with the number of people in its tooltip. A click on a pill adds or removes
+  the Tag in the "Filtrovat podle štítků" filter, which stays beside it.
+
 ## [3.0.0] - 2026-10-09
 
 ### Changed

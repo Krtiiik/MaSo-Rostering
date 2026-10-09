@@ -19,14 +19,18 @@ def _text_colour(hex_colour: str) -> str:
     return "#000000" if (red * 299 + green * 587 + blue * 114) / 1000 > 150 else "#ffffff"
 
 
-def pill_html(name: str, colour: str, implied: bool = False) -> str:
-    label = escape(name)
+def pill_style(colour: str, implied: bool = False) -> str:
+    """The inline CSS of a pill: solid for a direct Tag, dashed and outlined for
+    one carried only by implication."""
     colour = colour if is_hex_colour(colour) else "#888888"
     if implied:
-        style = f"{_PILL}border:1px dashed {colour};color:{colour};background:transparent;"
-        return f'<span style="{style}" title="odvozený">{label}</span>'
-    style = f"{_PILL}border:1px solid {colour};background:{colour};color:{_text_colour(colour)};"
-    return f'<span style="{style}">{label}</span>'
+        return f"{_PILL}border:1px dashed {colour};color:{colour};background:transparent;"
+    return f"{_PILL}border:1px solid {colour};background:{colour};color:{_text_colour(colour)};"
+
+
+def pill_html(name: str, colour: str, implied: bool = False) -> str:
+    title = ' title="odvozený"' if implied else ""
+    return f'<span style="{pill_style(colour, implied)}"{title}>{escape(name)}</span>'
 
 
 def pills_html(direct: Iterable[dict], implied: Iterable[dict] = ()) -> str:

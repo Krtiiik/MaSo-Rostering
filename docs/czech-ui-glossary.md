@@ -40,6 +40,7 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | Unassigned (grid pool) | Nezařazení |
 | Overlays (Roster tab pills: Friends / Tags / Role satisfaction / Building satisfaction) | Zobrazení (Kamarádi / Štítky / Spokojenost s rolí / Spokojenost s budovou) |
 | Filter by tags | Filtrovat podle štítků |
+| Tags in the grid (legend of Tag pills) | Štítky v mřížce |
 | Make forced | Vynutit |
 
 ## Conventions

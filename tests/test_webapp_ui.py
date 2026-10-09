@@ -440,6 +440,28 @@ async def test_the_details_card_opens_and_closes_on_the_same_chip(user: User, se
     await user.should_not_see("Preference rolí")
 
 
+async def test_the_tags_legend_lists_tags_on_the_grid_and_a_click_filters(user: User, seasons):
+    state = _state(seasons)
+    tag_id = next(t["id"] for t in state["tags"] if t["name"] == "GCHD")
+    mutations.set_helper_tags(seasons, 1, [tag_id])
+    await _roster(user, seasons)
+    await user.should_not_see("Štítky v mřížce:")  # the Tags overlay is off to begin with
+
+    user.find(kind=ui.chip, content="Štítky").elements.pop().selected = True
+    await user.should_see("Štítky v mřížce:")
+    await user.should_see(marker=f"tag-pill-{tag_id}")
+
+    user.find(marker=f"tag-pill-{tag_id}").click()
+    await asyncio.sleep(0.2)
+    picker = user.find(kind=ui.select, content="Filtrovat podle štítků").elements.pop()
+    assert picker.value == [tag_id]
+    await user.should_see("✓ GCHD")
+
+    user.find(marker=f"tag-pill-{tag_id}").click()  # a second click takes it out again
+    await asyncio.sleep(0.2)
+    assert picker.value == []
+
+
 # ---------------------------------------------------------------------- sidebar
 async def test_a_version_saves_and_restores_after_confirming(user: User, seasons):
     user.find(marker="version-name").type("před úpravou").trigger("keydown.enter")

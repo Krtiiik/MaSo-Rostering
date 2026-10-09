@@ -2495,6 +2495,29 @@ def dimmed_helper_ids(state: dict[str, Any], tag_ids: list[int], mode: str) -> l
     ]
 
 
+def grid_tags_present(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """The Tags carried by anyone on the roster grid (attending Helpers and
+    Organizers, in a cell or not), in tree order, for the Tags overlay's legend:
+    ``id``, ``name``, ``colour``, ``count`` (people carrying it, directly or by
+    implication) and ``direct`` (False when everyone has it only by implication,
+    which draws the pill dashed). A Tag nobody on the grid carries is left out."""
+    direct_counts: dict[int, int] = {}
+    counts: dict[int, int] = {}
+    carriers = [
+        (helper_tags(state, h["id"]), h) for h in state["helpers"] if not h.get("cant_attend")
+    ] + [(organizer_tags(state, o["id"]), o) for o in state["organizers"] if not o.get("cant_attend")]
+    for found, _person in carriers:
+        for tag_id in found["effective"]:
+            counts[tag_id] = counts.get(tag_id, 0) + 1
+        for tag_id in found["direct"]:
+            direct_counts[tag_id] = direct_counts.get(tag_id, 0) + 1
+    return [
+        {"id": t.id, "name": t.name, "colour": t.colour, "count": counts[t.id], "direct": t.id in direct_counts}
+        for t, _depth in tag_tree.tree_order(_tag_definitions(state))
+        if t.id in counts
+    ]
+
+
 def tag_delete_impact(state: dict[str, Any], tag_id: int) -> dict[str, list[str]]:
     """What deleting a Tag would change, by name: ``helpers`` and ``organizers``
     it would be stripped from (those who carry it directly) and ``children`` that
