@@ -1,5 +1,5 @@
-"""The Tag sheet: the selected Tag's form (name, colour, parent, note,
-Building/Role constraints), who carries it (Helpers and Organizers alike, ticked
+"""The Tag sheet: the selected Tag's form (name, colour, parent, note, its rules --
+the same rule list a Forced friends group has, minus sharing), who carries it (Helpers and Organizers alike, ticked
 in a table) and its delete, in a panel that slides in from the right while the
 Tags table stays visible behind it (a click on another row switches the sheet to
 that Tag). It is open exactly while ``SeasonView.selected_tag`` is a Tag id (an
@@ -13,13 +13,17 @@ from typing import Optional
 from nicegui import ui
 
 from rostering import tags as tag_tree
-from rostering.domain import Role
-from rostering.webapp import labels, mutations
+from rostering.webapp import forced_groups, labels, mutations
 from rostering.webapp.ui import dialogs, fix_focus
 from rostering.webapp.ui.session import UiSession
+from rostering.webapp.ui.tabs.rule_editor import RuleEditor
 
 NEW = "new"
-_NOT_IN_SEASON = " — není v tomto ročníku"
+_RULES_HELP = (
+    "Pravidla platí pro každého, kdo štítek nese (i odvozeně). Všechna musí platit zároveň; u „být v“ a „mít "
+    "roli“ stačí jedna z vybraných hodnot. „Musí“ člověka omezuje jen na vybrané, „nesmí“ vždy vyhrává. "
+    "Nastavení, po kterém by někdo neměl žádnou povolenou budovu, místnost ani roli, se odmítne."
+)
 
 
 def _delete_lines(state: dict, tag: dict) -> list[str]:
@@ -181,14 +185,14 @@ class TagSheet:
                 "grow"
             ).tooltip("Každý, kdo má tento štítek, nese i nadřazený štítek a jeho nadřazené.")
         note = ui.textarea("Poznámka", value=tag["note"] if tag else "").classes("w-full").props("autogrow")
-        constraints = self._constraint_pickers(state, tag)
+        editor = self._rule_section(state, tag)
 
         async def submit() -> None:
-            values = {k: list(v.value or []) for k, v in constraints.items()}
+            rules = editor.rules()
             if tag is None:
                 new_state = await s.act(
                     lambda: mutations.add_tag(
-                        s.workspace, name.value, colour=colour.value, note=note.value, parent_id=parent.value, **values
+                        s.workspace, name.value, colour=colour.value, note=note.value, parent_id=parent.value, rules=rules
                     ),
                     success=f"Vytvořeno: {(name.value or '').strip()}.",
                 )
@@ -204,7 +208,7 @@ class TagSheet:
                         colour=colour.value,
                         note=note.value,
                         parent_id=parent.value,
-                        **values,
+                        rules=rules,
                     ),
                     success=f"Změny uloženy: {(name.value or '').strip()}.",
                 )
@@ -213,39 +217,20 @@ class TagSheet:
             "tag-save"
         )
 
-    def _constraint_pickers(self, state: dict, tag: Optional[dict]) -> dict[str, ui.select]:
-        """The four Building/Role allow- and deny-list pickers, chosen from the
-        Season's configuration. An entry the Season no longer has stays listed,
-        marked "not in this Season" (it is inert: the solver and the checker
-        ignore it), so saving the form does not silently drop it."""
-        entries = mutations.tag_constraint_entries(state, tag["id"]) if tag else {}
-        buildings = [b["name"] for b in state["config"]]
-        roles = [role.name for role in Role]
-        ui.label(
-            "Kam smějí pomocníci s tímto štítkem. Seznam povolených je omezuje jen na něj (štítek bez něj nic "
-            "nezužuje); seznam zakázaných vždy vyhrává. Nastavení, po kterém by pomocník neměl žádnou povolenou "
-            "budovu ani roli, se odmítne."
-        ).classes("text-sm text-gray-600")
-        pickers: dict[str, ui.select] = {}
-        with ui.grid(columns=2).classes("w-full gap-x-4"):
-            for field, label, axis_options in [
-                ("building_allow", "Povolit jen budovy", buildings),
-                ("building_deny", "Zakázat budovy", buildings),
-                ("role_allow", "Povolit jen role", roles),
-                ("role_deny", "Zakázat role", roles),
-            ]:
-                current = entries.get(field, [])
-                inert = {e["name"] for e in current if not e["in_season"]}
-                values = [*axis_options, *(e["name"] for e in current if e["name"] not in axis_options)]
-                options = {
-                    v: (Role[v].value if field.startswith("role") and v in Role.__members__ else v)
-                    + (_NOT_IN_SEASON if v in inert else "")
-                    for v in values
-                }
-                pickers[field] = ui.select(
-                    options, multiple=True, label=label, value=[e["name"] for e in current]
-                ).props("use-chips" + ("" if options else ' hint="Nejdřív nastavte budovu"'))
-        return pickers
+    def _rule_section(self, state: dict, tag: Optional[dict]) -> RuleEditor:
+        """The Tag's rules in the same editor a Forced friends group uses. A place
+        a rule names that the Season's layout lacks stays in the list (it is inert:
+        the solver and the checker ignore it), noted below, so saving the form does
+        not silently drop it."""
+        ui.label("Pravidla: kdo štítek nese").classes("text-sm mt-2 font-bold")
+        ui.label(_RULES_HELP).classes("text-xs text-gray-600")
+        editor = RuleEditor(state["config"], tag["rules"] if tag else [], allow_share=False)
+        editor.build()
+        for note in forced_groups.missing_places(state, tag_tree.record_rules(tag) if tag else []):
+            with ui.row().classes("items-center gap-1 text-orange-800"):
+                ui.icon("warning", size="xs")
+                ui.label(note).classes("text-sm")
+        return editor
 
     async def _delete(self, tag: dict) -> None:
         s = self.session

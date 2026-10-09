@@ -17,6 +17,7 @@ from rostering.webapp import forced_groups, mutations
 
 # The fixtures and builders of the base Forced friends tests.
 from tests.test_forced_friends import TWO_BUILDINGS, _group_named, _placed, _record, _season, workspace  # noqa: F401
+from tests import tag_rules
 
 
 # -- the violation line, from the solver and the live checker ----------------------
@@ -187,7 +188,7 @@ def test_the_grid_does_not_mark_a_dormant_group_nor_a_member_who_cant_attend(wor
 
 
 def _tag(workspace, name, **constraints):
-    return mutations.add_tag(workspace, name, **constraints)["tags"][-1]["id"]
+    return tag_rules.add_tag(workspace, name, **constraints)["tags"][-1]["id"]
 
 
 def test_creating_a_group_is_refused_when_its_members_allowed_buildings_do_not_intersect(workspace):
@@ -323,7 +324,7 @@ def test_a_tag_change_that_would_empty_a_groups_intersection_is_refused(workspac
     loose = _tag(workspace, "Loose", building_allow=["A", "B"])
     mutations.set_helper_tags(workspace, 2, [loose])
     with pytest.raises(mutations.RosteringError, match="Rodina"):
-        mutations.update_tag(workspace, loose, building_allow=["B"])
+        tag_rules.update_tag(workspace, loose, building_allow=["B"])
 
 
 def test_a_tag_change_outside_the_groups_axes_or_members_is_not_blocked(workspace):

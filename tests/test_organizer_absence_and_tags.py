@@ -31,6 +31,7 @@ from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
 from rostering.webapp import mutations
 from rostering.tags import Tag
+from tests import tag_rules
 
 CONFIG = [
     {
@@ -84,7 +85,7 @@ def _org(state, organizer_id) -> dict:
 
 
 def _new_tag(workspace, name, parent_id=None, **kwargs) -> int:
-    state = mutations.add_tag(workspace, name, parent_id=parent_id, **kwargs)
+    state = tag_rules.add_tag(workspace, name, parent_id=parent_id, **kwargs)
     return next(t["id"] for t in state["tags"] if t["name"] == name)
 
 
@@ -232,7 +233,7 @@ def test_an_absent_organizer_is_left_out_of_the_counts_and_the_check():
         [Organizer(id=7, name="Boss", building="B", room=None, cant_attend=True, tags=[1])],
         [Helper(id=1, name="Anna")],
     )
-    comp.tags = [Tag(id=1, name="T", colour="#000000", note="", parent_id=None, building_deny=("B",))]
+    comp.tags = [Tag(id=1, name="T", colour="#000000", note="", parent_id=None, rules=tag_rules.domain_rules(building_deny=("B",)))]
     manual = ManualRoles(structural=[StructuralAssignment(StructuralRole.VedouciBudovy, "B", organizer_id=7)])
 
     assert check_roster(comp, []) == []
@@ -360,7 +361,7 @@ def test_a_tag_that_leaves_an_organizer_no_allowed_building_is_refused(workspace
         mutations.set_organizer_tags(workspace, boss, [no_karlin, no_impakt])
     # Editing a Tag is refused the same way once an Organizer carries it.
     with pytest.raises(mutations.RosteringError, match="Boss"):
-        mutations.update_tag(workspace, no_karlin, building_deny=["Karlín", "Impakt"])
+        tag_rules.update_tag(workspace, no_karlin, building_deny=["Karlín", "Impakt"])
     assert mutations.organizer_tags(mutations.get_state(workspace), boss)["direct"] == [no_karlin]
 
 
@@ -438,7 +439,7 @@ def test_the_live_checker_judges_an_organizer_on_domain_objects():
     comp = _two_room_competition(
         [Organizer(id=3, name="Boss", building="B", room="R2", tags=[1])], [Helper(id=1, name="Anna")]
     )
-    comp.tags = [Tag(id=1, name="Nowhere", colour="#000000", note="", parent_id=None, building_deny=("B",))]
+    comp.tags = [Tag(id=1, name="Nowhere", colour="#000000", note="", parent_id=None, rules=tag_rules.domain_rules(building_deny=("B",)))]
 
     broken = check_roster(comp, [])
 
@@ -450,7 +451,7 @@ def test_the_solver_leaves_a_forbidden_organizer_where_they_are():
     comp = _two_room_competition(
         [Organizer(id=3, name="Boss", building="B", room="R2", tags=[1])], [Helper(id=1, name="Anna")]
     )
-    comp.tags = [Tag(id=1, name="Nowhere", colour="#000000", note="", parent_id=None, building_deny=("B",))]
+    comp.tags = [Tag(id=1, name="Nowhere", colour="#000000", note="", parent_id=None, rules=tag_rules.domain_rules(building_deny=("B",)))]
 
     result = solve_competition(comp, SolverConfig())
 

@@ -130,8 +130,8 @@ placed in a Room, a Building match if only placed at Building level), can't be
 satisfied against an unplaced Organizer, and never counts under `mutual` mode
 since an Organizer can't reciprocate. The solver treats a placed Organizer as
 a fixed anchor that never moves. Organizers carry Tags exactly as Helpers do
-(same Tag constraints, on the Building axis only since they have no solved
-Role; a hand placement is never blocked, and one outside their allowed set is a
+(same Tag constraints, on the Building axis, and the Room axis when they
+hold a Room, since they have no solved Role; a hand placement is never blocked, and one outside their allowed set is a
 Broken rule) and can be flagged Can't attend like a Helper (their slot entries
 and so their placement are cleared, and while flagged they cannot be given a
 slot, are left out of the check and the export, and a Friend preference naming
@@ -220,18 +220,24 @@ its own parent.
 Czech: Štítek.
 
 **Tag constraint**:
-A positive (allow-list) or negative (deny-list) restriction a Tag places on
-Building or Role, inherited by every Helper who carries that Tag directly or
-through implication. A Helper's effective allowed set per axis is the
-intersection of every applicable Tag's positive list (a Tag with none doesn't
-narrow it), minus anything any applicable Tag's negative list names — a
-negative always wins. A Tag assignment that would leave a Helper with no
-allowed Building or Role on either axis is invalid, and a Tag edit (its
-constraints or its parent) that would is refused too. Never Room. An entry
-naming a Building the Season's configuration no longer has is inert — ignored
-by the solver and the check, shown as "not in this Season" — and Buildings are
-matched by name the way Building preference is. A Helper placed outside their
-allowed set is a Broken rule; the solver bends it after the Room and Building counts.
+A list of rules a Tag places on the people who carry it, inherited by every
+Helper who carries that Tag directly or through implication. They are the same
+rules a Forced friends group states about each member, written and edited the
+same way: "must / must not be in some Buildings or Rooms", "must / must not have
+some Roles" (each an any-of set). Only those: sharing a Building, Room or Role
+is what a Forced friends group is for, so a Tag refuses it. A Helper's effective
+allowed set per axis is the intersection of every applicable "must" rule (a Tag
+with none doesn't narrow it), minus anything any applicable "must not" rule
+names — a "must not" always wins. A Room is allowed when the Room rules allow it
+and its Building is allowed. A Tag assignment that would leave a Helper with no
+allowed Building, Room or Role is invalid, and a Tag edit (its rules or its
+parent) that would is refused too. An entry naming a Building or Room the
+Season's configuration no longer has is inert — ignored by the solver and the
+check, noted as "not in this Season" — and Buildings are matched by name the way
+Building preference is. A Helper placed outside their allowed set is a Broken
+rule; the solver bends it after the Room and Building counts. An Organizer is
+judged on Building, and on Room when they hold one (they have no solved Role).
+A Tag saved as the old four allow/deny lists is read as the equivalent rules.
 Czech: Omezení štítku.
 
 **Preference**:
@@ -472,9 +478,9 @@ they are a Helper or an Organizer this Season and whichever they were in the
 source (a Helper promoted since gets their Helper Tags as an Organizer);
 an unreviewed uncertain match is not tagged until its link is confirmed, which
 then asks whether to apply their Tags. An assignment that would leave a Helper
-with no allowed Building or Role, or an Organizer with no allowed Building, is
-skipped and constraint entries naming a
-Building the current Season lacks are dropped. A re-import and that late
+with no allowed Building, Room or Role, or an Organizer with no allowed Building, is
+skipped and rule entries naming a
+Building or Room the current Season lacks are dropped (a rule left with none goes). A re-import and that late
 prompt find a Tag by origin first, then by name; a Tag deleted on purpose is
 recreated only by an explicit re-import, which says so.
 Czech: Import štítků; the offer is "Import z dřívějšího ročníku".

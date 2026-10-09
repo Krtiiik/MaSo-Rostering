@@ -11,6 +11,7 @@ import random
 
 import pytest
 
+from tests import tag_rules
 from rostering.domain import (
     Assignment,
     Building,
@@ -212,7 +213,7 @@ def test_a_minimum_bends_before_a_forced_group_does():
 
 def test_a_tag_restriction_bends_before_a_forced_group_does():
     # 1 may only be in A, 2 is fixed in B: the group is kept and the Tag bent.
-    tags = [Tag(id=1, name="OnlyA", colour="#3366cc", building_allow=("A",))]
+    tags = [Tag(id=1, name="OnlyA", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("A",)))]
     helpers = [_helper(1, tags=[1]), _helper(2)]
     comp = _competition([_building("A"), _building("B")], helpers, [_group(1, ["building"], 1, 2)], tags)
 

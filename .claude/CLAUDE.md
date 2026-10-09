@@ -811,31 +811,47 @@ pushing the tag, not just creating it locally.
   hover; never a bare `dimmed`, which is a Quasar utility class that lays a dark
   overlay over the nearest positioned ancestor — the whole cell). Covered by `tests/test_grid_tags.py`, `tests/test_webapp_grid.py` and
   the smoke script (`scripts/e2e/smoke.mjs`).
-- Tag constraints: a Tag record also carries `building_allow`, `building_deny`,
-  `role_allow`, `role_deny` (lists of Building names / `Role.name`s, absent =
-  empty; `Tag` in `rostering/tags.py` holds them as tuples). The single source
-  of truth for what a Helper may do is `tags.restrictions` / `blocking` /
-  `allowed_values` (a pure function of the Tag tree, the Helper's direct Tag
-  ids and the axis universe: the Season's configured Buildings, or the six
-  Roles), used by the solver's `tag_restrictions` `RuleFamily`
-  (`solver/rules.py`, tier between minimums and Forced friends), the live
-  checker and the edit-time validation. `Competition.tags` and `Helper.tags`
-  (direct ids, read from the record's `tags`) carry them to the solver.
-  Entries naming nothing in the universe are inert (an allow-list of only
-  such entries does not narrow); Buildings are matched with `building_keys`,
-  as Building preferences are. The relaxation has one instance per Helper and
-  disallowed Building/Role (`tag_building` / `tag_role`, entity `(helper id,
-  value)`), so the solver's line and the checker's are identical, and its
-  `FixTarget` is `("tags", helper_id, tag_id)` (the first Tag that excludes
-  the placement), which `fix_focus.go_fix` turns into the Tags tab's selection (`SeasonView.selected_tag`).
-  Validation is one shared step in `mutations` (`_stranded` /
-  `_refuse_new_dead_ends`), run by `set_helper_tags`, `add_tag_to_helpers` and
-  `update_tag`: it refuses an edit that leaves a Helper with an empty allowed
-  set that they did not already have, so a Helper stranded by a later
-  configuration change never blocks unrelated edits; deleting a Tag or
-  removing one from a Helper only widens, so is not checked. Read-side
-  helpers: `mutations.helper_allowed` and `tag_constraint_entries` (which
-  flags `in_season`).
+- Tag constraints: a Tag record carries `rules`, a list of the same `be` rule
+  dicts a Forced friends group has (`{"kind": "be", "must", "axis", "values"}`,
+  axis building / room / role, any-of `values`; a Room is `[building, room]`). The
+  rule model (`Rule`, `value_label`, `effective_values`, `violates_be`) lives in
+  `rostering/placement_rules.py`, shared with `forced_friends` (which re-exports
+  it); `Tag.rules` holds them as `Rule`s and a Tag refuses a `share` rule
+  (`mutations._validated_tag_rules`; roles may be written as display names). The
+  editor is `ui/tabs/rule_editor.py` `RuleEditor`, used by the Forced friends
+  dialog (`allow_share=True`) and `TagSheet` (`allow_share=False`). A Tag saved as
+  `building_allow` / `building_deny` / `role_allow` / `role_deny` is read as the
+  equivalent rules (`tags.legacy_rules`) and rewritten on load
+  (`tags.migrate_state`, called next to `forced_friends.migrate_state`). The single
+  source of truth for what a Helper may do is `tags.restrictions` / `blocking` /
+  `allowed_values` / `allowed_rooms` (a pure function of the Tag tree, the
+  Helper's direct Tag ids and the axis universe: the Season's configured
+  Buildings, their `(Building, Room)` pairs, or the six Roles), used by the
+  solver's `tag_restrictions` `RuleFamily` (`solver/rules.py`, tier between
+  minimums and Forced friends), the live checker and the edit-time validation.
+  `Competition.tags` and `Helper.tags` (direct ids, read from the record's
+  `tags`) carry them to the solver. Entries naming nothing in the universe are
+  inert (a "must" of only such entries does not narrow); Buildings are matched
+  with `building_keys`, as Building preferences are, and a Room by its Building so
+  and its name. The relaxation has one instance per Helper and disallowed
+  Building/Room/Role (`tag_building` / `tag_room` / `tag_role`, entity `(helper id,
+  value)`, a Room's value flattened to `building, room`), so the solver's line and
+  the checker's are identical (`Štítek 8.M, musí být v budově Karlín`, the rule's
+  own `Rule.text()`), and its `FixTarget` is `("tags", helper_id, tag_id)` (the
+  first Tag that excludes the placement), which `fix_focus.go_fix` turns into the
+  Tags tab's selection (`SeasonView.selected_tag`). A "must" Room rule does not
+  also narrow the Buildings (so `forced_friends.tag_clashes`, which looks at
+  Building and Role only, ignores Room rules). Validation is one shared step in
+  `mutations` (`_stranded` / `_refuse_new_dead_ends`), run by `set_helper_tags`,
+  `add_tag_to_helpers` and `update_tag`: it refuses an edit that leaves a Helper
+  with an empty allowed set (Building, Room or Role; the Room axis only for a
+  Helper with a Room rule, and not again when no Building is allowed) that they
+  did not already have, so a Helper stranded by a later configuration change
+  never blocks unrelated edits; deleting a Tag or removing one from a Helper only
+  widens, so is not checked. Read-side helper: `mutations.helper_allowed`
+  (`buildings`, `rooms`, `roles`); the sheet's "not in this Season" notes are
+  `forced_groups.missing_places`. Tag import copies each rule with the values the
+  Season has (`dropped_constraint_entries`: `tag`, `rule`, `entry`).
 - Merged cells and the solver: sideways merges (`state["cell_merges"]`) are
   presentational, but `Competition.cell_merges` hands them to `solve_competition`,
   whose balance term spreads a *Building-wide* role count (`Building.capacities`) over

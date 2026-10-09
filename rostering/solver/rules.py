@@ -7,7 +7,7 @@ the rules it had to bend. The tiers bend in a fixed order, first to last:
 
 1. ``MINIMUMS`` — Room and Building role counts, each exact (both too few and
    too many break it);
-2. ``TAG_RESTRICTIONS`` — Tag constraints on Building/Role;
+2. ``TAG_RESTRICTIONS`` — Tag rules on Building/Room/Role;
 3. ``FORCED_FRIENDS`` — Forced-friend groups;
 4. ``EQUIPMENT`` — Equipment eligibility (Fotograf needs a camera).
 
@@ -281,35 +281,45 @@ def _check_equipment(ctx: CheckContext) -> list[BrokenRule]:
     return broken
 
 
-def _role_display(name: str) -> str:
-    return Role[name].value
-
-
 def _tag_line(
-    helper_name: str, blockers: list[tags_module.Restriction], axis: str, value: str, kind: str = "Pomocník"
+    helper_name: str, blockers: list[tags_module.Restriction], axis: str, value, kind: str = "Pomocník"
 ) -> str:
-    """``Pomocník Anna (Štítek 8.M, povoluje jen budovu Karlín) je zařazen(a) do
+    """``Pomocník Anna (Štítek 8.M, musí být v budově Karlín) je zařazen(a) do
     Impakt`` -- the restrictions that keep the value out, the value itself
     (``kind`` says whose it is: a Helper, or an Organizer)."""
-    display = _role_display if axis == tags_module.ROLE else str
-    why = "; ".join(tags_module.describe_restriction(r, axis, display) for r in blockers)
-    placed = f"jako {display(value)}" if axis == tags_module.ROLE else f"do {value}"
+    why = "; ".join(tags_module.describe_restriction(r) for r in blockers)
+    if axis == tags_module.ROLE:
+        placed = f"jako {forced_friends.value_label(axis, value)}"
+    elif axis == tags_module.ROOM:
+        placed = f"do místnosti {forced_friends.value_label(axis, value)}"
+    else:
+        placed = f"do {value}"
     return f"{kind} {helper_name} ({why}) je zařazen(a) {placed}"
 
 
-def _tag_universes(buildings: list[str], roles: list[Role]) -> dict[str, list[str]]:
-    return {tags_module.BUILDING: list(buildings), tags_module.ROLE: [r.name for r in roles]}
+def _tag_universes(buildings: list[Building], roles: list[Role]) -> dict[str, list]:
+    return {
+        tags_module.BUILDING: [b.name for b in buildings],
+        tags_module.ROOM: [(b.name, room.name) for b in buildings for room in b.rooms],
+        tags_module.ROLE: [r.name for r in roles],
+    }
 
 
-_TAG_KINDS = {tags_module.BUILDING: "tag_building", tags_module.ROLE: "tag_role"}
+_TAG_KINDS = {tags_module.BUILDING: "tag_building", tags_module.ROOM: "tag_room", tags_module.ROLE: "tag_role"}
+
+
+def _tag_entity(helper_id, axis: str, value) -> tuple:
+    """A Tag violation's identity: whose, and where (a Room is its Building and name)."""
+    return (helper_id, *value) if axis == tags_module.ROOM else (helper_id, value)
 
 
 def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
-    """Each Helper's allowed Buildings and Roles from their effective Tag
-    constraints (see ``rostering.tags``): one relaxation per Building/Role the
+    """Each Helper's allowed Buildings, Rooms and Roles from their effective Tag
+    rules (see ``rostering.tags``): one relaxation per Building/Room/Role the
     Helper may not be in, whose slack is 1 exactly when they are placed there."""
     relaxations: list[Relaxation] = []
-    universes = _tag_universes([b.name for b in ctx.buildings], ctx.roles)
+    universes = _tag_universes(ctx.buildings, ctx.roles)
+    room_ids = {(bname, room.name): rid for rid, (bname, room) in enumerate(ctx.rooms)}
     for helper in ctx.helpers:
         if not helper.tags:
             continue
@@ -320,15 +330,17 @@ def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
                 if not blockers:
                     continue
                 if axis == tags_module.BUILDING:
-                    room_ids = ctx.building_rooms.get(value, [])
-                    if not room_ids:
+                    building_rooms = ctx.building_rooms.get(value, [])
+                    if not building_rooms:
                         continue
-                    slack = sum(ctx.assign_room[helper.id, room_id] for room_id in room_ids)
+                    slack = sum(ctx.assign_room[helper.id, room_id] for room_id in building_rooms)
+                elif axis == tags_module.ROOM:
+                    slack = ctx.assign_room[helper.id, room_ids[value]]
                 else:
                     slack = ctx.assign_role[helper.id, Role[value]]
                 relaxations.append(
                     Relaxation(
-                        instance=RuleInstance(_TAG_KINDS[axis], (helper.id, value)),
+                        instance=RuleInstance(_TAG_KINDS[axis], _tag_entity(helper.id, axis, value)),
                         slack=slack,
                         max_units=1,
                         describe=lambda _short, line=_tag_line(helper.name, blockers, axis, value): line,
@@ -337,34 +349,39 @@ def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
     return relaxations
 
 
-def _check_organizer_tag_restrictions(ctx: CheckContext, universe: list[str]) -> list[BrokenRule]:
-    """An Organizer's Tag constraints on the Building axis, judged against their
-    placement (Organizers have no solved Role, so the Role axis never applies).
-    The solver never sees these: a placed Organizer is a fixed anchor it can
-    neither move nor bend, so only the live checker reports them."""
+def _check_organizer_tag_restrictions(ctx: CheckContext, universes: dict[str, list]) -> list[BrokenRule]:
+    """An Organizer's Tag rules on the Building axis, and on the Room axis when
+    they hold a Room, judged against their placement (Organizers have no solved
+    Role, so the Role axis never applies). The solver never sees these: a placed
+    Organizer is a fixed anchor it can neither move nor bend, so only the live
+    checker reports them."""
     comp = ctx.competition
     broken: list[BrokenRule] = []
     for organizer in comp.organizers:
         # Unplaced, or placed in a Building the configuration no longer has, is
         # judged by nothing.
-        if not organizer.tags or organizer.building not in universe:
+        if not organizer.tags or organizer.building not in universes[tags_module.BUILDING]:
             continue
-        blockers = tags_module.blocking(
-            tags_module.restrictions(comp.tags, organizer.tags, tags_module.BUILDING, universe), organizer.building
-        )
-        if not blockers:
-            continue
-        broken.append(
-            BrokenRule(
-                instance=RuleInstance("tag_building", ("organizer", organizer.id, organizer.building)),
-                family="tag_restrictions",
-                amount=1,
-                line=_tag_line(organizer.name, blockers, tags_module.BUILDING, organizer.building, kind="Organizátor"),
-                cells=((organizer.building, organizer.room, None),) if organizer.room else (),
-                fix=FixTarget("tags", organizer_id=organizer.id, tag_id=blockers[0].tag.id),
-                organizer_ids=(organizer.id,),
+        places = [(tags_module.BUILDING, organizer.building)]
+        if organizer.room and (organizer.building, organizer.room) in universes[tags_module.ROOM]:
+            places.append((tags_module.ROOM, (organizer.building, organizer.room)))
+        for axis, value in places:
+            blockers = tags_module.blocking(
+                tags_module.restrictions(comp.tags, organizer.tags, axis, universes[axis]), value
             )
-        )
+            if not blockers:
+                continue
+            broken.append(
+                BrokenRule(
+                    instance=RuleInstance(_TAG_KINDS[axis], ("organizer", *_tag_entity(organizer.id, axis, value))),
+                    family="tag_restrictions",
+                    amount=1,
+                    line=_tag_line(organizer.name, blockers, axis, value, kind="Organizátor"),
+                    cells=((organizer.building, organizer.room, None),) if organizer.room else (),
+                    fix=FixTarget("tags", organizer_id=organizer.id, tag_id=blockers[0].tag.id),
+                    organizer_ids=(organizer.id,),
+                )
+            )
     return broken
 
 
@@ -373,14 +390,19 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
     if not comp.tags:
         return []
     helpers = {h.id: h for h in comp.helpers}
-    universes = _tag_universes([b.name for b in comp.buildings.values()], list(Role))
+    universes = _tag_universes(list(comp.buildings.values()), list(Role))
     broken: list[BrokenRule] = []
     for a in ctx.assignments:
         helper = helpers.get(a.helper_id)
         if helper is None or not helper.tags:
             continue
-        for axis, value in ((tags_module.BUILDING, a.building), (tags_module.ROLE, a.role.name)):
-            # A Building the configuration no longer has is judged by nothing.
+        placed = (
+            (tags_module.BUILDING, a.building),
+            (tags_module.ROOM, (a.building, a.room)),
+            (tags_module.ROLE, a.role.name),
+        )
+        for axis, value in placed:
+            # A Building or Room the configuration no longer has is judged by nothing.
             if value not in universes[axis]:
                 continue
             blockers = tags_module.blocking(tags_module.restrictions(comp.tags, helper.tags, axis, universes[axis]), value)
@@ -388,7 +410,7 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
                 continue
             broken.append(
                 BrokenRule(
-                    instance=RuleInstance(_TAG_KINDS[axis], (helper.id, value)),
+                    instance=RuleInstance(_TAG_KINDS[axis], _tag_entity(helper.id, axis, value)),
                     family="tag_restrictions",
                     amount=1,
                     line=_tag_line(helper.name, blockers, axis, value),
@@ -397,7 +419,7 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
                     fix=FixTarget("tags", helper_id=helper.id, tag_id=blockers[0].tag.id),
                 )
             )
-    broken.extend(_check_organizer_tag_restrictions(ctx, universes[tags_module.BUILDING]))
+    broken.extend(_check_organizer_tag_restrictions(ctx, universes))
     return broken
 
 

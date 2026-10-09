@@ -15,8 +15,11 @@ Broken-rule checker and the edit-time validation all judge through
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import Callable, Iterable, Mapping, Optional, Sequence
+from dataclasses import dataclass, replace
+from typing import Any, Iterable, Mapping, Optional, Sequence
+
+from rostering.domain import Role
+from rostering.placement_rules import BE, BUILDING, ROLE, ROOM, Rule
 
 # Distinct, readable-on-white defaults handed to new Tags in turn.
 PALETTE: tuple[str, ...] = (
@@ -42,13 +45,51 @@ class Tag:
     note: str = ""
     # The one Tag this Tag implies, or None for a root.
     parent_id: Optional[int] = None
-    # Tag constraints: names of Buildings / Roles (``Role.name``) the Tag's
-    # Helpers may go to only (allow) or may not go to (deny). Room is not an
-    # axis. An empty list states nothing.
-    building_allow: tuple[str, ...] = ()
-    building_deny: tuple[str, ...] = ()
-    role_allow: tuple[str, ...] = ()
-    role_deny: tuple[str, ...] = ()
+    # Tag constraints: the same ``be`` rules a Forced friends group states
+    # ("must / must not be in Building or Room ...", "must / must not have role
+    # ..."), applying to each Helper carrying the Tag. Empty states nothing.
+    rules: tuple[Rule, ...] = ()
+
+
+# Tag constraints before they were rules: (field, axis, must).
+_LEGACY_FIELDS = (
+    ("building_allow", BUILDING, True),
+    ("building_deny", BUILDING, False),
+    ("role_allow", ROLE, True),
+    ("role_deny", ROLE, False),
+)
+
+
+def legacy_rules(record: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """A Tag saved with the four allow/deny lists carried the same constraints
+    as ``be`` rules: an allow-list is "must be in / have", a deny-list "must not"."""
+    found: list[dict[str, Any]] = []
+    for field, axis, must in _LEGACY_FIELDS:
+        entries = [str(e).strip() for e in record.get(field) or [] if str(e or "").strip()]
+        if axis == ROLE:
+            entries = [e for e in entries if e in Role.__members__]
+        if entries:
+            found.append({"kind": BE, "must": must, "axis": axis, "values": entries})
+    return found
+
+
+def record_rules(record: Mapping[str, Any]) -> tuple[Rule, ...]:
+    """The rules of a saved Tag record, whichever shape it was saved in."""
+    raw = record["rules"] if "rules" in record else legacy_rules(record)
+    return tuple(rule for rule in (Rule.from_dict(r) for r in raw or []) if rule.kind == BE)
+
+
+def migrate_state(state: dict[str, Any]) -> bool:
+    """Rewrite the Tags of a saved ``state`` that predate rules (the four
+    allow/deny lists) into ``rules``, in place. Returns whether anything changed."""
+    changed = False
+    for record in state.get("tags") or []:
+        if "rules" not in record:
+            record["rules"] = legacy_rules(record)
+            for field, _axis, _must in _LEGACY_FIELDS:
+                record.pop(field, None)
+            changed = True
+    return changed
 
 
 def tag_from_dict(data: dict) -> Tag:
@@ -58,11 +99,7 @@ def tag_from_dict(data: dict) -> Tag:
         colour=data.get("colour") or PALETTE[0],
         note=data.get("note") or "",
         parent_id=data.get("parent_id"),
-        # Absent from Tags saved before Tag constraints existed.
-        building_allow=tuple(data.get("building_allow") or ()),
-        building_deny=tuple(data.get("building_deny") or ()),
-        role_allow=tuple(data.get("role_allow") or ()),
-        role_deny=tuple(data.get("role_deny") or ()),
+        rules=record_rules(data),
     )
 
 
@@ -189,98 +226,123 @@ def tree_order(tags: Iterable[Tag]) -> list[tuple[Tag, int]]:
 
 # -- Tag constraints -------------------------------------------------------------
 
-BUILDING = "building"
-ROLE = "role"
-AXES = (BUILDING, ROLE)
-# (singular, plural) accusative, as in "povoluje jen budovu" / "zakazuje budovy".
-_NOUNS = {BUILDING: ("budovu", "budovy"), ROLE: ("roli", "role")}
+AXES = (BUILDING, ROOM, ROLE)
 
 
 @dataclass(frozen=True)
 class Restriction:
-    """One applicable Tag's live list on one axis. ``kind`` is ``"allow"`` (the
-    Helper may go only to ``values``) or ``"deny"`` (never to ``values``);
-    ``values`` are the universe's own spellings of the entries that name
-    something in it, so an entry naming nothing (a Building the Season no
-    longer has) is left out -- inert."""
+    """One applicable ``be`` rule of one Tag, over its live values: the
+    universe's own spellings of the entries that name something in it, so an
+    entry naming nothing (a Building the Season no longer has) is left out --
+    inert. A "must" rule lets the Helper go only to ``values`` (``kind``
+    ``"allow"``), a "must not" rule never to them (``"deny"``)."""
 
     tag: Tag
-    kind: str
-    values: tuple[str, ...]
+    rule: Rule
+
+    @property
+    def kind(self) -> str:
+        return "allow" if self.rule.must else "deny"
+
+    @property
+    def values(self) -> tuple:
+        return self.rule.values
 
 
-def same_value(axis: str, entry: str, value: str) -> bool:
-    """Whether a constraint entry names ``value``. Buildings are matched the
-    way Building preferences are (the survey and the Season configs spell them
-    differently); Roles by name."""
+def same_value(axis: str, entry: Any, value: Any) -> bool:
+    """Whether a rule entry names ``value``. Buildings are matched the way
+    Building preferences are (the survey and the Season configs spell them
+    differently), a Room by its Building so and its name; Roles by name."""
     if axis == BUILDING:
         from rostering.ingest.mapping import building_keys  # deferred: mapping imports domain
 
         return not building_keys(entry).isdisjoint(building_keys(value))
+    if axis == ROOM:
+        return same_value(BUILDING, entry[0], value[0]) and entry[1] == value[1]
     return entry == value
 
 
-def entry_in_universe(axis: str, entry: str, universe: Iterable[str]) -> bool:
+def entry_in_universe(axis: str, entry: Any, universe: Iterable[Any]) -> bool:
     return any(same_value(axis, entry, value) for value in universe)
 
 
-def restrictions(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[str]) -> list[Restriction]:
+def restrictions(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[Any]) -> list[Restriction]:
     """The live restrictions on ``axis`` from every Tag that applies to a Helper
     carrying ``direct`` (their own Tags plus every ancestor), in effective-Tag
-    order. A list with no entry naming anything in ``universe`` states nothing,
-    so an allow-list of absent entries never narrows."""
+    order. A rule with no entry naming anything in ``universe`` states nothing,
+    so a "must" of absent entries never narrows."""
     tags = list(tags)
     by_id = {t.id: t for t in tags}
     found: list[Restriction] = []
     for tag_id in effective_tag_ids(tags, direct):
         tag = by_id[tag_id]
-        for kind in ("allow", "deny"):
-            entries = getattr(tag, f"{axis}_{kind}")
-            live = tuple(v for v in universe if any(same_value(axis, e, v) for e in entries))
+        for rule in tag.rules:
+            if rule.kind != BE or rule.axis != axis:
+                continue
+            live = tuple(v for v in universe if any(same_value(axis, e, v) for e in rule.values))
             if live:
-                found.append(Restriction(tag, kind, live))
+                found.append(Restriction(tag, replace(rule, values=live)))
     return found
 
 
-def blocking(found: Iterable[Restriction], value: str) -> list[Restriction]:
-    """The restrictions that keep ``value`` out: an allow-list not naming it or
-    a deny-list naming it. Any single one is enough, which is what makes
-    allow-lists intersect and a deny always win."""
-    return [r for r in found if (r.kind == "allow") != (value in r.values)]
+def blocking(found: Iterable[Restriction], value: Any) -> list[Restriction]:
+    """The restrictions that keep ``value`` out: a "must" not naming it or a
+    "must not" naming it. Any single one is enough, which is what makes "must"
+    rules intersect and a "must not" always win."""
+    return [r for r in found if r.rule.must != (value in r.values)]
 
 
-def allowed_values(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[str]) -> list[str]:
+def allowed_values(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[Any]) -> list[Any]:
     """A Helper's allowed set on one axis: the intersection of every applicable
-    Tag's allow-list (a Tag with none does not narrow) minus every applicable
-    deny-list, in ``universe`` order."""
+    "must" rule (a Tag with none does not narrow) minus every applicable "must
+    not", in ``universe`` order."""
     found = restrictions(tags, direct, axis, universe)
     return [v for v in universe if not blocking(found, v)]
 
 
-def describe_restriction(r: Restriction, axis: str, display: Callable[[str], str] = str) -> str:
-    """``Štítek 8.M, povoluje jen budovu Karlín`` / ``Štítek GCHD, zakazuje role A, B``."""
-    many = len(r.values) > 1
-    noun = _NOUNS[axis][1 if many else 0]
-    verb = "povoluje jen" if r.kind == "allow" else "zakazuje"
-    return f"Štítek {r.tag.name}, {verb} {noun} {', '.join(display(v) for v in r.values)}"
+def allowed_rooms(
+    tags: Iterable[Tag], direct: Iterable[int], buildings: Sequence[str], rooms: Sequence[tuple[str, str]]
+) -> list[tuple[str, str]]:
+    """The ``(Building, Room)`` pairs a Helper may be in: the Rooms their Room
+    rules allow, inside the Buildings their Building rules allow."""
+    tags, direct = list(tags), list(direct)
+    in_buildings = set(allowed_values(tags, direct, BUILDING, buildings))
+    in_rooms = set(allowed_values(tags, direct, ROOM, rooms))
+    return [r for r in rooms if r in in_rooms and r[0] in in_buildings]
+
+
+def describe_restriction(r: Restriction) -> str:
+    """``Štítek 8.M, musí být v budově Karlín`` / ``Štítek GCHD, nesmí mít roli A ani B``."""
+    return f"Štítek {r.tag.name}, {r.rule.text()}"
 
 
 def dead_ends(
     tags: Iterable[Tag],
     direct_by_helper: Mapping[int, Iterable[int]],
-    universes: Mapping[str, Sequence[str]],
+    universes: Mapping[str, Sequence[Any]],
 ) -> set[tuple[int, str]]:
     """The ``(helper id, axis)`` pairs whose allowed set is empty: a Helper with
     nowhere to go. An axis with an empty universe (no Building configured) has
-    nothing to strand anyone from and is skipped."""
+    nothing to strand anyone from and is skipped. The Room axis is judged only
+    for a Helper with a Room rule, and not again when no Building is allowed."""
     tags = list(tags)
     stranded: set[tuple[int, str]] = set()
     for helper_id, direct in direct_by_helper.items():
         direct = list(direct)
         if not direct:
             continue
-        for axis, universe in universes.items():
-            if universe and not allowed_values(tags, direct, axis, universe):
+        for axis in AXES:
+            universe = universes.get(axis)
+            if not universe:
+                continue
+            if axis == ROOM:
+                if (helper_id, BUILDING) in stranded or not restrictions(tags, direct, ROOM, universe):
+                    continue
+                buildings = universes.get(BUILDING) or sorted({b for b, _room in universe})
+                allowed = allowed_rooms(tags, direct, buildings, universe)
+            else:
+                allowed = allowed_values(tags, direct, axis, universe)
+            if not allowed:
                 stranded.add((helper_id, axis))
     return stranded
 

@@ -68,6 +68,7 @@ from rostering.solver.checker import check_roster, newly_broken, toasts
 from rostering.solver.model import NoRosterFound, solve_competition
 from rostering.solver.scoring import build_friend_pairs
 from rostering import forced_friends
+from rostering.placement_rules import Rule
 from rostering import organizers as organizer_slots
 from rostering import row_merges as tall_rows
 from rostering import tags as tag_tree
@@ -2440,35 +2441,52 @@ def _validated_tag_parent(state: dict[str, Any], tag_id: Optional[int], parent_i
     return parent_id
 
 
-_CONSTRAINT_FIELDS = ("building_allow", "building_deny", "role_allow", "role_deny")
+def _with_role_names(item: Any) -> Any:
+    """A saved rule dict whose Role values may also be written as a Role's display
+    name or any spelling ``parse_role_token`` knows; they are stored as ``Role.name``."""
+    if not isinstance(item, dict) or item.get("axis") != forced_friends.ROLE:
+        return item
+    values = []
+    for value in item.get("values") or []:
+        role = parse_role_token(str(value or "").strip())
+        values.append(role.name if role is not None else value)
+    return {**item, "values": values}
 
 
-def _validated_constraint(field: str, entries: Sequence[str]) -> list[str]:
-    """One constraint list as stored: blanks and repeats dropped, a Role
-    entry (its name or its display name) stored as ``Role.name``. A Building
-    entry is kept as given -- it may name a Building the Season no longer has,
-    which is inert, not wrong."""
-    names: list[str] = []
-    for entry in entries or []:
-        text = (entry or "").strip()
-        if not text:
-            continue
-        if field.startswith("role"):
-            role = parse_role_token(text)
-            if role is None:
-                raise RosteringError(f"Taková role neexistuje: {text}. Omezení štítku uvádí jednu ze šesti rolí.")
-            text = role.name
-        names.append(text)
-    return list(dict.fromkeys(names))
+def _validated_tag_rules(rules: Optional[Sequence[Any]]) -> list[dict]:
+    """A Tag's rules as stored (``Rule``s or their saved dicts): the same ``be``
+    rules a Forced friends group states, refused when malformed, repeated or a
+    ``share`` rule (a Tag restricts each carrier on their own; sharing is what a
+    group is for). A Building or Room entry is kept as given -- it may name one
+    the Season no longer has, which is inert, not wrong."""
+    normalized: list[Rule] = []
+    seen: set[str] = set()
+    for item in rules or []:
+        try:
+            rule = Rule.from_dict(_with_role_names(item))
+        except (ValueError, KeyError, TypeError) as exc:
+            raise RosteringError(str(exc)) from exc
+        if rule.kind != forced_friends.BE:
+            raise RosteringError("Štítek může mít jen pravidla o tom, kde člověk smí být a jakou smí mít roli.")
+        if rule.key in seen:
+            raise RosteringError(f"Pravidlo se opakuje: {rule.text()}.")
+        seen.add(rule.key)
+        normalized.append(rule)
+    return [rule.to_dict() for rule in normalized]
 
 
-def _tag_universes(state: dict[str, Any]) -> dict[str, list[str]]:
-    """What a Tag constraint can name this Season: its configured Buildings and
-    the fixed Roles (by ``Role.name``)."""
+def _tag_universes(state: dict[str, Any]) -> dict[str, list]:
+    """What a Tag rule can name this Season: its configured Buildings, their
+    Rooms (as ``(Building, Room)``) and the fixed Roles (by ``Role.name``)."""
+    layout = state.get("config") or []
     return {
-        tag_tree.BUILDING: [b["name"] for b in state.get("config") or []],
+        tag_tree.BUILDING: [b["name"] for b in layout],
+        tag_tree.ROOM: [(b["name"], r["name"]) for b in layout for r in b.get("rooms") or []],
         tag_tree.ROLE: [role.name for role in Role],
     }
+
+
+_AXIS_NOUNS = {tag_tree.BUILDING: "budovu", tag_tree.ROOM: "místnost", tag_tree.ROLE: "roli"}
 
 
 def _group_tag_clashes(state: dict[str, Any]) -> list[forced_friends.TagClash]:
@@ -2481,11 +2499,11 @@ def _group_tag_clashes(state: dict[str, Any]) -> list[forced_friends.TagClash]:
 
 
 def _stranded(state: dict[str, Any]) -> set[tuple[str, int, str]]:
-    """Every ``(kind, id, axis)`` that currently has no allowed Building or no
-    allowed Role: a Helper (``kind`` ``"helper"``) on either axis, an Organizer
-    (``"organizer"``) on the Building axis only, since they have no solved Role,
-    and a Forced friends group (``"group"``) whose members share no allowed
-    Building or Role on an axis the group shares."""
+    """Every ``(kind, id, axis)`` that currently has no allowed Building, Room or
+    Role: a Helper (``kind`` ``"helper"``) on any axis, an Organizer
+    (``"organizer"``) on the Building axis only, since they have no solved Role
+    and a fixed placement, and a Forced friends group (``"group"``) whose members
+    share no allowed Building or Role on an axis the group shares."""
     definitions = _tag_definitions(state)
     universes = _tag_universes(state)
     direct = {h["id"]: _direct_tag_ids(h) for h in state["helpers"]}
@@ -2501,7 +2519,7 @@ def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[str, int, str
     """The one validation behind every Tag entry point (the Tags tab and the
     Helper list's inline multiselect alike): refuse an edit, already applied to
     the in-memory ``state`` but not yet saved, that leaves a Helper with no
-    allowed Building or no allowed Role, an Organizer with no allowed Building,
+    allowed Building, Room or Role, an Organizer with no allowed Building,
     or a Forced friends group whose members then share no allowed Building or
     Role. Only what the edit newly strands counts, so one already stranded
     (say, by a later configuration change) never blocks an unrelated edit."""
@@ -2514,44 +2532,26 @@ def _refuse_new_dead_ends(state: dict[str, Any], before: set[tuple[str, int, str
     for kind, person_id, axis in (f for f in fresh if f[0] != "group"):
         record = next(p for p in state["helpers" if kind == "helper" else "organizers"] if p["id"] == person_id)
         found = tag_tree.restrictions(tags, _direct_tag_ids(record), axis, universes[axis])
-        display = (lambda v: Role[v].value) if axis == tag_tree.ROLE else str
-        why = "; ".join(tag_tree.describe_restriction(r, axis, display) for r in found)
-        noun = "roli" if axis == tag_tree.ROLE else "budovu"
-        problems.append(f"{record['name']} by neměl(a) žádnou povolenou {noun} ({why})")
+        why = "; ".join(tag_tree.describe_restriction(r) for r in found)
+        problems.append(f"{record['name']} by neměl(a) žádnou povolenou {_AXIS_NOUNS[axis]} ({why})")
     fresh_groups = {(group_id, axis) for kind, group_id, axis in fresh if kind == "group"}
     problems += [c.message() for c in _group_tag_clashes(state) if (c.group.id, c.axis) in fresh_groups]
     shown, hidden = problems[:3], len(problems) - 3
     raise RosteringError("Odmítnuto: " + "; ".join(shown) + (f"; a dalších {hidden}" if hidden > 0 else "") + ".")
 
 
-def tag_constraint_entries(state: dict[str, Any], tag_id: int) -> dict[str, list[dict]]:
-    """A Tag's four constraint lists as ``{"name", "in_season"}`` entries. An
-    entry naming a Building the Season's configuration no longer has is
-    ``in_season: False``: inert, ignored by the solver and the checker, and
-    shown as "not in this Season"."""
-    record = _tag_record(state, tag_id)
-    universes = _tag_universes(state)
-    entries: dict[str, list[dict]] = {}
-    for field in _CONSTRAINT_FIELDS:
-        axis = field.split("_")[0]
-        entries[field] = [
-            {"name": entry, "in_season": tag_tree.entry_in_universe(axis, entry, universes[axis])}
-            for entry in record.get(field) or []
-        ]
-    return entries
-
-
 def helper_allowed(state: dict[str, Any], helper_id: int) -> dict[str, list[str]]:
-    """A Helper's allowed sets from their effective Tag constraints (see
-    CONTEXT.md "Tag constraint"), computed live: ``buildings`` (the Season's
-    configured Building names) and ``roles`` (``Role.name``), each in
-    configuration order. The solver and the live checker judge through the same
-    function."""
+    """A Helper's allowed sets from their effective Tag rules (see CONTEXT.md
+    "Tag constraint"), computed live: ``buildings`` (the Season's configured
+    Building names), ``rooms`` (``(Building, Room)``, inside the allowed
+    Buildings) and ``roles`` (``Role.name``), each in configuration order. The
+    solver and the live checker judge through the same functions."""
     direct = _direct_tag_ids(_helper_record(state, helper_id))
     tags = _tag_definitions(state)
     universes = _tag_universes(state)
     return {
         "buildings": tag_tree.allowed_values(tags, direct, tag_tree.BUILDING, universes[tag_tree.BUILDING]),
+        "rooms": tag_tree.allowed_rooms(tags, direct, universes[tag_tree.BUILDING], universes[tag_tree.ROOM]),
         "roles": tag_tree.allowed_values(tags, direct, tag_tree.ROLE, universes[tag_tree.ROLE]),
     }
 
@@ -2563,28 +2563,25 @@ def add_tag(
     colour: Optional[str] = None,
     note: str = "",
     parent_id: Optional[int] = None,
-    building_allow: Sequence[str] = (),
-    building_deny: Sequence[str] = (),
-    role_allow: Sequence[str] = (),
-    role_deny: Sequence[str] = (),
+    rules: Sequence[Any] = (),
 ) -> dict:
     """Create a Tag in the open Season (see CONTEXT.md "Tag"): a required name,
     unique among the Season's Tags ignoring case, a hex colour (each new Tag
     otherwise gets the next colour of a fixed palette), a free note, an
-    optional single parent Tag it implies and its Tag constraints -- allow- and
-    deny-lists of Building and Role names. The new Tag is the last of
+    optional single parent Tag it implies and its Tag constraints -- ``rules``, the
+    same ``be`` rules a Forced friends group has (:func:`_validated_tag_rules`).
+    The new Tag is the last of
     ``state["tags"]``. Nobody carries a new Tag, so no constraint can strand
     anyone yet."""
     state = workspace.load()
     tags = state.setdefault("tags", [])
-    given = dict(zip(_CONSTRAINT_FIELDS, (building_allow, building_deny, role_allow, role_deny)))
     record = {
         "id": _next_tag_id(state),
         "name": _validated_tag_name(state, name),
         "colour": _validated_tag_colour(colour or tag_tree.PALETTE[len(tags) % len(tag_tree.PALETTE)]),
         "note": (note or "").strip(),
         "parent_id": _validated_tag_parent(state, None, parent_id),
-        **{field: _validated_constraint(field, entries) for field, entries in given.items()},
+        "rules": _validated_tag_rules(rules),
     }
     tags.append(record)
     workspace.save(state)
@@ -2599,16 +2596,14 @@ def update_tag(
     colour: Optional[str] = None,
     note: Optional[str] = None,
     parent_id: Optional[int] | _Unchanged = _UNCHANGED,
-    building_allow: Optional[Sequence[str]] = None,
-    building_deny: Optional[Sequence[str]] = None,
-    role_allow: Optional[Sequence[str]] = None,
-    role_deny: Optional[Sequence[str]] = None,
+    rules: Optional[Sequence[Any]] = None,
 ) -> dict:
     """Edit a Tag; fields left out stay as they are, and ``parent_id=None``
-    makes it a root. The same rules as :func:`add_tag` apply, and a Tag can
-    never be given itself or one of its own descendants as parent, which would
-    make it its own ancestor. An edit of its constraints or parent that would
-    leave any Helper with no allowed Building or no allowed Role is refused
+    makes it a root; ``rules`` replaces the whole rule list. The same checks as
+    :func:`add_tag` apply, and a Tag can never be given itself or one of its own
+    descendants as parent, which would make it its own ancestor. An edit of its
+    rules or parent that would leave any Helper with no allowed Building, Room
+    or Role is refused
     with the reason. Nothing changes if any field is refused."""
     state = workspace.load()
     record = _tag_record(state, tag_id)
@@ -2622,10 +2617,8 @@ def update_tag(
         changes["note"] = note.strip()
     if not isinstance(parent_id, _Unchanged):
         changes["parent_id"] = _validated_tag_parent(state, tag_id, parent_id)
-    given = dict(zip(_CONSTRAINT_FIELDS, (building_allow, building_deny, role_allow, role_deny)))
-    for field, entries in given.items():
-        if entries is not None:
-            changes[field] = _validated_constraint(field, entries)
+    if rules is not None:
+        changes["rules"] = _validated_tag_rules(rules)
     record.update(changes)
     _refuse_new_dead_ends(state, before)
     workspace.save(state)
@@ -3124,7 +3117,7 @@ def _add_valid_tags(
             continue
         fresh = sorted(tag_tree.dead_ends(tags, {helper["id"]: [*direct, tag_id]}, universes) - before)
         if fresh:
-            nouns = " nebo ".join("roli" if axis == tag_tree.ROLE else "budovu" for _, axis in fresh)
+            nouns = " nebo ".join(_AXIS_NOUNS[axis] for _, axis in fresh)
             skipped.append(
                 {
                     "kind": kind,
@@ -3168,23 +3161,27 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
         target = _resolve_import_tag(tags, source["id"], source_tag, record)
         origin = _origin(source["id"], source_tag["id"])
         if target is None:
-            constraints = {}
-            for field in _CONSTRAINT_FIELDS:
-                axis = field.split("_")[0]
-                kept = []
-                for entry in source_tag.get(field) or []:
-                    if tag_tree.entry_in_universe(axis, entry, universes[axis]):
-                        kept.append(entry)
-                    else:
-                        dropped.append({"tag": source_tag["name"], "field": field, "entry": entry})
-                constraints[field] = kept
+            kept_rules = []
+            for rule in tag_tree.record_rules(source_tag):
+                kept = tuple(v for v in rule.values if tag_tree.entry_in_universe(rule.axis, v, universes[rule.axis]))
+                for entry in rule.values:
+                    if entry not in kept:
+                        dropped.append(
+                            {
+                                "tag": source_tag["name"],
+                                "rule": rule.text(),
+                                "entry": forced_friends.value_label(rule.axis, entry),
+                            }
+                        )
+                if kept:
+                    kept_rules.append(replace(rule, values=kept).to_dict())
             target = {
                 "id": _next_tag_id(state),
                 "name": _imported_name(source_tag, record),
                 "colour": source_tag.get("colour") or tag_tree.PALETTE[0],
                 "note": source_tag.get("note") or "",
                 "parent_id": mapping.get(source_tag.get("parent_id")),
-                **constraints,
+                "rules": kept_rules,
                 "origins": [origin],
             }
             tags.append(target)

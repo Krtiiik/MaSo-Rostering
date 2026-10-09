@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Štítky: the constraints of a Tag are now the same rule list a Forced friends
+  group has, edited with the same rows ("musí být v", "nesmí být v", "musí mít
+  roli", "nesmí mít roli") instead of four allow/deny pickers. Rules can now name
+  a Room as well as a Building or a Role. Sharing a Building, Room or Role stays a
+  Forced friends group's rule, and the Tag sheet does not offer it. Tags saved with
+  the old lists are converted when the Season loads, and the Broken-rule lines read
+  "Štítek 8.M, musí být v budově Karlín".
+
 - Export: the "Trička" sheet lists only the sizes someone is counted in, instead of
   always showing XS–XXL with zero rows.
 - Štítky: the Tag sheet's top bar (name, Smazat štítek, close) stays pinned while
