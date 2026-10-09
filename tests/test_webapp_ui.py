@@ -692,6 +692,24 @@ async def test_the_details_card_opens_and_closes_on_the_same_chip(user: User, se
     await user.should_not_see("Preference rolí")
 
 
+async def test_an_organizers_details_card_opens_closes_and_edits_in_the_person_sheet(user: User, seasons):
+    mutations.update_organizer(seasons, 1, phone="777 111 222")
+    grid = await _roster(user, seasons)
+    click = {"organizer_id": 1, "x": 10, "y": 10, "width": 1000, "height": 800}
+    grid.trigger("card", click)
+    await user.should_see("Telefon")
+    await user.should_see("777 111 222")
+    await user.should_see("Vedoucí budovy · Karlín")
+    user.find(marker="roster-grid").trigger("card", click)  # the same chip again closes it
+    await user.should_not_see("777 111 222")
+
+    user.find(marker="roster-grid").trigger("card", click)
+    await user.should_see(marker="card-edit")
+    user.find(marker="card-edit").click()
+    await user.should_see(marker="person-name")
+    await user.should_not_see(marker="card-edit")
+
+
 async def test_the_tags_legend_lists_tags_on_the_grid_and_a_click_filters(user: User, seasons):
     state = _state(seasons)
     tag_id = next(t["id"] for t in state["tags"] if t["name"] == "GCHD")

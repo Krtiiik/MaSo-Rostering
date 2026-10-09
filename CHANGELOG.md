@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Rozdělení: a click on an Organizer's chip in the grid (a leadership slot or the
+  Nezařazení list) opens a details card like a Helper's, with their placement and
+  slots, phone, e-mail, T-shirt size, Tags, the Helpers who asked to be with them,
+  and an "Upravit" button that opens their person sheet.
 - Budovy: a leadership name in a loaded "Pomocníci v místnostech" sheet that matches
   no Organizer exactly (a nickname, a typo, a surname only) is no longer just
   skipped: after saving, the K vyřízení panel lists it with the Organizers whose

@@ -304,7 +304,10 @@ pushing the tag, not just creating it locally.
   locked}`, from ctrl/cmd-click on a placed chip or the details card's
   Lock/Unlock button). The details card (`grid/card.py`) opens on a plain click
   on a chip (never on hover, so it can't block a drag); it also lists the Helper's Tags and Forced friends groups and its "Upravit" button
-  opens the shared `PersonSheet` (`HelperCard(on_toggle_lock, on_edit)`); one is open at a time,
+  opens the shared `PersonSheet` (`HelperCard(on_toggle_lock, on_edit(kind, id))`). An Organizer's
+  chip opens a smaller card of the same class (`card` event with `organizer_id`,
+  `grid.data.organizer_card_data`: placement and slots, phone, e-mail, T-shirt size,
+  Tags, who asked for them; no Lock); one is open at a time,
   and clicking the same chip again, Escape, a press anywhere outside a chip or
   the card, or starting a drag closes it. It survives the tab's redraws
   (`HelperCard` keeps which one is open).
