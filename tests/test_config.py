@@ -6,16 +6,37 @@ from rostering.domain import Role
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_load_real_2026_jaro_config():
-    buildings = load_buildings(REPO_ROOT / "data" / "seasons" / "2026-jaro" / "config.yaml")
-    assert set(buildings) == {"Mala Strana", "Karlov", "Troja", "Karlin"}
+GENERATED_CONFIG = """Alfa:
+  A1:
+    Opravovatel: 3
+    Menic: 2
+  A2:
+    Opravovatel: 1
+  A3: {}
+  Fotograf: 2
+Beta:
+  B1:
+    Kreslic: 4
+    Skenovac: 1
+Gama:
+  G1:
+    Opravovatel: 2
+"""
 
-    ms = buildings["Mala Strana"]
-    assert {r.name for r in ms.rooms} == {"S3", "S4", "S5", "S9"}
-    assert ms.capacities[Role.Fotograf].minimum == 2
 
-    s3 = next(r for r in ms.rooms if r.name == "S3")
-    assert s3.capacities[Role.Opravovatel].minimum == 3
+def test_load_generated_config(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text(GENERATED_CONFIG, encoding="utf-8")
+    buildings = load_buildings(path)
+    assert set(buildings) == {"Alfa", "Beta", "Gama"}
+
+    alfa = buildings["Alfa"]
+    assert {r.name for r in alfa.rooms} == {"A1", "A2", "A3"}
+    assert alfa.capacities[Role.Fotograf].minimum == 2
+
+    a1 = next(r for r in alfa.rooms if r.name == "A1")
+    assert a1.capacities[Role.Opravovatel].minimum == 3
+    assert a1.capacities[Role.Menic].minimum == 2
 
 
 def test_load_example_config():

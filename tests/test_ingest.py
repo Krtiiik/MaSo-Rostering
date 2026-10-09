@@ -1,55 +1,74 @@
-from pathlib import Path
-
 import pandas as pd
 import pytest
 
 from rostering.domain import Helper, Preference, Role
 from rostering.ingest.legacy import load_helpers_csv, write_helpers_csv
 from rostering.ingest.raw_survey import parse_raw_survey
+from tests.survey_factory import UNRESOLVABLE_FRIEND, generate_survey, write_survey
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SEASONS_DIR = REPO_ROOT / "data" / "seasons"
+# ---- generated surveys (never the real Season exports) ----
 
-# Every season's raw export, and the minimum number of helpers we expect to
-# find (a loose floor, not an exact count — real data can gain/lose rows).
-REAL_SEASONS = [
-    ("2023-podzim", 100),
-    ("2024-jaro", 90),
-    ("2024-podzim", 100),
-    ("2025-jaro", 90),
-    ("2025-podzim", 100),
-    ("2026-jaro", 110),
-]
+# The two form layouts the parser has to read (see tests/survey_factory.py).
+FORM_STYLES = ["likert", "freetext"]
 
 
-@pytest.mark.parametrize("season,min_helpers", REAL_SEASONS)
-def test_parses_every_real_season_without_crashing(season, min_helpers):
-    raw_path = SEASONS_DIR / season / "raw-response.xlsx"
-    result = parse_raw_survey(raw_path)
-    assert len(result.helpers) >= min_helpers
+@pytest.mark.parametrize("style", FORM_STYLES)
+@pytest.mark.parametrize("count", [1, 15, 120])
+def test_parses_a_generated_survey_of_any_size(tmp_path, style, count):
+    result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx", count=count, style=style))
+    assert len(result.helpers) == count
     # ids must be unique and sequential starting at 1
     ids = [h.id for h in result.helpers]
     assert ids == list(range(1, len(ids) + 1))
 
 
-def test_2026_jaro_extracts_equipment_and_multi_building_preference():
-    result = parse_raw_survey(SEASONS_DIR / "2026-jaro" / "raw-response.xlsx")
-    by_name = {h.name: h for h in result.helpers}
+def test_a_generated_survey_is_reproducible_from_its_seed():
+    assert generate_survey(30, seed=4).equals(generate_survey(30, seed=4))
+    assert not generate_survey(30, seed=4).equals(generate_survey(30, seed=5))
+
+
+def test_likert_form_reads_one_preference_per_role(tmp_path):
+    result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx", count=40, style="likert"))
+    assert all(set(h.role_preferences) == {r for r in Role if r is not Role.Zaloha} for h in result.helpers)
+    assert {p for h in result.helpers for p in h.role_preferences.values()} == set(Preference)
+
+
+def test_freetext_form_reads_one_wanted_and_one_unwanted_role(tmp_path):
+    result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx", count=40, style="freetext"))
+    for helper in result.helpers:
+        prefs = list(helper.role_preferences.values())
+        assert sorted(prefs) == [Preference.Ne, Preference.Ano]
+
+
+@pytest.mark.parametrize("style", FORM_STYLES)
+def test_extracts_equipment_and_multi_building_preference(tmp_path, style):
+    result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx", style=style))
 
     someone_with_both = next(h for h in result.helpers if h.can_bring_notebook and h.can_bring_camera)
     assert someone_with_both.can_bring_notebook and someone_with_both.can_bring_camera
 
     multi_building = [h for h in result.helpers if len(h.building_preferences) > 1]
     assert multi_building, "expected at least one helper to accept multiple buildings"
+    assert {"Malá Strana", "Karlov"} <= set(result.helpers[0].building_preferences)
+    assert not any("budovy" in w for w in result.warnings)
 
 
-def test_unresolved_friend_names_are_surfaced_not_dropped():
-    result = parse_raw_survey(SEASONS_DIR / "2026-jaro" / "raw-response.xlsx")
+@pytest.mark.parametrize("style", FORM_STYLES)
+def test_unresolved_friend_names_are_surfaced_not_dropped(tmp_path, style):
+    result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx", style=style))
     someone_unresolved = next(h for h in result.helpers if h.unresolved_friend_names)
-    assert someone_unresolved.unresolved_friend_names
+    assert someone_unresolved.unresolved_friend_names == [UNRESOLVABLE_FRIEND]
+    # The other name in the same answer is still resolved.
+    assert someone_unresolved.friends == [3]
     # Unresolved friend names are surfaced via `unresolved_friend_names` (and
     # resolved interactively in the UI), not duplicated into `warnings`.
     assert not any("could not resolve friend name" in w for w in result.warnings)
+
+
+def test_friend_names_resolve_to_the_named_registrant(tmp_path):
+    result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx"))
+    assert result.helpers[3].friends == [5]
+    assert not result.helpers[3].unresolved_friend_names
 
 
 def test_legacy_csv_round_trip(tmp_path):
