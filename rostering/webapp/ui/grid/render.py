@@ -396,7 +396,8 @@ CSS = """
 .roster-grid-root .grid-cell { position: relative; min-width: 110px; height: 30px; }
 .roster-grid-root .grid-cell.drop-over { background: #e6f4ff !important; }
 .roster-grid-root .grid-cell.drop-disabled { opacity: .45; }
-.roster-grid-root .grid-cell-inner { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+/* Chips sit side by side and wrap onto another line only when the column is full. */
+.roster-grid-root .grid-cell-inner { display: flex; flex-flow: row wrap; align-items: flex-start; gap: 2px; }
 .roster-grid-root .cell-merge-handle {
   position: absolute; top: 0; right: -4px; bottom: 0; width: 8px; cursor: pointer; z-index: 5;
   background: #d5dae1; opacity: .35;
