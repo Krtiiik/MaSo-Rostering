@@ -176,39 +176,87 @@ def late_link_offer(session: UiSession):
     return offer
 
 
-def render_late_link_prompt(session: UiSession) -> None:
-    """"Apply their Tags?" for the Helper whose link was just confirmed."""
-    offer = late_link_offer(session)
+def queue_late_link_organizer_offer(session: UiSession, organizer_id: int) -> None:
+    """A link of an Organizer was just confirmed: ask whether to apply their Tags
+    from an already-imported Season (only if there are any)."""
+    if mutations.late_link_organizer_tag_offer(session.workspace, organizer_id) is not None:
+        session.view.late_link_organizer_id = organizer_id
+
+
+def late_link_organizer_offer(session: UiSession):
+    organizer_id = session.view.late_link_organizer_id
+    if organizer_id is None:
+        return None
+    try:
+        offer = mutations.late_link_organizer_tag_offer(session.workspace, organizer_id)
+    except mutations.RosteringError:
+        offer = None
     if offer is None:
-        return
-    helper_id = session.view.late_link_helper_id
+        session.view.late_link_organizer_id = None
+    return offer
 
-    async def apply() -> None:
-        try:
-            result = mutations.apply_late_link_tags(session.workspace, helper_id)
-        except mutations.RosteringError as exc:
-            ui.notify(str(exc), type="negative")
-            return
-        session.view.late_link_helper_id = None
-        skipped = [f"{item['tag']}: {item['reason']}" for item in result["skipped"]]
-        ui.notify(
-            f"Použito u {offer['helper_name']}: {', '.join(result['applied']) or 'žádné štítky'}."
-            + "".join(f" Přeskočeno: {line}." for line in skipped),
-            type="warning" if skipped else "positive",
-            multi_line=True,
-        )
-        session.reload()
 
-    def skip() -> None:
-        session.view.late_link_helper_id = None
-        session.refresh()
-
+def _late_link_card(session: UiSession, name: str, tags: list[dict], apply, skip) -> None:
     with ui.card().classes("w-full"):
-        ui.markdown(f"**{offer['helper_name']}** je nyní propojen(a). Použít jejich štítky?")
-        ui.label(", ".join(f"{tag['name']} (z ročníku {tag['source']})" for tag in offer["tags"]))
+        ui.markdown(f"**{name}** je nyní propojen(a). Použít jejich štítky?")
+        ui.label(", ".join(f"{tag['name']} (z ročníku {tag['source']})" for tag in tags))
         with ui.row().classes("gap-2"):
             ui.button("Použít jejich štítky", on_click=apply)
             ui.button("Ne, děkuji", on_click=skip).props("flat")
+
+
+def _notify_applied(name: str, result: dict) -> None:
+    skipped = [f"{item['tag']}: {item['reason']}" for item in result["skipped"]]
+    ui.notify(
+        f"Použito u {name}: {', '.join(result['applied']) or 'žádné štítky'}."
+        + "".join(f" Přeskočeno: {line}." for line in skipped),
+        type="warning" if skipped else "positive",
+        multi_line=True,
+    )
+
+
+def render_late_link_prompt(session: UiSession) -> None:
+    """"Apply their Tags?" for the Helper (and, below it, the Organizer) whose
+    link was just confirmed."""
+    offer = late_link_offer(session)
+    if offer is not None:
+        helper_id = session.view.late_link_helper_id
+
+        async def apply() -> None:
+            try:
+                result = mutations.apply_late_link_tags(session.workspace, helper_id)
+            except mutations.RosteringError as exc:
+                ui.notify(str(exc), type="negative")
+                return
+            session.view.late_link_helper_id = None
+            _notify_applied(offer["helper_name"], result)
+            session.reload()
+
+        def skip() -> None:
+            session.view.late_link_helper_id = None
+            session.refresh()
+
+        _late_link_card(session, offer["helper_name"], offer["tags"], apply, skip)
+
+    organizer_offer = late_link_organizer_offer(session)
+    if organizer_offer is not None:
+        organizer_id = session.view.late_link_organizer_id
+
+        async def apply_organizer() -> None:
+            try:
+                result = mutations.apply_late_link_organizer_tags(session.workspace, organizer_id)
+            except mutations.RosteringError as exc:
+                ui.notify(str(exc), type="negative")
+                return
+            session.view.late_link_organizer_id = None
+            _notify_applied(organizer_offer["organizer_name"], result)
+            session.reload()
+
+        def skip_organizer() -> None:
+            session.view.late_link_organizer_id = None
+            session.refresh()
+
+        _late_link_card(session, organizer_offer["organizer_name"], organizer_offer["tags"], apply_organizer, skip_organizer)
 
 
 async def open_promotion(session: UiSession) -> None:

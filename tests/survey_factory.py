@@ -126,3 +126,70 @@ def write_survey(path: Path, count: int = 110, seed: int = 0, style: Style = "li
     """Write the generated export to ``path`` (and return it)."""
     path.write_bytes(survey_bytes(count, seed, style))
     return path
+
+
+# ---------------------------------------------------------------------------
+# The Organizers' form: its own questions, in the wording of the real sheet.
+
+ORGANIZER_SIZES = ["pánské S", "pánské M", "pánské L", "dámské XS", "dámské M"]
+ORGANIZER_ROLE_ANSWERS = ["Preferoval bych dělat", "Nevadí mi dělat", "Nechci dělat"]
+ORGANIZER_HEADERS = {
+    "name": "Jméno a příjmení:",
+    "phone": "Telefonní číslo:",
+    "size": "Velikost trička (rozměry pánské, dámské)",
+    "simulation": "Zúčastníš se Simulace (v sobotu 10.10.)?",
+    "event_day": "Připojíš se v den soutěže (pátek 6.11.)?",
+    "VedouciMistnosti": "Preferovaná/é role: [Vedoucí místnosti]",
+    "VedouciBudovy": "Preferovaná/é role: [Vedoucí budovy]",
+    "Registrace": "Preferovaná/é role: [Registrace]",
+    "TechnickaPodpora": "Preferovaná/é role: [Technická podpora]",
+    "JinaMista": "Preferovaná/é role: [Jet na jiné místo]",
+    "places": "Preferované místo/místa:",
+    "friends": "Chceš být/nebýt v místnosti s někým konkrétním (z pomocníků/orgů)?",
+    "equipment": "Můžeš na soutěž přinést notebook nebo foťák? A jsi ochotný/á někomu půjčit?",
+    "photos": "Souhlasíš s pořizováním fotografií v den soutěže?",
+    "comment": "Prostor pro další komentáře:",
+}
+
+
+def generate_organizer_survey(count: int = 8, seed: int = 0) -> pd.DataFrame:
+    """An Organizers' export of ``count`` distinct people (fictional names, with
+    no e-mail column, as in the real sheet). Row 0 will not come on the event day
+    ("Ne"), row 1 gave a shirt size nobody can parse, row 2 left the phone
+    blank."""
+    if not 0 < count <= MAX_HELPERS:
+        raise ValueError(f"count must be between 1 and {MAX_HELPERS}")
+    rng = random.Random(seed)
+    names = rng.sample([f"{first} {last}" for first in FIRST_NAMES for last in LAST_NAMES], count)
+    h = ORGANIZER_HEADERS
+    rows = []
+    for i, name in enumerate(names):
+        row = {
+            h["name"]: name,
+            h["phone"]: f"+420 606 {100 + i:03d} {300 + i:03d}",
+            h["size"]: rng.choice(ORGANIZER_SIZES),
+            h["simulation"]: "Ano",
+            h["event_day"]: "Ano",
+        }
+        for role in ("VedouciMistnosti", "VedouciBudovy", "Registrace", "TechnickaPodpora", "JinaMista"):
+            row[h[role]] = rng.choice(ORGANIZER_ROLE_ANSWERS)
+        row[h["places"]] = ", ".join(rng.sample(["MS", "Karlov", "Impakt", "Karlín"], rng.choice([1, 2])))
+        row[h["friends"]] = rng.choice([None, "Kdokoliv z místnosti 9.M"])
+        row[h["equipment"]] = rng.choice(["Notebook", "Notebook, Můžu zapůjčit", None])
+        row[h["photos"]] = "Ano"
+        row[h["comment"]] = rng.choice([None, "Klidně pomůžu i jinde."])
+        if i == 0:
+            row[h["event_day"]] = "Ne"
+        elif i == 1:
+            row[h["size"]] = "nevím"
+        elif i == 2:
+            row[h["phone"]] = None
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def organizer_survey_bytes(count: int = 8, seed: int = 0) -> bytes:
+    """The generated Organizers' export as the bytes of an ``.xlsx`` file."""
+    buffer = io.BytesIO()
+    generate_organizer_survey(count, seed).to_excel(buffer, index=False)
+    return buffer.getvalue()

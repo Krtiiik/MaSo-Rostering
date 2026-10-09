@@ -5,7 +5,8 @@ on another row switches the sheet to that person).
 A Helper's sheet has the tabs Details (Can't attend, every field, Save / Promote
 / Delete), Tags, Friends (the survey's friend names to match, the Friends picker
 and the friends forced into the same Room) and Person links; an Organizer's has
-Details and Tags. Pickers save on every change. A picker is only rebuilt when
+Details (name, e-mail, phone, shirt size), Tags and, once their sheet was loaded,
+Answers (what they wrote on the form, read-only). Pickers save on every change. A picker is only rebuilt when
 what it shows changed elsewhere, so picking several values in a row keeps its
 list open. Actions that would throw hand work away (Can't attend, Delete,
 Promote) ask first, on top of the sheet.
@@ -18,15 +19,17 @@ from typing import Any, Callable, Optional
 
 from nicegui import ui
 
-from rostering.webapp import forced_groups, mutations
+from rostering.domain import UNKNOWN_TSHIRT_SIZE
+from rostering.webapp import forced_groups, labels, mutations
 from rostering.webapp.ui import dialogs, pills, tag_import
 from rostering.webapp.ui.session import UiSession
-from rostering.webapp.ui.tabs.helper_fields import HelperFields, friend_key, friend_ref, friends_select
+from rostering.webapp.ui.tabs.helper_fields import SIZE_OPTIONS, HelperFields, friend_key, friend_ref, friends_select
 
 DETAILS_TAB = "Podrobnosti"
 TAGS_TAB = "Štítky"
 FRIENDS_TAB = "Kamarádi"
 LINKS_TAB = "Propojení osob"
+ANSWERS_TAB = "Odpovědi"
 
 _DISMISS_LABEL = "Nezúčastní se"
 _UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
@@ -168,7 +171,9 @@ class PersonSheet:
                     ui.label(kind_label).classes("text-xs text-gray-500 uppercase")
                     self.title = ui.label(person["name"]).classes("text-xl font-bold")
                 ui.button(icon="close", on_click=self.close).props("flat round dense")
-            names = [DETAILS_TAB, TAGS_TAB] + ([FRIENDS_TAB, LINKS_TAB] if self.kind == "helper" else [])
+            names = [DETAILS_TAB, TAGS_TAB] + (
+                [FRIENDS_TAB, LINKS_TAB] if self.kind == "helper" else [ANSWERS_TAB]
+            )
             with ui.tabs(on_change=lambda e: setattr(self, "tab", e.value)).classes("w-full") as tabs:
                 for name in names:
                     ui.tab(name)
@@ -177,6 +182,9 @@ class PersonSheet:
                     self._details()
                 with ui.tab_panel(TAGS_TAB):
                     self._section(self._tags, lambda: self._tags_signature())
+                if self.kind == "organizer":
+                    with ui.tab_panel(ANSWERS_TAB):
+                        self._section(self._answers, lambda: self.person.get("survey") if self.person else None)
                 if self.kind == "helper":
                     with ui.tab_panel(FRIENDS_TAB):
                         self._section(self._matchers, lambda: self._matchers_signature())
@@ -243,10 +251,22 @@ class PersonSheet:
             with ui.row().classes("w-full gap-4 no-wrap"):
                 name = ui.input("Jméno", value=person["name"]).classes("grow").mark("person-name")
                 email = ui.input("E-mail", value=person.get("email") or "").classes("grow")
+            with ui.row().classes("w-full gap-4 no-wrap"):
+                phone = ui.input("Telefon", value=person.get("phone") or "").classes("grow")
+                size = ui.select(
+                    SIZE_OPTIONS, label="Velikost trička", value=person.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE
+                ).classes("min-w-[10rem]")
 
             async def save_organizer() -> None:
                 await s.act(
-                    lambda: mutations.update_organizer(s.workspace, person["id"], name=name.value, email=email.value),
+                    lambda: mutations.update_organizer(
+                        s.workspace,
+                        person["id"],
+                        name=name.value,
+                        email=email.value,
+                        phone=phone.value,
+                        tshirt_size=size.value,
+                    ),
                     success=f"Změny uloženy: {(name.value or '').strip()}",
                 )
 
@@ -340,6 +360,26 @@ class PersonSheet:
             ),
             success=f"{person['name']} je nyní organizátor.",
         )
+
+    # ------------------------------------------------------------------ Answers
+    def _answers(self) -> None:
+        """What the Organizer wrote on the form: read-only, as they wrote it."""
+        person = self.person
+        survey = (person or {}).get("survey")
+        if not survey:
+            ui.label(
+                "Od tohoto organizátora nejsou načteny žádné odpovědi z dotazníku. Nahrajte je tlačítkem "
+                "Načíst organizátory na záložce Lidé."
+            ).classes("text-sm text-gray-600")
+            return
+        ui.label("Odpovědi z formuláře organizátorů (jen ke čtení; telefon a velikost trička upravíte v Podrobnostech).").classes(
+            "text-sm text-gray-600"
+        )
+        with ui.grid(columns="14rem 1fr").classes("w-full items-baseline gap-x-4 gap-y-1"):
+            for key, label in labels.ORGANIZER_ANSWER_LABELS.items():
+                if key in survey:
+                    ui.label(label).classes("text-sm text-gray-600")
+                    ui.label(survey[key]).classes("whitespace-pre-wrap")
 
     # ------------------------------------------------------------------ Tags
     def _tags_signature(self) -> Any:

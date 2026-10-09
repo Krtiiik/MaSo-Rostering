@@ -22,6 +22,9 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | Organizers (list) | Organizátoři |
 | Person links | Propojení osob |
 | Possible returning helpers | Možní vracející se pomocníci |
+| Possible returning organizers | Možní vracející se organizátoři |
+| Load the Organizers' sheet | Načíst organizátory |
+| Organizer's survey answers (person-sheet tab) | Odpovědi |
 | Solver weights / Solver settings | Váhy / Parametry rozřazování |
 
 ## Actions

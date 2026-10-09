@@ -3,6 +3,7 @@ a temp-dir Season seeded with synthetic Helpers and Organizers (never data/):
 the page, the People tab and person sheet, Tags, Buildings, Solver, the Roster
 tab's grid events, the Solve modal and the sidebar."""
 import asyncio
+import io
 
 import pytest
 from nicegui import ui
@@ -515,3 +516,69 @@ async def test_start_over_asks_first(user: User, seasons):
     user.find(marker="confirm-ok").click()
     await asyncio.sleep(0.1)
     assert _state(seasons)["helpers"] == []
+
+
+# ---------------------------------------------------------------------- Organizers' import
+async def _upload_organizers(user: User, content: bytes) -> None:
+    from nicegui.elements.upload_files import SmallFileUpload
+
+    uploader = user.find(marker="organizer-upload").elements.pop()
+    await uploader.handle_uploads([SmallFileUpload(name="organizers.xlsx", content_type="", _data=content)])
+    await asyncio.sleep(0.3)
+
+
+async def test_loading_the_organizers_sheet_fills_the_table_and_the_todo_summary(user: User, seasons):
+    from tests.survey_factory import organizer_survey_bytes
+
+    await _upload_organizers(user, organizer_survey_bytes(4, seed=7))
+    rows = _rows(user, "organizer-table")
+    assert len(rows) == 5  # Boss and the four from the sheet
+    loaded = [r for r in rows if r["name"] != "Boss"]
+    assert sorted(r["phone"] == "—" for r in loaded) == [False, False, False, True]  # row 2 left it blank
+    assert any(r["tshirt"].startswith(("pánské", "dámské")) for r in loaded)
+    await user.should_see("Co změnilo poslední nahrání organizátorů")
+    assert _state(seasons)["organizer_upload_summary"]["new"]
+
+    user.find(kind=ui.button, content="Skrýt").click()
+    await asyncio.sleep(0.1)
+    assert "organizer_upload_summary" not in _state(seasons)
+
+
+async def test_the_organizer_sheet_shows_the_answers_and_saves_phone_and_size(user: User, seasons):
+    from tests.survey_factory import organizer_survey_bytes
+
+    await _upload_organizers(user, organizer_survey_bytes(2, seed=7))
+    organizer = _state(seasons)["organizers"][-1]
+    user.find(marker="organizer-table").trigger("rowClick", [{}, {"id": organizer["id"]}, 0])
+    await user.should_see(marker="person-name")
+    user.find(kind=ui.tab, content="Odpovědi").click()
+    await user.should_see("Role: Vedoucí místnosti")
+    await user.should_see(organizer["survey"]["role_VedouciMistnosti"])
+
+    user.find(marker="person-save").click()
+    await asyncio.sleep(0.1)
+    saved = next(o for o in _state(seasons)["organizers"] if o["id"] == organizer["id"])
+    assert saved["phone"] == organizer["phone"] and saved.get("tshirt_size") == organizer.get("tshirt_size")
+
+
+async def test_a_returning_organizer_is_offered_for_review_in_the_todo_panel(user: User, seasons):
+    from tests.survey_factory import ORGANIZER_HEADERS, generate_organizer_survey
+
+    mutations.new_season(seasons)
+    seasons.create_season("2025-podzim")
+    mutations.add_organizer(seasons, "Dana Stará")
+    mutations.new_season(seasons)
+    seasons.create_season("2026-podzim")
+    frame = generate_organizer_survey(1, seed=0)
+    frame[ORGANIZER_HEADERS["name"]] = ["Dana Stará"]
+    buffer = io.BytesIO()
+    frame.to_excel(buffer, index=False)
+    mutations.import_organizers(seasons, buffer.getvalue(), "organizers.xlsx")
+    await user.open("/")
+
+    await user.should_see("Možní vracející se organizátoři (1)")
+    user.find(kind=ui.button, content="Propojit").click()
+    await asyncio.sleep(0.2)
+    organizer = _state(seasons)["organizers"][0]
+    assert organizer["link_confirmed"] is True
+    assert not mutations.get_uncertain_organizer_matches(seasons)

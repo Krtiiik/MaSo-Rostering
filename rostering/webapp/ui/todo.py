@@ -3,8 +3,9 @@ right-hand drawer reachable from every tab (its header button shows how many
 items wait). It holds the stale and unplaced warnings, the summary of the last
 re-upload, the Tag-import banner and result, the "apply their Tags?" prompt after
 a link, the typed role names that match a Helper and the possible returning
-Helpers (same-name Persons to link or reject). Link edits never change a Helper
-id."""
+Helpers (same-name Persons to link or reject), and the same two for the
+Organizers (the summary of the last Organizers' import, with what it left to
+review). Link edits never change a Helper or Organizer id."""
 from __future__ import annotations
 
 from typing import Callable
@@ -32,12 +33,15 @@ def count(session: UiSession) -> int:
         mutations.upload_summary(ws) is not None,
         tag_import.banner_visible(session),
         tag_import.late_link_offer(session) is not None,
+        tag_import.late_link_organizer_offer(session) is not None,
+        mutations.organizer_upload_summary(ws) is not None,
         bool(session.view.import_summary and session.view.import_summary["where"] == "todo"),
     ]
     return (
         sum(shown)
         + len(mutations.get_typed_role_link_offers(ws))
         + len(mutations.get_uncertain_matches(ws))
+        + len(mutations.get_uncertain_organizer_matches(ws))
     )
 
 
@@ -58,11 +62,13 @@ class TodoPanel:
                 ui.label("Nic nečeká na vyřízení.").classes("text-sm text-gray-500")
             self._warnings()
             self._upload_summary()
+            self._organizer_upload_summary()
             tag_import.render_banner(s)
             tag_import.render_summary(s, "todo")
             tag_import.render_late_link_prompt(s)
             self._typed_role_links()
             self._uncertain_matches()
+            self._uncertain_organizer_matches()
 
     # ------------------------------------------------------------------ pieces
     def _warnings(self) -> None:
@@ -113,6 +119,61 @@ class TodoPanel:
                     f"**Nejisté shody čekající na posouzení ({len(summary['uncertain'])})** (níže): "
                     + ", ".join(entry["helper_name"] for entry in summary["uncertain"])
                 )
+
+    def _organizer_upload_summary(self) -> None:
+        s = self.session
+        summary = mutations.organizer_upload_summary(s.workspace)
+        if summary is None:
+            return
+        with ui.card().classes("w-full"):
+            with ui.row().classes("w-full items-center"):
+                ui.label("Co změnilo poslední nahrání organizátorů").classes("font-bold grow")
+                ui.button(
+                    "Skrýt", on_click=lambda: s.act(lambda: mutations.dismiss_organizer_upload_summary(s.workspace))
+                ).props("flat dense")
+            if summary["new"]:
+                ui.markdown(
+                    f"**Noví organizátoři ({len(summary['new'])})** (zařadíte je na záložce {labels.TAB_ROSTER}): "
+                    + ", ".join(
+                        entry["name"] + (" (nemůže se zúčastnit)" if entry.get("cant_attend") else "")
+                        for entry in summary["new"]
+                    )
+                )
+            if summary["adopted"]:
+                ui.markdown(
+                    f"**Odpovědi doplněny k organizátorům, které jste už měli ({len(summary['adopted'])})** "
+                    "(podle shody jména): " + ", ".join(entry["name"] for entry in summary["adopted"])
+                )
+            if summary["changed"]:
+                ui.markdown(
+                    f"**Organizátoři, kteří změnili odpovědi ({len(summary['changed'])})** (jejich zařazení ani "
+                    "příznak Nemůže se zúčastnit se nezměnily):"
+                )
+                for entry in summary["changed"]:
+                    ui.label(
+                        f"• {entry['name']}: {', '.join(labels.organizer_field_label(f) for f in entry['fields'])}"
+                    ).classes("text-sm")
+            if summary["missing"]:
+                ui.markdown(
+                    f"**Organizátoři chybějící v souboru ({len(summary['missing'])})** (zůstávají, jak jsou): "
+                    + ", ".join(entry["name"] for entry in summary["missing"])
+                )
+            if summary["also_helper"]:
+                ui.markdown(
+                    f"**Stejné jméno jako u pomocníka ({len(summary['also_helper'])})**: "
+                    + ", ".join(entry["name"] for entry in summary["also_helper"])
+                    + ". Nic nebylo odebráno, osoba je teď zároveň pomocník i organizátor. Jedno z toho smažte "
+                    "(organizátora nebo pomocníka) na záložce Lidé."
+                )
+            if summary["uncertain"]:
+                ui.markdown(
+                    f"**Nejisté shody organizátorů čekající na posouzení ({len(summary['uncertain'])})** (níže): "
+                    + ", ".join(entry["organizer_name"] for entry in summary["uncertain"])
+                )
+            if summary["warnings"]:
+                with ui.expansion(f"Upozornění při načítání: {len(summary['warnings'])}", icon="info").classes("w-full"):
+                    for warning in summary["warnings"]:
+                        ui.label(f"• {warning}").classes("text-sm")
 
     async def _link_edit(self, action: Callable[..., dict], *args, tagged_helper_id: int | None = None) -> None:
         """Run one link mutation; after a confirmed link, offer the Person's Tags
@@ -209,6 +270,65 @@ class TodoPanel:
             state = s.state
             for candidate in entry["candidates"]:
                 state = mutations.reject_person_match(s.workspace, entry["helper_id"], candidate["person_id"])
+            return state
+
+        await s.act(reject_all)
+
+    async def _organizer_link_edit(self, action: Callable[..., dict], organizer_id: int, person_id: str) -> None:
+        """Run one Organizer link mutation; after a confirmed link, offer the
+        Person's Tags from an already-imported Season."""
+        s = self.session
+        if await s.act(lambda: action(s.workspace, organizer_id, person_id)) is None:
+            return
+        if action is mutations.link_organizer:
+            tag_import.queue_late_link_organizer_offer(s, organizer_id)
+            s.refresh()
+
+    def _uncertain_organizer_matches(self) -> None:
+        """Same-name Persons proposed for an Organizer, to be confirmed or
+        rejected one by one. Unreviewed candidates stay unlinked."""
+        entries = mutations.get_uncertain_organizer_matches(self.session.workspace)
+        if not entries:
+            return
+        ui.label(f"Možní vracející se organizátoři ({len(entries)})").classes("font-bold")
+        ui.markdown(
+            "Tito organizátoři mají stejné jméno jako někdo z dřívějšího ročníku, ale jiný (nebo žádný) e-mail, "
+            "takže **nejsou propojeni**, dokud to nepotvrdíte. Telefon je jen nápověda. Co nechcete posoudit, "
+            "zůstane nepropojené."
+        ).classes("text-sm text-gray-600")
+        for entry in entries:
+            with ui.card().classes("w-full"):
+                ui.markdown(f"**{entry['organizer_name']}** — {_describe(entry['organizer_email'], None)}")
+                for candidate in entry["candidates"]:
+                    ui.label(
+                        f"{candidate['name']} · ročník {candidate['season']} · "
+                        f"{_describe(candidate['email'], candidate['phone'])}"
+                    ).classes("text-sm")
+                    with ui.row().classes("gap-2"):
+                        ui.button(
+                            "Propojit",
+                            on_click=lambda o=entry["organizer_id"], p=candidate["person_id"]: self._organizer_link_edit(
+                                mutations.link_organizer, o, p
+                            ),
+                        ).props("dense")
+                        ui.button(
+                            "Není to tatáž osoba",
+                            on_click=lambda o=entry["organizer_id"], p=candidate["person_id"]: self._organizer_link_edit(
+                                mutations.reject_organizer_match, o, p
+                            ),
+                        ).props("flat dense")
+                if len(entry["candidates"]) > 1:
+                    ui.button("Ani jedna z nich", on_click=lambda e=entry: self._reject_all_organizer(e)).props(
+                        "flat dense"
+                    )
+
+    async def _reject_all_organizer(self, entry: dict) -> None:
+        s = self.session
+
+        def reject_all() -> dict:
+            state = s.state
+            for candidate in entry["candidates"]:
+                state = mutations.reject_organizer_match(s.workspace, entry["organizer_id"], candidate["person_id"])
             return state
 
         await s.act(reject_all)

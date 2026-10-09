@@ -201,6 +201,8 @@ def organizer_to_dict(o: Organizer) -> dict:
         data["tags"] = list(o.tags)
     if o.cant_attend:  # a missing key means attending
         data["cant_attend"] = True
+    if o.tshirt_size != UNKNOWN_TSHIRT_SIZE:  # a missing key means Unknown
+        data["tshirt_size"] = o.tshirt_size
     return data
 
 
@@ -214,6 +216,7 @@ def organizer_from_dict(data: dict) -> Organizer:
         room=data.get("room"),
         tags=[int(t) for t in data.get("tags") or []],
         cant_attend=bool(data.get("cant_attend", False)),
+        tshirt_size=parse_tshirt_size(data.get("tshirt_size")) or UNKNOWN_TSHIRT_SIZE,
     )
 
 

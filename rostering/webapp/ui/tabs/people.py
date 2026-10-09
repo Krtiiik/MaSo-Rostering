@@ -3,7 +3,9 @@ the Season when none is open), then every Organizer and Helper in a searchable,
 sortable table. A click on a row opens that person's sheet beside the table
 (``person_sheet``), where everything about them is edited; Can't attend is
 toggled right in the row. What waits on a decision after an upload (matches to
-review, the Tag-import offer, ...) is in the "K vyřízení" panel."""
+review, the Tag-import offer, ...) is in the "K vyřízení" panel. The Organizers'
+own sheet is loaded by the button of the Organizers table ("Načíst organizátory");
+it needs an open Season."""
 from __future__ import annotations
 
 from html import escape
@@ -206,6 +208,8 @@ class PeopleTab:
             {
                 "id": o["id"],
                 "name": o["name"],
+                "phone": o.get("phone") or "—",
+                "tshirt": o.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
                 "placement": " · ".join(filter(None, [o.get("building"), o.get("room")])) or "—",
                 "cant_attend": bool(o.get("cant_attend")),
                 "tags": _tags_html(organizer_pills.get(o["id"])),
@@ -214,6 +218,8 @@ class PeopleTab:
         ]
         columns = [
             _col("name", "Jméno"),
+            _col("phone", "Telefon"),
+            _col("tshirt", "Tričko", align="center"),
             _col("placement", "Zařazení"),
             _col("cant_attend", "Nemůže se zúčastnit", align="center"),
             _col("tags", "Štítky", sortable=False),
@@ -224,10 +230,38 @@ class PeopleTab:
             columns,
             f"Organizátoři ({len(organizers)})",
             lambda: person_sheet.add_organizer(self.session),
-            extra=lambda: ui.button(
-                "Přejít k zařazení", on_click=lambda: self.session.switch_tab(labels.TAB_ROSTER)
-            ).props("flat color=primary"),
+            extra=self._organizer_buttons,
         )
+
+    def _organizer_buttons(self) -> None:
+        """The Organizers table's own buttons: load their sheet, go place them."""
+        # The picker is Quasar's uploader, kept out of sight and opened by the button.
+        uploader = ui.upload(on_upload=self._organizers_uploaded, auto_upload=True, max_files=1).props(
+            'accept=".xlsx"'
+        ).classes("hidden").mark("organizer-upload")
+        ui.button("Načíst organizátory", icon="upload_file", on_click=lambda: uploader.run_method("pickFiles")).props(
+            "flat"
+        ).mark("import-organizers").tooltip(
+            "Nahraje export odpovědí z formuláře organizátorů (.xlsx). Opakované nahrání aktualizuje "
+            "organizátory podle jména; zařazení, štítky ani příznak Nemůže se zúčastnit nemění."
+        )
+        ui.button("Přejít k zařazení", on_click=lambda: self.session.switch_tab(labels.TAB_ROSTER)).props(
+            "flat color=primary"
+        )
+
+    async def _organizers_uploaded(self, e: events.UploadEventArguments) -> None:
+        s = self.session
+        content = await e.file.read()
+        filename = e.file.name
+        e.sender.reset()
+        notification = ui.notification("Nahrávám a zpracovávám…", spinner=True, timeout=None)
+        try:
+            await s.act(
+                lambda: mutations.import_organizers(s.workspace, content, filename),
+                success="Odpovědi organizátorů načteny.",
+            )
+        finally:
+            notification.dismiss()
 
     def _helpers(self, focus_helper_id: Optional[int]) -> None:
         s = self.session

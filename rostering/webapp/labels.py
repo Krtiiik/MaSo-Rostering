@@ -27,5 +27,29 @@ def answer_label(name: str) -> str:
     return ANSWER_LABELS.get(name, name)
 
 
+# The keys of an Organizer's survey answers (``rostering.ingest.organizer_survey
+# .ANSWER_FIELDS``, persisted as ``survey`` on the record) and of the other
+# fields an import of the Organizers' sheet fills, in the order they are shown.
+ORGANIZER_ANSWER_LABELS = {
+    "simulation": "Zúčastní se Simulace",
+    "event_day": "Připojí se v den soutěže",
+    "role_VedouciMistnosti": "Role: Vedoucí místnosti",
+    "role_VedouciBudovy": "Role: Vedoucí budovy",
+    "role_Registrace": "Role: Registrace",
+    "role_TechnickaPodpora": "Role: Technická podpora",
+    "role_JinaMista": "Role: Jet na jiné místo",
+    "places": "Preferovaná místa",
+    "friends": "Kamarádi (z pomocníků a organizátorů)",
+    "equipment": "Notebook / fotoaparát",
+    "photo_consent": "Souhlas s focením",
+    "comment": "Komentář",
+}
+ORGANIZER_FIELD_LABELS = {"phone": "Telefon", "tshirt_size": "Velikost trička", **ORGANIZER_ANSWER_LABELS}
+
+
+def organizer_field_label(key: str) -> str:
+    return ORGANIZER_FIELD_LABELS.get(key, key)
+
+
 SEASON_LABEL_FIELD = "Označení ročníku"
 SEASON_LABEL_HELP = "Rok a jaro nebo podzim, např. 2026-jaro."

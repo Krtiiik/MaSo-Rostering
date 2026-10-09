@@ -53,6 +53,7 @@ class SeasonView:
     import_summary: Optional[dict] = None  # {"where", "summary"}
     import_banner_dismissed: bool = False
     late_link_helper_id: Optional[int] = None
+    late_link_organizer_id: Optional[int] = None
     export_path: Optional[str] = None
     people_search: str = ""
 

@@ -424,6 +424,35 @@ pushing the tag, not just creating it locally.
   `link_organizer` / `reject_organizer_match` / `unlink_organizer` mirror the
   Helper ones and have no UI yet. Promotion of a Helper, Friend preference toward
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
+- Organizers' sheet import (`rostering/ingest/organizer_survey.py`,
+  `mutations.import_organizers`, the "Organizers' survey import" section next to
+  `assign_organizer`): the Organizers' own Google Forms export, parsed through
+  `mapping.ORGANIZER_FIELD_HEADER_CANDIDATES` (a file with none of the
+  Organizer-only questions, the role slots and the attendance ones, is refused so a
+  Helper export can't be loaded here). Per row: `phone`, `tshirt_size`
+  (`Organizer.tshirt_size`, read by `export/people.py` so the "Trička" counts stop
+  being Unknown), `email` if the sheet has the column, and `survey`, the read-only
+  answers as written (keys `organizer_survey.ANSWER_FIELDS`, labels
+  `labels.ORGANIZER_ANSWER_LABELS`; they drive nothing). `_recognize_organizer_rows`
+  matches by e-mail, then by normalized name (never across two different e-mails),
+  one record per row; a row with no match is `_new_organizer` (Person link by
+  e-mail only), flagged `cant_attend` when the event-day answer is a plain "no".
+  A re-upload goes through `_apply_organizer_row`, which skips the fields in the
+  record's `hand_typed` (`update_organizer` now takes phone and shirt size and marks
+  what changed, as for Helpers) and never touches placement, Tags, flags or links.
+  `state["organizer_upload_summary"]` (`new`, `adopted` = hand-made Organizers a row
+  matched, `changed` = field keys, `missing` = earlier sheet Organizers absent now,
+  `also_helper` = Organizer ids sharing a name with a Helper, filtered live in
+  `organizer_upload_summary`, `warnings`) accumulates until
+  `dismiss_organizer_upload_summary`; it is the to-do panel's "Co změnilo poslední
+  nahrání organizátorů" card. The same panel shows the Organizer review list
+  (`get_uncertain_organizer_matches`, `link_organizer`, `reject_organizer_match`),
+  and a confirmed link queues `tag_import.queue_late_link_organizer_offer`
+  (`SeasonView.late_link_organizer_id`). UI: the Organizers table's "Načíst
+  organizátory" button (`PeopleTab._organizer_buttons`, a hidden Quasar uploader),
+  phone/shirt columns, and the person sheet's Details fields and "Odpovědi" tab.
+  Tests: `tests/test_organizer_import.py` and the end of `tests/test_webapp_ui.py`
+  (generated sheets: `tests.survey_factory.generate_organizer_survey`).
 - Forced friends groups (`rostering/forced_friends.py`, the lifecycle in
   `rostering/webapp/forced_groups.py`, UI in `ui/tabs/forced_friends.py` — the
   "3. Forced friends" tab, then "4. Buildings", "5. Solver" and "6. Roster"): a group is a dict in

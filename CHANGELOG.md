@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Lidé: "Načíst organizátory" in the Organizers table loads the Organizers'
+  own Google Forms export (.xlsx) into the open Season. Each row creates an
+  Organizer or refreshes the one with the same e-mail or name (an Organizer made
+  by hand is adopted), keeping their phone, T-shirt size and the answers they
+  gave, which a new "Odpovědi" tab in their person sheet shows read-only. A new
+  Organizer who won't come on the event day starts as Can't attend. The "K
+  vyřízení" panel summarizes the import (new, adopted, changed answers, missing,
+  same name as a Helper) and now lists the possible returning Organizers to link
+  or reject, offering their earlier Tags once linked.
+- An Organizer has a phone and a T-shirt size, editable in their person sheet;
+  the "Trička" export counts the Organizer in their own size instead of Unknown.
+
 - T-shirt sizes may be prefixed with a cut ("pánské M", "dámské S"). The survey
   answer is read flexibly (case, diacritics, separators and word order), plain
   sizes still work, the size can be picked by hand, and the "Trička" sheet lists

@@ -139,6 +139,24 @@ them stops counting). Promotion does not carry a Helper's Can't attend flag
 over: promoting is a deliberate act, so the Organizer attends. An Organizer can
 also be a member of a Forced friends group, as an anchor at their placement (see
 **Forced friends group**).
+
+An Organizer carries a phone, a **T-shirt size** and, once the Organizers' own
+form was loaded, the answers they gave on it (Simulation and event-day
+attendance, preference for each of the Organizer role slots, Registrace and
+"Jet na jiné místo", preferred places, friend names, equipment, photo consent,
+a comment). The answers are read-only display: nothing in them drives a
+placement, a Tag, the solver or a Friend preference. Loading the form's export
+("Načíst organizátory", needing an open Season) creates the Organizers it names
+and refreshes in place the ones it recognizes again: the same e-mail if the
+sheet has one, otherwise the same normalized name (so an Organizer made by hand
+is adopted by their row, but two people with different e-mails never are). It
+never touches placement, Tags, Can't attend or Person links, nor a phone, shirt
+size, name or e-mail typed by hand. A new Organizer who answers "Ne" to joining
+on the event day starts flagged Can't attend; a later answer changes only the
+reported summary, never the flag. A name an Organizer shares with a Helper of
+the Season is reported and nothing is removed: the user deletes one of the two.
+Without an e-mail, linking an Organizer to an earlier Season's Person is a
+name-only proposal for the user to confirm or reject.
 Czech: Organizátor.
 
 **Building**:
@@ -178,12 +196,12 @@ export's `(n)` tag).
 Czech: Způsobilost dle vybavení.
 
 **T-shirt size**:
-A Helper's shirt size, one of XS, S, M, L, XL, XXL, optionally prefixed with a
+A Helper's or Organizer's shirt size, one of XS, S, M, L, XL, XXL, optionally prefixed with a
 cut ("pánské M", "dámské S" — a different shirt in the order, so its own size),
 or **Unknown** when the survey answer is blank or unrecognizable (or a
 Hand-added Helper has none). The survey answer is read flexibly: case,
 diacritics, separators and word order don't matter ("Dámské - S", "XL pánské").
-Editable by hand on the Helper. Counted per Building, by the Building the
+Editable by hand on the Helper or Organizer. Counted per Building, by the Building the
 person is placed in, for the shirt order; a cut gets its rows in the "Trička"
 sheet only once someone wears it.
 Czech: Velikost trička (Unknown: Neznámá).

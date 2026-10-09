@@ -24,7 +24,8 @@ A Helper flagged Can't attend is never counted, however they are still placed
 (``without_absent`` drops their Assignment and Manual role entries).
 
 A tracked Organizer (see CONTEXT.md) is counted by the same rules, in the
-Building their slot places them in, with an Unknown T-shirt size; a slot entry
+Building their slot places them in, with their own T-shirt size (Unknown until
+one is known); a slot entry
 saved before Organizers existed (a Helper id or typed text) is counted as
 described above.
 """
@@ -84,6 +85,7 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
     Buildings they show."""
     comp, result, manual = without_absent(comp, result, manual)
     helper_by_id = {h.id: h for h in comp.helpers}
+    organizer_by_id = {o.id: o for o in comp.organizers}
     name_by_id = {h.id: h.name for h in comp.helpers}
     organizer_name_by_id = {o.id: o.name for o in comp.organizers}
 
@@ -97,9 +99,14 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
 
     # Person key -> person. A registered Helper is keyed by id, a tracked
     # Organizer by their Organizer id, a hand-typed name by its normalized text
-    # (the only identity such a person has). An Organizer has no T-shirt size on
-    # record, so counts as Unknown.
+    # (the only identity such a person has).
     people: dict[tuple, CountedPerson] = {}
+
+    def organizer_size_of(organizer_id: int) -> str:
+        organizer = organizer_by_id.get(organizer_id)
+        if organizer is not None and organizer.tshirt_size in TSHIRT_SIZES:
+            return organizer.tshirt_size
+        return UNKNOWN_TSHIRT_SIZE
 
     for a in result.assignments:
         people.setdefault(
@@ -142,7 +149,12 @@ def counted_people(comp: Competition, result: SolveResult, manual: ManualRoles) 
         if person is None:
             # Only an Organizer: placed where their first entry says.
             building = entries[0].building
-            size = size_of(key[1]) if key[0] == "id" else UNKNOWN_TSHIRT_SIZE
+            if key[0] == "id":
+                size = size_of(key[1])
+            elif key[0] == "organizer":
+                size = organizer_size_of(key[1])
+            else:
+                size = UNKNOWN_TSHIRT_SIZE
             person = CountedPerson(name=first_entry_name[key], building=building, tshirt_size=size)
         here = [e for e in entries if e.building == person.building]
         if not here:

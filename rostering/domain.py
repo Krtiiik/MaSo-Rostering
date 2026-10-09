@@ -352,6 +352,9 @@ class Organizer:
     # Can't attend (see CONTEXT.md), as for a Helper: the Organizer is left out
     # of the Broken-rule check, the export and friend scoring while it is set.
     cant_attend: bool = False
+    # One of TSHIRT_SIZES, or UNKNOWN_TSHIRT_SIZE: what the "Trička" counts use
+    # for an Organizer (see CONTEXT.md "T-shirt size").
+    tshirt_size: str = UNKNOWN_TSHIRT_SIZE
 
 
 @dataclass

@@ -77,6 +77,35 @@ FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
     ],
 }
 
+# The Organizers' own form (see CONTEXT.md "Organizer"): a different sheet with
+# its own questions, so its columns are listed apart from the Helpers'. The same
+# rules apply (substring match on normalized text, tried in the order listed;
+# extend the lists, never branch the parser). The answers every field after
+# ``tshirt_size`` holds are kept as the Organizer's read-only survey answers.
+ORGANIZER_FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
+    "timestamp": FIELD_HEADER_CANDIDATES["timestamp"],
+    "name": [
+        "Jméno a příjmení",
+        "Tvé jméno a příjmení",
+        "Tvoje jméno a příjmení",
+    ],
+    "email": FIELD_HEADER_CANDIDATES["email"],
+    "phone": FIELD_HEADER_CANDIDATES["phone"],
+    "tshirt_size": ["Velikost trička"],
+    "simulation": ["Zúčastníš se Simulace", "Simulace"],
+    "event_day": ["Připojíš se v den soutěže", "v den soutěže (pátek"],
+    "role_VedouciMistnosti": ["[Vedoucí místnosti]"],
+    "role_VedouciBudovy": ["[Vedoucí budovy]"],
+    "role_Registrace": ["[Registrace]"],
+    "role_TechnickaPodpora": ["[Technická podpora]"],
+    "role_JinaMista": ["[Jet na jiné místo]"],
+    "places": ["Preferované místo", "Preferované místa"],
+    "friends": ["Chceš být/nebýt v místnosti", "být v místnosti s někým konkrétním"],
+    "equipment": ["přinést notebook nebo foťák", "přinést notebook"],
+    "photo_consent": ["pořizováním fotografií", "pořizování fotografií"],
+    "comment": ["Prostor pro další komentáře", "další komentáře"],
+}
+
 # Substring (normalized) -> canonical building name. The place question's
 # answer text includes address details in parentheses, so matching is
 # substring-based, not exact.

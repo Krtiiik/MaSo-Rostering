@@ -37,6 +37,8 @@ from rostering.domain import (
 )
 from rostering.export.excel import write_roster
 from rostering.ingest.preferences import parse_role_token
+from rostering.ingest.organizer_survey import ANSWER_FIELDS as ORGANIZER_ANSWER_FIELDS
+from rostering.ingest.organizer_survey import OrganizerRow, parse_organizer_survey
 from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
 from rostering.persistence import config_store
 from rostering.persistence.season_label import display_label, guess_label, label_sort_key, school_years_crossed
@@ -1758,22 +1760,53 @@ def promote_helper(workspace: Workspace, helper_id: int, confirmed: bool = False
 
 
 def update_organizer(
-    workspace: Workspace, organizer_id: int, *, name: Optional[str] = None, email: Optional[str] = None
+    workspace: Workspace,
+    organizer_id: int,
+    *,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    tshirt_size: Optional[str] = None,
 ) -> dict:
-    """Rename an Organizer and/or set or clear (blank) their e-mail. Entering an
-    e-mail an earlier stored Season recorded links them to that Person at once
-    (a confident match) unless the user already settled their Person link or they
-    are linked by e-mail already; the Organizer id never changes."""
+    """Rename an Organizer and/or set or clear (blank) their e-mail or phone, and
+    set their T-shirt size (one of ``TSHIRT_SIZES`` or Unknown). Fields left out
+    stay as they are; the ones that changed are remembered as typed by hand, so a
+    later import of the Organizers' sheet leaves them alone. Entering an e-mail an
+    earlier stored Season recorded links them to that Person at once (a confident
+    match) unless the user already settled their Person link or they are linked
+    by e-mail already; the Organizer id never changes."""
     state = workspace.load()
     record = _organizer_record(state, organizer_id)
+    changed: list[str] = []
     if name is not None:
         name = name.strip()
         if not name:
             raise RosteringError("Organizátor musí mít jméno.")
+        if name != record["name"]:
+            changed.append("name")
         record["name"] = name
+    if phone is not None:
+        new_phone = phone.strip() or None
+        if new_phone != record.get("phone"):
+            changed.append("phone")
+            if new_phone is None:
+                record.pop("phone", None)
+            else:
+                record["phone"] = new_phone
+    if tshirt_size is not None:
+        size = parse_tshirt_size(tshirt_size) or UNKNOWN_TSHIRT_SIZE
+        if tshirt_size.strip() and tshirt_size != UNKNOWN_TSHIRT_SIZE and size == UNKNOWN_TSHIRT_SIZE:
+            raise RosteringError(f"Neznámá velikost trička: {tshirt_size!r}")
+        if size != (record.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE):
+            changed.append("tshirt_size")
+            if size == UNKNOWN_TSHIRT_SIZE:
+                record.pop("tshirt_size", None)
+            else:
+                record["tshirt_size"] = size
     if email is not None:
         new_email = _validated_organizer_email(email)
         if new_email != record.get("email"):
+            changed.append("email")
             record["email"] = new_email
             season = workspace.open_season()
             records = workspace.person_records()
@@ -1786,6 +1819,7 @@ def update_organizer(
                 known = [r for r in records if season is None or r.season_id != season["id"]]
                 if any(r.email == new_email for r in known):
                     record["person_id"] = link_persons([new_email], known)[0]
+    _mark_hand_typed(record, changed)
     workspace.save(state)
     return state
 
@@ -1863,6 +1897,230 @@ def set_organizer_cant_attend(
         ]
         _sync_placements(state)
         _add_stale_reason(state, f"{record['name']} se nemůže zúčastnit: vymazány záznamy rolí")
+    workspace.save(state)
+    return state
+
+
+# -- Organizers' survey import -------------------------------------------------
+#
+# The Organizers' own form (see ``rostering.ingest.organizer_survey``) loads into
+# ``state["organizers"]``. A row is the same Organizer as the record with its
+# e-mail, else the one of the same normalized name (a hand-made Organizer is
+# adopted this way); everything else is a new Organizer, linked to a Person by
+# e-mail like a hand-made one, otherwise left to the review list's name matches.
+# What the row sets on the record: ``phone``, ``tshirt_size`` (both skipped when
+# typed by hand, ``hand_typed``), the e-mail when the sheet has one, and
+# ``survey``, the read-only answers as the person wrote them. Nothing about
+# placement, Tags, Can't attend or Person links is touched by a re-upload.
+
+_ORGANIZER_COMPARED_FIELDS = ("phone", "tshirt_size", *ORGANIZER_ANSWER_FIELDS)
+
+
+def _organizer_values(record: dict) -> dict[str, Any]:
+    """The survey-derived values of an Organizer record, by field key, in the
+    form the import compares them."""
+    values: dict[str, Any] = {
+        "phone": record.get("phone"),
+        "tshirt_size": record.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
+    }
+    answers = record.get("survey") or {}
+    values.update({key: answers.get(key) for key in ORGANIZER_ANSWER_FIELDS})
+    return values
+
+
+def _recognize_organizer_rows(rows: list[OrganizerRow], existing: list[dict]) -> list[Optional[dict]]:
+    """For each row the existing Organizer it is, or None for a new one. An
+    identical e-mail wins; otherwise the same normalized name, unless both sides
+    have an e-mail and they differ (then they are probably two people). An
+    Organizer is never taken by two rows."""
+    ordered = sorted(existing, key=lambda o: o["id"])
+    matches: list[Optional[dict]] = [None] * len(rows)
+    claimed: set[int] = set()
+    for index, row in enumerate(rows):
+        if row.email:
+            record = next(
+                (o for o in ordered if o["id"] not in claimed and normalize_email(o.get("email")) == row.email), None
+            )
+            if record is not None:
+                matches[index] = record
+                claimed.add(record["id"])
+    for index, row in enumerate(rows):
+        if matches[index] is not None:
+            continue
+        key = normalize_name(row.name)
+        record = next(
+            (
+                o
+                for o in ordered
+                if o["id"] not in claimed
+                and normalize_name(o["name"]) == key
+                and not (row.email and normalize_email(o.get("email")) and normalize_email(o.get("email")) != row.email)
+            ),
+            None,
+        )
+        if record is not None:
+            matches[index] = record
+            claimed.add(record["id"])
+    return matches
+
+
+def _apply_organizer_row(record: dict, row: OrganizerRow) -> None:
+    """Set the survey-derived fields of ``record`` from ``row``, except any typed
+    by hand."""
+    typed = set(record.get("hand_typed") or [])
+    if "name" not in typed:
+        record["name"] = row.name
+    if "phone" not in typed:
+        if row.phone:
+            record["phone"] = row.phone
+        else:
+            record.pop("phone", None)
+    if "tshirt_size" not in typed:
+        if row.tshirt_size == UNKNOWN_TSHIRT_SIZE:
+            record.pop("tshirt_size", None)
+        else:
+            record["tshirt_size"] = row.tshirt_size
+    if "email" not in typed and row.email:
+        record["email"] = row.email
+    record["survey"] = dict(row.answers)
+
+
+def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str) -> dict:
+    """Load the Organizers' survey export into the open Season (see the section
+    note above); returns the new state.
+
+    A row's Organizer is recognized by e-mail or name, so a re-upload refreshes
+    them in place; a new one is created, flagged Can't attend at once when the
+    sheet says they won't come on the event day (a re-upload never touches that
+    flag, only reports the changed answer). What it did waits in
+    ``state["organizer_upload_summary"]`` until dismissed: ``new``, ``adopted``
+    (an Organizer made by hand that a row matched), ``changed`` (the field keys
+    whose answer differs from before), ``missing`` (earlier sheet Organizers
+    absent now, kept), ``also_helper`` (Organizer ids sharing a name with a
+    Helper of the Season) and the parser's ``warnings``."""
+    if workspace.open_season() is None:
+        raise RosteringError(
+            "Organizátory lze načíst jen do otevřeného ročníku: nejdřív nahrajte odpovědi pomocníků "
+            "(vytvoří ročník) nebo ročník otevřete v postranním panelu."
+        )
+    tmp_path = _write_temp(file_bytes, filename)
+    try:
+        result = parse_organizer_survey(tmp_path)
+    except ValueError as exc:
+        raise RosteringError(str(exc)) from exc
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    state = workspace.load()
+    existing = list(state["organizers"])
+    matches = _recognize_organizer_rows(result.organizers, existing)
+    new_entries: list[dict] = []
+    adopted_entries: list[dict] = []
+    changed_entries: list[dict] = []
+    touched: list[dict] = []
+    for row, record in zip(result.organizers, matches):
+        if record is None:
+            record = _new_organizer(workspace, state, row.name, row.email)
+            _apply_organizer_row(record, row)
+            if not row.attending:
+                record["cant_attend"] = True
+            entry = {"organizer_id": record["id"], "name": record["name"]}
+            if not row.attending:
+                entry["cant_attend"] = True
+            new_entries.append(entry)
+        else:
+            had_survey = "survey" in record
+            before = _organizer_values(record)
+            _apply_organizer_row(record, row)
+            if not had_survey:
+                adopted_entries.append({"organizer_id": record["id"], "name": record["name"]})
+            else:
+                after = _organizer_values(record)
+                fields = [key for key in _ORGANIZER_COMPARED_FIELDS if before[key] != after[key]]
+                if fields:
+                    changed_entries.append({"organizer_id": record["id"], "name": record["name"], "fields": fields})
+        touched.append(record)
+
+    recognized = {record["id"] for record in matches if record is not None}
+    missing = [
+        {"organizer_id": o["id"], "name": o["name"]}
+        for o in existing
+        if o["id"] not in recognized and "survey" in o
+    ]
+    helper_names = {normalize_name(h["name"]) for h in state["helpers"]}
+    also_helper = [o["id"] for o in touched if normalize_name(o["name"]) in helper_names]
+    _store_organizer_upload_summary(
+        state, new_entries, adopted_entries, changed_entries, missing, also_helper, result.warnings
+    )
+    workspace.save(state)
+    return state
+
+
+def _store_organizer_upload_summary(
+    state: dict[str, Any],
+    new: list[dict],
+    adopted: list[dict],
+    changed: list[dict],
+    missing: list[dict],
+    also_helper: list[int],
+    warnings: list[str],
+) -> None:
+    """Keep what an Organizers' import did until the user dismisses it. A summary
+    nobody has dismissed yet accumulates the new, adopted and changed Organizers
+    of later imports (so nothing unread is lost); the missing ones, the
+    also-a-Helper ids and the warnings are always those of the latest."""
+    live = {o["id"] for o in state["organizers"]}
+    old = state.get("organizer_upload_summary") or {}
+
+    def carried(key: str, fresh: list[dict]) -> list[dict]:
+        fresh_ids = {e["organizer_id"] for e in fresh}
+        return [e for e in old.get(key, []) if e["organizer_id"] in live and e["organizer_id"] not in fresh_ids] + fresh
+
+    changed_by_id = {e["organizer_id"]: dict(e) for e in old.get("changed", []) if e["organizer_id"] in live}
+    for entry in changed:
+        earlier = changed_by_id.get(entry["organizer_id"], {}).get("fields", [])
+        merged = [key for key in _ORGANIZER_COMPARED_FIELDS if key in entry["fields"] or key in earlier]
+        changed_by_id[entry["organizer_id"]] = {**entry, "fields": merged}
+    summary = {
+        "new": carried("new", new),
+        "adopted": carried("adopted", adopted),
+        "changed": list(changed_by_id.values()),
+        "missing": missing,
+        "also_helper": also_helper,
+        "warnings": warnings,
+    }
+    if any(summary.values()):
+        state["organizer_upload_summary"] = summary
+    else:
+        state.pop("organizer_upload_summary", None)
+
+
+def organizer_upload_summary(workspace: Workspace) -> Optional[dict]:
+    """What the latest Organizers' import(s) did to the open Season, kept until
+    :func:`dismiss_organizer_upload_summary` (None when there is none): ``new``,
+    ``adopted``, ``changed`` (with field keys), ``missing``, the ``warnings`` and,
+    live, the Organizers sharing a name with a Helper of the Season
+    (``also_helper``: ``organizer_id``, ``name``, ``helper_name``) and the
+    ``uncertain`` matches still awaiting review
+    (:func:`get_uncertain_organizer_matches` entries)."""
+    state = workspace.load()
+    stored = state.get("organizer_upload_summary")
+    if not stored:
+        return None
+    helpers = {normalize_name(h["name"]): h["name"] for h in state["helpers"]}
+    organizers = {o["id"]: o for o in state["organizers"]}
+    also_helper = [
+        {"organizer_id": oid, "name": organizers[oid]["name"], "helper_name": helpers[normalize_name(organizers[oid]["name"])]}
+        for oid in stored.get("also_helper", [])
+        if oid in organizers and normalize_name(organizers[oid]["name"]) in helpers
+    ]
+    return {**stored, "also_helper": also_helper, "uncertain": get_uncertain_organizer_matches(workspace)}
+
+
+def dismiss_organizer_upload_summary(workspace: Workspace) -> dict:
+    """Dismiss the Organizers' import summary; only the summary goes."""
+    state = workspace.load()
+    state.pop("organizer_upload_summary", None)
     workspace.save(state)
     return state
 
