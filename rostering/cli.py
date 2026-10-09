@@ -60,11 +60,27 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         # through a script of their own (see rostering/webapp/ui/dev_server.py).
         script = Path(__file__).resolve().parent / "webapp" / "ui" / "dev_server.py"
         command = [sys.executable, str(script), "--host", args.host, "--port", str(args.port)]
-        return subprocess.call(command + (["--headless"] if args.headless else []))
+        server = subprocess.Popen(command + (["--headless"] if args.headless else []))
+        while True:
+            # Ctrl+C reaches the child too (same console); let it shut down
+            # instead of abandoning it mid-way.
+            try:
+                server.wait()
+                break
+            except KeyboardInterrupt:
+                continue
+        print("Rostering stopped.")
+        return 0
     # Imported here: the other commands must not need the web stack.
     from rostering.webapp.ui.app import run
 
-    run(host=args.host, port=args.port, show=not args.headless)
+    try:
+        run(host=args.host, port=args.port, show=not args.headless)
+    except KeyboardInterrupt:
+        # Ctrl+C: the server has already shut down cleanly; uvicorn only
+        # re-raises the signal afterwards. No traceback for that.
+        pass
+    print("Rostering stopped.")
     return 0
 
 

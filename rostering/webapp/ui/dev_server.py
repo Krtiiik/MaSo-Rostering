@@ -22,4 +22,7 @@ if __name__ in {"__main__", "__mp_main__"}:
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--headless", action="store_true")
     args, _ = parser.parse_known_args()
-    run(host=args.host, port=args.port, show=not args.headless, reload=True, watch=PACKAGE)
+    try:
+        run(host=args.host, port=args.port, show=not args.headless, reload=True, watch=PACKAGE)
+    except KeyboardInterrupt:
+        pass  # Ctrl+C: already shut down cleanly (see app.run)

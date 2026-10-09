@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `rostering serve`: Ctrl+C now stops the app cleanly with a short "Rostering
+  stopped." instead of a `KeyboardInterrupt` traceback (also with `--reload`,
+  which now waits for the server to finish shutting down). On start the terminal
+  says that closing its window ends the app.
+
 - Štítky: the constraints of a Tag are now the same rule list a Forced friends
   group has, edited with the same rows ("musí být v", "nesmí být v", "musí mít
   roli", "nesmí mít roli") instead of four allow/deny pickers. Rules can now name
