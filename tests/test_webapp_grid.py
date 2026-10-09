@@ -92,7 +92,6 @@ def test_rows_put_the_leadership_slots_first_and_mark_the_organizer_rows():
     assert keys[-1] == "TechnickaPodpora"
     assert [r.key for r in rows if r.organizer] == ["VedouciBudovy", "PravaRuka", "VedouciMistnosti", "TechnickaPodpora"]
     assert [r.key for r in rows if r.duplicate_drop] == ["UvadeciUcastniku", "FoceniPredavaniCen", "Registrace"]
-    assert {r.key for r in rows if r.single_entry} == {"VedouciBudovy", "PravaRuka", "VedouciMistnosti"}
 
 
 def test_a_helper_who_cannot_attend_is_not_on_the_grid_at_all(workspace):
@@ -174,10 +173,10 @@ def test_a_merged_row_spans_its_rooms_and_offers_to_split(workspace):
     assert len(re.findall(r'data-role="Menic"', html)) == 3
 
 
-def test_a_single_holder_slot_takes_no_more_names_once_held(workspace):
+def test_a_leadership_slot_still_takes_more_names_once_held(workspace):
     boss = mutations.add_organizer(workspace, "Boss")["organizers"][-1]["id"]
     mutations.assign_organizer(workspace, boss, "VedouciBudovy", "Karlín")
     html = render.render(_view(workspace), {})
     cell = re.search(r'<td [^>]*data-key="VedouciBudovy"[^>]*data-building="Karlín"[^>]*>', html).group(0)
-    assert "data-edit" not in cell
+    assert "data-edit" in cell
     assert re.search(r'data-oid="%d"' % boss, html)

@@ -29,13 +29,6 @@ SLOT_SCOPES: dict[StructuralRole, str] = {
     StructuralRole.TechnickaPodpora: "building",
 }
 
-# Slots that hold one person per cell: a newly assigned Organizer replaces the
-# holder. Technická podpora can have several.
-SINGLE_HOLDER_ROLES = frozenset(
-    {StructuralRole.VedouciBudovy, StructuralRole.PravaRuka, StructuralRole.VedouciMistnosti}
-)
-
-
 def parse_slot_role(role: str) -> StructuralRole:
     """The slot named by its enum name (``"VedouciBudovy"``) or its Czech label;
     ``ValueError`` for anything else — Additional roles included, which stay

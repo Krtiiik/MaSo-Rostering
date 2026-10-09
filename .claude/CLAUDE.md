@@ -406,14 +406,14 @@ pushing the tag, not just creating it locally.
   Building only; Vedoucí místností: Building and Room; Pravá ruka: either), a
   mismatch being a `RosteringError`, never a rule matter. `assign_organizer`
   moves the placement (removing the Organizer's entries at another Building/Room;
-  entries at the same one stay) and a single-holder cell replaces its holder.
+  entries at the same one stay); every slot cell takes any number of Organizers.
   `set_slot_holders` backs the grid: a typed name picks a tracked Organizer
   (normalized-name match) or creates one on the spot, a legacy entry named in the
   cell is kept. A *legacy* entry (no `organizer_id`; a `helper_id` or typed
   `helper_name`) stays in `manual_roles`, exports as before, shows with a "not
   tracked" badge (`mutations.legacy_slot_entries`, `legacy` on the grid's
-  `manual_entries`) and is dropped when a single-holder cell gets a new holder or
-  its chip is removed; `put_manual_roles` stays lenient about legacy entries
+  `manual_entries`) and is dropped when its chip is removed or its name is no longer
+  named in the cell; `put_manual_roles` stays lenient about legacy entries
   (only validating `organizer_id` ones). Person recognition: `records_from_state`
   yields Organizer records too (`PersonRecord.kind`, ids are per kind), so
   `list_persons`, e-mail matching (`add_organizer`/`update_organizer`) and the

@@ -224,26 +224,19 @@ def test_removing_them_from_every_slot_clears_the_placement(workspace):
     assert state["organizers"]  # the Organizer stays tracked
 
 
-def test_a_single_holder_slot_replaces_the_previous_holder_and_clears_their_placement(workspace):
+@pytest.mark.parametrize(
+    "role, room",
+    [("VedouciBudovy", None), ("PravaRuka", None), ("VedouciMistnosti", "R1"), ("TechnickaPodpora", None)],
+)
+def test_every_slot_can_have_several_holders(workspace, role, room):
     _seed(workspace)
     first, second = _create(workspace, "Marie"), _create(workspace, "Karel")
-    mutations.assign_organizer(workspace, first, "VedouciBudovy", "B")
+    mutations.assign_organizer(workspace, first, role, "B", room)
 
-    state = mutations.assign_organizer(workspace, second, "VedouciBudovy", "B")
-
-    assert _slots(state) == [("VedouciBudovy", "B", None, second)]
-    assert _placement(state, first) == (None, None)
-    assert _placement(state, second) == ("B", None)
-
-
-def test_technical_support_can_have_several_holders(workspace):
-    _seed(workspace)
-    first, second = _create(workspace, "Marie"), _create(workspace, "Karel")
-    mutations.assign_organizer(workspace, first, "TechnickaPodpora", "B")
-
-    state = mutations.assign_organizer(workspace, second, "TechnickaPodpora", "B")
+    state = mutations.assign_organizer(workspace, second, role, "B", room)
 
     assert {s[3] for s in _slots(state)} == {first, second}
+    assert _placement(state, first) == _placement(state, second) == ("B", room)
 
 
 def test_deleting_an_organizer_asks_when_they_hold_a_slot_and_then_frees_it(workspace):
@@ -406,16 +399,16 @@ def test_legacy_entries_still_export_until_replaced(workspace):
     assert any(v.startswith("Anna") for v in values)
 
 
-def test_a_legacy_entry_is_replaced_by_picking_an_organizer_for_that_slot(workspace):
+def test_a_legacy_entry_is_replaced_once_it_is_no_longer_named(workspace):
     _seed(workspace)
     _legacy(
         workspace,
         [{"role": "VedouciBudovy", "building": "B", "room": None, "helper_id": None, "helper_name": "Pan Vedoucí"}],
     )
 
-    state = mutations.set_slot_holders(workspace, "VedouciBudovy", "B", None, ["Pan Vedoucí", "Marie"])
+    state = mutations.set_slot_holders(workspace, "VedouciBudovy", "B", None, ["Marie"])
 
-    [entry] = state["manual_roles"]["structural"]  # single-holder: the new name replaces the legacy entry
+    [entry] = state["manual_roles"]["structural"]
     assert _org(state, entry["organizer_id"])["name"] == "Marie"
     assert mutations.legacy_slot_entries(state) == []
 

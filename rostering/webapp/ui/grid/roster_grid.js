@@ -223,7 +223,6 @@ export default {
       input.focus();
       let cancelled = false;
       let names = jsonAttr(cell, "data-names", []);
-      const single = cell.dataset.single === "1";
       const commit = (keepOpen) => {
         const value = input.value.trim();
         if (value && !names.includes(value)) {
@@ -231,7 +230,7 @@ export default {
           this.$emit("manual_set", { key: cell.dataset.key, building: cell.dataset.building, room: cell.dataset.room ?? null, names });
         }
         input.value = "";
-        if (!keepOpen || single) input.remove();
+        if (!keepOpen) input.remove();
       };
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {

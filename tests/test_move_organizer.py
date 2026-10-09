@@ -83,16 +83,17 @@ def test_dropping_a_chip_on_its_own_cell_changes_nothing(workspace):
     assert state["manual_roles"] == before["manual_roles"]
 
 
-def test_the_replaced_holder_of_a_single_holder_cell_is_left_unplaced(workspace):
+def test_dropping_an_organizer_on_a_held_cell_adds_them_beside_the_holder(workspace):
     old = _create(workspace, "Old")
     new = _create(workspace, "New")
     mutations.assign_organizer(workspace, old, "VedouciBudovy", "Karlín")
 
     state = mutations.move_organizer(workspace, new, "VedouciBudovy", "Karlín")
 
-    assert _slots(state) == [(new, "VedouciBudovy", "Karlín", None)]
-    replaced = next(o for o in state["organizers"] if o["id"] == old)
-    assert replaced["building"] is None
+    assert _slots(state) == [
+        (old, "VedouciBudovy", "Karlín", None),
+        (new, "VedouciBudovy", "Karlín", None),
+    ]
 
 
 def test_a_slot_address_that_does_not_fit_is_refused(workspace):

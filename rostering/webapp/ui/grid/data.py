@@ -21,7 +21,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
-from rostering import organizers as organizer_slots
 from rostering.domain import OverlayRole, Preference, Role, StructuralRole, normalize_name
 from rostering.ingest.mapping import building_keys
 from rostering.webapp import labels, mutations
@@ -51,9 +50,6 @@ MANUAL_ROWS_AFTER = [
     (StructuralRole.TechnickaPodpora, "building", False),
 ]
 STRUCTURAL_ROLE_NAMES = {r.name for r in StructuralRole}
-# Three leadership slots hold one Organizer each; Technická podpora and the
-# Additional roles take a list of names.
-SINGLE_HOLDER_ROLE_NAMES = {r.name for r in organizer_slots.SINGLE_HOLDER_ROLES}
 
 # The Czech wording of the form (see rostering.ingest.preferences), for the
 # details card; Preference's member names are ASCII identifiers, not display text.
@@ -85,7 +81,6 @@ class GridRow:
     label: str
     scope: str = "room"  # manual rows: "building" or "room"
     organizer: bool = False  # a leadership slot: takes Organizers only
-    single_entry: bool = False
     duplicate_drop: bool = False
 
 
@@ -97,7 +92,6 @@ def grid_rows() -> list[GridRow]:
             label=role.value,
             scope=scope,
             organizer=role.name in STRUCTURAL_ROLE_NAMES,
-            single_entry=role.name in SINGLE_HOLDER_ROLE_NAMES,
             duplicate_drop=duplicate_drop,
         )
 
