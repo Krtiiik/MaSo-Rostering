@@ -19,7 +19,7 @@ from rostering.webapp import labels, mutations
 from rostering.webapp.ui import dialogs, fix_focus, pills
 from rostering.webapp.ui.session import UiSession
 from rostering.webapp.ui.tabs import person_sheet
-from rostering.webapp.ui.tabs.person_sheet import PersonSheet
+from rostering.webapp.ui.tabs.person_sheet import PersonSheet, notify_friends_matched
 
 _TAGS_SLOT = r"""
 <q-td :props="props"><span v-html="props.value"></span></q-td>
@@ -274,13 +274,16 @@ class PeopleTab:
         filename = e.file.name
         e.sender.reset()
         notification = ui.notification("Nahrávám a zpracovávám…", spinner=True, timeout=None)
+        before = mutations.unresolved_friend_count(s.state)
         try:
-            await s.act(
+            new_state = await s.act(
                 lambda: mutations.import_organizers(s.workspace, content, filename),
                 success="Odpovědi organizátorů načteny.",
             )
         finally:
             notification.dismiss()
+        if new_state is not None:
+            notify_friends_matched(before - mutations.unresolved_friend_count(new_state))
 
     def _helpers(self, focus_helper_id: Optional[int]) -> None:
         s = self.session

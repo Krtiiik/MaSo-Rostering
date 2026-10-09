@@ -574,7 +574,15 @@ pushing the tag, not just creating it locally.
   `parse_raw_survey(path, organizers=...)` puts the Season's Organizers in the
   name-resolution pool next to the Helpers (same normalized/fuzzy matching, a
   Helper wins a shared name; `upload_responses` passes them), and
-  `resolve_friend` takes `resolved_organizer_ids` too. Scoring:
+  `resolve_friend` takes `resolved_organizer_ids` too. A new Organizer
+  (`add_organizer`, `import_organizers`) runs `mutations._retry_unresolved_friends`,
+  which matches every still-unresolved name again with the survey's own rules
+  (`raw_survey.build_friend_index` / `resolve_friend_names`, shared with
+  `parse_raw_survey`) against the Season's Helpers and Organizers: a name that
+  resolves cleanly (and not to the Helper themself) becomes a
+  `friend_name_decisions` entry plus a `friends` entry, so it can be reset and
+  returns to unresolved when the Organizer is deleted; the UI notifies the
+  count (`person_sheet.notify_friends_matched`). Scoring:
   `scoring.build_organizer_requests` (none under `mutual`) feeds a term in
   `solve_competition` at the Helper-to-Helper weight — satisfied by the exact
   (Building, Room) when the Organizer has a Room, by any Room of the Building at

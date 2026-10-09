@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Iterable, Optional, Sequence
 
 import pandas as pd
 
@@ -301,7 +301,25 @@ def _role_preferences_for_row(
     return prefs
 
 
-def _resolve_friend_names(
+def build_friend_index(
+    people: Iterable[tuple[FriendRef, Optional[str]]],
+) -> tuple[dict[str, FriendRef], dict[str, list[FriendRef]]]:
+    """The name indexes friend resolution searches, from ``(reference, name)``
+    pairs in priority order: a name two people share resolves to the first (a
+    Helper before an Organizer when the Helpers come first), and a first name is
+    unambiguous only while one person carries it. Nameless entries are skipped."""
+    name_to_id: dict[str, FriendRef] = {}
+    first_name_to_ids: dict[str, list[FriendRef]] = {}
+    for ref, name in people:
+        name = (name or "").strip()
+        if not name:
+            continue
+        name_to_id.setdefault(normalize_name(name), ref)
+        first_name_to_ids.setdefault(normalize_name(name.split(" ")[0]), []).append(ref)
+    return name_to_id, first_name_to_ids
+
+
+def resolve_friend_names(
     raw: object,
     name_to_id: dict[str, FriendRef],
     first_name_to_ids: dict[str, list[FriendRef]],
@@ -365,20 +383,9 @@ def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> 
 
     # Pass 1: assign ids and build name-resolution indexes.
     names = [str(v).strip() for v in df[name_col].tolist()]
-    name_to_id: dict[str, FriendRef] = {}
-    first_name_to_ids: dict[str, list[FriendRef]] = {}
-    for idx, name in enumerate(names, start=1):
-        norm_full = normalize_name(name)
-        name_to_id.setdefault(norm_full, idx)
-        first = name.split(" ")[0]
-        first_name_to_ids.setdefault(normalize_name(first), []).append(idx)
-    for organizer in organizers:
-        organizer_name = (organizer.name or "").strip()
-        if not organizer_name:
-            continue
-        ref = OrganizerRef(organizer.id)
-        name_to_id.setdefault(normalize_name(organizer_name), ref)
-        first_name_to_ids.setdefault(normalize_name(organizer_name.split(" ")[0]), []).append(ref)
+    name_to_id, first_name_to_ids = build_friend_index(
+        [*enumerate(names, start=1), *((OrganizerRef(o.id), o.name) for o in organizers)]
+    )
 
     helpers: list[Helper] = []
     friends_col = columns.get("friends")
@@ -403,7 +410,7 @@ def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> 
         friend_ids: list[FriendRef] = []
         unresolved_friends: list[str] = []
         if friends_col:
-            friend_ids, unresolved_friends = _resolve_friend_names(
+            friend_ids, unresolved_friends = resolve_friend_names(
                 row.get(friends_col), name_to_id, first_name_to_ids
             )
             friend_ids = [fid for fid in friend_ids if fid != idx]  # OrganizerRef never equals an int id

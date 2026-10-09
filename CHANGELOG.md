@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Lidé: adding an Organizer by hand or importing the Organizers' sheet now tries
+  again to match every friend name still unresolved (the survey's own rules, so
+  an ambiguous or unrelated name stays on the list). A name that now resolves is
+  added to that Helper's Friend preference, shows as matched in their person
+  sheet, and goes back to unresolved if the Organizer is deleted; a notification
+  says how many names were matched.
 - Lidé: "Načíst organizátory" in the Organizers table loads the Organizers'
   own Google Forms export (.xlsx) into the open Season. Each row creates an
   Organizer or refreshes the one with the same e-mail or name (an Organizer made

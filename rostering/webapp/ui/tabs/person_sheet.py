@@ -711,6 +711,13 @@ async def add_helper(session: UiSession) -> None:
     dialog.open()
 
 
+def notify_friends_matched(count: int) -> None:
+    """Tell the user how many friend names, unresolved until then, an Organizer
+    just added or imported was matched to."""
+    if count > 0:
+        ui.notify(f"Dohledáno a přiřazeno dosud nenalezených jmen kamarádů: {count}.", type="positive")
+
+
 async def add_organizer(session: UiSession) -> None:
     with dialogs.page_dialog(client=session.client) as dialog, ui.card().classes("w-[32rem] max-w-full"):
         ui.label("Přidat organizátora").classes("text-lg font-bold")
@@ -720,10 +727,12 @@ async def add_organizer(session: UiSession) -> None:
         )
 
         async def submit() -> None:
+            before = mutations.unresolved_friend_count(session.state)
             new_state = await session.act(lambda: mutations.add_organizer(session.workspace, name.value, email.value))
             if new_state is not None:
                 dialog.close()
                 ui.notify(f"Přidán organizátor: {new_state['organizers'][-1]['name']}.", type="positive")
+                notify_friends_matched(before - mutations.unresolved_friend_count(new_state))
 
         with ui.row().classes("w-full justify-end gap-2"):
             ui.button("Zrušit", on_click=dialog.close).props("flat")

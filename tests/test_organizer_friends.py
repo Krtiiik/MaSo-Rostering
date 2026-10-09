@@ -407,6 +407,86 @@ def test_a_reupload_resolves_friend_names_against_the_seasons_organizers(workspa
     assert state["helpers"][0]["unresolved_friend_names"] == []
 
 
+def test_adding_an_organizer_resolves_the_friend_names_waiting_for_them(workspace):
+    _seed(
+        workspace,
+        _helper(1, "Anna", unresolved_friend_names=["Marie Vedoucí", "Kdo ví"], friend_name_order=["Marie Vedoucí", "Kdo ví"]),
+        _helper(2, "Petr"),
+    )
+
+    state = mutations.add_organizer(workspace, "Marie Vedoucí")
+
+    marie = {"organizer_id": state["organizers"][-1]["id"]}
+    anna = _helper_in(state, 1)
+    assert anna["friends"] == [marie]
+    assert anna["unresolved_friend_names"] == ["Kdo ví"]  # still surfaced, not dropped
+    assert anna["friend_name_decisions"] == {"Marie Vedoucí": [marie]}
+    assert "friend_name_decisions" not in _helper_in(state, 2)
+
+
+def test_the_retry_uses_the_surveys_fuzzy_and_first_name_rules(workspace):
+    _seed(workspace, _helper(1, "Anna", unresolved_friend_names=["Marja Vedouci", "Bohuslav"]))
+
+    state = mutations.add_organizer(workspace, "Marie Vedoucí")
+    assert _helper_in(state, 1)["unresolved_friend_names"] == ["Bohuslav"]
+
+    state = mutations.add_organizer(workspace, "Bohuslav Dvořák")
+    assert _helper_in(state, 1)["unresolved_friend_names"] == []
+    assert len(_helper_in(state, 1)["friends"]) == 2
+
+
+def test_the_retry_leaves_a_name_that_is_still_ambiguous_alone(workspace):
+    _seed(workspace, _helper(1, "Anna", unresolved_friend_names=["Marie"]), _helper(2, "Marie Nová"))
+
+    state = mutations.add_organizer(workspace, "Marie Vedoucí")
+
+    assert _helper_in(state, 1)["unresolved_friend_names"] == ["Marie"]
+    assert _helper_in(state, 1)["friends"] == []
+
+
+def test_the_retry_never_makes_a_helper_their_own_friend(workspace):
+    _seed(workspace, _helper(1, "Anna Nová", unresolved_friend_names=["Anna Nová"]))
+
+    state = mutations.add_organizer(workspace, "Jiný Člověk")
+
+    assert _helper_in(state, 1)["friends"] == []
+    assert _helper_in(state, 1)["unresolved_friend_names"] == ["Anna Nová"]
+
+
+def test_a_name_resolved_by_the_retry_returns_to_unresolved_when_the_organizer_is_deleted(workspace):
+    _seed(workspace, _helper(1, "Anna", unresolved_friend_names=["Marie Vedoucí"]))
+    marie = _create(workspace, "Marie Vedoucí")
+
+    state = mutations.delete_organizer(workspace, marie)
+
+    assert _helper_in(state, 1)["friends"] == []
+    assert _helper_in(state, 1)["unresolved_friend_names"] == ["Marie Vedoucí"]
+
+
+def test_the_retry_refreshes_the_friend_pairs_of_a_solved_roster(workspace):
+    _seed(workspace, _helper(1, "Anna", unresolved_friend_names=["Marie Vedoucí"]))
+    mutations.solve(workspace)
+
+    state = mutations.add_organizer(workspace, "Marie Vedoucí")
+
+    assert _helper_in(state, 1)["friends"] == [{"organizer_id": state["organizers"][-1]["id"]}]
+    assert state["diagnostics"]["unsatisfied_friend_pairs"] == []  # an unplaced Organizer is no pair
+
+
+def test_importing_the_organizers_sheet_resolves_waiting_friend_names(workspace, tmp_path):
+    from tests.test_organizer_import import _sheet
+
+    mutations.new_season(workspace)
+    path = _survey_file(tmp_path, [("Anna Nováková", "anna@example.test", "Jan Novák")])
+    state = mutations.upload_responses(workspace, path.read_bytes(), "s.xlsx", label="2026-jaro")
+    assert state["helpers"][0]["unresolved_friend_names"] == ["Jan Novák"]
+
+    state = mutations.import_organizers(workspace, _sheet({"name": "Jan Novák"}), "organizers.xlsx")
+
+    assert state["helpers"][0]["friends"] == [{"organizer_id": state["organizers"][0]["id"]}]
+    assert state["helpers"][0]["unresolved_friend_names"] == []
+
+
 # -- promotion ------------------------------------------------------------------------------
 
 

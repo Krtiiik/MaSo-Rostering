@@ -39,7 +39,12 @@ from rostering.export.excel import write_roster
 from rostering.ingest.preferences import parse_role_token
 from rostering.ingest.organizer_survey import ANSWER_FIELDS as ORGANIZER_ANSWER_FIELDS
 from rostering.ingest.organizer_survey import OrganizerRow, parse_organizer_survey
-from rostering.ingest.raw_survey import parse_raw_survey, read_submission_timestamps
+from rostering.ingest.raw_survey import (
+    build_friend_index,
+    parse_raw_survey,
+    read_submission_timestamps,
+    resolve_friend_names,
+)
 from rostering.persistence import config_store
 from rostering.persistence.season_label import display_label, guess_label, label_sort_key, school_years_crossed
 from rostering.persistence.serialize import (
@@ -1676,18 +1681,60 @@ def _new_organizer(workspace: Workspace, state: dict[str, Any], name: str, email
     return record
 
 
+def unresolved_friend_count(state: dict[str, Any]) -> int:
+    """How many free-text friend names are still unresolved, over all Helpers."""
+    return sum(len(h.get("unresolved_friend_names", [])) for h in state["helpers"])
+
+
+def _retry_unresolved_friends(state: dict[str, Any]) -> int:
+    """Match again every friend name still unresolved, against the Season's
+    Helpers and Organizers (the survey's own rules: exact full name, unambiguous
+    first name, then fuzzy), for when a new Organizer may be who a Helper meant.
+    A name that now resolves is recorded as a decision (so it shows as matched in
+    the person sheet, can be reset, and goes back to unresolved if that
+    Organizer is deleted) and added to the Helper's Friend preference; a name
+    that still doesn't, or resolves only to the Helper themself, stays as it
+    was. Returns how many names were resolved. Not saved."""
+    index = build_friend_index(
+        [(h["id"], h["name"]) for h in state["helpers"]]
+        + [({"organizer_id": o["id"]}, o["name"]) for o in state["organizers"]]
+    )
+    resolved_count = 0
+    for helper in state["helpers"]:
+        decisions = helper.setdefault("friend_name_decisions", {})
+        for name in list(helper["unresolved_friend_names"]):
+            refs, left = resolve_friend_names(name, *index)
+            if left or not refs or any(_friend_key(ref) == _friend_key(helper["id"]) for ref in refs):
+                continue
+            present = {_friend_key(f) for f in helper["friends"]}
+            for ref in refs:
+                if _friend_key(ref) not in present:
+                    present.add(_friend_key(ref))
+                    helper["friends"].append(ref)
+            decisions[name] = list(refs)
+            helper["unresolved_friend_names"].remove(name)
+            resolved_count += 1
+        if not decisions:
+            helper.pop("friend_name_decisions")
+    if resolved_count and state["assignments"]:
+        _refresh_friend_pairs(state)
+    return resolved_count
+
+
 def add_organizer(workspace: Workspace, name: str, email: Optional[str] = None) -> dict:
     """Create an Organizer by hand: only ``name`` is required. They get a fresh,
     never-reused Organizer id and a Person link (fresh unless the optional
     ``email`` was recorded in an earlier Season) and have no placement until
-    :func:`assign_organizer` puts them in a slot. The new record is the last of
-    ``state["organizers"]``."""
+    :func:`assign_organizer` puts them in a slot. Friend names no Helper's answers
+    could be matched to before are tried again, as the new Organizer may be who
+    they meant. The new record is the last of ``state["organizers"]``."""
     name = (name or "").strip()
     if not name:
         raise RosteringError("Organizátor musí mít jméno.")
     email = _validated_organizer_email(email)
     state = workspace.load()
     _new_organizer(workspace, state, name, email)
+    _retry_unresolved_friends(state)
     workspace.save(state)
     return state
 
@@ -2002,7 +2049,9 @@ def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str) ->
     (an Organizer made by hand that a row matched), ``changed`` (the field keys
     whose answer differs from before), ``missing`` (earlier sheet Organizers
     absent now, kept), ``also_helper`` (Organizer ids sharing a name with a
-    Helper of the Season) and the parser's ``warnings``."""
+    Helper of the Season) and the parser's ``warnings``. Friend names still
+    unresolved are matched again afterwards, as a new Organizer may be who a
+    Helper meant."""
     if workspace.open_season() is None:
         raise RosteringError(
             "Organizátory lze načíst jen do otevřeného ročníku: nejdřív nahrajte odpovědi pomocníků "
@@ -2054,6 +2103,7 @@ def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str) ->
     ]
     helper_names = {normalize_name(h["name"]) for h in state["helpers"]}
     also_helper = [o["id"] for o in touched if normalize_name(o["name"]) in helper_names]
+    _retry_unresolved_friends(state)
     _store_organizer_upload_summary(
         state, new_entries, adopted_entries, changed_entries, missing, also_helper, result.warnings
     )
