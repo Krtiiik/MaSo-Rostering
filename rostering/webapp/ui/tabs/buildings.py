@@ -195,7 +195,7 @@ class BuildingsTab:
         uploader = ui.upload(on_upload=self._uploaded, auto_upload=True, max_files=1).props('accept=".xlsx"').classes(
             "hidden"
         ).mark("buildings-sheet-upload")
-        ui.button("Načíst z Excelu", icon="upload_file", on_click=lambda: uploader.run_method("pickFiles")).props(
+        ui.button("Načíst konfiguraci budov", icon="upload_file", on_click=lambda: uploader.run_method("pickFiles")).props(
             "flat"
         ).mark("buildings-sheet-import").tooltip(
             "Nahradí rozložení zde tabulkou „Pomocníci v místnostech“ (.xlsx): budovy a místnosti podle sloučených "

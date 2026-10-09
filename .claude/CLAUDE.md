@@ -218,7 +218,7 @@ pushing the tag, not just creating it locally.
   component after a prototype of both (branch `prototype/nicegui-grid`), on the
   condition that every feature carried over.
 - Buildings sheet import (`rostering/ingest/building_sheet.py`,
-  `mutations.read_building_sheet`, the Buildings tab's "Načíst z Excelu"): reads the
+  `mutations.read_building_sheet`, the Buildings tab's "Načíst konfiguraci budov"): reads the
   hand-drawn "Pomocníci v místnostech" table into the config shape, touching
   neither the Season nor the saved layout; the tab replaces its draft with it. Two
   header rows above the first labelled row of column A (Buildings as merged cells,

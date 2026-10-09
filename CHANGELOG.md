@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Budovy: a "Načíst z Excelu" button reads the Buildings layout from a
+- Budovy: a "Načíst konfiguraci budov" button reads the Buildings layout from a
   "Pomocníci v místnostech" table (.xlsx) into the draft (saved with "Uložit
   konfiguraci", like any edit). Buildings and Rooms come from the merged header
   cells (a large Room is a merged or blank-continued header over two columns);
