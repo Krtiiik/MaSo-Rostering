@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Štítky: a Tag's colour is shown as a swatch of that colour (no hex text field);
+  clicking it opens the colour picker.
 - Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
   the Helpers table header, the same as the Organizers' "Načíst organizátory",
   instead of the upload card at the top of the tab. With no Season open the tab

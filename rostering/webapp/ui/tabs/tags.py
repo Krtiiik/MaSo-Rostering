@@ -36,6 +36,28 @@ def _delete_lines(state: dict, tag: dict) -> list[str]:
     return lines
 
 
+class _ColourSwatch:
+    """The Tag's colour as a swatch of that colour; a click opens the picker.
+    There is no text field, so `value` is always a hex colour."""
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+        with ui.column().classes("gap-1"):
+            ui.label("Barva").classes("text-xs text-gray-600")
+            self._button = ui.button().props("unelevated dense").classes("w-14 h-10").tooltip("Změnit barvu")
+            with self._button:
+                self._picker = ui.color_picker(on_pick=lambda e: self._set(e.color))
+        self._picker.set_color(value)
+        self._paint()
+
+    def _set(self, value: str) -> None:
+        self.value = value
+        self._paint()
+
+    def _paint(self) -> None:
+        self._button.style(f"background-color: {self.value} !important; border: 1px solid rgba(0,0,0,.3)")
+
+
 class TagsTab:
     def __init__(self, session: UiSession) -> None:
         self.session = session
@@ -133,9 +155,9 @@ class TagsTab:
                 )
             name = ui.input("Název", value=tag["name"] if tag else "").classes("w-full")
             with ui.row().classes("w-full gap-4 no-wrap"):
-                colour = ui.color_input(
-                    "Barva", value=tag["colour"] if tag else tag_tree.PALETTE[len(state["tags"]) % len(tag_tree.PALETTE)]
-                ).classes("grow")
+                colour = _ColourSwatch(
+                    tag["colour"] if tag else tag_tree.PALETTE[len(state["tags"]) % len(tag_tree.PALETTE)]
+                )
                 current_parent = tag["parent_id"] if tag and tag["parent_id"] in parent_options else None
                 parent = ui.select(parent_options, label="Odvozuje (nadřazený štítek)", value=current_parent).classes(
                     "grow"
