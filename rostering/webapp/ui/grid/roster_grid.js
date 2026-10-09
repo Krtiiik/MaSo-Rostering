@@ -247,30 +247,35 @@ export default {
     },
     // ------------------------------------------------------------ friend hover
     // With the Friends overlay on, hovering a Helper outlines the friends they
-    // named (green: same Room, red: not) and, in purple, those who named them.
+    // named (green: same Room, red: not; an Organizer they named is outlined the
+    // same way) and, in purple, those who named them. Hovering an Organizer
+    // outlines, in purple, the Helpers who named them.
     onMouseOver(e) {
       if (!this.friendsOn) return;
-      const chip = closest(e.target, ".helper-chip");
+      const chip = closest(e.target, ".helper-chip, .organizer-chip");
       if (!chip || chip === this.hovered) return;
       this.clearHighlights();
       this.hovered = chip;
+      const mark = (selector, cls) => {
+        for (const other of this.$el.querySelectorAll(selector)) other.classList.add(cls);
+      };
+      const status = (ok) => (ok === "1" ? "friend-highlight-satisfied" : "friend-highlight-unsatisfied");
       const marked = new Set();
       for (const part of (chip.dataset.friends ?? "").split(",").filter(Boolean)) {
         const [id, ok] = part.split(":");
         marked.add(id);
-        for (const other of this.$el.querySelectorAll(`.helper-chip[data-hid="${id}"]`)) {
-          other.classList.add(ok === "1" ? "friend-highlight-satisfied" : "friend-highlight-unsatisfied");
-        }
+        mark(`.helper-chip[data-hid="${id}"]`, status(ok));
+      }
+      for (const part of (chip.dataset.organizerFriends ?? "").split(",").filter(Boolean)) {
+        const [id, ok] = part.split(":");
+        mark(`.organizer-chip[data-oid="${id}"]`, status(ok));
       }
       for (const id of (chip.dataset.requesters ?? "").split(",").filter(Boolean)) {
-        if (marked.has(id)) continue;
-        for (const other of this.$el.querySelectorAll(`.helper-chip[data-hid="${id}"]`)) {
-          other.classList.add("friend-highlight-requester");
-        }
+        if (!marked.has(id)) mark(`.helper-chip[data-hid="${id}"]`, "friend-highlight-requester");
       }
     },
     onMouseOut(e) {
-      const chip = closest(e.target, ".helper-chip");
+      const chip = closest(e.target, ".helper-chip, .organizer-chip");
       if (chip && chip === this.hovered && !chip.contains(e.relatedTarget)) {
         this.clearHighlights();
         this.hovered = null;
