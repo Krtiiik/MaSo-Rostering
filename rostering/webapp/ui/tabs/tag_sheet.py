@@ -68,7 +68,7 @@ class TagSheet:
         self.session = session
         self._signature: Optional[str] = None
         with ui.dialog().props("position=right seamless full-height") as self.dialog:
-            self.card = ui.card().classes("w-[40rem] max-w-[95vw] h-full overflow-auto").style(
+            self.card = ui.card().classes("w-[40rem] max-w-[95vw] h-full overflow-auto p-0 gap-0 no-wrap").style(
                 "max-width: min(40rem, 95vw)"
             )
         # Closed by Escape: the selection goes with it.
@@ -140,7 +140,8 @@ class TagSheet:
         state = self.session.state
         self.card.clear()
         with self.card:
-            with ui.row().classes("w-full items-center no-wrap"):
+            # The top bar stays pinned while the rest of the sheet scrolls under it.
+            with ui.row().classes("sticky top-0 z-10 w-full items-center no-wrap bg-white border-b px-4 py-2"):
                 with ui.column().classes("gap-0 grow"):
                     ui.label("Štítek").classes("text-xs text-gray-500 uppercase")
                     ui.label("Nový štítek" if tag is None else tag["name"]).classes("text-xl font-bold")
@@ -149,10 +150,11 @@ class TagSheet:
                         "flat color=negative dense"
                     )
                 ui.button(icon="close", on_click=self.close).props("flat round dense")
-            self._form(state, tag)
-            if tag is not None:
-                fix = fix_focus.current(self.session, "tags")
-                self._people(state, tag, fix.helper_id if fix else None, fix.organizer_id if fix else None)
+            with ui.column().classes("w-full gap-4 p-4"):
+                self._form(state, tag)
+                if tag is not None:
+                    fix = fix_focus.current(self.session, "tags")
+                    self._people(state, tag, fix.helper_id if fix else None, fix.organizer_id if fix else None)
 
     # ------------------------------------------------------------------ form
     def _form(self, state: dict, tag: Optional[dict]) -> None:
