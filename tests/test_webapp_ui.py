@@ -391,6 +391,26 @@ async def test_the_new_tag_button_opens_the_create_form_and_then_the_new_tag(use
     await user.should_see("Kdo štítek nese (0)")
 
 
+async def test_a_tag_gets_its_rules_from_the_same_rule_rows_a_group_uses(user: User, seasons):
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    user.find(marker="add-tag").click()
+    await user.should_see(marker="tag-name")
+    user.find(marker="tag-name").type("Jen K1")
+    user.find(marker="rule-add").click()  # a new Tag starts with no rule; a Tag cannot share, so the row is "musí být v"
+    await asyncio.sleep(0.1)
+    ops = user.find(marker="rule-op-0").elements.pop()
+    assert "share" not in ops.options and "be_must" in ops.options
+    user.find(marker="rule-axis-0").elements.pop().value = "room"
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-values-0").elements.pop().value = ["KarlínK1"]
+    user.find(marker="tag-save").click()
+    await asyncio.sleep(0.2)
+
+    tag = next(t for t in _state(seasons)["tags"] if t["name"] == "Jen K1")
+    assert tag["rules"] == [{"kind": "be", "must": True, "axis": "room", "values": [["Karlín", "K1"]]}]
+
+
 # ---------------------------------------------------------------------- Buildings
 async def test_buildings_edits_are_an_unsaved_draft_until_saved(user: User, seasons):
     await _go(user, labels.TAB_BUILDINGS)

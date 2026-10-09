@@ -9,6 +9,7 @@ import pytest
 
 from rostering.domain import Role
 from rostering.webapp import mutations
+from tests import tag_rules
 from tests.test_tag_import import (  # noqa: F401  (workspace is a fixture)
     ANNA,
     ANNA_NEW,
@@ -290,7 +291,7 @@ def test_the_late_organizer_offer_resolves_by_origin_and_never_recreates_a_delet
     organizer_id = _uncertain_setup(workspace)
     _import(workspace)
     state = mutations.get_state(workspace)
-    mutations.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M")
+    tag_rules.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M")
     (entry,) = mutations.get_uncertain_organizer_matches(workspace)
     mutations.link_organizer(workspace, organizer_id, entry["candidates"][0]["person_id"])
 

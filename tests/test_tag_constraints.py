@@ -27,6 +27,7 @@ from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
 from rostering.webapp import mutations
 from rostering.tags import Tag
+from tests import tag_rules
 
 ROLE_NAMES = [role.name for role in Role]
 
@@ -70,12 +71,13 @@ def _seed(workspace, buildings=("Karlín", "Impakt", "Hostivař"), names=("Anna"
 
 
 def _new_tag(workspace, name, parent_id=None, **kwargs) -> int:
-    state = mutations.add_tag(workspace, name, parent_id=parent_id, **kwargs)
+    state = tag_rules.add_tag(workspace, name, parent_id=parent_id, **kwargs)
     return next(t["id"] for t in state["tags"] if t["name"] == name)
 
 
 def _allowed(workspace, helper_id):
-    return mutations.helper_allowed(mutations.get_state(workspace), helper_id)
+    allowed = mutations.helper_allowed(mutations.get_state(workspace), helper_id)
+    return {axis: values for axis, values in allowed.items() if axis != "rooms"}
 
 
 # -- entering constraints ------------------------------------------------------
@@ -84,7 +86,7 @@ def _allowed(workspace, helper_id):
 def test_a_tag_can_carry_building_and_role_allow_and_deny_lists(workspace):
     _seed(workspace)
 
-    state = mutations.add_tag(
+    state = tag_rules.add_tag(
         workspace,
         "8.M",
         building_allow=["Karlín"],
@@ -93,19 +95,19 @@ def test_a_tag_can_carry_building_and_role_allow_and_deny_lists(workspace):
         role_deny=["Zaloha"],
     )
 
-    entries = mutations.tag_constraint_entries(state, state["tags"][0]["id"])
+    entries = tag_rules.entries(state, state["tags"][0]["id"])
     assert [e["name"] for e in entries["building_allow"]] == ["Karlín"]
     assert [e["name"] for e in entries["building_deny"]] == ["Hostivař"]
-    assert [e["name"] for e in entries["role_allow"]] == ["Fotograf", "Skenovac"]
+    assert [e["name"] for e in entries["role_allow"]] == ["Skenovac", "Fotograf"]  # in the Roles' order
     assert [e["name"] for e in entries["role_deny"]] == ["Zaloha"]
-    assert mutations.tag_constraint_entries(mutations.get_state(workspace), state["tags"][0]["id"]) == entries
+    assert tag_rules.entries(mutations.get_state(workspace), state["tags"][0]["id"]) == entries
 
 
 def test_a_tag_without_constraints_has_empty_lists(workspace):
     _seed(workspace)
     tag_id = _new_tag(workspace, "GCHD")
 
-    entries = mutations.tag_constraint_entries(mutations.get_state(workspace), tag_id)
+    entries = tag_rules.entries(mutations.get_state(workspace), tag_id)
 
     assert entries == {"building_allow": [], "building_deny": [], "role_allow": [], "role_deny": []}
 
@@ -114,22 +116,22 @@ def test_constraints_are_edited_through_update_tag_and_left_alone_when_not_given
     _seed(workspace)
     tag_id = _new_tag(workspace, "8.M", building_allow=["Karlín"], role_deny=["Fotograf"])
 
-    state = mutations.update_tag(workspace, tag_id, note="a class", building_deny=["Hostivař"])
+    state = tag_rules.update_tag(workspace, tag_id, note="a class", building_deny=["Hostivař"])
 
-    entries = mutations.tag_constraint_entries(state, tag_id)
+    entries = tag_rules.entries(state, tag_id)
     assert [e["name"] for e in entries["building_allow"]] == ["Karlín"]  # untouched
     assert [e["name"] for e in entries["building_deny"]] == ["Hostivař"]
     assert [e["name"] for e in entries["role_deny"]] == ["Fotograf"]  # untouched
 
-    cleared = mutations.update_tag(workspace, tag_id, building_allow=[])
-    assert mutations.tag_constraint_entries(cleared, tag_id)["building_allow"] == []
+    cleared = tag_rules.update_tag(workspace, tag_id, building_allow=[])
+    assert tag_rules.entries(cleared, tag_id)["building_allow"] == []
 
 
 def test_a_role_entry_must_name_one_of_the_roles(workspace):
     _seed(workspace)
 
     with pytest.raises(mutations.RosteringError, match="role"):
-        mutations.add_tag(workspace, "8.M", role_deny=["Kapitán"])
+        tag_rules.add_tag(workspace, "8.M", role_deny=["Kapitán"])
 
     assert mutations.get_state(workspace)["tags"] == []
 
@@ -138,7 +140,7 @@ def test_a_role_may_be_named_by_its_display_name(workspace):
     _seed(workspace)
     tag_id = _new_tag(workspace, "8.M", role_deny=["Měnič"])
 
-    entries = mutations.tag_constraint_entries(mutations.get_state(workspace), tag_id)
+    entries = tag_rules.entries(mutations.get_state(workspace), tag_id)
 
     assert [e["name"] for e in entries["role_deny"]] == ["Menic"]
 
@@ -149,16 +151,16 @@ def test_entries_naming_a_building_no_longer_configured_are_inert_and_flagged(wo
     tag_id_2 = _new_tag(workspace, "GCHD", building_deny=["Hostivař"])
     state = mutations.put_config(workspace, _config("Karlín", "Hostivař"))  # Impakt is gone
 
-    entries = mutations.tag_constraint_entries(state, tag_id)
+    entries = tag_rules.entries(state, tag_id)
 
     assert entries["building_allow"] == [
-        {"name": "Karlín", "in_season": True},
         {"name": "Impakt", "in_season": False},
+        {"name": "Karlín", "in_season": True},
     ]
     mutations.set_helper_tags(workspace, 1, [tag_id])
     # The Karlín entry alone narrows; the inert Impakt one is ignored.
     assert _allowed(workspace, 1)["buildings"] == ["Karlín"]
-    assert mutations.tag_constraint_entries(state, tag_id_2)["building_deny"][0]["in_season"] is True
+    assert tag_rules.entries(state, tag_id_2)["building_deny"][0]["in_season"] is True
 
 
 def test_an_allow_list_naming_only_absent_buildings_does_not_narrow_anything(workspace):
@@ -265,7 +267,7 @@ def test_a_tag_assignment_leaving_no_allowed_building_is_refused_with_the_reason
 
     text = str(refused.value)
     assert "Anna" in text and "budovu" in text
-    assert "Štítek A, povoluje jen budovu Karlín" in text and "Štítek B, povoluje jen budovu Impakt" in text
+    assert "Štítek A, musí být v budově Karlín" in text and "Štítek B, musí být v budově Impakt" in text
     assert _direct(workspace, 1) == [a]  # nothing changed
 
 
@@ -291,7 +293,7 @@ def test_a_bulk_assignment_is_all_or_nothing(workspace):
 def test_a_tag_that_carries_no_helper_can_hold_any_constraint(workspace):
     _seed(workspace)
 
-    mutations.add_tag(workspace, "Nothing", role_deny=ROLE_NAMES)  # nobody carries it: nobody is stranded
+    tag_rules.add_tag(workspace, "Nothing", role_deny=ROLE_NAMES)  # nobody carries it: nobody is stranded
 
 
 def test_a_constraint_edit_that_would_strand_a_carrier_is_refused_and_not_saved(workspace):
@@ -301,9 +303,9 @@ def test_a_constraint_edit_that_would_strand_a_carrier_is_refused_and_not_saved(
     mutations.set_helper_tags(workspace, 1, [a, both])
 
     with pytest.raises(mutations.RosteringError, match="Anna"):
-        mutations.update_tag(workspace, both, building_allow=["Impakt"])
+        tag_rules.update_tag(workspace, both, building_allow=["Impakt"])
 
-    entries = mutations.tag_constraint_entries(mutations.get_state(workspace), both)
+    entries = tag_rules.entries(mutations.get_state(workspace), both)
     assert entries["building_allow"] == []
 
 
@@ -314,7 +316,7 @@ def test_the_same_check_covers_carriers_by_implication(workspace):
     mutations.set_helper_tags(workspace, 1, [child])
 
     with pytest.raises(mutations.RosteringError, match="Anna"):
-        mutations.update_tag(workspace, parent, building_deny=["Karlín"])
+        tag_rules.update_tag(workspace, parent, building_deny=["Karlín"])
 
 
 def test_re_parenting_a_tag_under_a_conflicting_one_is_refused(workspace):
@@ -323,7 +325,7 @@ def test_re_parenting_a_tag_under_a_conflicting_one_is_refused(workspace):
     mutations.set_helper_tags(workspace, 1, [b])
 
     with pytest.raises(mutations.RosteringError, match="Anna"):
-        mutations.update_tag(workspace, b, parent_id=a)
+        tag_rules.update_tag(workspace, b, parent_id=a)
 
     assert next(t for t in mutations.get_state(workspace)["tags"] if t["id"] == b)["parent_id"] is None
 
@@ -333,7 +335,7 @@ def test_a_constraint_edit_that_only_widens_or_keeps_everyone_placeable_is_accep
     a, _ = _dead_end_pair(workspace)
     mutations.set_helper_tags(workspace, 1, [a])
 
-    mutations.update_tag(workspace, a, building_allow=["Karlín", "Impakt"])
+    tag_rules.update_tag(workspace, a, building_allow=["Karlín", "Impakt"])
 
     assert _allowed(workspace, 1)["buildings"] == ["Karlín", "Impakt"]
 
@@ -419,7 +421,7 @@ def test_a_helper_outside_their_allowed_buildings_is_reported_with_the_tag(works
     state = mutations.move_helper(workspace, 1, "Impakt", "Impakt-R1", "Zaloha")
 
     (broken,) = _tag_rules(state)
-    assert broken.line == "Pomocník Anna (Štítek 8.M, povoluje jen budovu Karlín) je zařazen(a) do Impakt"
+    assert broken.line == "Pomocník Anna (Štítek 8.M, musí být v budově Karlín) je zařazen(a) do Impakt"
     assert broken.amount == 1
     assert broken.instance == RuleInstance("tag_building", (1, "Impakt"))
     assert broken.helper_ids == (1,)
@@ -444,7 +446,7 @@ def test_a_denied_role_is_reported(workspace):
     state = mutations.move_helper(workspace, 2, "Impakt", "Impakt-R1", "Fotograf")
 
     (broken,) = _tag_rules(state)
-    assert broken.line == "Pomocník Petr (Štítek GCHD, zakazuje roli Fotograf) je zařazen(a) jako Fotograf"
+    assert broken.line == "Pomocník Petr (Štítek GCHD, nesmí mít roli Fotograf) je zařazen(a) jako Fotograf"
     assert broken.instance == RuleInstance("tag_role", (2, "Fotograf"))
     assert broken.fix.tag_id == pros
 
@@ -457,7 +459,7 @@ def test_an_inherited_constraint_names_the_tag_that_states_it(workspace):
 
     (broken,) = _tag_rules(mutations.get_state(workspace))
 
-    assert broken.line == "Pomocník Jana (Štítek GCHD, zakazuje budovu Hostivař) je zařazen(a) do Hostivař"
+    assert broken.line == "Pomocník Jana (Štítek GCHD, nesmí být v budově Hostivař) je zařazen(a) do Hostivař"
     assert broken.fix.tag_id == parent
 
 
@@ -469,10 +471,10 @@ def test_a_broken_placement_names_only_the_tags_that_exclude_it(workspace):
 
     (broken,) = _tag_rules(mutations.get_state(workspace))
 
-    assert broken.line == "Pomocník Jana (Štítek B, zakazuje budovu Hostivař) je zařazen(a) do Hostivař"
+    assert broken.line == "Pomocník Jana (Štítek B, nesmí být v budově Hostivař) je zařazen(a) do Hostivař"
     mutations.move_helper(workspace, 3, "Karlín", "Karlín-R1", "Zaloha")
     (broken,) = _tag_rules(mutations.get_state(workspace))
-    assert broken.line == "Pomocník Jana (Štítek A, povoluje jen budovy Impakt, Hostivař) je zařazen(a) do Karlín"
+    assert broken.line == "Pomocník Jana (Štítek A, musí být v budově Impakt nebo Hostivař) je zařazen(a) do Karlín"
 
 
 def test_a_drop_that_newly_breaks_a_tag_constraint_toasts_the_banner_line_and_still_applies(workspace):
@@ -484,7 +486,7 @@ def test_a_drop_that_newly_breaks_a_tag_constraint_toasts_the_banner_line_and_st
     moved = next(a for a in after["assignments"] if a["helper_id"] == 1)
     assert moved["building"] == "Hostivař"  # never refused
     assert mutations.move_toast_lines(before, after) == [
-        "Pomocník Anna (Štítek 8.M, povoluje jen budovu Karlín) je zařazen(a) do Hostivař"
+        "Pomocník Anna (Štítek 8.M, musí být v budově Karlín) je zařazen(a) do Hostivař"
     ]
 
 
@@ -561,7 +563,7 @@ def _projection(broken_rules):
 
 
 def test_a_helper_restricted_to_one_building_is_placed_there():
-    tags = [Tag(id=1, name="8.M", colour="#3366cc", building_allow=("B",))]
+    tags = [Tag(id=1, name="8.M", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("B",)))]
     helpers = [Helper(id=i, name=f"H{i}", tags=[1] if i <= 3 else []) for i in range(1, 7)]
     comp = _competition([_building("A"), _building("B"), _building("C")], helpers, tags)
 
@@ -572,7 +574,7 @@ def test_a_helper_restricted_to_one_building_is_placed_there():
 
 
 def test_a_denied_role_is_never_given_to_the_helper():
-    tags = [Tag(id=1, name="Pros", colour="#3366cc", role_deny=("Fotograf", "Opravovatel"))]
+    tags = [Tag(id=1, name="Pros", colour="#3366cc", rules=tag_rules.domain_rules(role_deny=("Fotograf", "Opravovatel")))]
     helpers = [
         Helper(
             id=i,
@@ -594,9 +596,9 @@ def test_a_denied_role_is_never_given_to_the_helper():
 
 def test_combined_tags_are_respected_including_an_implied_parent():
     tags = [
-        Tag(id=1, name="GCHD", colour="#3366cc", building_allow=("A", "B"), role_deny=("Zaloha",)),
-        Tag(id=2, name="8.M", colour="#dc3912", parent_id=1, building_deny=("A",)),
-        Tag(id=3, name="Ref", colour="#109618", role_allow=("Skenovac", "Menic")),
+        Tag(id=1, name="GCHD", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("A", "B"), role_deny=("Zaloha",))),
+        Tag(id=2, name="8.M", colour="#dc3912", parent_id=1, rules=tag_rules.domain_rules(building_deny=("A",))),
+        Tag(id=3, name="Ref", colour="#109618", rules=tag_rules.domain_rules(role_allow=("Skenovac", "Menic"))),
     ]
     helpers = [Helper(id=1, name="Both", tags=[2, 3]), Helper(id=2, name="Child", tags=[2])]
     helpers += [Helper(id=i, name=f"H{i}") for i in range(3, 8)]
@@ -611,7 +613,7 @@ def test_combined_tags_are_respected_including_an_implied_parent():
 
 
 def test_building_entries_match_config_spellings_like_preferences_do():
-    tags = [Tag(id=1, name="T", colour="#3366cc", building_allow=("Impakt + Troja",))]
+    tags = [Tag(id=1, name="T", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("Impakt + Troja",)))]
     helpers = [Helper(id=1, name="H1", tags=[1]), Helper(id=2, name="H2")]
     comp = _competition([_building("Karlín"), _building("Troja")], helpers, tags)
 
@@ -621,7 +623,7 @@ def test_building_entries_match_config_spellings_like_preferences_do():
 
 
 def test_an_entry_naming_an_absent_building_or_an_absent_allow_list_is_inert():
-    tags = [Tag(id=1, name="T", colour="#3366cc", building_allow=("Nowhere",), building_deny=("Elsewhere",))]
+    tags = [Tag(id=1, name="T", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("Nowhere",), building_deny=("Elsewhere",)))]
     comp = _competition([_building("A")], [Helper(id=1, name="H1", tags=[1])], tags)
 
     result = solve_competition(comp, _solver_config())
@@ -631,7 +633,7 @@ def test_an_entry_naming_an_absent_building_or_an_absent_allow_list_is_inert():
 
 def test_a_minimum_bends_before_a_tag_restriction_does():
     # Building B needs a Skenovač, but the only Helper is barred from B.
-    tags = [Tag(id=1, name="OnlyA", colour="#3366cc", building_allow=("A",))]
+    tags = [Tag(id=1, name="OnlyA", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("A",)))]
     building_b = _building("B", _room("B-R1", Skenovac=1))
     comp = _competition([_building("A"), building_b], [Helper(id=1, name="H1", tags=[1])], tags)
 
@@ -644,20 +646,20 @@ def test_a_minimum_bends_before_a_tag_restriction_does():
 def test_a_tag_restriction_bends_when_it_is_the_only_thing_that_can():
     # Both Buildings are denied and the Helper is pinned: the Tag rule bends
     # and the roster still comes back.
-    tags = [Tag(id=1, name="Nowhere", colour="#3366cc", building_deny=("A", "B"))]
+    tags = [Tag(id=1, name="Nowhere", colour="#3366cc", rules=tag_rules.domain_rules(building_deny=("A", "B")))]
     comp = _competition([_building("A"), _building("B")], [Helper(id=1, name="H1", tags=[1])], tags)
 
     result = solve_competition(comp, _solver_config())
 
     assert len(result.assignments) == 1
     assert [b.family for b in result.broken_rules] == ["tag_restrictions"]
-    assert result.broken_rules[0].line.startswith("Pomocník H1 (Štítek Nowhere, zakazuje budovy A, B) je zařazen(a) do ")
+    assert result.broken_rules[0].line.startswith("Pomocník H1 (Štítek Nowhere, nesmí být v budově A ani B) je zařazen(a) do ")
 
 
 def test_a_tag_restriction_bends_before_equipment():
     # A no-camera Helper who may only be Fotograf: one of the two must bend,
     # and it is the Tag restriction, never the (stricter) equipment rule.
-    tags = [Tag(id=1, name="OnlyPhoto", colour="#3366cc", role_allow=("Fotograf",))]
+    tags = [Tag(id=1, name="OnlyPhoto", colour="#3366cc", rules=tag_rules.domain_rules(role_allow=("Fotograf",)))]
     comp = _competition([_building("A")], [Helper(id=1, name="H1", can_bring_camera=False, tags=[1])], tags)
 
     result = solve_competition(comp, _solver_config())
@@ -667,7 +669,7 @@ def test_a_tag_restriction_bends_before_equipment():
 
 
 def test_a_fixed_assignment_outside_the_allowed_set_stands_and_is_reported():
-    tags = [Tag(id=1, name="OnlyA", colour="#3366cc", building_allow=("A",))]
+    tags = [Tag(id=1, name="OnlyA", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("A",)))]
     comp = _competition([_building("A"), _building("B")], [Helper(id=1, name="H1", tags=[1])], tags)
     fixed = Assignment(helper_id=1, helper_name="H1", building="B", room="B-R1", role=Role.Zaloha)
 
@@ -675,11 +677,11 @@ def test_a_fixed_assignment_outside_the_allowed_set_stands_and_is_reported():
 
     assert _by_helper(result)[1].building == "B"
     assert [b.instance for b in result.broken_rules] == [RuleInstance("tag_building", (1, "B"))]
-    assert result.broken_rules[0].line == "Pomocník H1 (Štítek OnlyA, povoluje jen budovu A) je zařazen(a) do B"
+    assert result.broken_rules[0].line == "Pomocník H1 (Štítek OnlyA, musí být v budově A) je zařazen(a) do B"
 
 
 def test_a_helper_who_cant_attend_is_left_out_of_the_tag_rule():
-    tags = [Tag(id=1, name="Nowhere", colour="#3366cc", building_deny=("A",))]
+    tags = [Tag(id=1, name="Nowhere", colour="#3366cc", rules=tag_rules.domain_rules(building_deny=("A",)))]
     helpers = [Helper(id=1, name="H1", tags=[1], cant_attend=True), Helper(id=2, name="H2")]
     comp = _competition([_building("A")], helpers, tags)
 
@@ -688,10 +690,10 @@ def test_a_helper_who_cant_attend_is_left_out_of_the_tag_rule():
 
 def _random_tagged_competition(rng):
     tags = [
-        Tag(id=1, name="T1", colour="#3366cc", building_allow=("B0", "B1")),
-        Tag(id=2, name="T2", colour="#dc3912", parent_id=1, building_deny=("B0",), role_deny=("Fotograf",)),
-        Tag(id=3, name="T3", colour="#109618", role_allow=("Skenovac", "Menic", "Zaloha")),
-        Tag(id=4, name="T4", colour="#ff9900", building_allow=("B2",), role_deny=("Zaloha",)),
+        Tag(id=1, name="T1", colour="#3366cc", rules=tag_rules.domain_rules(building_allow=("B0", "B1"))),
+        Tag(id=2, name="T2", colour="#dc3912", parent_id=1, rules=tag_rules.domain_rules(building_deny=("B0",), role_deny=("Fotograf",))),
+        Tag(id=3, name="T3", colour="#109618", rules=tag_rules.domain_rules(role_allow=("Skenovac", "Menic", "Zaloha"))),
+        Tag(id=4, name="T4", colour="#ff9900", rules=tag_rules.domain_rules(building_allow=("B2",), role_deny=("Zaloha",))),
     ]
     buildings = []
     for b in range(3):
@@ -747,7 +749,7 @@ def test_a_tag_saved_before_constraints_existed_has_none(workspace):
 
     state = mutations.get_state(workspace)
 
-    assert mutations.tag_constraint_entries(state, 1) == {
+    assert tag_rules.entries(state, 1) == {
         "building_allow": [],
         "building_deny": [],
         "role_allow": [],

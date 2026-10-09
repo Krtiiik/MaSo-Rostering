@@ -31,6 +31,7 @@ from rostering.tags import Tag
 from rostering.webapp import forced_groups, mutations
 
 from tests.test_forced_friends import TWO_BUILDINGS, _group_named, _placed, _season, workspace  # noqa: F401
+from tests import tag_rules
 
 # -- the rule model ----------------------------------------------------------------
 
@@ -724,7 +725,7 @@ def test_organizer_notes_name_the_rules_that_cannot_judge_them(workspace):
 
 
 def _tag(workspace, name, **constraints):
-    state = mutations.add_tag(workspace, name, **constraints)
+    state = tag_rules.add_tag(workspace, name, **constraints)
     return next(t["id"] for t in state["tags"] if t["name"] == name)
 
 

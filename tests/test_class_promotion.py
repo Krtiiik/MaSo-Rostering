@@ -10,6 +10,7 @@ import pytest
 
 from rostering.persistence.workspace import Workspace
 from rostering.webapp import mutations
+from tests import tag_rules
 
 _NAME_HEADER = "Tvoje jméno a příjmení"
 _EMAIL_HEADER = "E-mailová adresa"
@@ -71,7 +72,7 @@ def _names(workspace) -> list[str]:
 
 
 def _add_tag(workspace, name, **kwargs) -> int:
-    return _tag(mutations.add_tag(workspace, name, **kwargs), name)["id"]
+    return _tag(tag_rules.add_tag(workspace, name, **kwargs), name)["id"]
 
 
 def _give(workspace, helper_name, *tag_ids):

@@ -15,6 +15,7 @@ import pytest
 
 from rostering.persistence.workspace import Workspace
 from rostering.webapp import forced_groups, mutations
+from tests import tag_rules
 
 _NAME_HEADER = "Tvoje jméno a příjmení"
 _EMAIL_HEADER = "E-mailová adresa"
@@ -416,9 +417,9 @@ def test_a_group_whose_members_tags_already_clash_here_is_still_imported_and_the
     state = mutations.get_state(workspace)
     anna = next(h["id"] for h in state["helpers"] if h["name"] == "Anna N.")
     petr = next(h["id"] for h in state["helpers"] if h["name"] == "Petr Svoboda")
-    state = mutations.add_tag(workspace, "Jen A", building_allow=["A"])
+    state = tag_rules.add_tag(workspace, "Jen A", building_allow=["A"])
     only_a = next(t["id"] for t in state["tags"] if t["name"] == "Jen A")
-    state = mutations.add_tag(workspace, "Jen B", building_allow=["B"])
+    state = tag_rules.add_tag(workspace, "Jen B", building_allow=["B"])
     only_b = next(t["id"] for t in state["tags"] if t["name"] == "Jen B")
     mutations.add_tag_to_helpers(workspace, only_a, [anna])
     mutations.add_tag_to_helpers(workspace, only_b, [petr])

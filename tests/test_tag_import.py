@@ -11,6 +11,7 @@ import pytest
 
 from rostering.persistence.workspace import Workspace
 from rostering.webapp import mutations
+from tests import tag_rules
 
 _NAME_HEADER = "Tvoje jméno a příjmení"
 _EMAIL_HEADER = "E-mailová adresa"
@@ -80,7 +81,7 @@ def _tag_names(state, helper_name) -> list[str]:
 
 
 def _add_tag(workspace, name, **kwargs) -> int:
-    state = mutations.add_tag(workspace, name, **kwargs)
+    state = tag_rules.add_tag(workspace, name, **kwargs)
     return _tag(state, name)["id"]
 
 
@@ -172,7 +173,7 @@ def test_there_is_no_banner_when_no_earlier_season_has_tags_or_the_season_has_no
 
 def test_the_import_is_available_even_without_a_banner(workspace):
     _standard(workspace)
-    mutations.add_tag(workspace, "Mine")  # the Season has Tags now: no banner, but importing still works
+    tag_rules.add_tag(workspace, "Mine")  # the Season has Tags now: no banner, but importing still works
 
     assert mutations.tag_import_offer(workspace)["banner"] is False
     summary = mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
@@ -193,8 +194,10 @@ def test_the_whole_tag_tree_is_copied_with_constraints_colour_note_and_unused_pa
     assert eight["parent_id"] == gchd["id"]  # the parent structure survives, GCHD included though unused by 8.M
     assert (gchd["colour"], gchd["note"]) == ("#112233", "school group")
     assert (eight["colour"], eight["note"]) == ("#445566", "class")
-    assert eight["building_allow"] == ["A"]
-    assert eight["role_deny"] == ["Fotograf"]
+    assert [(r["axis"], r["must"], r["values"]) for r in eight["rules"]] == [
+        ("building", True, ["A"]),
+        ("role", False, ["Fotograf"]),
+    ]
     assert _tag(state, "Vedoucí")["parent_id"] is None
 
 
@@ -205,13 +208,13 @@ def test_the_copy_is_independent_of_the_source_and_the_source_is_never_modified(
 
     mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
     state = mutations.get_state(workspace)
-    mutations.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M", note="changed", building_allow=["B"])
+    tag_rules.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M", note="changed", building_allow=["B"])
     mutations.delete_tag(workspace, _tag(state, "Vedoucí")["id"], confirmed=True)
 
     assert source_file.read_bytes() == before
     _open(workspace, "2025-podzim")
     source = mutations.get_state(workspace)
-    assert (_tag(source, "8.M")["id"], _tag(source, "8.M")["note"], _tag(source, "8.M")["building_allow"]) == (
+    assert (_tag(source, "8.M")["id"], _tag(source, "8.M")["note"], _tag(source, "8.M")["rules"][0]["values"]) == (
         ids["8.M"],
         "class",
         ["A"],
@@ -227,13 +230,15 @@ def test_constraint_entries_naming_a_missing_building_are_dropped_and_the_tag_st
     summary = mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
 
     tag = _tag(mutations.get_state(workspace), "Wide")
-    assert tag["building_allow"] == ["A"]
-    assert tag["building_deny"] == []
-    assert tag["role_allow"] == ["Opravovatel"]  # every Role exists in every Season
+    # The deny rule's only Building is gone, so the rule goes; every Role exists in every Season.
+    assert [(r["axis"], r["must"], r["values"]) for r in tag["rules"]] == [
+        ("building", True, ["A"]),
+        ("role", True, ["Opravovatel"]),
+    ]
     dropped = _tags_section(summary)["dropped_constraint_entries"]
-    assert sorted((d["tag"], d["field"], d["entry"]) for d in dropped) == [
-        ("Wide", "building_allow", "C"),
-        ("Wide", "building_deny", "B"),
+    assert sorted((d["tag"], d["rule"], d["entry"]) for d in dropped) == [
+        ("Wide", "musí být v budově A nebo C", "C"),
+        ("Wide", "nesmí být v budově B", "B"),
     ]
 
 
@@ -245,7 +250,7 @@ def test_a_building_entry_is_matched_the_way_building_preferences_are(workspace)
     summary = mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
 
     assert _tags_section(summary)["dropped_constraint_entries"] == []
-    assert _tag(mutations.get_state(workspace), "K")["building_allow"] == ["Karlín"]
+    assert _tag(mutations.get_state(workspace), "K")["rules"][0]["values"] == ["Karlín"]
 
 
 # -- re-applying the Tags --------------------------------------------------------
@@ -381,7 +386,7 @@ def test_an_existing_tag_of_the_same_name_is_reused_and_left_as_it_is(workspace)
     state = mutations.get_state(workspace)
     assert [t["name"] for t in state["tags"]].count("8.M") == 1
     tag = _tag(state, "8.M")
-    assert (tag["id"], tag["colour"], tag["note"], tag["building_allow"]) == (mine, "#abcdef", "mine", [])
+    assert (tag["id"], tag["colour"], tag["note"], tag["rules"]) == (mine, "#abcdef", "mine", [])
     assert _tag_names(state, "Anna N.") == ["8.M"]
     assert "8.M" not in _tags_section(summary)["tags_created"]
 
@@ -391,7 +396,7 @@ def test_imported_tags_remember_their_origin_through_a_rename(workspace):
     source = _source_id(workspace, "2025-podzim")
     mutations.import_from_season(workspace, source)
     state = mutations.get_state(workspace)
-    mutations.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M")
+    tag_rules.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M")
 
     mutations.import_from_season(workspace, source)  # again: origin first, so no stray "8.M"
 
@@ -479,7 +484,7 @@ def test_confirming_an_uncertain_link_after_the_import_offers_to_apply_their_tag
 def test_the_late_link_offer_resolves_by_origin_first_so_a_renamed_class_is_used(workspace):
     helper_id, person_id, ids = _late_link_setup(workspace)
     state = mutations.get_state(workspace)
-    mutations.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M")
+    tag_rules.update_tag(workspace, _tag(state, "8.M")["id"], name="9.M")
     _add_tag(workspace, "Unrelated")
     mutations.link_helper(workspace, helper_id, person_id)
 
@@ -494,7 +499,7 @@ def test_the_late_link_offer_resolves_by_origin_first_so_a_renamed_class_is_used
 
 def test_the_late_link_offer_falls_back_to_the_name_when_no_origin_matches(workspace):
     _standard_uncertain(workspace)
-    mutations.add_tag(workspace, "8.M")  # hand-made, no origin: only the name can match
+    tag_rules.add_tag(workspace, "8.M")  # hand-made, no origin: only the name can match
     # The import name-matches the hand-made Tag and records its origin; drop the
     # origins again to prove the name path on its own.
     mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
