@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Excel export: a Large room is no longer drawn across two columns when the
+  second one would stay empty. The band height now counts the Rooms' configured
+  minimum headcounts and unmerged Rooms beside a merged Large room, the same as
+  the sheet is drawn with, so a Room only gets a second column when it has
+  Helpers to put in it.
+
 - Roster grid: the Kamarádi overlay now shows a Helper's request to be with an
   Organizer, which the solver already scored. Hovering the Helper outlines the
   Organizer's chip (green: same Room, or same Building for an Organizer placed
