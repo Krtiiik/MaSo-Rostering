@@ -26,7 +26,7 @@ function jsonAttr(el, name, fallback) {
 }
 
 export default {
-  template: `<div class="roster-grid-root"><div class="grid-scroll" v-html="html"></div></div>`,
+  template: `<div class="roster-grid-root"><div v-html="html"></div></div>`,
   props: {
     html: String,
     friendsOn: Boolean,

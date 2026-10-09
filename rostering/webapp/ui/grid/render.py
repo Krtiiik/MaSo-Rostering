@@ -341,7 +341,8 @@ def render(view: GridView, merges: dict) -> str:
             parts.append("</div>")
         parts.append("</div>")
 
-    parts.append('<table class="roster-grid"><thead><tr><th></th>')
+    # Only the table scrolls sideways; the Nezařazení pool above it stays put.
+    parts.append('<div class="table-scroll"><table class="roster-grid"><thead><tr><th></th>')
     for building, rooms in building_groups(view.rooms):
         span = f' colspan="{len(rooms)}"' if len(rooms) > 1 else ""
         parts.append(f'<th class="building-header"{span}>{escape(building)}</th>')
@@ -364,7 +365,7 @@ def render(view: GridView, merges: dict) -> str:
         parts.append(_role_row(view, row, groups) if row.kind == "role" else _manual_row(view, row, groups))
         parts.append("</tr>")
         previous = row
-    parts.append("</tbody></table>")
+    parts.append("</tbody></table></div>")
     return "".join(parts)
 
 
@@ -379,7 +380,7 @@ def row_groups_for(view: GridView, merges: dict, row_key: str) -> list[tuple[str
 
 CSS = """
 .roster-grid-root { font-size: 13px; }
-.roster-grid-root .grid-scroll { overflow-x: auto; }
+.roster-grid-root .table-scroll { overflow-x: auto; }
 .roster-grid-root .unassigned-pool {
   margin-bottom: .75rem; padding: .5rem; border: 1px dashed #bbb; border-radius: 6px; background: #fff;
 }

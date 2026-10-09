@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rozpis: only the grid table scrolls sideways; the "Nezařazení" list above it
+  stays in place instead of scrolling along with it.
 - Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
   the Helpers table header, the same as the Organizers' "Načíst organizátory",
   instead of the upload card at the top of the tab. With no Season open the tab
