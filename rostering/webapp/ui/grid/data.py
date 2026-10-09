@@ -281,12 +281,14 @@ class GridView:
         """A Helper with at least one friend they named not in their Room."""
         return any(not ok for ok in self.friend_status.get(helper_id, {}).values())
 
-    def role_fit(self, helper_id: int) -> Optional[bool]:
+    def role_fit(self, helper_id: int) -> Optional[int]:
+        """The Helper's preference level (5 Ano .. 1 Ne, blank = Nevadí) for the
+        Role they are placed in; None with the overlay off, unplaced or in Záloha."""
         placed = self.assignments.get(helper_id)
         if "role_fit" not in self.overlays or placed is None or placed["role"] == RESERVE_ROLE:
             return None
         pref = self.helpers[helper_id]["role_preferences"].get(placed["role"])
-        return (pref["level"] if pref else NEUTRAL_LEVEL) >= NEUTRAL_LEVEL
+        return pref["level"] if pref else NEUTRAL_LEVEL
 
     def building_fit(self, helper_id: int) -> Optional[bool]:
         placed = self.assignments.get(helper_id)

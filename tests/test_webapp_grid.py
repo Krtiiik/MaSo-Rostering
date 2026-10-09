@@ -114,10 +114,17 @@ def test_satisfaction_borders_follow_the_answers_only_with_their_overlay_on(work
     off = _view(workspace)
     assert off.role_fit(1) is None and off.building_fit(1) is None
     on = _view(workspace, overlays=("role_fit", "building_fit"))
-    assert on.role_fit(1) is False  # Anna rated Opravovatel Ne
+    assert on.role_fit(1) == 1  # Anna rated Opravovatel Ne
     assert on.building_fit(1) is False  # and only accepts Troja
-    assert on.role_fit(2) is True  # no answer counts as Nevadí
+    assert on.role_fit(2) == 3  # no answer counts as Nevadí
     assert on.building_fit(3) is True  # no preference: every Building
+
+
+def test_role_satisfaction_chip_carries_its_preference_level_and_names_it(workspace):
+    html = render.render(_view(workspace, overlays=("role_fit",)), {})
+    assert "role-fit-1" in html and "Přání pro tuto roli: Ne" in html  # Anna
+    assert "role-fit-3" in html and "Přání pro tuto roli: Nevadí" in html  # Bára, no answer
+    assert "role-fit-" not in render.render(_view(workspace), {})
 
 
 def test_the_tag_filter_dims_only_while_the_tags_overlay_is_on(workspace):
