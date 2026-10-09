@@ -3604,8 +3604,11 @@ def read_building_sheet(workspace: Workspace, file_bytes: bytes) -> tuple[list[d
     nothing: the Buildings tab puts ``buildings`` into its draft and keeps
     ``pending`` (the leadership names matched to Organizers by name, the sideways
     merges and the tall merges) until the layout is saved with
-    :func:`put_config_from_sheet`. A name that matches no Organizer of the Season,
-    or one who can't attend, is skipped and reported in ``warnings``."""
+    :func:`put_config_from_sheet`. A name that matches no Organizer of the Season
+    exactly is left out of ``slots`` and kept in ``pending["unmatched"]``, which the
+    save turns into to-do offers (see :func:`get_organizer_slot_offers`: similar
+    names are suggested there); one who can't attend is skipped. Both are reported
+    in ``warnings``."""
     try:
         sheet = parse_building_sheet(file_bytes)
     except ValueError as exc:
@@ -3616,27 +3619,123 @@ def read_building_sheet(workspace: Workspace, file_bytes: bytes) -> tuple[list[d
     for organizer in sorted(state["organizers"], key=lambda o: (bool(o.get("cant_attend")), o["id"])):
         by_name.setdefault(normalize_name(organizer["name"]), organizer)
     slots: list[dict] = []
+    unmatched: list[dict] = []
+    attending = [(o["id"], o["name"]) for o in state["organizers"] if not o.get("cant_attend")]
     for cell in sheet.slots:
         label = StructuralRole[cell.role].value
         for name in cell.names:
             organizer = by_name.get(normalize_name(name))
             if organizer is None:
-                warnings.append(
-                    f"„{name}“ ({label}, {cell.building}) není mezi organizátory ročníku, přeskočeno. "
-                    "Přidejte ho/ji nejdřív na kartě Lidé a načtěte tabulku znovu."
+                unmatched.append({"name": name, "role": cell.role, "building": cell.building, "room": cell.room})
+                hint = (
+                    "Podobná jména najdete po uložení v panelu K vyřízení."
+                    if organizer_slots.similar_names(name, attending)
+                    else "Po uložení ho/ji zařadíte v panelu K vyřízení, jakmile bude mezi organizátory."
                 )
+                warnings.append(f"„{name}“ ({label}, {cell.building}) není mezi organizátory ročníku, zatím nezařazen(a). {hint}")
             elif organizer.get("cant_attend"):
                 warnings.append(f"{organizer['name']} má příznak Nemůže se zúčastnit ({label}, {cell.building}), přeskočeno.")
             else:
                 slots.append(
                     {"role": cell.role, "building": cell.building, "room": cell.room, "organizer_id": organizer["id"]}
                 )
-    pending = {"slots": slots, "cell_merges": sheet.cell_merges, "row_merges": sheet.row_merges}
+    pending = {"slots": slots, "unmatched": unmatched, "cell_merges": sheet.cell_merges, "row_merges": sheet.row_merges}
     return sheet.buildings, pending, warnings
 
 
 def _place_text(building: str, room: Optional[str]) -> str:
     return f"{building}, {room}" if room else building
+
+
+def _slot_offer_valid(state: dict[str, Any], offer: dict) -> bool:
+    """Whether the slot an offer names still exists in the Season's layout."""
+    try:
+        organizer_slots.check_slot(
+            _slot_role(offer["role"]), offer["building"], offer.get("room"), _config_rooms(state)
+        )
+    except (ValueError, RosteringError):
+        return False
+    return True
+
+
+def _holds_slot(state: dict[str, Any], organizer_id: int, offer: dict) -> bool:
+    return any(
+        e.get("organizer_id") == organizer_id and e["role"] == offer["role"] and _same_place(e, offer["building"], offer.get("room"))
+        for e in state["manual_roles"]["structural"]
+    )
+
+
+def get_organizer_slot_offers(workspace: Workspace) -> list[dict]:
+    """The leadership names of a loaded Buildings sheet that matched no Organizer
+    exactly, still waiting for a decision (``state["organizer_slot_offers"]``, put
+    there by :func:`put_config_from_sheet`). Each is ``id``, ``name`` as written,
+    ``role`` / ``building`` / ``room``, ``label`` (the slot as text) and
+    ``candidates``: the attending Organizers whose name resembles it, the most alike
+    first (``organizer_id``, ``name``, ``email``, ``placed`` the place they hold now
+    or None). Judged live against the Season's Organizers, so one added later is
+    offered too; an Organizer already holding the slot is left out, and an offer
+    whose slot the layout no longer has is not listed. Nothing is placed until
+    :func:`accept_organizer_slot_offer`."""
+    if workspace.open_season() is None:
+        return []
+    state = workspace.load()
+    attending = [o for o in state["organizers"] if not o.get("cant_attend")]
+    by_id = {o["id"]: o for o in attending}
+    offers = []
+    for offer in state.get("organizer_slot_offers") or []:
+        if not _slot_offer_valid(state, offer):
+            continue
+        ids = organizer_slots.similar_names(offer["name"], [(o["id"], o["name"]) for o in attending])
+        candidates = [
+            {
+                "organizer_id": i,
+                "name": by_id[i]["name"],
+                "email": by_id[i].get("email"),
+                "placed": _place_text(by_id[i]["building"], by_id[i].get("room")) if by_id[i].get("building") else None,
+            }
+            for i in ids
+            if not _holds_slot(state, i, offer)
+        ]
+        offers.append(
+            {
+                **offer,
+                "label": f"{StructuralRole[offer['role']].value} ({_place_text(offer['building'], offer.get('room'))})",
+                "candidates": candidates,
+            }
+        )
+    return offers
+
+
+def _slot_offer(state: dict[str, Any], offer_id: int) -> dict:
+    offer = next((o for o in state.get("organizer_slot_offers") or [] if o["id"] == offer_id), None)
+    if offer is None:
+        raise RosteringError("Tento návrh už neexistuje.")
+    return offer
+
+
+def accept_organizer_slot_offer(workspace: Workspace, offer_id: int, organizer_id: int) -> dict:
+    """Put the Organizer the user picked into the slot the sheet named, as
+    :func:`assign_organizer` does (an Organizer placed elsewhere is moved), and
+    close the offer. Refused when the slot is no longer in the layout."""
+    state = workspace.load()
+    offer = _slot_offer(state, offer_id)
+    _organizer_record(state, organizer_id)
+    room = offer.get("room")
+    _checked_slot(state, offer["role"], offer["building"], room)
+    for cell_slot, cell_room in _cell_roles(state, offer["role"], offer["building"], room):
+        _place_organizer(state, organizer_id, cell_slot, offer["building"], cell_room)
+    state["organizer_slot_offers"] = [o for o in state["organizer_slot_offers"] if o["id"] != offer_id]
+    workspace.save(state)
+    return state
+
+
+def dismiss_organizer_slot_offer(workspace: Workspace, offer_id: int) -> dict:
+    """Leave the slot empty: forget a sheet name that no Organizer was picked for."""
+    state = workspace.load()
+    _slot_offer(state, offer_id)
+    state["organizer_slot_offers"] = [o for o in state["organizer_slot_offers"] if o["id"] != offer_id]
+    workspace.save(state)
+    return state
 
 
 def put_config_from_sheet(
@@ -3651,7 +3750,9 @@ def put_config_from_sheet(
     :func:`read_building_sheet`), in one save: the four leadership slots are
     cleared and filled with the sheet's Organizers (an Organizer named in two
     places keeps the last, being placed once), the sideways merges and the tall
-    merges are replaced by the sheet's. Unless ``confirmed``, it first raises
+    merges are replaced by the sheet's, and the names that matched no Organizer
+    (``pending["unmatched"]``) become the to-do offers of
+    :func:`get_organizer_slot_offers`, replacing earlier ones. Unless ``confirmed``, it first raises
     ``ConfirmationRequired`` naming the slot holders and merges that go. Anything
     that no longer fits the layout (a Room the draft renamed, an Organizer
     deleted since) is skipped and appended to ``warnings``."""
@@ -3706,6 +3807,16 @@ def put_config_from_sheet(
         if not (e["role"] == "PravaRuka" and not e.get("room") and tall_rows.find_cell(live, "PravaRuka", e["building"], None) is None)
     ]
     _sync_placements(state)
+    offers: list[dict] = []
+    for entry in pending.get("unmatched") or []:
+        offer = {k: entry.get(k) for k in ("name", "role", "building", "room")}
+        key = (normalize_name(offer["name"]), offer["role"], offer["building"], offer["room"])
+        if _slot_offer_valid(state, offer) and key not in {(normalize_name(o["name"]), o["role"], o["building"], o["room"]) for o in offers}:
+            offers.append({"id": len(offers) + 1, **offer})
+    if offers:
+        state["organizer_slot_offers"] = offers
+    else:
+        state.pop("organizer_slot_offers", None)
     workspace.save(state)
     if config_path is None:
         config_store.save_default_config(buildings)

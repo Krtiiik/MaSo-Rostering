@@ -15,9 +15,10 @@ mutation layer, the grid and tests share one definition. It does no I/O.
 """
 from __future__ import annotations
 
+import difflib
 from typing import Any, Iterable, Optional
 
-from rostering.domain import StructuralRole
+from rostering.domain import StructuralRole, normalize_name
 
 # What a slot's address must look like. "building": a Building and no Room;
 # "room": a Building and a Room of it; "either": a Building, with or without a
@@ -58,6 +59,52 @@ def check_slot(
         raise ValueError(f"{role.value} patří k místnosti — uveďte ji.")
     if room and room not in set(buildings[building]):
         raise ValueError(f"Neznámá místnost {room!r} v budově {building}.")
+
+
+_SIMILAR_CUTOFF = 0.7
+
+
+def _tokens(name: str) -> list[str]:
+    return [token for token in (normalize_name(t) for t in name.split()) if token]
+
+
+def _ratio(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def name_similarity(name: str, other: str) -> float:
+    """How alike two person names are, 0..1 (1 = the same ignoring case,
+    diacritics, spacing and word order). Free text from a hand-drawn sheet is
+    often a first name or surname only, a nickname ("Terka" for "Tereza") or
+    misspelt, so besides the whole name it compares word by word: every word of
+    the shorter name must resemble a different word of the other, and a single
+    word is judged against the best-fitting word of the longer name."""
+    mine, theirs = _tokens(name), _tokens(other)
+    if not mine or not theirs:
+        return 0.0
+    if sorted(mine) == sorted(theirs):
+        return 1.0
+    whole = _ratio("".join(sorted(mine)), "".join(sorted(theirs)))
+    short, long = (mine, theirs) if len(mine) <= len(theirs) else (theirs, mine)
+    free = list(long)
+    scores = []
+    for word in short:
+        best = max(free, key=lambda w: _ratio(word, w))
+        scores.append(_ratio(word, best))
+        free.remove(best)
+    return max(whole, sum(scores) / len(scores))
+
+
+def similar_names(
+    name: str, candidates: Iterable[tuple[int, str]], limit: int = 3, cutoff: float = _SIMILAR_CUTOFF
+) -> list[int]:
+    """The ids of the ``(id, name)`` candidates whose name resembles ``name``
+    (:func:`name_similarity` at least ``cutoff``), the most alike first, at most
+    ``limit`` of them."""
+    scored = [(name_similarity(name, other), other, ident) for ident, other in candidates]
+    scored = [item for item in scored if item[0] >= cutoff]
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [ident for _score, _other, ident in scored[:limit]]
 
 
 def placement_of(entries: Iterable[dict[str, Any]], organizer_id: int) -> tuple[Optional[str], Optional[str]]:

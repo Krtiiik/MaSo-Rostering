@@ -312,3 +312,55 @@ def test_an_organizer_named_in_two_places_is_placed_at_the_last_with_a_note(work
     }
     assert any("Anna Nováková je v tabulce na více místech" in line for line in notes)
     assert state["row_merges"][0]["row"] == "VedouciBudovy"
+
+
+def test_similar_names_tolerate_nicknames_misspellings_and_partial_names():
+    from rostering.organizers import similar_names
+
+    pool = [(1, "Tereza Nováková"), (2, "Jan Svoboda"), (3, "Cyril Černý"), (4, "Petr Novák")]
+    assert similar_names("Terka Nováková", pool) == [1]
+    assert similar_names("cerny cyril", pool) == [3]  # diacritics, case and word order do not matter
+    assert similar_names("Cyrill Cerny", pool) == [3]
+    assert similar_names("Svoboda", pool) == [2]  # a surname alone
+    assert similar_names("Karel Dvořák", pool) == []
+
+
+def test_names_without_an_exact_organizer_become_todo_offers_with_similar_candidates(workspace, tmp_path):
+    ids = {n: mutations.add_organizer(workspace, n)["organizers"][-1]["id"] for n in ("Anna Nováková", "Cyrill Cerny", "Eva Ehrlich")}
+    buildings, pending, warnings = mutations.read_building_sheet(workspace, _sheet(_with_leaders))
+    assert {e["name"] for e in pending["unmatched"]} >= {"Cyril Cerny", "Eva Ehrlichova"}
+    assert any("Cyril Cerny" in line and "Podobná jména" in line for line in warnings)
+    assert any("Bob Beran" in line and "zatím nezařazen" in line for line in warnings)
+
+    mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True)
+    offers = {o["name"]: o for o in mutations.get_organizer_slot_offers(workspace)}
+
+    assert [c["organizer_id"] for c in offers["Cyril Cerny"]["candidates"]] == [ids["Cyrill Cerny"]]
+    assert offers["Cyril Cerny"]["label"] == "Pravá ruka (Beta, B1)"
+    assert [c["organizer_id"] for c in offers["Eva Ehrlichova"]["candidates"]] == [ids["Eva Ehrlich"]]
+    assert offers["Bob Beran"]["candidates"] == []  # nobody resembles them; still listed so they can be added later
+    assert "Anna Nováková" not in offers  # matched exactly, so placed rather than offered
+
+    state = mutations.accept_organizer_slot_offer(workspace, offers["Cyril Cerny"]["id"], ids["Cyrill Cerny"])
+    assert any(
+        (e["role"], e["building"], e.get("room"), e["organizer_id"]) == ("PravaRuka", "Beta", "B1", ids["Cyrill Cerny"])
+        for e in state["manual_roles"]["structural"]
+    )
+    remaining = {o["name"] for o in mutations.get_organizer_slot_offers(workspace)}
+    assert "Cyril Cerny" not in remaining
+
+    mutations.dismiss_organizer_slot_offer(workspace, offers["Eva Ehrlichova"]["id"])
+    assert "Eva Ehrlichova" not in {o["name"] for o in mutations.get_organizer_slot_offers(workspace)}
+
+
+def test_an_organizer_added_later_is_offered_for_the_waiting_name(workspace, tmp_path):
+    buildings, pending, _ = mutations.read_building_sheet(workspace, _sheet(_with_leaders))
+    mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True)
+    assert next(o for o in mutations.get_organizer_slot_offers(workspace) if o["name"] == "Bob Beran")["candidates"] == []
+
+    bob = mutations.add_organizer(workspace, "Bob Beran")["organizers"][-1]["id"]
+
+    offer = next(o for o in mutations.get_organizer_slot_offers(workspace) if o["name"] == "Bob Beran")
+    assert [c["organizer_id"] for c in offer["candidates"]] == [bob]
+    with pytest.raises(mutations.RosteringError):
+        mutations.accept_organizer_slot_offer(workspace, 999, bob)
