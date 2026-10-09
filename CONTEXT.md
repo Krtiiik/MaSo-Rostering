@@ -470,6 +470,19 @@ number is never a key — shown on a candidate as a hint only. Anything else
 is treated as a new Person.
 Czech: Vracející se pomocník.
 
+**GCHD sheet**:
+An optional second sheet named GChD in a Helpers' survey export: the responses
+of students of the GCHD school, which also answer "are you a current GCHD
+student" and "which class". When it names at least one class, uploading the
+export creates the Tag GCHD, one Tag per class (named exactly as the sheet
+writes it, and implying GCHD) and gives each student's class Tag to the Helper
+with the same e-mail. A row answering "no" to being a student, or naming no
+class, is ignored. A Tag the Season already has is reused as it is; a student
+with no Helper of that e-mail gets no Tag and is listed among the upload's
+warnings. A re-upload only adds, so a class Tag taken off a Helper by hand comes
+back.
+Czech: List GChD.
+
 #### Tag import and Class promotion
 
 **Tag import**:

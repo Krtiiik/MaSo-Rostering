@@ -106,6 +106,16 @@ ORGANIZER_FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
     "comment": ["Prostor pro další komentáře", "další komentáře"],
 }
 
+# The optional "GChD" sheet of a Helpers' export (see CONTEXT.md "GCHD sheet"): a
+# table of the same form's responses from students of the GCHD school, with the
+# school questions the other responses lack. Same matching rules as above.
+GCHD_FIELD_HEADER_CANDIDATES: dict[str, list[str]] = {
+    "name": FIELD_HEADER_CANDIDATES["name"],
+    "email": FIELD_HEADER_CANDIDATES["email"],
+    "student": ["Jsi aktuální student GCHD?", "student GCHD"],
+    "school_class": ["Z jaké jsi třídy?", "Z jaké třídy"],
+}
+
 # Substring (normalized) -> canonical building name. The place question's
 # answer text includes address details in parentheses, so matching is
 # substring-based, not exact.

@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   emptied after a confirmation (which also names any Tag that would leave them no
   allowed room or role and so is not carried). They have no placement until the
   next solve or "Zařadit nové registrované", and the export waits until then.
+- A survey export with a populated GChD sheet now creates the Tag GCHD and, for
+  each class on the sheet, a class Tag under it (named exactly as written), and
+  gives the class Tag to the Helpers with the same e-mail. Students with no
+  matching Helper are listed among the upload's warnings.
 
 ### Fixed
 

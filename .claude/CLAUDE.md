@@ -737,6 +737,17 @@ pushing the tag, not just creating it locally.
   re-upload (the recognized record is updated in place); `Workspace` gives a
   state saved before Tags existed an empty tree on read. UI: `ui/tabs/tags.py` (a searchable table of the tree; a row click sets `SeasonView.selected_tag`) and `ui/tabs/tag_sheet.py` (`TagSheet`, the right-hand sheet with the form, carriers and delete, open exactly while a Tag or `"new"` is selected on the Tags tab)
   (the "2. Štítky" tab) and the Tag picker in a person's sheet in the People tab (`ui/tabs/person_sheet.py`), both drawing pills through `ui/pills.py`.
+- GCHD sheet (`rostering/ingest/gchd_sheet.py` `read_gchd_sheet`, columns from
+  `mapping.GCHD_FIELD_HEADER_CANDIDATES`; `mutations._apply_gchd_classes`, see
+  `CONTEXT.md`): `parse_raw_survey` reads only the export's first sheet, so
+  `upload_responses` reads the sheet named GChD (any later sheet, normalized name)
+  from the same temp file and applies it to the loaded state after the merge,
+  before the one save (`_append_tag` is `add_tag` minus the save; Tags reach a
+  Helper through `_add_valid_tags`, so a Tag constraint can skip one). Helpers
+  are matched to students by normalized e-mail only: a same-name student with
+  another e-mail is not tagged, because that is the uncertain-match question
+  Persons already ask. Unmatched students and skipped Tags go to
+  `state["ingestion_warnings"]`. Tests: `tests/test_gchd_sheet.py`.
 - Tag import (`mutations.py`, "Tag import" section; UI in
   `ui/tag_import.py`): `import_from_season(workspace, source_season_id,
   selections=None)` runs every `ImportSection` in `_IMPORT_SECTIONS`
