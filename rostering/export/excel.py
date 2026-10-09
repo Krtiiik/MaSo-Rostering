@@ -47,7 +47,6 @@ from typing import Optional
 import xlsxwriter
 
 from rostering.domain import (
-    PLAIN_TSHIRT_SIZES,
     TSHIRT_SIZES,
     UNKNOWN_TSHIRT_SIZE,
     Competition,
@@ -207,31 +206,19 @@ def _annotate(helper: Helper | None, fallback_name: str = "") -> str:
     return f"{helper.name}{suffix}"
 
 
-def _cut_in_use(size: str, counted_sizes: set[str]) -> bool:
-    """Whether any counted size shares ``size``'s cut prefix ("pánské M" and
-    "pánské XL" share "pánské"), so a cut is listed whole once it is used."""
-    cut = size.split(" ")[0]
-    return any(s.startswith(f"{cut} ") for s in counted_sizes)
-
-
 def _write_tshirt_sheet(workbook: xlsxwriter.Workbook, building_names: list[str], people: list[CountedPerson]) -> None:
     """The "Trička" sheet: T-shirt sizes as rows, Buildings (config order) as
     columns, then a Celkem column and a total row. Counted per Building only;
-    the Unknown row is shown only when someone counted is Unknown."""
+    only sizes someone counted wears are listed (Unknown last, likewise)."""
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for person in people:
         if person.building in building_names:
             counts[(person.tshirt_size, person.building)] += 1
 
-    # The plain sizes are always listed (as before); a cut's sizes only appear
-    # once someone counted wears one.
+    # Only sizes someone counted wears get a row, so none is all zeros.
     counted_sizes = {size for size, _ in counts}
-    sizes = [
-        size
-        for size in TSHIRT_SIZES
-        if size in PLAIN_TSHIRT_SIZES or size in counted_sizes or _cut_in_use(size, counted_sizes)
-    ]
-    if any(size == UNKNOWN_TSHIRT_SIZE for size, _ in counts):
+    sizes = [size for size in TSHIRT_SIZES if size in counted_sizes]
+    if UNKNOWN_TSHIRT_SIZE in counted_sizes:
         sizes.append(UNKNOWN_TSHIRT_SIZE)
 
     ws = workbook.add_worksheet(_TSHIRT_SHEET_NAME)

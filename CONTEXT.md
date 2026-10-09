@@ -203,8 +203,8 @@ or **Unknown** when the survey answer is blank or unrecognizable (or a
 Hand-added Helper has none). The survey answer is read flexibly: case,
 diacritics, separators and word order don't matter ("Dámské - S", "XL pánské").
 Editable by hand on the Helper or Organizer. Counted per Building, by the Building the
-person is placed in, for the shirt order; a cut gets its rows in the "Trička"
-sheet only once someone wears it.
+person is placed in, for the shirt order; the "Trička" sheet has a row only for
+a size someone counted wears.
 Czech: Velikost trička (Unknown: Neznámá).
 
 **Tag**:
