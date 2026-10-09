@@ -97,7 +97,7 @@ def test_rows_put_the_leadership_slots_first_and_mark_the_organizer_rows():
 def test_a_helper_who_cannot_attend_is_not_on_the_grid_at_all(workspace):
     view = _view(workspace)
     assert 4 not in view.helpers
-    assert "Dana" not in view.helper_names
+    assert "Dana" not in {h["name"] for h in view.helpers.values()}
 
 
 def test_friend_requests_are_judged_by_shared_room_from_what_each_helper_wrote(workspace):
@@ -277,7 +277,8 @@ def test_a_leadership_slot_still_takes_more_names_once_held(workspace):
     mutations.assign_organizer(workspace, boss, "VedouciBudovy", "Karlín")
     html = render.render(_view(workspace), {})
     cell = re.search(r'<td [^>]*data-key="VedouciBudovy"[^>]*data-building="Karlín"[^>]*>', html).group(0)
-    assert "data-edit" in cell
+    assert 'data-drop="org"' in cell
+    assert "data-edit" not in html and "<datalist" not in html
     assert re.search(r'data-oid="%d"' % boss, html)
 
 
