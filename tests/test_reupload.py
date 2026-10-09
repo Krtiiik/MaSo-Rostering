@@ -550,3 +550,15 @@ def test_a_reupload_recomputes_the_friend_pair_diagnostics_without_moving_anyone
 
     assert _named(state, "Anna Nováková")["friends"] == [petr["id"]]
     assert state["diagnostics"]["unsatisfied_friend_pairs"] == [[anna["id"], petr["id"]]]
+
+
+def test_a_helpers_raw_survey_row_is_kept_and_refreshed_by_a_reupload(workspace):
+    state = _upload(workspace, _row("Anna Nováková", ANNA, buildings="Karlov"), label="2026-jaro")
+    stored = dict((r["question"], r["answer"]) for r in _named(state, "Anna Nováková")["survey_responses"])
+    assert stored[_BUILDING] == "Karlov"
+    assert stored[_EMAIL] == ANNA
+
+    state = _upload(workspace, _row("Anna Nováková", ANNA, buildings="Malá Strana"))
+
+    refreshed = dict((r["question"], r["answer"]) for r in _named(state, "Anna Nováková")["survey_responses"])
+    assert refreshed[_BUILDING] == "Malá Strana"

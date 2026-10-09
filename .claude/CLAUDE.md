@@ -195,7 +195,13 @@ pushing the tag, not just creating it locally.
   the person sheet's "Person links" tab. Links, rejections and `link_confirmed` live on the
   Helper record (so Versions roll them back) and stay put through a re-upload,
   which updates the recognized record in place. The survey's phone (`phone`
-  column mapping, `Helper.phone`) is captured for display only.
+  column mapping, `Helper.phone`) is captured for display only. So is the whole
+  survey row: `Helper.survey_responses` (`[(question, answer)]` in column order,
+  blank answers included, every column whether mapped or not; saved as
+  `survey_responses: [{question, answer}]`, absent when empty) is refreshed by a
+  re-upload with the other `_SURVEY_FIELDS` and listed in the person sheet's
+  "Odpovědi z dotazníku" tab. A duplicate-e-mail resubmission keeps only the
+  latest row's responses.
 - The roster grid (`rostering/webapp/ui/grid/`) is native to the app, with no
   npm or build step: `data.py` builds the view model from the state (pure; rows,
   merged cell groups, chip data, friend statuses, satisfaction, Broken-rule

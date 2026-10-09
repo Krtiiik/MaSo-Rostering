@@ -119,6 +119,8 @@ def helper_to_dict(h: Helper) -> dict:
     }
     if h.tags:  # a missing key means no direct Tags
         data["tags"] = list(h.tags)
+    if h.survey_responses:  # a missing key means no survey row behind this Helper
+        data["survey_responses"] = [{"question": q, "answer": a} for q, a in h.survey_responses]
     return data
 
 
@@ -151,6 +153,8 @@ def helper_from_dict(data: dict) -> Helper:
         cant_attend=bool(data.get("cant_attend", False)),
         # The Tags assigned directly; absent from Helpers never tagged.
         tags=[int(t) for t in data.get("tags") or []],
+        # Absent from workspaces saved before the raw responses were kept.
+        survey_responses=[(r["question"], r["answer"]) for r in data.get("survey_responses") or []],
     )
 
 

@@ -200,6 +200,11 @@ class Helper:
     # Ids of the Tags assigned to this Helper directly (see rostering.tags);
     # the implied ones are computed from the Tag tree, never stored here.
     tags: list[int] = field(default_factory=list)
+    # Every question of the survey export's row for this Helper with the answer
+    # as written ("" when left blank), in column order — the columns the parser
+    # understands and the ones it ignores alike. Display-only: nothing reads it
+    # but the person sheet. Empty for a Helper not read from a survey.
+    survey_responses: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass

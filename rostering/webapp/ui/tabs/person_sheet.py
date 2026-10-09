@@ -4,7 +4,8 @@ on another row switches the sheet to that person).
 
 A Helper's sheet has the tabs Details (Can't attend, every field, Save / Promote
 / Delete), Tags, Friends (the survey's friend names to match, the Friends picker
-and the friends forced into the same Room) and Person links; an Organizer's has
+and the friends forced into the same Room), Person links and the survey's raw
+responses; an Organizer's has
 Details (name, e-mail, phone, shirt size), Tags and, once their sheet was loaded,
 Answers (what they wrote on the form, read-only). Pickers save on every change. A picker is only rebuilt when
 what it shows changed elsewhere, so picking several values in a row keeps its
@@ -30,6 +31,7 @@ TAGS_TAB = "Štítky"
 FRIENDS_TAB = "Kamarádi"
 LINKS_TAB = "Propojení osob"
 ANSWERS_TAB = "Odpovědi"
+RESPONSES_TAB = "Odpovědi z dotazníku"
 
 _DISMISS_LABEL = "Nezúčastní se"
 _UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
@@ -172,7 +174,7 @@ class PersonSheet:
                     self.title = ui.label(person["name"]).classes("text-xl font-bold")
                 ui.button(icon="close", on_click=self.close).props("flat round dense")
             names = [DETAILS_TAB, TAGS_TAB] + (
-                [FRIENDS_TAB, LINKS_TAB] if self.kind == "helper" else [ANSWERS_TAB]
+                [FRIENDS_TAB, LINKS_TAB, RESPONSES_TAB] if self.kind == "helper" else [ANSWERS_TAB]
             )
             with ui.tabs(on_change=lambda e: setattr(self, "tab", e.value)).classes("w-full") as tabs:
                 for name in names:
@@ -192,6 +194,8 @@ class PersonSheet:
                         self._section(self._forced_picker, lambda: self._forced_signature())
                     with ui.tab_panel(LINKS_TAB):
                         self._section(self._links, lambda: self._links_signature())
+                    with ui.tab_panel(RESPONSES_TAB):
+                        self._section(self._responses, lambda: self._responses_signature())
 
     def _owner(self, build: Callable[[], None]) -> Optional[_Section]:
         """The section built by ``build`` (a bound method of this sheet)."""
@@ -635,6 +639,36 @@ class PersonSheet:
                 s.refresh()
 
         ui.button("Propojit s touto osobou", on_click=link_to).bind_enabled_from(target, "value", lambda v: v is not None)
+
+    # ------------------------------------------------------------------ Survey responses
+    def _responses_signature(self) -> Any:
+        person = self.person
+        return person.get("survey_responses") if person else None
+
+    def _responses(self) -> None:
+        """Every question of the Helper's survey row with the answer as written,
+        including the ones the parser does not read."""
+        helper = self.person
+        if helper is None:
+            return
+        responses = helper.get("survey_responses") or []
+        if not responses:
+            ui.label(
+                "K tomuto pomocníkovi nejsou uloženy žádné odpovědi z dotazníku (přidán ručně, nebo nahrán před "
+                "uchováváním odpovědí; opětovné nahrání exportu je doplní)."
+            ).classes("text-sm text-gray-600")
+            return
+        ui.label("Odpovědi tak, jak přišly v exportu dotazníku, včetně těch, které aplikace nečte.").classes(
+            "text-sm text-gray-600"
+        )
+        with ui.column().classes("w-full gap-0").mark("person-responses"):
+            for response in responses:
+                with ui.column().classes("w-full gap-0 py-2 border-b"):
+                    ui.label(response["question"]).classes("text-xs text-gray-500")
+                    if response["answer"]:
+                        ui.label(response["answer"]).classes("whitespace-pre-wrap break-words")
+                    else:
+                        ui.label("— bez odpovědi —").classes("text-gray-400")
 
 
 # ---------------------------------------------------------------------- add dialogs

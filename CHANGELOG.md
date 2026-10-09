@@ -20,7 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or reject, offering their earlier Tags once linked.
 - An Organizer has a phone and a T-shirt size, editable in their person sheet;
   the "Trička" export counts the Organizer in their own size instead of Unknown.
-
+- A Helper's person sheet has a new tab "Odpovědi z dotazníku" listing every
+  question of their survey row with the answer as written, including the
+  columns the app does not read. The answers are stored with the Helper on
+  upload and refreshed by a re-upload; Helpers added by hand, or uploaded before
+  this, have none until the export is uploaded again.
 - T-shirt sizes may be prefixed with a cut ("pánské M", "dámské S"). The survey
   answer is read flexibly (case, diacritics, separators and word order), plain
   sizes still work, the size can be picked by hand, and the "Trička" sheet lists

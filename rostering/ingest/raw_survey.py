@@ -91,6 +91,25 @@ def _phone_str(raw: object) -> Optional[str]:
     return _cell_str(raw)
 
 
+def _raw_answer(raw: object) -> str:
+    """One cell as it should read in the list of raw responses: blank for an
+    empty cell, a date in Czech form, a whole number without ``.0``, otherwise
+    the trimmed text."""
+    if raw is None or raw is pd.NaT or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    if isinstance(raw, datetime):  # includes pandas.Timestamp
+        return f"{raw.day}. {raw.month}. {raw.year} {raw:%H:%M:%S}"
+    if isinstance(raw, float) and raw.is_integer():
+        raw = int(raw)
+    return str(raw).strip()
+
+
+def _raw_responses(row: pd.Series) -> list[tuple[str, str]]:
+    """Every column of the row as (question, answer), in column order, whether
+    or not the parser reads it."""
+    return [(str(question).strip(), _raw_answer(value)) for question, value in row.items()]
+
+
 _ISO_DATE = re.compile(r"(\d{4})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{1,2})")
 _CZECH_DATE = re.compile(r"(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})")
 
@@ -402,6 +421,7 @@ def parse_raw_survey(path: str | Path, organizers: Sequence[Organizer] = ()) -> 
                 tshirt_size=tshirt_size,
                 email=normalize_email(_cell_str(row.get(email_col))) if email_col else None,
                 phone=_phone_str(row.get(phone_col)) if phone_col else None,
+                survey_responses=_raw_responses(row),
             )
         )
 

@@ -582,3 +582,20 @@ async def test_a_returning_organizer_is_offered_for_review_in_the_todo_panel(use
     organizer = _state(seasons)["organizers"][0]
     assert organizer["link_confirmed"] is True
     assert not mutations.get_uncertain_organizer_matches(seasons)
+
+
+async def test_the_person_sheet_lists_a_helpers_raw_survey_responses(user: User, seasons):
+    state = _state(seasons)
+    state["helpers"][0]["survey_responses"] = [
+        {"question": "Tvoje jméno a příjmení", "answer": "Anna"},
+        {"question": "Něco navíc, co aplikace nečte", "answer": "Mám rád/a koláče"},
+        {"question": "Poznámka", "answer": ""},
+    ]
+    seasons.save(state)
+    await user.open("/")  # the open page still holds the state it loaded
+    user.find(marker="helper-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    await user.should_see(marker="person-name")
+    user.find(kind=ui.tab, content="Odpovědi z dotazníku").click()
+    await user.should_see("Něco navíc, co aplikace nečte")
+    await user.should_see("Mám rád/a koláče")
+    await user.should_see("— bez odpovědi —")
