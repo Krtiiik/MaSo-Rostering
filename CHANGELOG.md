@@ -31,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lidé: the Helpers' survey export is loaded with a "Načíst pomocníky" button in
   the Helpers table header, the same as the Organizers' "Načíst organizátory",
   instead of the upload card at the top of the tab. With no Season open the tab
-  shows just that button.
+  shows just that button and "Načíst organizátory": the Organizers' sheet can now
+  create a new Season too (it asks for the label, as the sheet has no dates to
+  suggest one from).
 - Řešič: while the parameters differ from what is saved, the step tab can't be
   left (the tab strip, "Go fix" and the "Pokračovat" buttons all stay on it,
   with a warning) until you save them or press the new "Vrátit změny" button

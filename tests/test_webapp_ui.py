@@ -114,6 +114,15 @@ async def test_both_tables_load_their_sheet_with_a_header_button(user: User):
     await user.should_not_see("Soubor s odpověďmi")
 
 
+async def test_with_no_season_open_both_sheets_can_be_loaded_to_create_one(seasons):
+    mutations.new_season(seasons)
+    async with user_simulation(root=root) as user:
+        await user.open("/")
+        await user.should_see("Zatím není otevřený žádný ročník.")
+        user.find(kind=ui.button, content="Načíst pomocníky")
+        user.find(kind=ui.button, content="Načíst organizátory")
+
+
 async def test_ticking_a_helpers_cant_attend_flags_them(user: User, seasons):
     user.find(marker="helper-table").trigger("cant_attend", {"id": 1, "value": True})
     await asyncio.sleep(0.1)

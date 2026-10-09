@@ -445,7 +445,9 @@ pushing the tag, not just creating it locally.
   an Organizer and Organizer Can't attend/Tags are separate, later tickets.
 - Organizers' sheet import (`rostering/ingest/organizer_survey.py`,
   `mutations.import_organizers`, the "Organizers' survey import" section next to
-  `assign_organizer`): the Organizers' own Google Forms export, parsed through
+  `assign_organizer`; with no Season open it takes a required `label` and creates
+  the Season, as the Helpers' upload does — the sheet has no dates, so the People
+  tab asks for the label with no prefill): the Organizers' own Google Forms export, parsed through
   `mapping.ORGANIZER_FIELD_HEADER_CANDIDATES` (a file with none of the
   Organizer-only questions, the role slots and the attendance ones, is refused so a
   Helper export can't be loaded here). Per row: `phone`, `tshirt_size`

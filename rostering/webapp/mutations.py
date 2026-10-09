@@ -2038,9 +2038,15 @@ def _apply_organizer_row(record: dict, row: OrganizerRow) -> None:
     record["survey"] = dict(row.answers)
 
 
-def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str) -> dict:
+@_season_errors
+def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str, label: Optional[str] = None) -> dict:
     """Load the Organizers' survey export into the open Season (see the section
     note above); returns the new state.
+
+    With no Season open, ``label`` (required, unique among stored Seasons; the
+    sheet has no submission dates to guess one from) creates the Season the
+    Organizers are loaded into, as the Helpers' upload does; without it
+    :class:`SeasonLabelRequired` is raised and nothing is changed.
 
     A row's Organizer is recognized by e-mail or name, so a re-upload refreshes
     them in place; a new one is created, flagged Can't attend at once when the
@@ -2053,10 +2059,10 @@ def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str) ->
     Helper of the Season) and the parser's ``warnings``. Friend names still
     unresolved are matched again afterwards, as a new Organizer may be who a
     Helper meant."""
-    if workspace.open_season() is None:
-        raise RosteringError(
-            "Organizátory lze načíst jen do otevřeného ročníku: nejdřív nahrajte odpovědi pomocníků "
-            "(vytvoří ročník) nebo ročník otevřete v postranním panelu."
+    creating = workspace.open_season() is None
+    if creating and not (label or "").strip():
+        raise SeasonLabelRequired(
+            "Pro nový ročník zadejte jeho označení (rok a jaro nebo podzim, např. 2026-jaro)."
         )
     tmp_path = _write_temp(file_bytes, filename)
     try:
@@ -2108,6 +2114,9 @@ def import_organizers(workspace: Workspace, file_bytes: bytes, filename: str) ->
     _store_organizer_upload_summary(
         state, new_entries, adopted_entries, changed_entries, missing, also_helper, result.warnings
     )
+    if creating:
+        workspace.create_season(label, state)
+        return workspace.load()
     workspace.save(state)
     return state
 

@@ -135,10 +135,31 @@ def test_an_import_creates_the_organizers_with_their_fields(workspace):
     assert any("velikost trička" in w for w in summary["warnings"])
 
 
-def test_an_import_needs_an_open_season(tmp_path):
+def test_an_import_with_no_season_open_needs_a_label_and_changes_nothing(tmp_path):
     ws = Workspace(root=tmp_path / "empty")
-    with pytest.raises(mutations.RosteringError, match="otevřeného ročníku"):
+    with pytest.raises(mutations.SeasonLabelRequired, match="označení"):
         mutations.import_organizers(ws, organizer_survey_bytes(2), "organizers.xlsx")
+    assert ws.open_season() is None
+    assert ws.load()["organizers"] == []
+
+
+def test_an_import_with_no_season_open_creates_the_season(tmp_path):
+    ws = Workspace(root=tmp_path / "empty")
+    state = mutations.import_organizers(ws, organizer_survey_bytes(3, seed=7), "organizers.xlsx", label="2026-podzim")
+    assert ws.open_season()["label"] == "2026-podzim"
+    assert state["season"]["label"] == "2026-podzim"
+    assert len(state["organizers"]) == 3
+    assert state["helpers"] == []
+    assert len(Workspace(root=tmp_path / "empty").load()["organizers"]) == 3  # stored, not a draft
+
+
+def test_a_taken_label_refuses_the_import_and_creates_nothing(tmp_path):
+    ws = Workspace(root=tmp_path / "empty")
+    mutations.import_organizers(ws, organizer_survey_bytes(2, seed=7), "organizers.xlsx", label="2026-podzim")
+    mutations.new_season(ws)
+    with pytest.raises(mutations.RosteringError, match="již existuje"):
+        mutations.import_organizers(ws, organizer_survey_bytes(2, seed=7), "organizers.xlsx", label="2026-podzim")
+    assert ws.open_season() is None
 
 
 def test_a_wrong_file_is_a_rostering_error_and_changes_nothing(workspace):

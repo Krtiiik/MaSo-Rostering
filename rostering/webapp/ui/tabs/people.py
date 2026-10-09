@@ -5,8 +5,8 @@ sortable table. A click on a row opens that person's sheet beside the table
 toggled right in the row. What waits on a decision after an upload (matches to
 review, the Tag-import offer, ...) is in the "K vyřízení" panel. Each table loads
 its own sheet through the same button in its header ("Načíst pomocníky" /
-"Načíst organizátory"); the Organizers' needs an open Season, the Helpers' creates
-one when none is open (then the tab shows just that button)."""
+"Načíst organizátory"); with no Season open either one creates it (then the tab
+shows just those two buttons)."""
 from __future__ import annotations
 
 from html import escape
@@ -83,13 +83,16 @@ class PeopleTab:
 
     # ------------------------------------------------------------------ upload
     def _no_season(self) -> None:
-        """No Season is open: the only thing to do is load the Helpers' sheet,
-        which creates the Season."""
+        """No Season is open: the only thing to do is load the Helpers' or the
+        Organizers' sheet, either of which creates the Season."""
         with ui.card().classes("w-full"):
             ui.label("Zatím není otevřený žádný ročník.").classes("font-bold")
-            ui.label("Načtením odpovědí pomocníků se vytvoří nový ročník.").classes("text-sm text-gray-600")
+            ui.label("Načtením odpovědí pomocníků nebo organizátorů se vytvoří nový ročník.").classes(
+                "text-sm text-gray-600"
+            )
             with ui.row():
                 self._helper_import_button()
+                self._organizer_import_button()
 
     @staticmethod
     def _import_button(label: str, mark: str, on_upload, tooltip: str) -> None:
@@ -141,6 +144,31 @@ class PeopleTab:
             "" if suggested is not None else
             "Data odeslání v tomto exportu se nepodařilo přečíst, zadejte proto označení ročníku sami."
         )
+        await self._ask_label_and_create(
+            suggested,
+            intro,
+            lambda label: mutations.upload_responses(s.workspace, content, filename, label=label),
+            "Ročník vytvořen a odpovědi načteny.",
+        )
+
+    async def _create_season_from_organizers(self, filename: str, content: bytes) -> None:
+        """No Season is open and the Organizers' sheet is loaded: it creates the
+        Season too. That sheet carries no submission dates, so there is nothing
+        to prefill the label from."""
+        s = self.session
+        await self._ask_label_and_create(
+            None,
+            "Odpovědi organizátorů neobsahují data odeslání, zadejte proto označení ročníku sami.",
+            lambda label: mutations.import_organizers(s.workspace, content, filename, label=label),
+            "Ročník vytvořen a odpovědi organizátorů načteny.",
+        )
+
+    async def _ask_label_and_create(
+        self, suggested: Optional[str], intro: str, create, success: str
+    ) -> Optional[dict]:
+        """Ask for the new Season's label until ``create(label)`` accepts it;
+        returns the new state, or None when the user gives up."""
+        s = self.session
         while True:
             label = await dialogs.ask_text(
                 "Nový ročník",
@@ -152,9 +180,9 @@ class PeopleTab:
                 client=self.session.client,
             )
             if label is None:
-                return
+                return None
             try:
-                state = mutations.upload_responses(s.workspace, content, filename, label=label)
+                state = create(label)
             except mutations.RosteringError as exc:
                 hint = (
                     " Zvolte jiné označení, nebo tento ročník otevřete v postranním panelu a nahrajte do něj "
@@ -164,8 +192,8 @@ class PeopleTab:
                 suggested = label
                 continue
             s.workspace_replaced(state)
-            ui.notify("Ročník vytvořen a odpovědi načteny.", type="positive")
-            return
+            ui.notify(success, type="positive")
+            return state
 
     def _summary(self) -> None:
         s = self.session
@@ -257,15 +285,23 @@ class PeopleTab:
 
     def _organizer_buttons(self) -> None:
         """The Organizers table's own buttons: load their sheet, go place them."""
+        self._organizer_import_button()
+        ui.button("Přejít k zařazení", on_click=lambda: self.session.switch_tab(labels.TAB_ROSTER)).props(
+            "flat color=primary"
+        )
+
+    def _organizer_import_button(self) -> None:
         self._import_button(
             "Načíst organizátory",
             "organizers",
             self._organizers_uploaded,
-            "Nahraje export odpovědí z formuláře organizátorů (.xlsx). Opakované nahrání aktualizuje "
-            "organizátory podle jména; zařazení, štítky ani příznak Nemůže se zúčastnit nemění.",
-        )
-        ui.button("Přejít k zařazení", on_click=lambda: self.session.switch_tab(labels.TAB_ROSTER)).props(
-            "flat color=primary"
+            "Nahraje export odpovědí z formuláře organizátorů (.xlsx)."
+            + (
+                " Vytvoří se tím nový ročník."
+                if mutations.get_open_season(self.session.workspace) is None
+                else " Opakované nahrání aktualizuje organizátory podle jména; zařazení, štítky ani příznak "
+                "Nemůže se zúčastnit nemění."
+            ),
         )
 
     async def _organizers_uploaded(self, e: events.UploadEventArguments) -> None:
@@ -273,6 +309,9 @@ class PeopleTab:
         content = await e.file.read()
         filename = e.file.name
         e.sender.reset()
+        if mutations.get_open_season(s.workspace) is None:
+            await self._create_season_from_organizers(filename, content)
+            return
         notification = ui.notification("Nahrávám a zpracovávám…", spinner=True, timeout=None)
         before = mutations.unresolved_friend_count(s.state)
         try:
