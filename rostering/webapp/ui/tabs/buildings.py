@@ -226,7 +226,7 @@ class BuildingsTab:
             "Nahradí rozložení zde tabulkou „Pomocníci v místnostech“ (.xlsx): budovy a místnosti podle sloučených "
             "buněk záhlaví, počty podle barevných buněk (šedé a prázdné pomocníka nepotřebují). Načte i organizátory "
             "v rolích vedoucích (podle jména, musí už být v ročníku) a sloučené buňky, i ty přes více rolí. "
-            "Uloží se až kliknutím na Uložit konfiguraci."
+            "Po načtení se konfigurace rovnou uloží."
         )
 
     async def _uploaded(self, e: events.UploadEventArguments) -> None:
@@ -242,15 +242,19 @@ class BuildingsTab:
         self._structure_changed()
         rooms = sum(len(b["rooms"]) for b in buildings)
         leaders = len(pending["slots"])
-        ui.notify(
+        summary = (
             f"Načteno: {len(buildings)} {plural(len(buildings), 'budova', 'budovy', 'budov')}, "
             f"{rooms} {plural(rooms, 'místnost', 'místnosti', 'místností')}, "
-            f"{leaders} {plural(leaders, 'zařazení organizátora', 'zařazení organizátorů', 'zařazení organizátorů')}. "
-            "Uložte konfiguraci, aby se použilo.",
-            type="positive",
+            f"{leaders} {plural(leaders, 'zařazení organizátora', 'zařazení organizátorů', 'zařazení organizátorů')}."
         )
         for line in warnings:
             ui.notify(line, type="warning", multi_line=True)
+        # Saved at once; a declined confirmation or a refusal leaves the loaded
+        # layout as an unsaved draft.
+        if await self._put() is not None:
+            ui.notify(f"{summary} Konfigurace uložena.", type="positive")
+        else:
+            ui.notify(f"{summary} Uložte konfiguraci, aby se použilo.", type="positive")
 
     def _reset(self) -> None:
         """Replace the draft with the bundled default; nothing is saved."""
