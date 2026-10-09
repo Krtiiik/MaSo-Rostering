@@ -331,6 +331,44 @@ async def test_a_saved_cost_above_the_maximum_is_shown_at_the_top(user: User, se
     assert user.find(marker="cost-ne").elements.pop().value == MAX_ROLE_COST
 
 
+async def test_the_solver_tab_cannot_be_left_with_unsaved_changes(user: User, seasons):
+    await _go(user, labels.TAB_SOLVER)
+    user.find(marker="cost-ne").elements.pop().value = 3
+    await user.should_see(marker="unsaved")
+
+    await _go(user, labels.TAB_ROSTER)
+    await user.should_see("Máte neuložené změny")
+    await user.should_see("Ceny rolí")  # still on the Solver tab
+    assert user.find(marker="step-tabs").elements.pop().value == labels.TAB_SOLVER
+
+
+async def test_reverting_the_solver_draft_frees_the_tab_and_shows_the_saved_values(user: User, seasons):
+    await _go(user, labels.TAB_SOLVER)
+    saved = user.find(marker="cost-ne").elements.pop().value
+    user.find(marker="cost-ne").elements.pop().value = 3
+    await user.should_see(marker="unsaved")
+
+    user.find(marker="solver-revert").click()
+    await asyncio.sleep(0.2)
+    await user.should_not_see(marker="unsaved")
+    assert user.find(marker="cost-ne").elements.pop().value == saved
+
+    await _go(user, labels.TAB_ROSTER)
+    assert user.find(marker="step-tabs").elements.pop().value == labels.TAB_ROSTER
+
+
+async def test_saving_the_solver_draft_frees_the_tab(user: User, seasons):
+    await _go(user, labels.TAB_SOLVER)
+    user.find(marker="cost-ne").elements.pop().value = 3
+    await user.should_see(marker="unsaved")
+    user.find(marker="solver-save").click()
+    await asyncio.sleep(0.2)
+    assert _state(seasons)["solver_config"]["role_costs"]["ne"] == 3
+
+    await _go(user, labels.TAB_ROSTER)
+    assert user.find(marker="step-tabs").elements.pop().value == labels.TAB_ROSTER
+
+
 # ---------------------------------------------------------------------- Solve modal
 async def test_a_finished_solve_closes_its_modal_by_itself(user: User):
     with user:

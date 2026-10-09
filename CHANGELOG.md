@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the Helpers table header, the same as the Organizers' "Načíst organizátory",
   instead of the upload card at the top of the tab. With no Season open the tab
   shows just that button.
+- Řešič: while the parameters differ from what is saved, the step tab can't be
+  left (the tab strip, "Go fix" and the "Pokračovat" buttons all stay on it,
+  with a warning) until you save them or press the new "Vrátit změny" button
+  beside "Neuložené změny", which puts the saved values back.
 
 ### Added
 
