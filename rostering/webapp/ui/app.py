@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
 from rostering.webapp import labels, mutations
 from rostering.webapp.ui import dialogs, todo
@@ -159,9 +159,18 @@ async def root() -> None:
     ui.timer(0.1, lambda: _migrate_legacy(page.session), once=True)
 
 
+def _print_how_to_stop() -> None:
+    # A startup handler, so it runs in the serving process only (once, even
+    # under the reloader) and lands right under NiceGUI's "ready to go" line.
+    print("To end the app, close this terminal window (or press Ctrl+C).", flush=True)
+
+
 def run(*, host: str, port: int, show: bool, reload: bool = False, watch: Optional[Path] = None) -> None:
     """Serve the app (blocking). ``reload`` (development only, see
-    ``dev_server.py``) restarts it when a file under ``watch`` changes."""
+    ``dev_server.py``) restarts it when a file under ``watch`` changes.
+    Ctrl+C shuts the server down gracefully, after which uvicorn re-raises it
+    as ``KeyboardInterrupt``; the caller (``rostering.cli``) swallows that."""
+    app.on_startup(_print_how_to_stop)
     ui.run(
         root,
         host=host,
