@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Budovy: a "Načíst z Excelu" button reads the Buildings layout from a
+  "Pomocníci v místnostech" table (.xlsx) into the draft (saved with "Uložit
+  konfiguraci", like any edit). Buildings and Rooms come from the merged header
+  cells (a large Room is a merged or blank-continued header over two columns);
+  each Role's count is the number of coloured cells in its rows under the Room,
+  gray, white and empty cells needing nobody; a merged slot counts once, for the
+  Room it sits under or, when it spans several Rooms (the Fotograf rows), for the
+  whole Building. Names and numbers in the cells are ignored.
 - Lidé: adding an Organizer by hand or importing the Organizers' sheet now tries
   again to match every friend name still unresolved (the survey's own rules, so
   an ambiguous or unrelated name stays on the list). A name that now resolves is

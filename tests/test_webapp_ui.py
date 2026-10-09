@@ -403,6 +403,31 @@ async def test_reset_restores_the_bundled_layout_as_an_unsaved_draft(user: User,
     assert layout_key(_state(seasons)["config"]) == layout_key(CONFIG)  # only the draft changed
 
 
+async def test_loading_a_sheet_fills_the_buildings_draft_without_saving(user: User, seasons):
+    import openpyxl
+    from nicegui.elements.upload_files import SmallFileUpload
+    from openpyxl.styles import PatternFill
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["B1"], ws["B2"], ws["A3"] = "Nová budova", "X1", "Opravovatelé"
+    ws["B3"].fill = PatternFill("solid", fgColor="FFFFE599")
+    content = io.BytesIO()
+    wb.save(content)
+
+    await _go(user, labels.TAB_BUILDINGS)
+    uploader = user.find(marker="buildings-sheet-upload").elements.pop()
+    await uploader.handle_uploads([SmallFileUpload(name="rooms.xlsx", content_type="", _data=content.getvalue())])
+    await user.should_see(marker="unsaved")
+    assert [b["name"] for b in _state(seasons)["config"]] == ["Karlín", "Impakt"]  # only the draft changed
+
+    user.find(marker="buildings-save").click()
+    await user.should_not_see(marker="unsaved")
+    saved = _state(seasons)["config"]
+    assert [b["name"] for b in saved] == ["Nová budova"]
+    assert saved[0]["rooms"] == [{"name": "X1", "capacities": {"Opravovatel": {"minimum": 1}}}]
+
+
 # ---------------------------------------------------------------------- Solver
 async def test_restore_defaults_puts_the_role_costs_back(user: User, seasons):
     await _go(user, labels.TAB_SOLVER)
