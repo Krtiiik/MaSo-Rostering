@@ -412,7 +412,7 @@ async def test_reset_restores_the_bundled_layout_as_an_unsaved_draft(user: User,
     assert layout_key(_state(seasons)["config"]) == layout_key(CONFIG)  # only the draft changed
 
 
-async def test_loading_a_sheet_fills_the_buildings_draft_without_saving(user: User, seasons):
+async def test_loading_a_sheet_saves_the_layout_after_confirming(user: User, seasons):
     import openpyxl
     from nicegui.elements.upload_files import SmallFileUpload
     from openpyxl.styles import PatternFill
@@ -427,11 +427,8 @@ async def test_loading_a_sheet_fills_the_buildings_draft_without_saving(user: Us
     await _go(user, labels.TAB_BUILDINGS)
     uploader = user.find(marker="buildings-sheet-upload").elements.pop()
     await uploader.handle_uploads([SmallFileUpload(name="rooms.xlsx", content_type="", _data=content.getvalue())])
-    await user.should_see(marker="unsaved")
-    assert [b["name"] for b in _state(seasons)["config"]] == ["Karlín", "Impakt"]  # only the draft changed
-
-    user.find(marker="buildings-save").click()
     await user.should_see("Nahradit vedoucí a sloučené buňky?")  # a sheet replaces the leaders held now
+    assert [b["name"] for b in _state(seasons)["config"]] == ["Karlín", "Impakt"]  # not saved until confirmed
     user.find(marker="confirm-ok").click()
     await asyncio.sleep(0.2)
     await user.should_not_see(marker="unsaved")
@@ -457,11 +454,9 @@ async def test_saving_a_sheet_with_leaders_asks_before_replacing_the_slots(user:
     uploader = user.find(marker="buildings-sheet-upload").elements.pop()
     await uploader.handle_uploads([SmallFileUpload(name="rooms.xlsx", content_type="", _data=content.getvalue())])
     await user.should_see("není mezi organizátory")
-    await user.should_see(marker="unsaved")
+    await user.should_see("Nahradit vedoucí a sloučené buňky?")
     assert [(e["role"], e["building"]) for e in _state(seasons)["manual_roles"]["structural"]] == [("VedouciBudovy", "Karlín")]
 
-    user.find(marker="buildings-save").click()
-    await user.should_see("Nahradit vedoucí a sloučené buňky?")
     user.find(marker="confirm-ok").click()
     await asyncio.sleep(0.2)
 

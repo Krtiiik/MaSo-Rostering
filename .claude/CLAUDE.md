@@ -220,7 +220,7 @@ pushing the tag, not just creating it locally.
 - Buildings sheet import (`rostering/ingest/building_sheet.py`,
   `mutations.read_building_sheet`, the Buildings tab's "Načíst konfiguraci budov"): reads the
   hand-drawn "Pomocníci v místnostech" table into the config shape, touching
-  neither the Season nor the saved layout; the tab replaces its draft with it. Two
+  neither the Season nor the saved layout; the tab replaces its draft with it and saves it at once (`_put`, after the replace-leaders confirmation; a declined one leaves an unsaved draft). Two
   header rows above the first labelled row of column A (Buildings as merged cells,
   Rooms under them; a blank header cell continues the Room before it), Role rows
   found by label stem (`Opravovatelé`, `Měniči`, … ; other labels are ignored). A

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Budovy: "Načíst konfiguraci budov" now saves the loaded layout right away
+  (after the usual confirmation about replacing leaders and merged cells) instead
+  of leaving it as an unsaved draft.
+
 ### Added
 
 - Rozdělení: a click on an Organizer's chip in the grid (a leadership slot or the
