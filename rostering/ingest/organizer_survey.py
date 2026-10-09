@@ -105,7 +105,7 @@ def parse_organizer_survey(path: str | Path) -> OrganizerSurveyResult:
     if not any(f in columns for f in _ORGANIZER_ONLY_FIELDS):
         raise ValueError(
             "Tento soubor nevypadá jako odpovědi organizátorů (chybí otázky o rolích organizátorů a o účasti). "
-            "Odpovědi pomocníků se nahrávají na záložce Lidé v kartě Soubor s odpověďmi."
+            "Odpovědi pomocníků se nahrávají na záložce Lidé tlačítkem Načíst pomocníky."
         )
 
     df = df[df[name_col].notna() & (df[name_col].astype(str).str.strip() != "")].reset_index(drop=True)

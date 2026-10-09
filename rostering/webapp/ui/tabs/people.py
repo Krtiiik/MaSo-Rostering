@@ -1,11 +1,12 @@
-"""Tab 1: the people of the Season. Upload the raw survey export (which creates
+"""Tab 1: the people of the Season. Load the raw survey export (which creates
 the Season when none is open), then every Organizer and Helper in a searchable,
 sortable table. A click on a row opens that person's sheet beside the table
 (``person_sheet``), where everything about them is edited; Can't attend is
 toggled right in the row. What waits on a decision after an upload (matches to
-review, the Tag-import offer, ...) is in the "K vyřízení" panel. The Organizers'
-own sheet is loaded by the button of the Organizers table ("Načíst organizátory");
-it needs an open Season."""
+review, the Tag-import offer, ...) is in the "K vyřízení" panel. Each table loads
+its own sheet through the same button in its header ("Načíst pomocníky" /
+"Načíst organizátory"); the Organizers' needs an open Season, the Helpers' creates
+one when none is open (then the tab shows just that button)."""
 from __future__ import annotations
 
 from html import escape
@@ -65,8 +66,8 @@ class PeopleTab:
     def render(self) -> None:
         s = self.session
         season = mutations.get_open_season(s.workspace)
-        self._upload_card(season is None)
         if season is None:
+            self._no_season()
             return
         state = s.state
         fix = None
@@ -81,16 +82,37 @@ class PeopleTab:
             )
 
     # ------------------------------------------------------------------ upload
-    def _upload_card(self, creates_season: bool) -> None:
+    def _no_season(self) -> None:
+        """No Season is open: the only thing to do is load the Helpers' sheet,
+        which creates the Season."""
         with ui.card().classes("w-full"):
-            ui.label("Soubor s odpověďmi").classes("font-bold")
-            ui.label(
-                "Nahrajte export odpovědí z formuláře (.xlsx)."
-                + (" Vytvoří se tím nový ročník." if creates_season else " Opakované nahrání aktualizuje pomocníky.")
-            ).classes("text-sm text-gray-600")
-            ui.upload(on_upload=self._uploaded, auto_upload=True, max_files=1).props(
-                'accept=".xlsx" flat bordered label="Vybrat soubor"'
-            ).classes("w-full max-w-[28rem]")
+            ui.label("Zatím není otevřený žádný ročník.").classes("font-bold")
+            ui.label("Načtením odpovědí pomocníků se vytvoří nový ročník.").classes("text-sm text-gray-600")
+            with ui.row():
+                self._helper_import_button()
+
+    @staticmethod
+    def _import_button(label: str, mark: str, on_upload, tooltip: str) -> None:
+        """A button that opens the file picker of a hidden Quasar uploader."""
+        uploader = ui.upload(on_upload=on_upload, auto_upload=True, max_files=1).props('accept=".xlsx"').classes(
+            "hidden"
+        ).mark(f"{mark}-upload")
+        ui.button(label, icon="upload_file", on_click=lambda: uploader.run_method("pickFiles")).props(
+            "flat"
+        ).mark(f"import-{mark}").tooltip(tooltip)
+
+    def _helper_import_button(self) -> None:
+        self._import_button(
+            "Načíst pomocníky",
+            "helpers",
+            self._uploaded,
+            "Nahraje export odpovědí z formuláře pomocníků (.xlsx)."
+            + (
+                " Vytvoří se tím nový ročník."
+                if mutations.get_open_season(self.session.workspace) is None
+                else " Opakované nahrání aktualizuje pomocníky."
+            ),
+        )
 
     async def _uploaded(self, e: events.UploadEventArguments) -> None:
         s = self.session
@@ -235,15 +257,12 @@ class PeopleTab:
 
     def _organizer_buttons(self) -> None:
         """The Organizers table's own buttons: load their sheet, go place them."""
-        # The picker is Quasar's uploader, kept out of sight and opened by the button.
-        uploader = ui.upload(on_upload=self._organizers_uploaded, auto_upload=True, max_files=1).props(
-            'accept=".xlsx"'
-        ).classes("hidden").mark("organizer-upload")
-        ui.button("Načíst organizátory", icon="upload_file", on_click=lambda: uploader.run_method("pickFiles")).props(
-            "flat"
-        ).mark("import-organizers").tooltip(
+        self._import_button(
+            "Načíst organizátory",
+            "organizers",
+            self._organizers_uploaded,
             "Nahraje export odpovědí z formuláře organizátorů (.xlsx). Opakované nahrání aktualizuje "
-            "organizátory podle jména; zařazení, štítky ani příznak Nemůže se zúčastnit nemění."
+            "organizátory podle jména; zařazení, štítky ani příznak Nemůže se zúčastnit nemění.",
         )
         ui.button("Přejít k zařazení", on_click=lambda: self.session.switch_tab(labels.TAB_ROSTER)).props(
             "flat color=primary"
@@ -304,7 +323,14 @@ class PeopleTab:
             _col("cant_attend", "Nemůže se zúčastnit", align="center"),
             _col("tags", "Štítky", sortable=False),
         ]
-        self._table("helper", rows, columns, f"Pomocníci ({len(helpers)})", lambda: person_sheet.add_helper(s))
+        self._table(
+            "helper",
+            rows,
+            columns,
+            f"Pomocníci ({len(helpers)})",
+            lambda: person_sheet.add_helper(s),
+            extra=self._helper_import_button,
+        )
         ui.label(
             "Odvozené štítky (které pomocník má jen díky nadřazenému štítku) mají čárkovaný obrys. "
             "Vybavení: 💻 notebook, 📷 fotoaparát."
