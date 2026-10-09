@@ -540,8 +540,15 @@ pushing the tag, not just creating it locally.
   `solve_competition` at the Helper-to-Helper weight — satisfied by the exact
   (Building, Room) when the Organizer has a Room, by any Room of the Building at
   Building level, never when unplaced; Organizers are constants there, never
-  variables. `build_friend_pairs`, `SolveResult.*_friend_pairs`, the diagnostics
-  and the grid's friend hover stay Helper-to-Helper only. `mutations.promote_helper`
+  variables. `build_friend_pairs`, `SolveResult.*_friend_pairs` and the
+  diagnostics stay Helper-to-Helper only. The grid's Kamarádi overlay shows the
+  Organizer requests too, judged live by `grid.data.organizer_request_met` with
+  the solver's rule (`GridView.organizer_status` / `organizer_requesters`, kept
+  apart from the Helper maps because Helper and Organizer ids overlap; a request
+  naming an Organizer who can't attend is not shown): the Helper chip's
+  `data-organizer-friends`, the Organizer chip's `data-requesters`, the hover in
+  `roster_grid.js`, the "(organizátor)" lines in the details card, and an unmet
+  one counts for the unsatisfied marker. `mutations.promote_helper`
   (confirmation like Can't attend when the Helper has an Assignment or Manual
   role entries) creates the Organizer (Person link with `link_confirmed` /
   `rejected_person_ids`, name, e-mail, `tags`), removes the Helper, and re-points

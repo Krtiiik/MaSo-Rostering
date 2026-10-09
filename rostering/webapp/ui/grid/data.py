@@ -268,6 +268,11 @@ class GridView:
     dimmed_helper_ids: set[int] = field(default_factory=set)
     friend_status: dict[int, dict[int, bool]] = field(default_factory=dict)  # who THEY named -> co-located?
     requesters: dict[int, list[int]] = field(default_factory=dict)  # who named THEM
+    # The same for requests toward an Organizer: helper id -> {organizer id -> met?}
+    # and organizer id -> the Helpers who named them. Organizer ids and Helper ids
+    # are separate id spaces, hence the separate maps.
+    organizer_status: dict[int, dict[int, bool]] = field(default_factory=dict)
+    organizer_requesters: dict[int, list[int]] = field(default_factory=dict)
 
     @property
     def friends_on(self) -> bool:
@@ -278,8 +283,13 @@ class GridView:
         return TAGS_OVERLAY in self.overlays
 
     def unsatisfied(self, helper_id: int) -> bool:
-        """A Helper with at least one friend they named not in their Room."""
-        return any(not ok for ok in self.friend_status.get(helper_id, {}).values())
+        """A Helper with at least one friend (Helper or Organizer) they named not
+        in their Room."""
+        return any(
+            not ok
+            for status in (self.friend_status, self.organizer_status)
+            for ok in status.get(helper_id, {}).values()
+        )
 
     def role_fit(self, helper_id: int) -> Optional[bool]:
         placed = self.assignments.get(helper_id)
@@ -295,11 +305,24 @@ class GridView:
         return placed["building"] in self.helpers[helper_id]["acceptable_buildings"]
 
 
+def organizer_request_met(organizer: dict, placed: Optional[dict]) -> bool:
+    """Whether a Helper's request to be with ``organizer`` is met, judged like the
+    solver does: by sharing the Organizer's Room when they hold one, by sharing
+    their Building when they are placed at Building level only, never while the
+    Organizer is unplaced (or the Helper is)."""
+    if placed is None or not organizer.get("building"):
+        return False
+    if organizer.get("room"):
+        return (placed["building"], placed["room"]) == (organizer["building"], organizer["room"])
+    return placed["building"] == organizer["building"]
+
+
 def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int], filter_mode: str) -> GridView:
     """The grid as it stands. Helpers flagged Can't attend are not on it at all
     (not in a cell, not in the Nezařazení pool, not in the name suggestions), and a
-    friend request naming one is not shown. The grid draws Helper-to-Helper
-    requests only; one toward an Organizer is not shown."""
+    friend request naming one is not shown. A request toward an attending
+    Organizer is shown too (``organizer_status``); one toward an Organizer who
+    can't attend is not, as the solver does not score it."""
     overlays = [key for key in OVERLAYS if key in overlays]
     if TAGS_OVERLAY not in overlays:
         filter_tags = []  # with Tags off the filter dims no one
@@ -315,6 +338,7 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
         organizer_broken.setdefault(mark["organizer_id"], []).append(mark["line"])
     dimmed_organizers = mutations.dimmed_organizer_ids(state, list(filter_tags), filter_mode)
     organizer_pills = mutations.organizer_tag_pills(state)
+    attending_organizers = {o["id"]: o for o in state["organizers"] if not o.get("cant_attend")}
 
     helpers = {
         h["id"]: {
@@ -331,6 +355,13 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
             "friends": [
                 f for f in h["friends"] if isinstance(f, int) and f in attending_ids and f != h["id"]
             ],
+            "organizer_friends": list(
+                dict.fromkeys(
+                    f["organizer_id"]
+                    for f in h["friends"]
+                    if isinstance(f, dict) and f.get("organizer_id") in attending_organizers
+                )
+            ),
         }
         for h in attending
     }
@@ -346,6 +377,15 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
         for friend_id in h["friends"]:
             friend_status.setdefault(h["id"], {})[friend_id] = same_room(h["id"], friend_id)
             requesters.setdefault(friend_id, []).append(h["id"])
+
+    organizer_status: dict[int, dict[int, bool]] = {}
+    organizer_requesters: dict[int, list[int]] = {}
+    for h in helpers.values():
+        for organizer_id in h["organizer_friends"]:
+            organizer_status.setdefault(h["id"], {})[organizer_id] = organizer_request_met(
+                attending_organizers[organizer_id], assignments.get(h["id"])
+            )
+            organizer_requesters.setdefault(organizer_id, []).append(h["id"])
 
     broken_cells: dict[tuple, list[str]] = {}
     broken_rooms: dict[tuple, list[str]] = {}
@@ -376,6 +416,8 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
         dimmed_helper_ids=set(mutations.dimmed_helper_ids(state, list(filter_tags), filter_mode)) & set(helpers),
         friend_status=friend_status,
         requesters=requesters,
+        organizer_status=organizer_status,
+        organizer_requesters=organizer_requesters,
     )
 
 
@@ -387,7 +429,9 @@ def card_data(view: GridView, helper_id: int) -> Optional[dict]:
     if h is None:
         return None
     names = {i: x["name"] for i, x in view.helpers.items()}
+    organizer_names = {o["id"]: f"{o['name']} (organizátor)" for o in view.organizers}
     status = view.friend_status.get(helper_id, {})
+    organizer_status = view.organizer_status.get(helper_id, {})
     placed = view.assignments.get(helper_id)
     return {
         "name": h["name"],
@@ -397,7 +441,9 @@ def card_data(view: GridView, helper_id: int) -> Optional[dict]:
         "roles": [
             (ROLE_LABELS[role], h["role_preferences"].get(role)) for role in ROLE_ORDER if role != RESERVE_ROLE
         ],
-        "shared": [names[f] for f, ok in status.items() if ok],
-        "different": [names[f] for f, ok in status.items() if not ok],
+        "shared": [names[f] for f, ok in status.items() if ok]
+        + [organizer_names[o] for o, ok in organizer_status.items() if ok],
+        "different": [names[f] for f, ok in status.items() if not ok]
+        + [organizer_names[o] for o, ok in organizer_status.items() if not ok],
         "requested_by": [names[r] for r in view.requesters.get(helper_id, [])],
     }

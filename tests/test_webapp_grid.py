@@ -110,6 +110,78 @@ def test_friend_requests_are_judged_by_shared_room_from_what_each_helper_wrote(w
     assert view.requesters[3] == [1]
 
 
+def _name_organizers(workspace, **placements):
+    """Anna names each Organizer; ``placements`` maps a name to (building, room)."""
+    ids = {}
+    for name, (building, room) in placements.items():
+        organizer_id = mutations.add_organizer(workspace, name)["organizers"][-1]["id"]
+        ids[name] = organizer_id
+        if building is not None:
+            key = "VedouciMistnosti" if room else "VedouciBudovy"
+            mutations.assign_organizer(workspace, organizer_id, key, building, room)
+    state = mutations.get_state(workspace)
+    next(h for h in state["helpers"] if h["id"] == 1)["friends"].extend({"organizer_id": i} for i in ids.values())
+    workspace.save(state)
+    return ids
+
+
+def test_a_request_toward_an_organizer_is_met_by_their_room_or_building(workspace):
+    # Anna sits in Karlín K1.
+    ids = _name_organizers(
+        workspace,
+        SameRoom=("Karlín", "K1"),
+        OtherRoom=("Karlín", "K2"),
+        SameBuilding=("Karlín", None),
+        OtherBuilding=("Troja", None),
+        Unplaced=(None, None),
+    )
+    view = _view(workspace)
+
+    assert view.organizer_status[1] == {
+        ids["SameRoom"]: True,
+        ids["OtherRoom"]: False,
+        ids["SameBuilding"]: True,
+        ids["OtherBuilding"]: False,
+        ids["Unplaced"]: False,
+    }
+    assert view.unsatisfied(1)
+    assert view.organizer_requesters[ids["SameRoom"]] == [1]
+    # The Helper-to-Helper maps are untouched, so ids of the two kinds never mix.
+    assert view.friend_status[1] == {2: True, 3: False}
+
+
+def test_an_organizer_who_cannot_attend_or_is_met_makes_no_unsatisfied_mark(workspace):
+    ids = _name_organizers(workspace, Met=("Karlín", "K1"), Away=("Troja", None))
+    mutations.set_organizer_cant_attend(workspace, ids["Away"], True, confirmed=True)
+    state = mutations.get_state(workspace)
+    state["helpers"][0]["friends"] = [{"organizer_id": ids["Met"]}, {"organizer_id": ids["Away"]}]
+    workspace.save(state)
+
+    view = _view(workspace)
+
+    assert view.organizer_status[1] == {ids["Met"]: True}
+    assert not view.unsatisfied(1)
+
+
+def test_the_card_lists_organizers_among_the_friends_by_where_they_are(workspace):
+    _name_organizers(workspace, Near=("Karlín", "K1"), Far=("Troja", None))
+
+    card = data.card_data(_view(workspace), 1)
+
+    assert card["shared"] == ["Bára", "Near (organizátor)"]
+    assert card["different"] == ["Cyril", "Far (organizátor)"]
+
+
+def test_the_html_wires_organizer_requests_into_the_chips(workspace):
+    ids = _name_organizers(workspace, Near=("Karlín", "K1"), Far=("Troja", None))
+    html = render.render(_view(workspace), {})
+
+    anna = re.search(r'<div [^>]*data-hid="1"[^>]*>', html).group(0)
+    assert f'data-organizer-friends="{ids["Near"]}:1,{ids["Far"]}:0"' in anna
+    near = re.search(r'<span [^>]*data-oid="%d"[^>]*>' % ids["Near"], html).group(0)
+    assert 'data-requesters="1"' in near
+
+
 def test_satisfaction_borders_follow_the_answers_only_with_their_overlay_on(workspace):
     off = _view(workspace)
     assert off.role_fit(1) is None and off.building_fit(1) is None

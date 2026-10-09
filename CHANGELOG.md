@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Roster grid: the Kamarádi overlay now shows a Helper's request to be with an
+  Organizer, which the solver already scored. Hovering the Helper outlines the
+  Organizer's chip (green: same Room, or same Building for an Organizer placed
+  at Building level; red: not, or not placed), hovering the Organizer outlines
+  in purple the Helpers who asked for them, an unmet request gives the Helper
+  the orange unsatisfied marker, and the details card lists the Organizer among
+  the friends with "(organizátor)". A request naming an Organizer who can't
+  attend is left out, as the solver leaves it out.
+
 ### Changed
 
 - Roster grid: every Organizer role cell (Vedoucí budovy, Pravá ruka, Vedoucí

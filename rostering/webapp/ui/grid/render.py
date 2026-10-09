@@ -118,6 +118,7 @@ def helper_chip(view: GridView, helper_id: int) -> str:
         ]
     )
     friends = ",".join(f"{f}:{int(ok)}" for f, ok in view.friend_status.get(helper_id, {}).items())
+    organizer_friends = ",".join(f"{o}:{int(ok)}" for o, ok in view.organizer_status.get(helper_id, {}).items())
     attrs = _attrs(
         class_=" ".join(classes),
         draggable="true",
@@ -128,6 +129,7 @@ def helper_chip(view: GridView, helper_id: int) -> str:
         data_room=placed["room"] if placed else None,
         data_locked="1" if locked else None,
         data_friends=friends or None,
+        data_organizer_friends=organizer_friends or None,
         data_requesters=",".join(map(str, view.requesters.get(helper_id, []))) or None,
         style=stripes,
         title=title,
@@ -168,6 +170,7 @@ def organizer_chip(view: GridView, organizer: dict, source: Optional[dict], remo
         data_kind="organizer",
         data_oid=organizer["id"],
         data_source=json.dumps(source) if source else None,
+        data_requesters=",".join(map(str, view.organizer_requesters.get(organizer["id"], []))) or None,
         style=stripes,
         title=_title([*broken, (tag_title(organizer.get("tags")) or "") if view.tags_on else ""]),
     )
@@ -413,9 +416,15 @@ CSS = """
 .roster-grid-root .helper-chip.chip-dimmed:hover, .roster-grid-root .manual-chip.chip-dimmed:hover { opacity: 1; }
 .roster-grid-root .helper-chip.dragging, .roster-grid-root .organizer-chip.dragging { opacity: .5; }
 .roster-grid-root .helper-chip.unsatisfied { border-color: #e0a800; background: #fff6e0; }
-.roster-grid-root .helper-chip.friend-highlight-satisfied { outline: 2px solid #21c354; outline-offset: 1px; }
-.roster-grid-root .helper-chip.friend-highlight-unsatisfied { outline: 2px solid #dc3545; outline-offset: 1px; }
-.roster-grid-root .helper-chip.friend-highlight-requester { outline: 2px solid #9c27b0; outline-offset: 1px; }
+.roster-grid-root .helper-chip.friend-highlight-satisfied, .roster-grid-root .organizer-chip.friend-highlight-satisfied {
+  outline: 2px solid #21c354; outline-offset: 1px;
+}
+.roster-grid-root .helper-chip.friend-highlight-unsatisfied, .roster-grid-root .organizer-chip.friend-highlight-unsatisfied {
+  outline: 2px solid #dc3545; outline-offset: 1px;
+}
+.roster-grid-root .helper-chip.friend-highlight-requester, .roster-grid-root .organizer-chip.friend-highlight-requester {
+  outline: 2px solid #9c27b0; outline-offset: 1px;
+}
 .roster-grid-root .helper-chip.role-fit-ok, .roster-grid-root .helper-chip.role-fit-bad {
   border-left-width: 4px; padding-left: 3px;
 }
