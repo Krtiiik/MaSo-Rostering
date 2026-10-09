@@ -1,6 +1,6 @@
 ---
 name: merge-session-branches
-description: Merge unmerged session branches (claude/*, formerly worktree-bridge-*) into main, resolve conflicts (including semantic conflicts between diverged Streamlit/frontend features), rebuild the assignment-grid frontend bundle, and verify with pytest. Use when asked to "merge the session/worktree branch(es)", "merge the latest branch/session", or "merge <feature-name> into main".
+description: Merge unmerged session branches (claude/*, formerly worktree-bridge-*) into main, resolve conflicts (including semantic conflicts between diverged web-app features), and verify with pytest. Use when asked to "merge the session/worktree branch(es)", "merge the latest branch/session", or "merge <feature-name> into main".
 ---
 
 # Merge session branches
@@ -53,25 +53,9 @@ names the model running now); don't copy one from an earlier commit.
 Three outcomes:
 
 - **Fast-forward / clean merge** — done, skip to step 4.
-- **Conflicts, all in generated build artifacts** — skip to step 3.
 - **Conflicts in source** — read on.
 
 ## 3. Resolve conflicts
-
-### Build artifacts: never hand-merge, always rebuild
-
-`components/rostering-assignment-grid/rostering_assignment_grid/frontend/build/index-*.js`
-and `index-_hash_.css` are compiled output with a content hash in the
-filename. A conflict here (often `rename/delete` or `modify/delete`, since
-the hash changes every build) is noise, not a real conflict. Don't touch
-these files: `npm run build` (step 4) empties `build/` and writes a fresh
-bundle, and `git add -A` on the build folder then stages the new files and
-the removal of every stale one, conflicted or not. (Deleting them by hand
-is also blocked: the user's `block-irreversible-fs.sh` hook rejects any
-Bash command containing the word `rm`, even inside a grep pattern or a
-heredoc — use Read/Edit for files whose text contains it.)
-
-Rebuild after resolving *source* conflicts (step below), not before.
 
 ### CHANGELOG.md
 
@@ -106,19 +90,14 @@ Before resolving each hunk:
 4. Remove anything that becomes unused as a result (dead imports, unused
    props/params) rather than leaving it as dead weight.
 
-## 4. Rebuild the frontend (only if frontend/*.ts, *.tsx, or *.css changed)
+## 4. Check the roster grid's two halves agree
 
-```bash
-cd components/rostering-assignment-grid/rostering_assignment_grid/frontend
-npm install   # only needed if package.json changed
-npm run build # runs clean -> tsc --noEmit -> vite build
-```
-
-A clean typecheck + build here is strong evidence the semantic merge in
-step 3 was correct — a dangling reference to a removed prop/variable fails
-`tsc --noEmit` immediately. Stage the result with
-`git add -A components/rostering-assignment-grid/rostering_assignment_grid/frontend/build`,
-which picks up the new `index-*.js` and the deletion of the old ones.
+The web app has no build step: the roster grid's browser half
+(`rostering/webapp/ui/grid/roster_grid.js`) is served as is. If the merge
+touched `rostering/webapp/ui/grid/`, check that every `data-*` attribute and
+event name `render.py` / the Roster tab use still matches what
+`roster_grid.js` reads and emits — `tests/test_webapp_grid.py` covers the HTML,
+`tests/test_webapp_ui.py` the events.
 
 ## 5. Verify and commit
 

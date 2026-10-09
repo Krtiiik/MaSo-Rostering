@@ -36,8 +36,7 @@ If the user's prompt narrows or widens any of this, their prompt wins.
    issue, read `CONTEXT.md` + `.claude/CLAUDE.md` first, test-first with the
    `mattpocock-skills:tdd` skill, `CHANGELOG.md` entry under
    `## [Unreleased]` for user-facing changes, full pytest suite green,
-   rebuild the grid bundle if `components/rostering-assignment-grid/`
-   changed, Conventional Commit referencing the issue, never merge/push/touch
+   Conventional Commit referencing the issue, never merge/push/touch
    issues, never use `data/`, stop and report instead of guessing or doing
    anything irreversible) and commit it as
    `chore: add issue-implementer agent definition`.
@@ -98,16 +97,12 @@ if its branch has no commits beyond `main`
 From the primary checkout on `main`, note `PRE=$(git rev-parse HEAD)`, then
 `git merge --no-ff <branch> -m "Merge branch '<branch>' into main (#<n>)"`.
 The `merge-session-branches` skill covers conflict resolution (including
-semantic conflicts between diverged Streamlit/frontend features) and the
-bundle rebuild; load it when there are conflicts or frontend changes. Its
+semantic conflicts between diverged web-app features); load it when there
+are conflicts. Its
 branch-listing script looks for `worktree-bridge-*`, while implementer
 branches are named `worktree-agent-*`, so use its merge guidance, not its
 branch discovery.
 
-- If the merge touched `components/rostering-assignment-grid/` (or resolved
-  conflicts there), rebuild the checked-in bundle (`npm run build` in
-  `components/rostering-assignment-grid/rostering_assignment_grid/frontend`)
-  and commit the rebuilt bundle if it changed.
 - Run the full suite on `main`: `E:\Code\.venvs\rostering\Scripts\python.exe -m pytest -q`.
 
 Resolve conflicts only when the right answer is clear from both sides'
@@ -135,8 +130,8 @@ Then go back to step 1.
 
 ### 6. Failure: undo, report, skip
 
-Covers an implementer that bailed, a merge you couldn't resolve, a failed
-bundle build, and red tests.
+Covers an implementer that bailed, a merge you couldn't resolve and red
+tests.
 
 1. Get `main` back to green without rewriting anything pushed:
    - Merge in progress: `git merge --abort`.

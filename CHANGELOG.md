@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The web app is rebuilt on [NiceGUI](https://nicegui.io) instead of
+  Streamlit. Every feature stays; nothing waits on a page rerun any more, so
+  clicks and drags respond at once. `rostering serve` now opens
+  http://127.0.0.1:8000.
+- A new "K vyřízení" (to-do) panel behind the checklist button in the header
+  collects everything that waits on a decision: possible returning helpers to
+  link, typed role names that match a helper, the Tag-import offer, the "apply
+  their Tags?" prompt, what the last re-upload changed, and the stale/unplaced
+  warnings. It used to stack up at the top of the People tab. A badge on the
+  button shows how many items wait.
+- People tab: Organizers and Helpers are real tables with search and sorting,
+  with Can't attend ticked right in the row. A click on a row opens the
+  person's details in a panel beside the table instead of a popup, so the
+  table stays in view and another row can be opened straight away.
+- Seasons and Versions are in a collapsible left drawer; Start over is in the
+  header's ⋮ menu.
+- Roster tab: Solve, Place new registrants, Export and the lock controls sit
+  in a toolbar that stays at the top while you scroll the grid. The Overlays
+  are chips, and the broken rules open in a side panel from a badge instead of
+  pushing the grid down.
+- Buildings and Solver tabs: the save buttons stay at the bottom of the
+  screen, and both show "Neuložené změny" while the form differs from what is
+  saved.
+- Deleting a Version, dissolving a Forced friends group, unlinking a person
+  and deleting a person now ask first.
+
+### Removed
+
+- The Streamlit app and the separately installed grid component
+  (`components/rostering-assignment-grid/`). Setup is now a single
+  `pip install -e ".[dev]"`, with no Node/npm step.
+
 ## [2.1.0] - 2026-10-07
 
 ### Changed

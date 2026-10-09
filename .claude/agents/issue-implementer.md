@@ -20,7 +20,7 @@ You implement exactly ONE GitHub issue from `Krtiiik/MaSo-Rostering`, identified
 - Match the surrounding code's style, naming and comment density. Don't refactor unrelated code.
 - Add an entry under `## [Unreleased]` in `CHANGELOG.md` (Keep a Changelog format) for every user-facing change, in the same commit. Do NOT bump the version anywhere.
 - Run the **full** pytest suite before committing and make sure it is green.
-- If you changed the frontend component (`components/rostering-assignment-grid/`), rebuild its checked-in bundle (`npm run build` in its `rostering_assignment_grid/frontend` directory) and include the rebuilt bundle in your commit.
+- The web app is NiceGUI (`rostering/webapp/ui/`, see `.claude/CLAUDE.md`); it has no build step. A UI change gets a test in `tests/test_webapp_ui.py` (NiceGUI user simulation) or, for the roster grid's view model, `tests/test_webapp_grid.py`.
 - Update `CONTEXT.md` / `.claude/CLAUDE.md` only if the issue's decisions genuinely require it (e.g. a "planned, not yet implemented" note that is now implemented).
 - Commit on your worktree branch with a Conventional Commits message that references the issue, e.g. `feat: add T-shirt size parsing (#28)`. Several logical commits are fine.
 
@@ -33,4 +33,4 @@ You implement exactly ONE GitHub issue from `Krtiiik/MaSo-Rostering`, identified
 
 ## Final report
 
-End with a short report: what you implemented, the commit hash(es) and branch name, test results (counts), whether the frontend bundle was rebuilt, any conservative interpretation choices, and anything skipped or left open.
+End with a short report: what you implemented, the commit hash(es) and branch name, test results (counts), any conservative interpretation choices, and anything skipped or left open.

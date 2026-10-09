@@ -18,6 +18,7 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | 6. Roster | 6. Rozdělení pomocníků |
 | Seasons (sidebar) | Ročníky |
 | Versions (sidebar) | Verze |
+| To-do panel (header button: what waits on a decision) | K vyřízení |
 | Organizers (list) | Organizátoři |
 | Person links | Propojení osob |
 | Possible returning helpers | Možní vracející se pomocníci |
