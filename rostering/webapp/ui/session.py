@@ -67,6 +67,9 @@ class UiSession:
         self.state: dict[str, Any] = self.workspace.load()
         self.view = SeasonView()
         self.active_tab: str = labels.TABS[0]
+        # Step label -> "does it hold unsaved changes?"; a step with a guard that
+        # says yes can't be left by :meth:`switch_tab`.
+        self.leave_guards: dict[str, Callable[[], bool]] = {}
         self._listeners: list[Callable[[], None]] = []
         self._refresh_pending = False
 
@@ -117,9 +120,19 @@ class UiSession:
             self.active_tab = labels.TABS[0]
         self.apply(new_state)
 
-    def switch_tab(self, tab: str) -> None:
+    def switch_tab(self, tab: str) -> bool:
+        """Show another step. Refused (returns False, with a notification) while
+        the current step holds unsaved changes (see ``leave_guards``)."""
+        if tab != self.active_tab:
+            guard = self.leave_guards.get(self.active_tab)
+            if guard is not None and guard():
+                ui.notify(
+                    "Máte neuložené změny. Nejdřív je uložte, nebo je vraťte zpět.", type="warning", multi_line=True
+                )
+                return False
         self.active_tab = tab
         self.refresh()
+        return True
 
     # ------------------------------------------------------------------ actions
     async def act(

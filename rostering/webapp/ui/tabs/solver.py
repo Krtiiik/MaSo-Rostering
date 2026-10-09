@@ -1,6 +1,8 @@
 """Tab 5: the solver's parameters — the weights, the Role cost table, the time
 limit and how friend requests are scored. Edited as a draft on the session until
-saved (Save, or Save & solve), with an "unsaved changes" chip."""
+saved (Save, or Save & solve), with an "unsaved changes" chip and a button that
+throws the draft away. The step can't be left while the draft differs from the
+saved parameters (``UiSession.leave_guards``)."""
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -9,7 +11,7 @@ from nicegui import ui
 
 from rostering.persistence.serialize import solver_config_from_dict, solver_config_to_dict
 from rostering.solver.model import MAX_ROLE_COST, SolverConfig
-from rostering.webapp import mutations
+from rostering.webapp import labels, mutations
 from rostering.webapp.ui import solving
 from rostering.webapp.ui.session import UiSession
 
@@ -38,6 +40,7 @@ def _normalized(config: dict) -> dict:
 class SolverTab:
     def __init__(self, session: UiSession) -> None:
         self.session = session
+        session.leave_guards[labels.TAB_SOLVER] = self.has_unsaved_changes
 
     @property
     def draft(self) -> dict:
@@ -45,6 +48,11 @@ class SolverTab:
         if view.solver_draft is None:
             view.solver_draft = _normalized(self.session.state["solver_config"])
         return view.solver_draft
+
+    def has_unsaved_changes(self) -> bool:
+        """Whether the drafted parameters differ from what the open Season has saved."""
+        draft = self.session.view.solver_draft
+        return draft is not None and _normalized(draft) != _normalized(self.session.state["solver_config"])
 
     def render(self) -> None:
         draft = self.draft
@@ -134,13 +142,21 @@ class SolverTab:
     # ------------------------------------------------------------------ footer
     @ui.refreshable_method
     def _unsaved(self) -> None:
-        if _normalized(self.draft) != _normalized(self.session.state["solver_config"]):
-            ui.chip("Neuložené změny", icon="warning", color="warning").props("outline").mark("unsaved")
+        if self.has_unsaved_changes():
+            ui.chip("Neuložené změny", icon="warning", color="warning").props("outline").mark("unsaved").tooltip(
+                "Dokud změny neuložíte nebo nevrátíte zpět, nelze přejít na jiný krok."
+            )
+            ui.button("Vrátit změny", icon="undo", on_click=self._revert).props("flat dense").mark("solver-revert")
+
+    def _revert(self) -> None:
+        """Throw the draft away; the form shows what the Season has saved."""
+        self.session.view.solver_draft = None
+        self.session.refresh()
 
     def _footer(self) -> None:
         s = self.session
         with ui.row().classes("sticky bottom-0 w-full items-center gap-2 bg-white border-t py-2 z-10"):
-            ui.button("Uložit parametry", on_click=self._save).props("outline")
+            ui.button("Uložit parametry", on_click=self._save).props("outline").mark("solver-save")
             solve = ui.button("Uložit a sestavit rozdělení", on_click=self._save_and_solve).props("color=primary")
             if not s.state["helpers"]:
                 solve.disable()

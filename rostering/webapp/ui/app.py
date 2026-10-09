@@ -115,8 +115,8 @@ class Page:
         self._update_header()
 
     def _tab_clicked(self, e) -> None:
-        if e.value and e.value != self.session.active_tab:
-            self.session.switch_tab(e.value)
+        if e.value and e.value != self.session.active_tab and not self.session.switch_tab(e.value):
+            self.tab_strip.value = self.session.active_tab  # refused: the strip goes back
 
     def _update_header(self) -> None:
         s = self.session
