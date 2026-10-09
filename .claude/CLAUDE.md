@@ -833,6 +833,13 @@ pushing the tag, not just creating it locally.
   removing one from a Helper only widens, so is not checked. Read-side
   helpers: `mutations.helper_allowed` and `tag_constraint_entries` (which
   flags `in_season`).
+- Merged cells and the solver: sideways merges (`state["cell_merges"]`) are
+  presentational, but `Competition.cell_merges` hands them to `solve_competition`,
+  whose balance term spreads a *Building-wide* role count (`Building.capacities`) over
+  the cells that role's row is merged into (`group_adjacent_rooms`; ceiling of
+  count / cells is the even share, each person above it costs `GROUP_BALANCE_WEIGHT`).
+  Soft, in the ordinary objective (below every rule); a role with no merge in that
+  Building, or with per-Room counts, is untouched.
 - The solver's role scope is fixed at the 6 roles (see `CONTEXT.md`); the
   Organizer/Additional roles are deliberately out of solver scope, entered
   manually as extra rows inside the same drag-and-drop grid

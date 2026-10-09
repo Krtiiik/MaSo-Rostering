@@ -241,6 +241,11 @@ class Competition:
     # The Season's Forced friends groups (see rostering.forced_friends); their
     # members are Persons, resolved against the Helpers by ``person_id``.
     forced_groups: list["ForcedGroup"] = field(default_factory=list)
+    # The roster grid's sideways merges, ``{role name: {building: [[room, next
+    # room], ...]}}`` (see ``group_adjacent_rooms``). Presentational, but the
+    # solver reads them to spread a Building-wide role count over the merged
+    # cells instead of piling it into one.
+    cell_merges: dict[str, dict[str, list[list[str]]]] = field(default_factory=dict)
 
     def attending(self) -> "Competition":
         """This Competition without the Helpers flagged Can't attend: the one
@@ -254,6 +259,7 @@ class Competition:
             tags=self.tags,
             organizers=[o for o in self.organizers if not o.cant_attend],
             forced_groups=self.forced_groups,
+            cell_merges=self.cell_merges,
         )
 
 

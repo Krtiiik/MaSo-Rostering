@@ -412,3 +412,83 @@ def test_ne_is_never_chosen_over_spise_ne_or_zaloha_when_cheaper_exists():
 
     assert _role_of(result, 1) == Role.Zaloha
     assert _role_of(result, 2) == Role.Opravovatel
+
+
+# ---- Spreading a Building's role count over its merged cells ----
+
+
+def _four_room_building(role_name, count):
+    rooms = [_room(f"R{i}") for i in range(1, 5)]
+    caps = {Role.Zaloha: RoleCapacity(0), Role[role_name]: RoleCapacity(count)}
+    return Building(name="B", rooms=rooms, capacities=caps)
+
+
+def _photographers(n, friends=False):
+    helpers = [
+        Helper(id=i, name=f"F{i}", role_preferences={Role.Fotograf: Preference.Ano}, can_bring_camera=True)
+        for i in range(1, n + 1)
+    ]
+    if friends:  # a chain of friends pulls the photographers into one room
+        for a, b in zip(helpers, helpers[1:]):
+            a.friends.append(b.id)
+            b.friends.append(a.id)
+    return helpers
+
+
+def _fotograf_rooms(result):
+    return sorted(a.room for a in result.assignments if a.role == Role.Fotograf)
+
+
+def test_a_building_count_is_spread_over_merged_cells_one_each():
+    building = _four_room_building("Fotograf", 2)
+    comp = Competition(
+        buildings={"B": building},
+        helpers=_photographers(2, friends=True),
+        cell_merges={"Fotograf": {"B": [["R1", "R2"], ["R3", "R4"]]}},
+    )
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
+
+    rooms = _fotograf_rooms(result)
+    assert len(rooms) == 2
+    assert sum(r in ("R1", "R2") for r in rooms) == 1
+    assert sum(r in ("R3", "R4") for r in rooms) == 1
+
+
+def test_an_uneven_count_leaves_at_most_one_extra_in_a_cell():
+    building = _four_room_building("Fotograf", 3)
+    comp = Competition(
+        buildings={"B": building},
+        helpers=_photographers(3, friends=True),
+        cell_merges={"Fotograf": {"B": [["R1", "R2"], ["R3", "R4"]]}},
+    )
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
+
+    rooms = _fotograf_rooms(result)
+    in_first = sum(r in ("R1", "R2") for r in rooms)
+    assert in_first in (1, 2) and len(rooms) == 3
+
+
+def test_only_the_merges_of_that_role_spread_it():
+    # Merging another row changes nothing for Fotograf: the friends stay together.
+    building = _four_room_building("Fotograf", 2)
+    comp = Competition(
+        buildings={"B": building},
+        helpers=_photographers(2, friends=True),
+        cell_merges={"Skenovac": {"B": [["R1", "R2"], ["R3", "R4"]]}},
+    )
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=5))
+
+    assert len(set(_fotograf_rooms(result))) == 1
+
+
+def test_the_app_hands_the_grids_merges_to_the_solver():
+    from rostering.webapp import mutations
+
+    merges = {"Fotograf": {"B": [["R1", "R2"]]}}
+    comp = mutations._build_competition({"config": [], "helpers": [], "cell_merges": merges})
+
+    assert comp.cell_merges == merges
+    assert comp.attending().cell_merges == merges
