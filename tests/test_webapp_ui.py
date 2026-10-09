@@ -440,6 +440,22 @@ async def test_the_details_card_opens_and_closes_on_the_same_chip(user: User, se
     await user.should_not_see("Preference rolí")
 
 
+async def test_the_details_card_shows_tags_and_edits_in_the_person_sheet(user: User, seasons):
+    tag_id = _state(seasons)["tags"][0]["id"]
+    mutations.add_tag_to_helpers(seasons, tag_id, [1])
+    grid = await _roster(user, seasons)
+    grid.trigger("card", {"helper_id": 1, "x": 10, "y": 10, "width": 1000, "height": 800})
+    await user.should_see("Štítky")
+    await user.should_see("GCHD")
+    user.find(marker="card-edit").click()
+    await user.should_see(marker="person-name")
+    await user.should_not_see(marker="card-edit")  # the card hands over to the sheet
+    user.find(marker="person-name").clear().type("Anna K.")
+    user.find(marker="person-save").click()
+    await asyncio.sleep(0.1)
+    assert _state(seasons)["helpers"][0]["name"] == "Anna K."
+
+
 # ---------------------------------------------------------------------- sidebar
 async def test_a_version_saves_and_restores_after_confirming(user: User, seasons):
     user.find(marker="version-name").type("před úpravou").trigger("keydown.enter")

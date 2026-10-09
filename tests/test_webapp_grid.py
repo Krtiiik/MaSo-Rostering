@@ -6,7 +6,7 @@ import re
 import pytest
 
 from rostering.persistence.workspace import Workspace
-from rostering.webapp import mutations
+from rostering.webapp import forced_groups, mutations
 from rostering.webapp.ui.grid import data, render
 
 CONFIG = [
@@ -134,6 +134,26 @@ def test_the_card_splits_friends_by_where_they_are(workspace):
     assert card["requested_by"] == ["Bára"]
     assert card["placed"] and not card["locked"]
     assert "Záloha" not in [label for label, _ in card["roles"]]
+
+
+def test_the_card_lists_tags_and_forced_friend_groups(workspace):
+    tag_id = mutations.add_tag(workspace, "Vedoucí")["tags"][-1]["id"]
+    mutations.add_tag_to_helpers(workspace, tag_id, [1])
+    state = mutations.get_state(workspace)
+    person_ids = {h["id"]: h["person_id"] for h in state["helpers"]}
+    forced_groups.add_group(
+        workspace,
+        "Rodina",
+        [person_ids[1], person_ids[2]],
+        ["building", "room"],
+    )
+
+    card = data.card_data(_view(workspace), 1)  # a Tag shows whatever the Overlays are
+    assert [t["name"] for t in card["tags"]["direct"]] == ["Vedoucí"]
+    assert card["forced_groups"] == ["Rodina (shodné: budova, místnost)"]
+
+    other = data.card_data(_view(workspace), 3)
+    assert other["tags"] == {"direct": [], "implied": []} and other["forced_groups"] == []
 
 
 def test_a_typed_additional_role_name_becomes_the_matching_helper_or_stays_text(workspace):

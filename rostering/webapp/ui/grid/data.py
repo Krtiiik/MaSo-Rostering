@@ -382,7 +382,9 @@ def build_view(state: dict, overlays: Sequence[str], filter_tags: Sequence[int],
 def card_data(view: GridView, helper_id: int) -> Optional[dict]:
     """The details card of one Helper: their Building preference, Role ratings
     (the solver Roles but Záloha, which nobody rates) and friend requests split
-    into shared Room (green), elsewhere (red) and who asked for them (purple)."""
+    into shared Room (green), elsewhere (red) and who asked for them (purple),
+    plus their Tags (shown whatever the Overlays) and the Forced friends groups
+    that bind them."""
     h = view.helpers.get(helper_id)
     if h is None:
         return None
@@ -400,4 +402,6 @@ def card_data(view: GridView, helper_id: int) -> Optional[dict]:
         "shared": [names[f] for f, ok in status.items() if ok],
         "different": [names[f] for f, ok in status.items() if not ok],
         "requested_by": [names[r] for r in view.requesters.get(helper_id, [])],
+        "tags": h["tags"],
+        "forced_groups": h["forced_groups"],
     }
