@@ -923,7 +923,8 @@ def resolve_friend(
     resolved_helper_ids: Optional[list[int]] = None,
     resolved_organizer_ids: Optional[list[int]] = None,
 ) -> dict:
-    """Resolve (or dismiss) one unresolved friend name for a helper.
+    """Resolve (or dismiss) one unresolved friend name for a helper. ``reset``
+    takes a decision back, so the name is unresolved again.
 
     A single free-text name can refer to more than one person (e.g. a
     group nickname), so ``resolved_helper_ids`` is a list — the name is
@@ -961,6 +962,12 @@ def resolve_friend(
         decisions[name] = new_refs
     elif action == "dismiss":
         decisions[name] = None
+    elif action == "reset":
+        decisions.pop(name, None)
+        if name not in helper["unresolved_friend_names"]:
+            helper["unresolved_friend_names"].append(name)
+        workspace.save(state)
+        return state
     else:
         raise RosteringError(f"Unknown action: {action}")
 

@@ -28,8 +28,7 @@ TAGS_TAB = "Štítky"
 FRIENDS_TAB = "Kamarádi"
 LINKS_TAB = "Propojení osob"
 
-_DISMISS = "__dismiss__"
-_DISMISS_LABEL = "✕ Nezúčastní se"
+_DISMISS_LABEL = "Nezúčastní se"
 _UNRESOLVED_PLACEHOLDER = "Nepřiřazeno / Nenalezeno / Neznámé"
 
 _CANT_ATTEND_CAPTION = (
@@ -419,27 +418,42 @@ class PersonSheet:
             f"h{h['id']}": h["name"] for h in sorted(state["helpers"], key=lambda h: h["name"].lower()) if h["id"] != helper["id"]
         }
         organizers = {f"o{o['id']}": f"{o['name']} (organizátor)" for o in state["organizers"]}
-        options = {_DISMISS: _DISMISS_LABEL, **others, **organizers}
+        options = {**others, **organizers}
         for name in names:
             was_decided = name in decisions
             decided = _decision_ids(decisions.get(name))
-            if was_decided and decided is None:
-                value = [_DISMISS]
-            elif was_decided:
+            dismissed = was_decided and decided is None
+            if was_decided and not dismissed:
                 value = [k for k in map(friend_key, decided) if k in options]
             else:
                 value = []
             with ui.row().classes("w-full items-center no-wrap gap-2"):
                 ui.label(f"“{name}”").classes("w-40 shrink-0")
-                ui.select(
+                select = ui.select(
                     options,
                     multiple=True,
                     with_input=True,
                     new_value_mode="add-unique",
                     value=value,
-                    label=_UNRESOLVED_PLACEHOLDER,
+                    label=_DISMISS_LABEL if dismissed else _UNRESOLVED_PLACEHOLDER,
                     on_change=lambda e, n=name, d=was_decided, ids=decided: self._match(n, list(e.value or []), d, ids),
                 ).props("use-chips").classes("grow").mark("person-match")
+                select.set_enabled(not dismissed)
+                ui.button(
+                    _DISMISS_LABEL,
+                    on_click=lambda n=name, d=dismissed: self._toggle_dismiss(n, d),
+                ).props("dense unelevated no-caps " + ("color=primary" if dismissed else "outline")).classes(
+                    "shrink-0"
+                ).mark("person-dismiss")
+
+    async def _toggle_dismiss(self, name: str, dismissed: bool) -> None:
+        """The "Nezúčastní se" button: a name that refers to nobody who takes part
+        is dismissed; pressing it again takes that back."""
+        s = self.session
+        helper_id = self.person_id
+        action = "reset" if dismissed else "dismiss"
+        # No owner: unlike a pick, the button's own change must redraw the row.
+        await self._save(None, lambda: mutations.resolve_friend(s.workspace, helper_id, name, action))
 
     async def _match(self, name: str, choice: list[str], was_decided: bool, decided: Optional[list]) -> None:
         if not choice:
@@ -447,14 +461,6 @@ class PersonSheet:
         s = self.session
         helper_id = self.person_id
         owner = self._owner(self._matchers)
-        if _DISMISS in choice:
-            if len(choice) > 1:
-                ui.notify(f"„{_DISMISS_LABEL}“ nelze kombinovat s dalšími shodami.", type="warning")
-                return
-            if was_decided and decided is None:
-                return
-            await self._save(owner, lambda: mutations.resolve_friend(s.workspace, helper_id, name, "dismiss"))
-            return
         unknown = [c for c in choice if c[:1] not in ("h", "o") or not c[1:].isdigit()]
         if unknown:
             ui.notify(", ".join(f"“{u}”" for u in unknown) + ": žádný známý pomocník nesedí.", type="warning")

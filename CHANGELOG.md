@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Lidé, "K přiřazení": "Nezúčastní se" is no longer an entry in the list of
+  people; it is a button beside each friend name. Pressing it disables that
+  name's selection, and pressing it again takes the dismissal back.
 - Roster grid: nothing can be typed into the grid any more. A manual-role cell
   (Organizer and Additional roles) is filled only by dragging a chip onto it, as
   before, and a chip is taken out with its ×; the name field and its name

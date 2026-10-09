@@ -94,9 +94,8 @@ if (xlsxPath) {
   if (flaggedCount > 0) {
     await flagged.first().click();
     const sheet = page.locator(".q-dialog").last();
-    const matcher = sheet.locator(".q-select").filter({ hasText: "Nepřiřazeno" }).first();
-    await matcher.waitFor({ timeout: 10000 });
-    await pick(matcher, "Nezúčastní se");
+    await sheet.getByRole("button", { name: "Nezúčastní se" }).first().click();
+    await sheet.locator(".q-select.q-field--disabled").first().waitFor({ timeout: 10000 });
     await page.screenshot({ path: path.join(SHOT_DIR, "03-after-friend-actions.png"), fullPage: true });
     await sheet.getByRole("button").filter({ hasText: "close" }).first().click();
     await page.waitForTimeout(500);

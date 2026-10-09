@@ -205,6 +205,23 @@ async def test_matching_a_friend_name_saves_the_decision(user: User, seasons):
     assert helper["unresolved_friend_names"] == []
 
 
+async def test_the_dismiss_button_disables_the_match_and_toggles_back(user: User, seasons):
+    state = seasons.load()
+    state["helpers"][0].update(unresolved_friend_names=["Bárka"], friend_name_order=["Bárka"])
+    seasons.save(state)
+    await _friends_tab(user)
+    user.find(marker="person-dismiss").click()
+    await asyncio.sleep(0.1)
+    helper = _state(seasons)["helpers"][0]
+    assert helper["friend_name_decisions"] == {"Bárka": None}
+    assert not user.find(marker="person-match").elements.pop().enabled
+    user.find(marker="person-dismiss").click()
+    await asyncio.sleep(0.1)
+    helper = _state(seasons)["helpers"][0]
+    assert helper["unresolved_friend_names"] == ["Bárka"]
+    assert user.find(marker="person-match").elements.pop().enabled
+
+
 async def test_the_friends_picker_saves_at_once_and_feeds_the_forced_picker(user: User, seasons):
     await _friends_tab(user)
     user.find(marker="person-friends").elements.pop().value = ["h2"]

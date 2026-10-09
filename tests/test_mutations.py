@@ -525,6 +525,24 @@ def test_resolve_friend_dismiss_marks_not_attending(workspace):
     assert helper["friend_name_decisions"] == {"Terka": None}
 
 
+def test_resolve_friend_reset_takes_a_dismissal_back(workspace):
+    _seed_helper_with_unresolved_friend(workspace)
+    mutations.resolve_friend(workspace, 1, "Terka", "dismiss")
+    state = mutations.resolve_friend(workspace, 1, "Terka", "reset")
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    assert helper["unresolved_friend_names"] == ["Terka"]
+    assert helper["friend_name_decisions"] == {}
+
+
+def test_resolve_friend_reset_unlinks_a_resolved_name(workspace):
+    _seed_helper_with_unresolved_friend(workspace)
+    mutations.resolve_friend(workspace, 1, "Terka", "resolve", [2])
+    state = mutations.resolve_friend(workspace, 1, "Terka", "reset")
+    helper = next(h for h in state["helpers"] if h["id"] == 1)
+    assert helper["friends"] == []
+    assert helper["unresolved_friend_names"] == ["Terka"]
+
+
 def test_resolve_friend_can_be_changed_after_first_decision(workspace):
     _seed_helper_with_unresolved_friend(workspace)
     mutations.resolve_friend(workspace, 1, "Terka", "resolve", [2])
