@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from nicegui import ui
 
-from rostering import forced_friends
 from rostering.czech import count_helpers
 from rostering.webapp import mutations
 from rostering.webapp.ui import dialogs
@@ -95,8 +94,7 @@ def _groups_overview(section: dict, ticks: dict[int, ui.checkbox]) -> None:
         "zašedlá zástupka a ožije, pokud se později zaregistruje."
     ).classes("text-sm text-gray-600")
     for group in section["groups"]:
-        axes = ", ".join(forced_friends.AXIS_LABELS.get(axis, axis).lower() for axis in group["axes"])
-        box = ui.checkbox(f"{group['name']} (shodné: {axes})", value=group["importable"])
+        box = ui.checkbox(f"{group['name']} ({'; '.join(group['rule_texts'])})", value=group["importable"])
         if not group["importable"] or group["already_present"]:
             box.disable()
         ticks[group["group_id"]] = box

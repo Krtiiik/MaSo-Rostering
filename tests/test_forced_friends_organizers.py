@@ -24,7 +24,7 @@ from rostering.domain import (
     Room,
     RuleInstance,
 )
-from rostering.forced_friends import ForcedGroup
+from rostering.forced_friends import ForcedGroup, share_rules
 from rostering.persistence.workspace import Workspace
 from rostering.solver.checker import check_roster
 from rostering.solver.model import SolverConfig, solve_competition
@@ -54,7 +54,7 @@ def _organizer(oid, building=None, room=None, **extra):
 
 
 def _group(gid, axes, *members, name=None):
-    return ForcedGroup(id=gid, name=name or f"G{gid}", axes=tuple(axes), person_ids=tuple(members))
+    return ForcedGroup(id=gid, name=name or f"G{gid}", rules=share_rules(*axes), person_ids=tuple(members))
 
 
 def _competition(buildings, helpers, organizers, groups):
@@ -198,7 +198,7 @@ def test_a_group_the_organizers_anchor_cannot_hold_bends_and_names_the_organizer
     result = solve_competition(comp, _solver_config(), fixed_assignments=[_pin(1, "A", "A1")])
 
     (broken,) = result.broken_rules
-    assert broken.instance == RuleInstance("forced_friends", (1, "room"))
+    assert broken.instance == RuleInstance("forced_friends", (1, "share:room"))
     assert broken.amount == 1
     assert broken.line == "Skupinka Team [H1, Org1] je rozdělena mezi místnosti A1 a B1"
 
@@ -215,7 +215,7 @@ def test_two_organizers_who_stand_apart_are_a_broken_group_the_solver_cannot_fix
     result = solve_competition(comp, _solver_config())
 
     (broken,) = result.broken_rules
-    assert broken.instance == RuleInstance("forced_friends", (1, "building"))
+    assert broken.instance == RuleInstance("forced_friends", (1, "share:building"))
     assert broken.amount == 1
 
 
@@ -363,32 +363,32 @@ def test_an_organizer_who_cant_attend_stays_a_member_but_inactive(workspace):
     assert next(m for m in group["members"] if m["person_id"] == marie)["state"] == forced_groups.CANT_ATTEND
 
 
-def test_an_organizer_is_refused_on_a_group_that_uses_the_role_axis(workspace):
+def test_an_organizer_in_a_group_with_a_role_rule_is_allowed_but_warned_about(workspace):
     _season(workspace)
     marie = _organizer_named(workspace, "Marie", "VedouciBudovy", "B")
 
-    with pytest.raises(mutations.RosteringError, match="Marie"):
-        forced_groups.add_group(workspace, "Tym", ["p1", marie], ["room", "role"])
+    state = forced_groups.add_group(workspace, "Tym", ["p1", marie], ["room", "role"])
 
-    assert mutations.get_state(workspace)["forced_groups"] == []
+    group = _group_named(state, "Tym")
+    assert group["badges"] == [
+        "Role se na Marie neuplatní",
+        "Marie vede celou budovu: místnost se u něj posuzuje jen podle budovy",
+    ]
 
 
-def test_an_organizer_cannot_be_added_to_a_role_group_nor_the_role_axis_ticked_over_one(workspace):
+def test_adding_an_organizer_to_a_role_group_or_a_role_rule_to_an_organizers_group_is_allowed(workspace):
     _season(workspace)
     marie = _organizer_named(workspace, "Marie", "VedouciBudovy", "B")
     forced_groups.add_group(workspace, "Rola", ["p1", "p2"], ["role"])
     forced_groups.add_group(workspace, "Tym", ["p1", marie], ["building"])
-    state = mutations.get_state(workspace)
-    rola, tym = (g["id"] for g in state["forced_groups"])
+    rola, tym = (g["id"] for g in mutations.get_state(workspace)["forced_groups"])
 
-    with pytest.raises(mutations.RosteringError, match="Marie"):
-        forced_groups.update_group(workspace, rola, person_ids=["p1", "p2", marie])
-    with pytest.raises(mutations.RosteringError, match="Marie"):
-        forced_groups.update_group(workspace, tym, axes=["building", "role"])
+    forced_groups.update_group(workspace, rola, person_ids=["p1", "p2", marie])
+    state = forced_groups.update_group(workspace, tym, rules=["building", "role"])
 
-    state = mutations.get_state(workspace)
-    assert [m["person_id"] for m in state["forced_groups"][0]["members"]] == ["p1", "p2"]
-    assert state["forced_groups"][1]["axes"] == ["building"]
+    assert [m["person_id"] for m in state["forced_groups"][0]["members"]] == ["p1", "p2", marie]
+    assert [r["axis"] for r in state["forced_groups"][1]["rules"]] == ["building", "role"]
+    assert _group_named(state, "Rola")["badges"] == ["Role se na Marie neuplatní"]
 
 
 def test_a_member_promoted_to_organizer_keeps_membership_with_the_role_axis_not_applied(workspace):
@@ -468,7 +468,7 @@ def test_the_grid_marks_a_helper_bound_to_a_placed_organizer(workspace):
     marie = _organizer_named(workspace, "Marie", "VedouciBudovy", "B")
     state = forced_groups.add_group(workspace, "Tym", ["p1", marie], ["building"])
 
-    assert mutations.grid_forced_groups(state) == {1: ["Tym (shodné: budova)"]}
+    assert mutations.grid_forced_groups(state) == {1: ["Tym (musí sdílet budovu)"]}
 
 
 def test_the_people_multiselect_offers_organizers_too(workspace):
@@ -505,7 +505,7 @@ def test_make_forced_creates_a_room_group_of_the_two_people_and_leaves_the_reque
 
     (group,) = state["forced_groups"]
     assert group["name"] == "Anna + Petr"
-    assert group["axes"] == ["building", "room"]
+    assert group["rules"] == [{"kind": "share", "axis": "room"}]  # a shared Room already is a shared Building
     assert [m["person_id"] for m in group["members"]] == ["p1", "p2"]
     assert state["helpers"][0]["friends"] == before == [2]
 

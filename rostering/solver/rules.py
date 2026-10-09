@@ -402,38 +402,20 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
 
 
 def _forced_friends(ctx: ModelContext) -> list[Relaxation]:
-    """Each active Forced friends group's enforced axes (see
-    ``rostering.forced_friends.group_rules``): the slack is the number of
-    members placed apart from the largest party sharing a value on the axis,
-    exactly 0 when they all share it. Groups are independent, so overlapping
-    ones are never merged."""
+    """Each active Forced friends group's rules (see
+    ``rostering.forced_friends.group_rules``). A ``share`` rule's slack is the
+    number of members placed apart from the largest party sharing a value on the
+    axis, exactly 0 when they all share it; a ``be`` rule's is the number of
+    members (Helpers placed, Organizers standing) who break it. Groups are
+    independent, so overlapping ones are never merged."""
     relaxations: list[Relaxation] = []
     known = {b.name: [r.name for r in b.rooms] for b in ctx.buildings}
-    for rule in forced_friends.group_rules(ctx.helpers, ctx.forced_groups, ctx.organizers, known):
-        # A placed Organizer never moves: they add a fixed head to the count of
-        # the Building/Room they stand in.
-        anchored: dict = {}
-        for anchor in rule.anchors:
-            anchored[anchor.value(rule.axis)] = anchored.get(anchor.value(rule.axis), 0) + 1
-        counts = []
-        if rule.axis == forced_friends.BUILDING:
-            for name, room_ids in ctx.building_rooms.items():
-                counts.append(
-                    sum(ctx.assign_room[h, rid] for h in rule.helper_ids for rid in room_ids) + anchored.get(name, 0)
-                )
-        elif rule.axis == forced_friends.ROOM:
-            for rid, (building_name, room) in enumerate(ctx.rooms):
-                counts.append(
-                    sum(ctx.assign_room[h, rid] for h in rule.helper_ids) + anchored.get((building_name, room.name), 0)
-                )
+    room_ids = {(bname, room.name): rid for rid, (bname, room) in enumerate(ctx.rooms)}
+    for n, rule in enumerate(forced_friends.group_rules(ctx.helpers, ctx.forced_groups, ctx.organizers, known)):
+        if rule.rule is None:
+            slack = _share_slack(ctx, rule, n)
         else:
-            for role in ctx.roles:
-                counts.append(sum(ctx.assign_role[h, role] for h in rule.helper_ids))
-        size = rule.size
-        largest = ctx.model.NewIntVar(0, size, f"forced_{rule.group.id}_{rule.axis}_largest")
-        ctx.model.AddMaxEquality(largest, counts)
-        slack = ctx.model.NewIntVar(0, size - 1, f"forced_{rule.group.id}_{rule.axis}_apart")
-        ctx.model.Add(slack == size - largest)
+            slack = _be_slack(ctx, rule, n, room_ids)
         relaxations.append(
             Relaxation(
                 instance=rule.instance,
@@ -446,13 +428,64 @@ def _forced_friends(ctx: ModelContext) -> list[Relaxation]:
     return relaxations
 
 
+def _share_slack(ctx: ModelContext, rule: forced_friends.GroupRule, n: int):
+    # A placed Organizer never moves: they add a fixed head to the count of
+    # the Building/Room they stand in.
+    anchored: dict = {}
+    for anchor in rule.anchors:
+        anchored[anchor.value(rule.axis)] = anchored.get(anchor.value(rule.axis), 0) + 1
+    counts = []
+    if rule.axis == forced_friends.BUILDING:
+        for name, room_ids in ctx.building_rooms.items():
+            counts.append(
+                sum(ctx.assign_room[h, rid] for h in rule.helper_ids for rid in room_ids) + anchored.get(name, 0)
+            )
+    elif rule.axis == forced_friends.ROOM:
+        for rid, (building_name, room) in enumerate(ctx.rooms):
+            counts.append(
+                sum(ctx.assign_room[h, rid] for h in rule.helper_ids) + anchored.get((building_name, room.name), 0)
+            )
+    else:
+        for role in ctx.roles:
+            counts.append(sum(ctx.assign_role[h, role] for h in rule.helper_ids))
+    size = rule.size
+    largest = ctx.model.NewIntVar(0, size, f"forced_{rule.group.id}_{n}_largest")
+    ctx.model.AddMaxEquality(largest, counts)
+    slack = ctx.model.NewIntVar(0, size - 1, f"forced_{rule.group.id}_{n}_apart")
+    ctx.model.Add(slack == size - largest)
+    return slack
+
+
+def _be_slack(ctx: ModelContext, rule: forced_friends.GroupRule, n: int, room_ids: dict):
+    """How many members break a ``be`` rule: each Helper contributes 1 when their
+    place is outside the allowed set ("must") or inside it ("must not"); the
+    Organizers who already break it are a constant."""
+    must = rule.rule.must
+    values = rule.values
+    if rule.axis == forced_friends.BUILDING:
+        per_helper = {
+            h: [ctx.assign_room[h, rid] for b in values for rid in ctx.building_rooms.get(b, [])] for h in rule.helper_ids
+        }
+    elif rule.axis == forced_friends.ROOM:
+        per_helper = {h: [ctx.assign_room[h, room_ids[v]] for v in values if v in room_ids] for h in rule.helper_ids}
+    else:
+        per_helper = {h: [ctx.assign_role[h, Role[v]] for v in values] for h in rule.helper_ids}
+    terms = []
+    for variables in per_helper.values():
+        inside = sum(variables)
+        terms.append(1 - inside if must else inside)
+    total = sum(terms) + len(rule.violating_anchors())
+    slack = ctx.model.NewIntVar(0, rule.max_units, f"forced_{rule.group.id}_{n}_off")
+    ctx.model.Add(slack == total)
+    return slack
+
+
 def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
     comp = ctx.competition
     if not comp.forced_groups:
         return []
     placed = {a.helper_id: a for a in ctx.assignments}
     known_rooms = {(b.name, r.name) for b in comp.buildings.values() for r in b.rooms}
-    helpers = {h.id: h for h in comp.helpers}
     broken: list[BrokenRule] = []
     known_buildings = {name: [r.name for r in b.rooms] for name, b in comp.buildings.items()}
     for rule in forced_friends.group_rules(comp.helpers, comp.forced_groups, comp.organizers, known_buildings):
@@ -463,14 +496,23 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
             for h in rule.helper_ids
             if h in placed and (placed[h].building, placed[h].room) in known_rooms
         ]
-        units = forced_friends.split_units(
-            [forced_friends.place_value(rule.axis, a.building, a.room, a.role.name) for a in members]
-            + [anchor.value(rule.axis) for anchor in rule.anchors]
-        )
+        if rule.rule is None:
+            units = forced_friends.split_units(
+                [forced_friends.place_value(rule.axis, a.building, a.room, a.role.name) for a in members]
+                + [anchor.value(rule.axis) for anchor in rule.anchors]
+            )
+            flagged = members
+            flagged_anchors = rule.anchors
+        else:
+            flagged = [
+                a for a in members if forced_friends.violates_be(rule.rule, rule.values, a.building, a.room, a.role.name)
+            ]
+            flagged_anchors = rule.violating_anchors()
+            units = len(flagged) + len(flagged_anchors)
         if not units:
             continue
-        cells = [(a.building, a.room, None) for a in members]
-        cells += [(anchor.building, anchor.room, None) for anchor in rule.anchors if anchor.room]
+        cells = [(a.building, a.room, None) for a in flagged]
+        cells += [(anchor.building, anchor.room, None) for anchor in flagged_anchors if anchor.room]
         broken.append(
             BrokenRule(
                 instance=rule.instance,
@@ -478,9 +520,9 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
                 amount=units,
                 line=rule.line(members),
                 cells=tuple(dict.fromkeys(cells)),
-                helper_ids=tuple(a.helper_id for a in members),
+                helper_ids=tuple(a.helper_id for a in flagged),
                 fix=FixTarget("forced_friends", group_id=rule.group.id),
-                organizer_ids=tuple(anchor.organizer_id for anchor in rule.anchors),
+                organizer_ids=tuple(anchor.organizer_id for anchor in flagged_anchors),
             )
         )
     return broken

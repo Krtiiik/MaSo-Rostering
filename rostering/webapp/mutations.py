@@ -3728,18 +3728,20 @@ def broken_rule_marks(broken: list[BrokenRule]) -> dict[str, list[dict]]:
 
 def grid_forced_groups(state: dict[str, Any]) -> dict[int, list[str]]:
     """What the grid marks on a chip: for each Helper who is an active member of a
-    Forced friends group in force (two or more attending members), the groups that
-    bind them, worded ``Rodina (same Building, Room)`` for the chip's tooltip. A
-    dormant group binds no one, so marks no one."""
+    Forced friends group in force (some rule binds its attending members), the
+    groups that bind them, worded ``Rodina (musí sdílet místnost; ...)`` for the
+    chip's tooltip. A dormant group binds no one, so marks no one."""
     competition = _build_competition(state).attending()
     marks: dict[int, list[str]] = {}
     for group in competition.forced_groups:
         # A placed Organizer counts towards a group being in force; only the
         # Helper members carry a chip mark.
-        if forced_friends.active_member_count(group, competition.helpers, competition.organizers) < 2:
+        if not forced_friends.in_force(
+            group, forced_friends.active_member_count(group, competition.helpers, competition.organizers)
+        ):
             continue
         active = forced_friends.active_helper_ids(group, competition.helpers)
-        line = f"{group.name} (shodné: {', '.join(forced_friends.AXIS_LABELS[a].lower() for a in group.axes)})"
+        line = f"{group.name} ({'; '.join(rule.text() for rule in group.rules)})"
         for helper_id in active:
             marks.setdefault(helper_id, []).append(line)
     return marks

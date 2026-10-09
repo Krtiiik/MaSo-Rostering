@@ -1,31 +1,36 @@
 """Forced friends groups (see ``CONTEXT.md``: Forced friends group).
 
-A group is a named hard constraint on a set of *Persons* who must share the
-ticked axes: Building, Room and/or Role, where ticking Room implies Building.
+A group is a named hard constraint on a set of *Persons*: a list of rules that
+must all hold at once. A rule is one of
+
+- ``share``: the members must share a Building, a Room or a Role (never negated);
+- ``be``: every member must (or must not) be in one of some Buildings or Rooms,
+  or have one of some Roles (``values`` is the set, "any of").
+
 Members are Persons (``person_id``), not per-Season records, so a group can
 outlive a Season and resolves in the open Season to a Helper or to "not
 registered". Overlapping groups are never merged.
 
 This module holds the pure rule definition that the solver's relaxation, the
 live Broken-rule checker and the mutation layer all consume, so they cannot
-drift: which axes are enforced, who the *active* members are, the identity and
+drift: which rules are enforced, who the *active* members are, the identity and
 wording of a violation, and its size. It does no I/O and never imports the
 solver.
 
 Active member: a Helper of the Season who is not Can't attend, or an Organizer
-who is placed and not Can't attend. A group with fewer than two active members is
-inactive and constrains nothing.
+who is placed and not Can't attend. A ``share`` rule binds from two active
+members; a ``be`` rule from one. A group none of whose rules binds is dormant.
 
 An Organizer is a member through their Person like anyone else, but only as an
 *anchor*: they never move, and contribute their fixed placement to the Building
-and Room axes (a Building-level Organizer contributes no Room, so on a Room group
-they enforce only the Building). They have no solved Role, so the Role axis is
-never applied to them (and they cannot be added to a group using it).
+and Room rules (a Building-level Organizer holds no Room, so a room rule is
+judged by their Building as far as that goes). They have no solved Role, so role
+rules never apply to them.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence
+from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence, Union
 
 from rostering import tags as tags_module
 from rostering.domain import Assignment, Helper, Organizer, Role, RuleInstance
@@ -33,47 +38,214 @@ from rostering.domain import Assignment, Helper, Organizer, Role, RuleInstance
 BUILDING = "building"
 ROOM = "room"
 ROLE = "role"
-# In this canonical order; a group stores exactly the axes it selects, with
-# Building added whenever Room is ticked.
 AXES = (BUILDING, ROOM, ROLE)
+
+SHARE = "share"
+BE = "be"
 
 AXIS_LABELS = {BUILDING: "Budova", ROOM: "Místnost", ROLE: "Role"}
 # "Split across ..." takes the accusative plural.
 _PLURALS = {BUILDING: "budovy", ROOM: "místnosti", ROLE: "role"}
+# "musí sdílet ..." takes the accusative singular.
+_SHARE_OBJECT = {BUILDING: "budovu", ROOM: "místnost", ROLE: "roli"}
 
 # The RuleInstance / BrokenRule family name of this rule.
 KIND = "forced_friends"
 
+RuleValue = Union[str, tuple[str, str]]  # a Building name, a Role.name or a (Building, Room)
+
+
+def _joined(labels: Sequence[str], last: str = "a") -> str:
+    """``A``, ``A a B``, ``A, B a C`` (``last`` is the word before the final one)."""
+    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + f" {last} " + labels[-1]
+
+
+def value_label(axis: str, value: RuleValue) -> str:
+    """How a rule value is shown: a Building name, ``N4 (Troja)``, a Role's name."""
+    if axis == ROLE:
+        return Role[str(value)].value
+    if axis == ROOM:
+        building, room = value
+        return f"{room} ({building})"
+    return str(value)
+
+
+def _canonical_values(axis: str, values: Iterable[Any]) -> tuple[RuleValue, ...]:
+    """The values of a ``be`` rule, validated, without repeats, in a fixed order
+    (Roles in the Roles' order, the rest by name), so two rules naming the same
+    set are equal. ``ValueError`` (Czech) for a malformed or empty list."""
+    found: list[RuleValue] = []
+    for value in values or []:
+        if axis == ROLE:
+            name = value.name if isinstance(value, Role) else str(value or "").strip()
+            if name not in Role.__members__:
+                raise ValueError(f"Taková role neexistuje: {name or '?'}.")
+            found.append(name)
+        elif axis == ROOM:
+            if isinstance(value, Mapping):
+                value = (value.get("building"), value.get("room"))
+            if not isinstance(value, (list, tuple)) or len(value) != 2:
+                raise ValueError("Místnost se uvádí jako budova a název místnosti.")
+            building, room = (str(part or "").strip() for part in value)
+            if not building or not room:
+                raise ValueError("Místnost se uvádí jako budova a název místnosti.")
+            found.append((building, room))
+        else:
+            name = str(value or "").strip()
+            if name:
+                found.append(name)
+    if not found:
+        raise ValueError("Pravidlo musí uvádět alespoň jednu hodnotu.")
+    unique = list(dict.fromkeys(found))
+    if axis == ROLE:
+        order = list(Role.__members__)
+        return tuple(sorted(unique, key=order.index))
+    return tuple(sorted(unique))
+
+
+@dataclass(frozen=True)
+class Rule:
+    """One rule of a group. ``share``: ``axis`` is shared by the members (``must``
+    is always True, ``values`` empty). ``be``: every member must (``must``) or
+    must not be in one of the Buildings / Rooms, or have one of the Roles
+    (``axis`` ``ROLE``), in ``values``."""
+
+    kind: str
+    axis: str
+    must: bool = True
+    values: tuple[RuleValue, ...] = ()
+
+    @staticmethod
+    def share(axis: str) -> "Rule":
+        if axis not in AXES:
+            raise ValueError(f"Neznámá osa: {axis!r}")
+        return Rule(SHARE, axis)
+
+    @staticmethod
+    def be(axis: str, values: Iterable[Any], must: bool = True) -> "Rule":
+        if axis not in AXES:
+            raise ValueError(f"Neznámá osa: {axis!r}")
+        return Rule(BE, axis, bool(must), _canonical_values(axis, values))
+
+    @property
+    def key(self) -> str:
+        """Identity within a group (a group never holds two equal rules)."""
+        if self.kind == SHARE:
+            return f"share:{self.axis}"
+        shown = "|".join("/".join(v) if isinstance(v, tuple) else v for v in self.values)
+        return f"{'must' if self.must else 'not'}:{self.axis}:{shown}"
+
+    def text(self) -> str:
+        """The rule in words: ``musí sdílet místnost``, ``nesmí být v budově Troja ani Impakt``."""
+        if self.kind == SHARE:
+            return f"musí sdílet {_SHARE_OBJECT[self.axis]}"
+        labels = [value_label(self.axis, v) for v in self.values]
+        joined = _joined(labels, "nebo" if self.must else "ani")
+        verb = "musí" if self.must else "nesmí"
+        if self.axis == ROLE:
+            return f"{verb} mít roli {joined}"
+        place = "v budově" if self.axis == BUILDING else "v místnosti"
+        return f"{verb} být {place} {joined}"
+
+    def to_dict(self) -> dict[str, Any]:
+        if self.kind == SHARE:
+            return {"kind": SHARE, "axis": self.axis}
+        values = [list(v) if isinstance(v, tuple) else v for v in self.values]
+        return {"kind": BE, "must": self.must, "axis": self.axis, "values": values}
+
+    @staticmethod
+    def from_dict(data: Union["Rule", str, Mapping[str, Any]]) -> "Rule":
+        if isinstance(data, Rule):
+            return data
+        if isinstance(data, str):  # a bare axis name is a rule to share it
+            return Rule.share(data)
+        kind = data.get("kind")
+        axis = data.get("axis")
+        if kind == SHARE:
+            return Rule.share(axis)
+        if kind == BE:
+            return Rule.be(axis, data.get("values") or [], data.get("must", True))
+        raise ValueError(f"Neznámý druh pravidla: {kind!r}")
+
+
+def share_rules(*axes: str) -> tuple[Rule, ...]:
+    """``share`` rules for ``axes`` (a convenience for tests and migration)."""
+    return tuple(Rule.share(axis) for axis in axes)
+
+
+def normalize_rules(items: Iterable[Union[Rule, Mapping[str, Any]]]) -> tuple[Rule, ...]:
+    """The rules of a group from ``Rule``s or their saved dicts. ``ValueError``
+    (Czech) for none, a malformed one, or a repeat."""
+    rules = tuple(Rule.from_dict(item) for item in items or [])
+    if not rules:
+        raise ValueError("Přidejte skupince alespoň jedno pravidlo.")
+    seen: set[str] = set()
+    for rule in rules:
+        if rule.key in seen:
+            raise ValueError(f"Pravidlo se opakuje: {rule.text()}.")
+        seen.add(rule.key)
+    return rules
+
+
+def legacy_rules(axes: Iterable[str]) -> list[dict[str, Any]]:
+    """A group saved before rules existed carried the axes it shared (Room
+    implying Building); each is a ``share`` rule, the implied Building left out."""
+    ticked = [a for a in AXES if a in set(axes)]
+    return [{"kind": SHARE, "axis": a} for a in ticked if not (a == BUILDING and ROOM in ticked)]
+
+
+def record_rules(record: Mapping[str, Any]) -> list[Rule]:
+    """The rules of a saved group record, whichever shape it was saved in."""
+    if "rules" in record:
+        return [Rule.from_dict(r) for r in record["rules"] or []]
+    return [Rule.from_dict(r) for r in legacy_rules(record.get("axes") or [])]
+
+
+def migrate_state(state: dict[str, Any]) -> bool:
+    """Rewrite the groups of a saved ``state`` that predate rules (``axes``) into
+    ``rules``, in place. Returns whether anything changed."""
+    changed = False
+    for record in state.get("forced_groups") or []:
+        if "rules" not in record:
+            record["rules"] = legacy_rules(record.pop("axes", None) or [])
+            changed = True
+    return changed
+
+
+def effective_rules(rules: Iterable[Rule]) -> frozenset[str]:
+    """What a set of rules demands, for telling two groups' rules apart: a shared
+    Room is a shared Building, so ``share building`` next to ``share room`` adds
+    nothing."""
+    rules = list(rules)
+    shares = {r.axis for r in rules if r.kind == SHARE}
+    return frozenset(r.key for r in rules if not (r.kind == SHARE and r.axis == BUILDING and ROOM in shares))
+
 
 @dataclass(frozen=True)
 class ForcedGroup:
-    """A Forced friends group: ``axes`` (canonical, see :func:`normalize_axes`)
-    and the ``person_ids`` of its members."""
+    """A Forced friends group: its ``rules`` (all must hold) and the
+    ``person_ids`` of its members."""
 
     id: int
     name: str
-    axes: tuple[str, ...]
+    rules: tuple[Rule, ...]
     person_ids: tuple[str, ...]
 
+    @property
+    def share_axes(self) -> tuple[str, ...]:
+        """The axes its ``share`` rules name, in the canonical order."""
+        shared = {r.axis for r in self.rules if r.kind == SHARE}
+        return tuple(a for a in AXES if a in shared)
 
-def normalize_axes(axes: Iterable[str]) -> tuple[str, ...]:
-    """The canonical axes for the ticked ``axes``: Room implies Building, in
-    the order Building, Room, Role. ``ValueError`` for an unknown axis or when
-    none is ticked."""
-    ticked = set(axes)
-    unknown = ticked - set(AXES)
-    if unknown:
-        raise ValueError(f"Unknown axis: {sorted(unknown)[0]!r}")
-    if ROOM in ticked:
-        ticked.add(BUILDING)
-    if not ticked:
-        raise ValueError("Zaškrtněte alespoň jednu osu (budova, místnost nebo role), kterou musí skupinka sdílet.")
-    return tuple(axis for axis in AXES if axis in ticked)
+    @property
+    def be_rules(self) -> tuple[Rule, ...]:
+        return tuple(r for r in self.rules if r.kind == BE)
 
 
 def enforced_axes(axes: Sequence[str]) -> tuple[str, ...]:
-    """The axes that are checked and bent on their own: Room subsumes Building
-    (a shared Room is a shared Building), so a Room group is judged on Room."""
+    """The share axes that are checked and bent on their own: Room subsumes
+    Building (a shared Room is a shared Building), so a Room group is judged on
+    Room."""
     return tuple(axis for axis in axes if not (axis == BUILDING and ROOM in axes))
 
 
@@ -84,7 +256,7 @@ def group_to_dict(group: ForcedGroup, names: Optional[dict[str, str]] = None) ->
     return {
         "id": group.id,
         "name": group.name,
-        "axes": list(group.axes),
+        "rules": [r.to_dict() for r in group.rules],
         "members": [{"person_id": p, "name": names.get(p, "")} for p in group.person_ids],
     }
 
@@ -93,7 +265,7 @@ def group_from_dict(data: dict[str, Any]) -> ForcedGroup:
     return ForcedGroup(
         id=int(data["id"]),
         name=data["name"],
-        axes=normalize_axes(data.get("axes") or []),
+        rules=tuple(record_rules(data)),
         person_ids=tuple(m["person_id"] for m in data.get("members") or []),
     )
 
@@ -130,9 +302,25 @@ def place_label(axis: str, a: Assignment) -> str:
     return a.role.value
 
 
-def _joined(labels: Sequence[str]) -> str:
-    """``A``, ``A a B``, ``A, B a C``."""
-    return labels[0] if len(labels) == 1 else ", ".join(labels[:-1]) + " a " + labels[-1]
+def be_place_label(axis: str, a: Assignment) -> str:
+    """Where an Assignment stands on a ``be`` rule's ``axis``, for a violation line."""
+    if axis == BUILDING:
+        return a.building
+    if axis == ROOM:
+        return f"{a.room} ({a.building})"
+    return a.role.value
+
+
+def violates_be(rule: Rule, values: Sequence[RuleValue], building: str, room: str, role: str) -> bool:
+    """Whether a Helper placed at (``building``, ``room``, ``role`` as a
+    ``Role.name``) breaks the ``be`` ``rule`` over its effective ``values``."""
+    if rule.axis == BUILDING:
+        inside = building in values
+    elif rule.axis == ROOM:
+        inside = (building, room) in values
+    else:
+        inside = role in values
+    return inside != rule.must
 
 
 @dataclass(frozen=True)
@@ -152,23 +340,51 @@ class Anchor:
     def label(self, axis: str) -> str:
         return self.building if axis == BUILDING else self.room or ""
 
+    def violates(self, rule: Rule, values: Sequence[RuleValue]) -> bool:
+        """Whether this Organizer breaks the ``be`` ``rule``. Role rules never
+        apply to them. A Building-level Organizer holds no Room, so a room rule
+        is judged by their Building: a "must" breaks only if the Building holds
+        none of the rooms named, a "must not" never does."""
+        if rule.axis == BUILDING:
+            return (self.building in values) != rule.must
+        if rule.axis == ROOM:
+            if self.room:
+                return ((self.building, self.room) in values) != rule.must
+            return rule.must and self.building not in {b for b, _room in values}
+        return False
+
+    def place(self, axis: str) -> str:
+        """Where they stand, for a violation line."""
+        if axis == ROOM and self.room:
+            return f"{self.room} ({self.building})"
+        return self.building
+
 
 @dataclass(frozen=True)
 class GroupRule:
-    """One enforced axis of one active group: ``helper_ids`` are the active
-    Helper members (``helper_names`` their names, in the same order), and
-    ``anchors`` the placed Organizers who count on this axis; all of them must
-    have the same value on ``axis``."""
+    """One enforced rule of one group, over the active Helper members
+    (``helper_ids``, ``helper_names`` their names in the same order) and the
+    placed Organizers who count on it (``anchors``).
+
+    A ``share`` rule (``rule`` None) is one enforced axis: all of them must have
+    the same value on ``axis``. A ``be`` rule is judged per member against
+    ``values``, its values that this Season's layout still has."""
 
     group: ForcedGroup
     axis: str
     helper_ids: tuple[int, ...]
     helper_names: tuple[str, ...] = ()
     anchors: tuple[Anchor, ...] = ()
+    rule: Optional[Rule] = None
+    values: tuple[RuleValue, ...] = ()
+
+    @property
+    def key(self) -> str:
+        return self.rule.key if self.rule is not None else f"share:{self.axis}"
 
     @property
     def instance(self) -> RuleInstance:
-        return RuleInstance(KIND, (self.group.id, self.axis))
+        return RuleInstance(KIND, (self.group.id, self.key))
 
     @property
     def size(self) -> int:
@@ -176,18 +392,24 @@ class GroupRule:
 
     @property
     def max_units(self) -> int:
-        return self.size - 1
+        return self.size - 1 if self.rule is None else self.size
+
+    def violating_anchors(self) -> tuple[Anchor, ...]:
+        """The Organizers who break a ``be`` rule whatever the roster does."""
+        if self.rule is None:
+            return ()
+        return tuple(a for a in self.anchors if a.violates(self.rule, self.values))
 
     def _subject(self) -> str:
         names = [*self.helper_names, *(a.name for a in self.anchors)]
         return f"Skupinka {self.group.name} [{', '.join(names)}]"
 
     def line(self, assignments: Sequence[Assignment] = ()) -> str:
-        """``Skupinka Rodina [Anna, Petr, Jana] je rozdělena mezi místnosti N4 a N6``:
-        the members' names and the distinct places the ``assignments`` of the
-        Helper members and the anchors occupy on the axis (first seen first). The
-        solver and the live checker word every violation through this one
-        function."""
+        """The violation in words, from the members' ``assignments`` (and the
+        anchors' fixed placement). The solver and the live checker word every
+        violation through this one function."""
+        if self.rule is not None:
+            return self._be_line(assignments)
         by_id = {a.helper_id: a for a in assignments}
         # (value, label, building) of every member whose place is known.
         spots: list[tuple[Hashable, str, str]] = [
@@ -205,6 +427,28 @@ class GroupRule:
         return f"{self._subject()} je rozdělena mezi {_PLURALS[self.axis]}" + (
             f" {_joined(labels)}" if labels else ""
         )
+
+    def offenders(self, assignments: Sequence[Assignment]) -> list[tuple[str, str]]:
+        """``(name, where)`` of each member breaking this ``be`` rule in the
+        given ``assignments``: Helpers by their Assignment, Organizers by their
+        placement."""
+        assert self.rule is not None
+        by_id = {a.helper_id: a for a in assignments}
+        found = []
+        for helper_id, name in zip(self.helper_ids, self.helper_names):
+            a = by_id.get(helper_id)
+            if a is not None and violates_be(self.rule, self.values, a.building, a.room, a.role.name):
+                found.append((name, be_place_label(self.axis, a)))
+        found += [(f"{a.name} (organizátor)", a.place(self.axis)) for a in self.violating_anchors()]
+        return found
+
+    def _be_line(self, assignments: Sequence[Assignment]) -> str:
+        assert self.rule is not None
+        text = f"Skupinka {self.group.name}: pravidlo „{self.rule.text()}“"
+        offenders = self.offenders(assignments)
+        if not offenders:
+            return f"{text} neplatí"
+        return f"{text} porušují {_joined([f'{name} ({where})' for name, where in offenders])}"
 
 
 def active_helpers(group: ForcedGroup, helpers: Iterable[Helper]) -> list[Helper]:
@@ -226,8 +470,27 @@ def active_organizers(group: ForcedGroup, organizers: Iterable[Organizer]) -> li
 
 
 def active_member_count(group: ForcedGroup, helpers: Iterable[Helper], organizers: Iterable[Organizer] = ()) -> int:
-    """How many active members the group has; fewer than two make it inactive."""
+    """How many active members the group has."""
     return len(active_helpers(group, helpers)) + len(active_organizers(group, organizers))
+
+
+def in_force(group: ForcedGroup, active_count: int) -> bool:
+    """Whether any rule of the group binds with ``active_count`` active members:
+    a ``share`` rule needs two, a ``be`` rule one."""
+    if active_count >= 2:
+        return bool(group.rules)
+    return active_count >= 1 and bool(group.be_rules)
+
+
+def effective_values(rule: Rule, buildings: Optional[Mapping[str, Iterable[str]]]) -> tuple[RuleValue, ...]:
+    """The values of a ``be`` rule that this Season's layout (Building name ->
+    its Room names) still has; the rest are inert. Without a layout, all."""
+    if buildings is None or rule.axis == ROLE:
+        return rule.values
+    known = {name: set(rooms) for name, rooms in buildings.items()}
+    if rule.axis == BUILDING:
+        return tuple(v for v in rule.values if v in known)
+    return tuple(v for v in rule.values if v[0] in known and v[1] in known[v[0]])
 
 
 def group_rules(
@@ -237,13 +500,18 @@ def group_rules(
     buildings: Optional[Mapping[str, Iterable[str]]] = None,
 ) -> list[GroupRule]:
     """Every rule instance the ``groups`` state over the attending ``helpers`` and
-    ``organizers``: for each enforced axis of a group, one rule over the members
+    ``organizers``.
+
+    ``share`` rules: for each enforced axis of a group, one rule over the members
     that count on it (two or more of them). The Role axis takes Helpers only. On
     the Room axis a placed Organizer counts if they hold a Room; one who leads a
     whole Building counts on the Building, so a Room group with such an
-    Organizer also gets a Building rule. ``buildings`` (Building name -> its Room
-    names), when given, drops an anchor whose placement the configuration no
-    longer has."""
+    Organizer also gets a Building rule.
+
+    ``be`` rules: one per rule, over every active member (one is enough). A rule
+    whose values the layout no longer has at all is inert and left out.
+    ``buildings`` (Building name -> its Room names), when given, drops an anchor
+    whose placement the configuration no longer has."""
     known = {name: set(rooms) for name, rooms in buildings.items()} if buildings is not None else None
     rules: list[GroupRule] = []
     for group in groups:
@@ -253,8 +521,9 @@ def group_rules(
             for o in active_organizers(group, organizers)
             if known is None or (o.building in known and (not o.room or o.room in known[o.building]))
         ]
-        axes = list(enforced_axes(group.axes))
-        if ROOM in group.axes and any(a.room is None for a in anchors):
+        shared = group.share_axes
+        axes = list(enforced_axes(shared))
+        if ROOM in shared and any(a.room is None for a in anchors):
             axes.insert(0, BUILDING)
         ids, names = tuple(h.id for h in active), tuple(h.name for h in active)
         for axis in axes:
@@ -267,19 +536,81 @@ def group_rules(
             rule = GroupRule(group, axis, ids, names, on_axis)
             if rule.size >= 2:
                 rules.append(rule)
+        for be in group.be_rules:
+            values = effective_values(be, buildings)
+            if not values:
+                continue
+            on_axis = () if be.axis == ROLE else tuple(anchors)
+            rule = GroupRule(group, be.axis, ids, names, on_axis, rule=be, values=values)
+            if rule.size >= 1:
+                rules.append(rule)
     return rules
+
+
+# -- Provable contradictions between a group's rules -------------------------------
+
+
+def contradictions(rules: Sequence[Rule], buildings: Mapping[str, Iterable[str]]) -> list[str]:
+    """The ways a group's ``be`` rules cannot all hold for the same member
+    whatever the roster is (every member must meet every rule), as Czech
+    messages. Judged against the layout (Building name -> its Room names):
+    values it does not have are inert, as everywhere. ``share`` rules never
+    contradict anything provably (they depend on the roster)."""
+    be = [r for r in rules if r.kind == BE]
+    problems: list[str] = []
+
+    roles = [r for r in be if r.axis == ROLE]
+    allowed_roles = set(Role.__members__)
+    for rule in roles:
+        values = set(rule.values)
+        allowed_roles = allowed_roles & values if rule.must else allowed_roles - values
+    if roles and not allowed_roles:
+        problems.append("žádná role nevyhovuje všem pravidlům o roli: " + "; ".join(r.text() for r in roles))
+
+    layout = {name: list(rooms) for name, rooms in buildings.items()}
+    places = [r for r in be if r.axis in (BUILDING, ROOM)]
+    building_rules = [(r, set(effective_values(r, layout))) for r in places if r.axis == BUILDING]
+    room_rules = [(r, set(effective_values(r, layout))) for r in places if r.axis == ROOM]
+    # A "must" naming only places the layout lacks is inert (it narrows nothing).
+    building_rules = [(r, v) for r, v in building_rules if v or not r.must]
+    room_rules = [(r, v) for r, v in room_rules if v or not r.must]
+    if building_rules or room_rules:
+        texts = "; ".join(r.text() for r in places)
+
+        def building_ok(name: str) -> bool:
+            return all((name in v) == r.must for r, v in building_rules)
+
+        open_buildings = [b for b in layout if building_ok(b)]
+        if not open_buildings:
+            problems.append("žádná budova nevyhovuje všem pravidlům o budově: " + texts)
+        elif room_rules:
+            rooms_ok = [
+                (b, room)
+                for b in open_buildings
+                for room in layout[b]
+                if all(((b, room) in v) == r.must for r, v in room_rules)
+            ]
+            if not rooms_ok:
+                problems.append("žádná místnost nevyhovuje všem pravidlům o budově a místnosti: " + texts)
+    return problems
+
+
+# -- Tags against the rules --------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class TagClash:
-    """A group whose active members' effective allowed sets (see
-    ``rostering.tags.allowed_values``) have nothing in common on a shared axis
-    (``tags.BUILDING`` or ``tags.ROLE``): it could never hold. ``limits`` are the
-    members Tags narrow, as ``(name, allowed values)``."""
+    """A group that could never hold because of its active members' Tags, on a
+    Building or Role axis (``tags.BUILDING`` / ``tags.ROLE``): either their
+    effective allowed sets (see ``rostering.tags.allowed_values``) have nothing in
+    common on an axis the group shares, or they leave a member nothing the group's
+    ``be`` rules (``rules``, their words) allow. ``limits`` are the members Tags
+    narrow, as ``(name, allowed values)``."""
 
     group: ForcedGroup
     axis: str
     limits: tuple[tuple[str, tuple[str, ...]], ...]
+    rules: tuple[str, ...] = ()
 
     def message(self) -> str:
         role = self.axis == tags_module.ROLE
@@ -288,10 +619,39 @@ class TagClash:
             for name, values in self.limits[:3]
         ]
         more = len(self.limits) - len(shown)
+        detail = "; ".join(shown) + (f"; a dalších {more}" if more > 0 else "")
+        if self.rules:
+            return (
+                f"Skupinka {self.group.name} nemůže splnit svá pravidla ({'; '.join(self.rules)}) "
+                f"se štítky členů ({detail})"
+            )
         noun = "roli" if role else "budovu"
-        return f"Skupinka {self.group.name} nemůže sdílet {noun} ({'; '.join(shown)}" + (
-            f"; a dalších {more})" if more > 0 else ")"
-        )
+        return f"Skupinka {self.group.name} nemůže sdílet {noun} ({detail})"
+
+
+def _listed_values(group: ForcedGroup, axis: str, universe: Sequence[str]) -> Optional[tuple[set[str], tuple[str, ...]]]:
+    """What the group's ``be`` rules allow every member on the Tag ``axis``:
+    ``(allowed values, the rules' words)``, or None when no rule speaks to that
+    axis. Room rules narrow the Buildings too (a "must be in room X" is a must be
+    in X's Building); values the universe lacks are inert."""
+    allowed = set(universe)
+    texts: list[str] = []
+    for rule in group.be_rules:
+        if axis == tags_module.ROLE:
+            if rule.axis != ROLE:
+                continue
+            values = {v for v in rule.values if v in universe}
+        elif rule.axis == BUILDING:
+            values = {v for v in rule.values if v in universe}
+        elif rule.axis == ROOM and rule.must:
+            values = {b for b, _room in rule.values if b in universe}
+        else:
+            continue
+        if not values and rule.must:
+            continue  # names nothing this Season has: inert
+        allowed = allowed & values if rule.must else allowed - values
+        texts.append(rule.text())
+    return (allowed, tuple(texts)) if texts else None
 
 
 def tag_clashes(
@@ -300,10 +660,13 @@ def tag_clashes(
     tags: Sequence[tags_module.Tag],
     universes: dict[str, Sequence[str]],
 ) -> list[TagClash]:
-    """The groups (among those with two or more active members in ``helpers``,
-    the attending Helpers) whose members' allowed sets have an empty
-    intersection on a Building or Role axis the group shares. This is the one
-    check that blocks creating or editing a group (Room implies Building, so a
+    """The groups (among those with an active member in ``helpers``, the
+    attending Helpers) that their members' Tags make impossible on a Building or
+    Role axis: with two or more active members and a rule sharing that axis, the
+    members' allowed sets (intersected with what the ``be`` rules allow) have
+    nothing in common; with a ``be`` rule on the axis, some member's allowed set
+    has nothing the rules allow. At most one clash per group and axis. This is the
+    one check that blocks creating or editing a group (Room implies Building, so a
     Room group is judged on Building); size, capacity and fixed Assignments never
     do. A member who has nowhere to go on the axis at all is that Helper's own
     dead end (refused by the Tag edit) and does not also count against the group.
@@ -311,20 +674,38 @@ def tag_clashes(
     clashes: list[TagClash] = []
     for group in groups:
         active = active_helpers(group, helpers)
-        if len(active) < 2:
+        if not active:
             continue
+        shared = set(group.share_axes)
         for axis in (tags_module.BUILDING, tags_module.ROLE):
             universe = list(universes.get(axis) or [])
-            if axis not in group.axes or not universe:
+            if not universe:
+                continue
+            shares = bool(shared & ({BUILDING, ROOM} if axis == tags_module.BUILDING else {ROLE})) and len(active) >= 2
+            listed = _listed_values(group, axis, universe)
+            if not shares and listed is None:
                 continue
             allowed = {h.id: tags_module.allowed_values(tags, h.tags, axis, universe) for h in active}
             if any(not values for values in allowed.values()):
                 continue
-            common = set(universe)
-            for values in allowed.values():
-                common &= set(values)
-            if common:
+            rule_words = listed[1] if listed else ()
+            permitted = listed[0] if listed else set(universe)
+            if shares:
+                common = set(universe)
+                for values in allowed.values():
+                    common &= set(values)
+                if common & permitted:
+                    continue
+                limits = tuple((h.name, tuple(allowed[h.id])) for h in active if len(allowed[h.id]) < len(universe))
+                if not limits:
+                    # Every member is unrestricted: only the rules themselves leave nothing (a contradiction).
+                    continue
+                words = rule_words if common else ()
+                clashes.append(TagClash(group, axis, limits, words))
                 continue
-            limits = tuple((h.name, tuple(allowed[h.id])) for h in active if len(allowed[h.id]) < len(universe))
-            clashes.append(TagClash(group, axis, limits))
+            stuck = tuple(
+                (h.name, tuple(allowed[h.id])) for h in active if not (set(allowed[h.id]) & permitted)
+            )
+            if stuck:
+                clashes.append(TagClash(group, axis, stuck, rule_words))
     return clashes

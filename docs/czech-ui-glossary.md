@@ -46,6 +46,8 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | Filter by tags | Filtrovat podle štítků |
 | Tags in the grid (legend of Tag pills) | Štítky v mřížce |
 | Make forced | Vynutit |
+| Forced friends group rule (must share / must be in / must not be in / must have role / must not have role) | Pravidlo skupinky (musí sdílet / musí být v / nesmí být v / musí mít roli / nesmí mít roli) |
+| Add rule | Přidat pravidlo |
 
 ## Conventions
 

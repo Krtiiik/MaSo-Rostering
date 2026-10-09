@@ -126,7 +126,8 @@ def test_the_overview_lists_each_groups_returning_and_missing_members(workspace)
     groups = {g["name"]: g for g in overview["sections"][0]["groups"]}
     assert set(groups) == {"Rodina", "Dvojice", "Cizinci"}
     rodina = groups["Rodina"]
-    assert rodina["axes"] == ["building", "room"]
+    assert rodina["rules"] == [{"kind": "share", "axis": "building"}, {"kind": "share", "axis": "room"}]
+    assert rodina["rule_texts"] == ["musí sdílet budovu", "musí sdílet místnost"]
     assert rodina["returning"] == ["Anna N.", "Petr Svoboda"]  # named as they are in this Season
     assert rodina["missing"] == ["Jana Dvořáková"]
     assert rodina["importable"] is True and rodina["already_present"] is False
@@ -161,7 +162,7 @@ def test_every_group_with_a_recognized_person_is_imported_with_placeholders_for_
     state = mutations.get_state(workspace)
     assert sorted(g["name"] for g in state["forced_groups"]) == ["Dvojice", "Rodina"]  # Cizinci: nobody returned
     rodina = _group(state, "Rodina")
-    assert rodina["axes"] == ["building", "room"]
+    assert rodina["rules"] == [{"kind": "share", "axis": "building"}, {"kind": "share", "axis": "room"}]
     assert rodina["status"] == "active"  # two of its three are here
     assert [(m["name"], m["state"]) for m in rodina["members"]] == [
         ("Anna N.", "active"),
@@ -327,12 +328,12 @@ def test_a_repeat_import_skips_a_group_already_present_with_identical_members_an
     assert section["groups_skipped"] == ["Rodina", "Dvojice"]
 
 
-def test_a_renamed_copy_still_counts_as_the_same_group_but_other_axes_do_not(workspace):
+def test_a_renamed_copy_still_counts_as_the_same_group_but_other_rules_do_not(workspace):
     _standard(workspace)
     mutations.import_from_season(workspace, _source_id(workspace))
     state = mutations.get_state(workspace)
-    forced_groups.update_group(workspace, _group(state, "Rodina")["id"], name="Familie")  # same members and axes
-    forced_groups.update_group(workspace, _group(state, "Dvojice")["id"], axes=["role"])  # other axes
+    forced_groups.update_group(workspace, _group(state, "Rodina")["id"], name="Familie")  # same members and rules
+    forced_groups.update_group(workspace, _group(state, "Dvojice")["id"], rules=["role"])  # other rules
 
     summary = mutations.import_from_season(workspace, _source_id(workspace))
 
@@ -370,7 +371,7 @@ def test_the_summary_reports_groups_alongside_tags(workspace):
     assert section["lines"][0] == "Importované skupinky: 2 (Rodina, Dvojice)"
     assert "Skupinky bez vracející se osoby, neimportovány: 1 (Cizinci)" in section["lines"]
     assert any(line.startswith("Skupinky už v tomto ročníku, přeskočeno: 0") for line in section["lines"])
-    assert "Zatím neaktivní (méně než dva aktivní členové): 1 (Dvojice)" in section["lines"]
+    assert "Zatím neaktivní (žádné pravidlo se zatím neuplatní): 1 (Dvojice)" in section["lines"]
 
 
 def test_an_import_raises_the_stale_flag_only_when_a_roster_exists_and_a_group_arrived(workspace):

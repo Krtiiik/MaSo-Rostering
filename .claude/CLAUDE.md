@@ -465,48 +465,73 @@ pushing the tag, not just creating it locally.
   `rostering/webapp/forced_groups.py`, UI in `ui/tabs/forced_friends.py` — the
   "3. Forced friends" tab, then "4. Buildings", "5. Solver" and "6. Roster"): a group is a dict in
   `state["forced_groups"]` (`id` from the high-water mark
-  `next_forced_group_id`, `name`, canonical `axes` — Room implies Building —
-  and `members`, each `{person_id, name}` with the last-known name), part of
+  `next_forced_group_id`, `name`, `rules` and `members`, each `{person_id,
+  name}` with the last-known name), part of
   every Version, empty after Start over and untouched by a re-upload. Members
   are Persons; who they are this Season is derived on every read
   (`forced_groups.list_groups`: `active` = a Helper who is attending,
   `cant_attend`, `not_registered`), never stored, so un-flagging or a later
   registration recognized by `person_id` makes a member live again by itself.
   `forced_friends.group_rules(helpers, groups)` is the one shared definition of
-  a group's rule for the solver and the checker: one `GroupRule` per active
-  group (two or more attending members) and enforced axis (Room subsumes
-  Building), identity `RuleInstance("forced_friends", (group_id, axis))`, size
-  `split_units` (members outside the largest party sharing a value, so the
-  Room axis compares `(building, room)`). `solver/rules.py`
+  a group's rules for the solver and the checker. A group holds a list of
+  `forced_friends.Rule`s that all hold at once, saved as dicts: `{"kind":
+  "share", "axis"}` (never negated) or `{"kind": "be", "must", "axis", "values"}`
+  where `axis` is `building` / `room` (values are Building names, or `[building,
+  room]` pairs) / `role` ("have role", `Role.name`s) and `values` is an any-of set
+  (canonical order, so equal sets are equal rules; `Rule.key` is the identity
+  inside a group, `Rule.text()` the Czech wording). A group saved before rules
+  existed has `axes`; `forced_friends.migrate_state` rewrites it on load (each
+  axis a `share` rule, the implied Building dropped when Room is there), in
+  `Workspace._read_state` and `load_version`. `group_rules` yields one `GroupRule`
+  per rule in force: a `share` rule per enforced axis (Room subsumes Building) when
+  two or more members are active, a `be` rule when one is (`in_force`); a `be` rule
+  keeps only the values the layout still has (`effective_values`) and one left with
+  none is inert. Identity `RuleInstance("forced_friends", (group_id, rule key))`
+  (`share:room`, `must:building:A|B`), size `split_units` for `share` (members
+  outside the largest party sharing a value, so the Room axis compares `(building,
+  room)`) and the number of members breaking it for `be` (`violates_be`; a Helper by
+  their Assignment, an Organizer anchor by `Anchor.violates`). `solver/rules.py`
   `FORCED_FRIENDS_FAMILY` (tier between Tag restrictions and Equipment) states
-  it as a max-count slack per rule and `_check_forced_friends` judges it live
+  it as a max-count slack per share rule and a per-Helper "outside / inside the
+  set" slack per be rule, and `_check_forced_friends` judges it live
   (the line is the same wording in both, `GroupRule.line(assignments)`: `Group
   Rodina [Anna, Petr, Jana] is split across rooms N4 and N6`, naming the active
   members and the distinct places their Assignments occupy on the axis (a Room
-  name shared by two Buildings is suffixed with its Building). Because a slack
+  name shared by two Buildings is suffixed with its Building); a be rule's reads
+  `Skupinka Rodina: pravidlo „musí být v budově A“ porušují Petr (B)`). Because a slack
   knows no places, `Relaxation` has an optional `describe_placed(units,
   assignments)` that `to_broken_rule` uses with the solved roster; its
   `FixTarget` is `("forced_friends", group_id)`, which `fix_focus` turns into
   a highlight on the group's card, scrolled to while the rule is still broken). `Competition.forced_groups` carries the
   groups (`mutations._build_competition`, `attending()`). Mutations:
-  `add_group` / `update_group` / `dissolve_group`; a create, or an edit of
-  people or axes, marks an existing roster stale, a rename does not, and a
-  dissolve does only if the group was active with two placed active members
-  currently satisfying it (`_was_pulling`). Only registered people can be
+  `add_group(workspace, name, person_ids, rules)` / `update_group(..., rules=)` /
+  `dissolve_group`; a create, or an edit of people or rules, marks an existing
+  roster stale, a rename does not, and a dissolve does only if some rule was
+  actually pulling placed members (`_was_pulling`, `in_force`). `_validated_rules`
+  refuses no rules, a malformed or repeated rule, a Building/Room the layout lacks
+  (unless the group already named it) and a provable contradiction
+  (`forced_friends.contradictions`: the be rules' allowed Roles, Buildings and
+  Rooms per member, intersected; share rules never contradict). A bare axis name
+  is accepted as a `share` rule. Only registered people can be
   picked (a member already in the group is kept even when not registered).
   `list_groups` also gives each group a `status` (`active` / `dormant` /
   `violated`, the last from `mutations.broken_rules`, so never before a roster
   and never for a dormant group) and its `violations` lines; the tab's badge and
-  the group cards (Edit opens a dialog, Dissolve confirms) read them. `mutations.grid_forced_groups(state)`
-  gives the grid `{helper_id: ["Rodina (same Building, Room)"]}` for the active
+  the group cards (Edit opens a dialog with the rule list, Dissolve confirms)
+  read them, with `rule_texts`, `badges` (Organizer warnings, see below) and
+  `missing_places` (notes for be-rule places the layout lacks, which are inert).
+  `mutations.grid_forced_groups(state)`
+  gives the grid `{helper_id: ["Rodina (musí sdílet místnost; ...)"]}` for the active
   members of groups in force (a dormant group marks no one), passed as each
   helper's chip data; the chip (`grid/render.py` `helper_chip`) shows a link mark whose tooltip
   lists them. The one blocking edit-time check is `forced_friends.tag_clashes`
-  (the members' `tags.allowed_values` intersected per shared Building/Role axis;
-  Room is judged as Building; a member with an empty allowed set of their own
+  (the members' `tags.allowed_values` intersected per shared Building/Role axis,
+  and against what the be rules allow every member, a "must be in room X" counting
+  as its Building; a clash is per member when no rule shares the axis; Room is
+  judged as Building; a member with an empty allowed set of their own
   is left to the Helper dead-end check; Can't attend and unregistered members
   are not counted). `forced_groups._refuse_tag_clash` runs it on `add_group`
-  and on an `update_group` that changes people or axes (a rename never blocks,
+  and on an `update_group` that changes people or rules (a rename never blocks,
   and an already-clashing group can only be edited towards holding), and
   `mutations._stranded` / `_refuse_new_dead_ends` carry group clashes as
   `(group id, axis, "group")` entries next to the Helper dead ends, so
@@ -517,22 +542,27 @@ pushing the tag, not just creating it locally.
   or nobody, so a promoted Helper (same `person_id`) stays a member. A placed,
   attending Organizer is an `Anchor` on a `GroupRule`
   (`group_rules(helpers, groups, organizers, buildings)`, `active_organizers`,
-  `active_member_count`): the Building axis takes every anchor, the Room axis
-  only those holding a Room, and a Room group with a Building-level anchor gets an
-  extra Building rule for it; the Role axis never has anchors. The solver adds an
-  anchor as a fixed head to the count of its Building/Room
-  (`ModelContext.organizers`), the checker adds it to the values compared
+  `active_member_count`): a share rule on the Building axis takes every anchor,
+  on the Room axis only those holding a Room, and a Room share with a
+  Building-level anchor gets an extra Building rule for it; the Role axis never has
+  anchors. A be rule on a Building judges every anchor by their Building, on a Room
+  an anchor holding one by it and a Building-level one by its Building as far as
+  that goes (`Anchor.violates`: "must" breaks only if the Building holds none of the
+  rooms named, "must not" never breaks); a role rule skips Organizers. The solver
+  adds an anchor as a fixed head to a share count of its Building/Room
+  (`ModelContext.organizers`) and the anchors already breaking a be rule as a
+  constant in its slack, the checker adds them to what it compares
   (`BrokenRule.organizer_ids`, cells for a Room-level anchor), and a rule with two
-  anchors and no Helper is a constant the solver reports but cannot fix. The
-  Role-axis ban is `forced_groups._refuse_organizer_on_role`: refused only when
-  an edit *introduces* the combination (adding an Organizer to a Role group, or
-  ticking Role over one), so a promoted member's group stays editable. The
-  `badges` of `list_groups` say `Role not applied to <name>`. The edit-time Tag
-  check counts Helpers only. `forced_groups.friend_requests(state)` and
+  anchors and no Helper is a constant the solver reports but cannot fix. An
+  Organizer is never refused: `forced_groups.organizer_notes` gives non-blocking
+  warnings (`Role se na <name> neuplatní`; a Building-level Organizer on a room
+  rule), shown as the `badges` on the card and live in the edit dialog. The
+  edit-time Tag check counts Helpers only. `forced_groups.friend_requests(state)` and
   `make_forced(workspace, helper_id, friend)` (friend: Helper id or
-  `{"organizer_id": n}`) back the "Vynucení kamarádi v místnosti" multiselect in a Helper's popup (Friends tab; the Forced friends tab itself no longer has it; `unforce(workspace, helper_id, friend)` dissolves the exact two-person Room group again):
-  a normal `add_group` named `Anna + Petr` with the Room axis, refused when that
-  exact group exists; the request is not touched. The grid marks Helper chips
+  `{"organizer_id": n}`) back the "Vynucení kamarádi v místnosti" multiselect in a Helper's popup (Friends tab; the Forced friends tab itself no longer has it; `unforce(workspace, helper_id, friend)` dissolves the exact two-person group whose only rule shares a Room again):
+  a normal `add_group` named `Anna + Petr` with the one rule "share Room", refused when that
+  exact group exists (`_same_group_exists` compares `effective_rules`, where `share
+  building` beside `share room` adds nothing); the request is not touched. The grid marks Helper chips
   only (`grid_forced_groups` counts a placed Organizer towards a group being in
   force), Organizer slot chips carry no group mark. Import from an
   earlier Season: the second `ImportSection` (`forced_groups`, registered at the

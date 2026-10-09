@@ -229,7 +229,7 @@ def test_the_card_lists_tags_and_forced_friend_groups(workspace):
 
     card = data.card_data(_view(workspace), 1)  # a Tag shows whatever the Overlays are
     assert [t["name"] for t in card["tags"]["direct"]] == ["Vedoucí"]
-    assert card["forced_groups"] == ["Rodina (shodné: budova, místnost)"]
+    assert card["forced_groups"] == ["Rodina (musí sdílet budovu; musí sdílet místnost)"]
 
     other = data.card_data(_view(workspace), 3)
     assert other["tags"] == {"direct": [], "implied": []} and other["forced_groups"] == []
