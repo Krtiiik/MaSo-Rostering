@@ -14,22 +14,25 @@ from rostering.webapp.ui.grid import data
 
 CARD_WIDTH = 260
 # The real height varies with the content; this estimate only decides whether
-# to flip above the cursor.
+# to flip above the cursor (the flipped card is anchored by its bottom edge).
 CARD_HEIGHT_ESTIMATE = 280
 CURSOR_OFFSET = 14
 VIEWPORT_MARGIN = 8
 
 
-def card_position(x: float, y: float, width: float, height: float) -> tuple[float, float]:
-    """(top, left) anchoring a corner of the card at the click, flipped on either
-    axis where it would leave the viewport."""
+def card_position(x: float, y: float, width: float, height: float) -> str:
+    """CSS placing a corner of the card at the click, flipped on either axis where
+    it would leave the viewport. Flipped above, the card is anchored by its bottom
+    edge, so it hugs the click whatever its real height is."""
     left = x + CURSOR_OFFSET
     if left + CARD_WIDTH + VIEWPORT_MARGIN > width:
         left = x - CURSOR_OFFSET - CARD_WIDTH
-    top = y + CURSOR_OFFSET
-    if top + CARD_HEIGHT_ESTIMATE + VIEWPORT_MARGIN > height:
-        top = y - CURSOR_OFFSET - CARD_HEIGHT_ESTIMATE
-    return max(VIEWPORT_MARGIN, top), max(VIEWPORT_MARGIN, left)
+    left = max(VIEWPORT_MARGIN, left)
+    if y + CURSOR_OFFSET + CARD_HEIGHT_ESTIMATE + VIEWPORT_MARGIN > height:
+        bottom = max(VIEWPORT_MARGIN, height - (y - CURSOR_OFFSET))
+        room = height - bottom - VIEWPORT_MARGIN
+        return f"bottom:{bottom}px; left:{left}px; max-height:{room}px; overflow-y:auto"
+    return f"top:{y + CURSOR_OFFSET}px; left:{left}px"
 
 
 def _stars(level: int) -> str:
@@ -43,7 +46,7 @@ class HelperCard:
     def __init__(self, on_toggle_lock: Callable[[int, bool], object]) -> None:
         self._on_toggle_lock = on_toggle_lock
         self.helper_id: Optional[int] = None
-        self._position: tuple[float, float] = (0, 0)
+        self._position = ""
         self.container: Optional[ui.element] = None
 
     def attach(self, view: Optional[data.GridView]) -> None:
@@ -76,10 +79,9 @@ class HelperCard:
         if info is None:
             self.helper_id = None
             return
-        top, left = self._position
         helper_id = self.helper_id
         with self.container:
-            with ui.element("div").classes("helper-card").style(f"top:{top}px; left:{left}px"):
+            with ui.element("div").classes("helper-card").style(self._position):
                 ui.label(info["name"]).classes("font-bold mb-1")
                 if info["placed"]:
                     ui.button(
