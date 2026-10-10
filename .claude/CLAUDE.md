@@ -32,7 +32,9 @@ Tailwind utility classes the tabs use (`bg-white`, `text-gray-*`, `bg-*-50`,
 grid colours itself with `--g-*` variables in `grid/render.py` `CSS` (light on
 `:root`, dark on `body.body--dark`): a new colour there is a variable with both
 values, never a bare hex. A new tab using a light-only Tailwind colour class
-needs a dark override in `theme.CSS`.
+needs a dark override in `theme.CSS`, inside its `@layer overrides` block: NiceGUI
+puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the later
+`quasar_importants` layer, which beats any unlayered `!important` rule.
 
 ## Manual roles (implementation notes)
 

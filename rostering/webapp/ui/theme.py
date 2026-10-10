@@ -25,15 +25,19 @@ CSS = """
 body { background: #f7f7f9; }
 body.body--dark { background: #121212; }
 .nicegui-content { padding: 0; }
-.body--dark .bg-white { background-color: #1d1d1d !important; }
-.body--dark .text-black { color: #fff !important; }
-.body--dark .text-gray-400 { color: #8a8d93 !important; }
-.body--dark .text-gray-500, .body--dark .text-grey-6 { color: #a3a6ad !important; }
-.body--dark .text-gray-600, .body--dark .text-grey-7 { color: #b4b7bd !important; }
-.body--dark .bg-green-50 { background-color: #1c3324 !important; }
-.body--dark .bg-amber-50 { background-color: #3a2f12 !important; }
-.body--dark .bg-blue-50 { background-color: #1b2c40 !important; }
-.body--dark .text-orange-700, .body--dark .text-orange-800 { color: #ffb066 !important; }
+/* Quasar's own .bg-white / .text-black are !important in the quasar_importants layer, which beats an
+   unlayered !important: these go in NiceGUI's earlier "overrides" layer instead. */
+@layer overrides {
+  .body--dark .bg-white { background-color: #1d1d1d !important; }
+  .body--dark .text-black { color: #fff !important; }
+  .body--dark .text-gray-400 { color: #8a8d93 !important; }
+  .body--dark .text-gray-500, .body--dark .text-grey-6 { color: #a3a6ad !important; }
+  .body--dark .text-gray-600, .body--dark .text-grey-7 { color: #b4b7bd !important; }
+  .body--dark .bg-green-50 { background-color: #1c3324 !important; }
+  .body--dark .bg-amber-50 { background-color: #3a2f12 !important; }
+  .body--dark .bg-blue-50 { background-color: #1b2c40 !important; }
+  .body--dark .text-orange-700, .body--dark .text-orange-800 { color: #ffb066 !important; }
+}
 """
 
 
