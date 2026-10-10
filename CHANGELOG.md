@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Tags are sorted naturally everywhere they are listed, so "11. M" comes after
+  "2. M" instead of before it.
+
 ## [3.2.0] - 2026-10-09
 
 ### Added
