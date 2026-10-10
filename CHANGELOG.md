@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dark mode: a header button cycles the appearance between system, light
+  ("Vzhled: světlý") and dark ("Vzhled: tmavý"). The choice is remembered in the
+  browser; with none stored the app follows the system. The roster grid, chips
+  and details card have dark colours too.
+
 ## [3.2.0] - 2026-10-09
 
 ### Added

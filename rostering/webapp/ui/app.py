@@ -19,15 +19,10 @@ from rostering.webapp.ui.session import UiSession
 from rostering.webapp.ui.sidebar import Sidebar
 from rostering.webapp.ui.tabs.person_sheet import PersonSheet
 from rostering.webapp.ui.tabs.tag_sheet import TagSheet
+from rostering.webapp.ui.theme import CSS as _CSS, ThemeToggle
 
 # The MaSo site's own favicon (https://maso.mff.cuni.cz/favicon.ico).
 _FAVICON = Path(__file__).parent / "assets" / "favicon.ico"
-
-_CSS = """
-body { background: #f7f7f9; }
-.nicegui-content { padding: 0; }
-"""
-
 
 async def _migrate_legacy(session: UiSession) -> None:
     """First launch after Seasons were introduced: move the old single saved
@@ -99,6 +94,7 @@ class Page:
             with self.tab_strip:
                 for name in labels.TABS:
                     ui.tab(name)
+            self.theme = ThemeToggle()
             with ui.button(icon="checklist", on_click=lambda: right.toggle()).props("flat round").mark("todo-button"):
                 self.todo_badge = ui.badge(color="warning").props("floating")
                 ui.tooltip("K vyřízení")
@@ -174,6 +170,7 @@ async def root() -> None:
     page = Page()
     # Once the page is up: the legacy migration may need to ask in a dialog.
     ui.timer(0.1, lambda: _migrate_legacy(page.session), once=True)
+    ui.timer(0.0, page.theme.restore, once=True)
 
 
 def _print_how_to_stop() -> None:
@@ -199,5 +196,6 @@ def run(*, host: str, port: int, show: bool, reload: bool = False, watch: Option
         uvicorn_reload_includes="*.py, *.js",
         favicon=_FAVICON,
         language="cs",
+        dark=None,  # follow the system until the browser's own choice is restored
         reconnect_timeout=30,
     )

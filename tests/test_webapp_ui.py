@@ -97,6 +97,18 @@ async def test_the_page_shows_the_open_season_and_the_six_steps(user: User):
     assert sorted(t._props["name"] for t in user.find(kind=ui.tab).elements) == sorted(labels.TABS)
 
 
+async def test_the_theme_button_cycles_system_light_dark(user: User):
+    toggle = user.find(marker="theme-toggle")
+    dark = user.find(kind=ui.dark_mode).elements.pop()
+    assert dark.value is None
+    toggle.click()
+    assert dark.value is False
+    toggle.click()
+    assert dark.value is True
+    toggle.click()
+    assert dark.value is None
+
+
 async def test_switching_tabs_shows_that_step(user: User):
     await _go(user, labels.TAB_SOLVER)
     await user.should_see("Ceny rolí")

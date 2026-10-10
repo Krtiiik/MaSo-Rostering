@@ -34,7 +34,7 @@ _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 # How much of a Tag's colour goes into its stripe; the rest is the chip's own
 # background, so the chip's normal text colour stays readable.
 _TINT_PERCENT = 55
-_CHIP_BACKGROUND = "#eef1f5"
+_CHIP_BACKGROUND = "var(--g-chip)"
 
 # Material Symbols "link_2" (Rounded), inlined.
 LINK_ICON = (
@@ -479,55 +479,67 @@ def row_groups_for(view: GridView, merges: dict, row_key: str) -> list[tuple[str
 
 
 CSS = """
+:root {
+  --g-surface: #fff; --g-text: #1d1d1d; --g-border: #ddd; --g-head: #f3f3f3; --g-subhead: #f9f9f9;
+  --g-chip: #eef1f5; --g-chip-border: #d5dae1; --g-drop: #e6f4ff; --g-tall: #f4f9ff;
+  --g-accent: #1c83e1; --g-pool-border: #bbb; --g-locked: #262730; --g-unsatisfied: #fff6e0;
+  --g-requester: #9c27b0; --g-side-line: rgba(38, 39, 48, .7); --g-shadow: rgba(0, 0, 0, .18);
+}
+body.body--dark {
+  --g-surface: #1d1d1d; --g-text: #e6e6e6; --g-border: #3a3d44; --g-head: #272a30; --g-subhead: #212328;
+  --g-chip: #2f3540; --g-chip-border: #4a5160; --g-drop: #1b3a57; --g-tall: #1c2733;
+  --g-accent: #3b9eff; --g-pool-border: #666; --g-locked: #f0f0f0; --g-unsatisfied: #4a3a12;
+  --g-requester: #d36ae6; --g-side-line: rgba(225, 225, 230, .6); --g-shadow: rgba(0, 0, 0, .6);
+}
 .roster-grid-root { font-size: 13px; }
 .roster-grid-root .table-scroll { overflow-x: auto; }
 .roster-grid-root .unassigned-pool {
-  margin-bottom: .75rem; padding: .5rem; border: 1px dashed #bbb; border-radius: 6px; background: #fff;
+  margin-bottom: .75rem; padding: .5rem; border: 1px dashed var(--g-pool-border); border-radius: 6px; background: var(--g-surface);
 }
 .roster-grid-root .organizers-pool { position: sticky; top: var(--roster-toolbar-bottom, 0px); z-index: 15; }
 .roster-grid-root .unassigned-group { display: flex; flex-wrap: wrap; align-items: center; margin-top: 4px; }
 .roster-grid-root .unassigned-group-label { margin-right: 6px; font-size: .85em; opacity: .7; }
-.roster-grid-root .roster-grid { border-collapse: collapse; width: 100%; background: #fff; }
+.roster-grid-root .roster-grid { border-collapse: collapse; width: 100%; background: var(--g-surface); }
 .roster-grid-root .roster-grid th, .roster-grid-root .roster-grid td {
-  border: 1px solid #ddd; padding: 4px 6px; text-align: left; vertical-align: top; white-space: nowrap;
+  border: 1px solid var(--g-border); padding: 4px 6px; text-align: left; vertical-align: top; white-space: nowrap;
 }
-.roster-grid-root .building-header { text-align: center; background: #f3f3f3; }
-.roster-grid-root .room-header { background: #f9f9f9; }
-.roster-grid-root .row-label { background: #f9f9f9; white-space: nowrap; position: sticky; left: 0; z-index: 2; }
+.roster-grid-root .building-header { text-align: center; background: var(--g-head); }
+.roster-grid-root .room-header { background: var(--g-subhead); }
+.roster-grid-root .row-label { background: var(--g-subhead); white-space: nowrap; position: sticky; left: 0; z-index: 2; }
 .roster-grid-root .grid-cell { position: relative; min-width: 110px; height: 30px; }
-.roster-grid-root .grid-cell.drop-over { background: #e6f4ff !important; }
+.roster-grid-root .grid-cell.drop-over { background: var(--g-drop) !important; }
 .roster-grid-root .grid-cell.drop-disabled { opacity: .45; }
 /* Chips sit side by side and wrap onto another line only when the column is full. */
 .roster-grid-root .grid-cell-inner { display: flex; flex-flow: row wrap; align-items: flex-start; gap: 2px; }
 .roster-grid-root .cell-merge-handle {
   position: absolute; top: 0; right: -4px; bottom: 0; width: 8px; cursor: pointer; z-index: 5;
-  background: #d5dae1; opacity: .35;
+  background: var(--g-chip-border); opacity: .35;
 }
-.roster-grid-root .cell-merge-handle:hover { opacity: 1; background: #1c83e1; }
+.roster-grid-root .cell-merge-handle:hover { opacity: 1; background: var(--g-accent); }
 .roster-grid-root .cell-unmerge-handle {
   position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; line-height: 14px; text-align: center;
-  font-size: 11px; padding: 0; cursor: pointer; border-radius: 3px; background: #eef1f5; border: 1px solid #d5dae1;
+  font-size: 11px; padding: 0; cursor: pointer; border-radius: 3px; background: var(--g-chip); border: 1px solid var(--g-chip-border);
   z-index: 5; opacity: .6;
 }
-.roster-grid-root .cell-unmerge-handle:hover { opacity: 1; background: #e6f4ff; }
+.roster-grid-root .cell-unmerge-handle:hover { opacity: 1; background: var(--g-drop); }
 .roster-grid-root .cell-vmerge-handle {
   position: absolute; left: 0; right: 0; bottom: -4px; height: 8px; cursor: pointer; z-index: 5;
-  background: #d5dae1; opacity: .35;
+  background: var(--g-chip-border); opacity: .35;
 }
-.roster-grid-root .cell-vmerge-handle:hover { opacity: 1; background: #1c83e1; }
+.roster-grid-root .cell-vmerge-handle:hover { opacity: 1; background: var(--g-accent); }
 .roster-grid-root .cell-unmerge-tall { top: auto; bottom: 2px; }
-.roster-grid-root .tall-cell { background: #f4f9ff; }
+.roster-grid-root .tall-cell { background: var(--g-tall); }
 .roster-grid-root .helper-chip {
-  display: inline-block; margin: 1px; padding: 2px 6px; border-radius: 10px; background: #eef1f5;
-  border: 1px solid #d5dae1; cursor: grab; user-select: none; white-space: nowrap;
+  display: inline-block; margin: 1px; padding: 2px 6px; border-radius: 10px; background: var(--g-chip);
+  border: 1px solid var(--g-chip-border); cursor: grab; user-select: none; white-space: nowrap;
 }
-.roster-grid-root .helper-chip.locked { border: 2px solid #262730; padding: 1px 5px; }
+.roster-grid-root .helper-chip.locked { border: 2px solid var(--g-locked); padding: 1px 5px; }
 .roster-grid-root .helper-chip-answers-changed { color: #e0a800; font-weight: 700; }
 .roster-grid-root .helper-chip-forced { cursor: help; }
 .roster-grid-root .helper-chip.chip-dimmed, .roster-grid-root .manual-chip.chip-dimmed { opacity: .3; }
 .roster-grid-root .helper-chip.chip-dimmed:hover, .roster-grid-root .manual-chip.chip-dimmed:hover { opacity: 1; }
 .roster-grid-root .helper-chip.dragging, .roster-grid-root .organizer-chip.dragging { opacity: .5; }
-.roster-grid-root .helper-chip.unsatisfied { border-color: #e0a800; background: #fff6e0; }
+.roster-grid-root .helper-chip.unsatisfied { border-color: #e0a800; background: var(--g-unsatisfied); }
 .roster-grid-root .helper-chip.friend-highlight-satisfied, .roster-grid-root .organizer-chip.friend-highlight-satisfied {
   outline: 2px solid #21c354; outline-offset: 1px;
 }
@@ -535,7 +547,7 @@ CSS = """
   outline: 2px solid #dc3545; outline-offset: 1px;
 }
 .roster-grid-root .helper-chip.friend-highlight-requester, .roster-grid-root .organizer-chip.friend-highlight-requester {
-  outline: 2px solid #9c27b0; outline-offset: 1px;
+  outline: 2px solid var(--g-requester); outline-offset: 1px;
 }
 .roster-grid-root .helper-chip[class*="role-fit-"] {
   border-left-width: 4px; padding-left: 3px;
@@ -556,13 +568,13 @@ CSS = """
 }
 .roster-grid-root .manual-chip {
   display: inline-flex; align-items: center; gap: 4px; margin: 1px; padding: 2px 6px; border-radius: 10px;
-  background: #eef1f5; border: 1px solid #d5dae1; white-space: nowrap;
+  background: var(--g-chip); border: 1px solid var(--g-chip-border); white-space: nowrap;
 }
 .roster-grid-root .organizer-chip { cursor: grab; user-select: none; }
 .roster-grid-root .manual-chip-new { border-style: dashed; }
 .roster-grid-root .manual-chip-duplicate { border-style: dotted; border-width: 2px; }
 .roster-grid-root .manual-chip-badge {
-  font-size: .7em; padding: 0 4px; border-radius: 6px; border: 1px solid #d5dae1; opacity: .75;
+  font-size: .7em; padding: 0 4px; border-radius: 6px; border: 1px solid var(--g-chip-border); opacity: .75;
 }
 .roster-grid-root .manual-chip-remove {
   border: none; background: none; cursor: pointer; padding: 0; line-height: 1; color: inherit; opacity: .6;
@@ -573,18 +585,18 @@ CSS = """
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #dc3545 45%, transparent);
 }
 .roster-grid-root .roster-grid th.broken {
-  background: color-mix(in srgb, #dc3545 14%, #f3f3f3);
+  background: color-mix(in srgb, #dc3545 14%, var(--g-head));
   box-shadow: inset 0 -2px 0 color-mix(in srgb, #dc3545 55%, transparent);
 }
 .roster-grid-root .helper-chip.broken, .roster-grid-root .manual-chip.broken {
   box-shadow: 0 0 0 2px color-mix(in srgb, #dc3545 45%, transparent);
 }
 .roster-grid-root .roster-grid tr.row-side-start > th, .roster-grid-root .roster-grid tr.row-side-start > td {
-  border-top: 3px solid rgba(38, 39, 48, .7);
+  border-top: 3px solid var(--g-side-line);
 }
 .helper-card {
-  position: fixed; z-index: 3000; width: 260px; padding: 8px 10px; border-radius: 6px; border: 1px solid #ddd;
-  background: #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); font-size: 13px;
+  position: fixed; z-index: 3000; width: 260px; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--g-border);
+  background: var(--g-surface); color: var(--g-text); box-shadow: 0 4px 16px var(--g-shadow); font-size: 13px;
 }
 .helper-card .helper-card-label { font-size: .8em; font-weight: 600; opacity: .7; text-transform: uppercase; }
 .helper-card .stars { color: #d9a400; letter-spacing: 1px; }

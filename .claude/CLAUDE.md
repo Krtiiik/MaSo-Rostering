@@ -22,6 +22,18 @@ message raised to the user must be written in Czech from the start (the roster
 grid's strings are in `rostering/webapp/ui/grid/render.py`; it has no build
 step).
 
+## Dark mode
+
+`ui/theme.py` owns it: `ThemeToggle` (header button, system -> light -> dark,
+kept per browser in `localStorage`, applied once the page connects; `ui.run`
+starts in auto) and `CSS`, which sets the page background and overrides the
+Tailwind utility classes the tabs use (`bg-white`, `text-gray-*`, `bg-*-50`,
+...) under `body.body--dark`. Quasar restyles its own components. The roster
+grid colours itself with `--g-*` variables in `grid/render.py` `CSS` (light on
+`:root`, dark on `body.body--dark`): a new colour there is a variable with both
+values, never a bare hex. A new tab using a light-only Tailwind colour class
+needs a dark override in `theme.CSS`.
+
 ## Manual roles (implementation notes)
 
 See `CONTEXT.md` for what Organizer role and Additional role mean and which
