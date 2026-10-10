@@ -137,7 +137,7 @@ async def test_a_step_is_kept_while_away_and_redrawn_after_a_change(user: User, 
     assert user.find(marker="helper-table").elements.pop() is table  # shown again, not rebuilt
 
     await _go(user, labels.TAB_TAGS)  # a change made on another step ...
-    user.find(marker="tag-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    user.find(marker="tag-tree").trigger("tag_select", {"id": 1})
     await user.should_see(marker="tag-carriers")
     user.find(marker="tag-carriers").trigger("selection", {"added": True, "rows": [{"key": "h1"}], "keys": ["h1"]})
     user.find(marker="tag-carriers-save").click()
@@ -420,7 +420,7 @@ async def test_the_tags_tab_adds_and_removes_carriers_in_one_save(user: User, se
     mutations.set_organizer_tags(seasons, 1, [1])
     await user.open("/")
     await _go(user, labels.TAB_TAGS)
-    user.find(marker="tag-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    user.find(marker="tag-tree").trigger("tag_select", {"id": 1})
     await user.should_see("Kdo štítek nese (1)")
     assert [r["key"] for r in user.find(marker="tag-carriers").elements.pop().selected] == ["o1"]
 
@@ -437,13 +437,62 @@ async def test_the_tags_tab_adds_and_removes_carriers_in_one_save(user: User, se
 async def test_the_tag_sheet_is_hidden_until_a_row_is_clicked(user: User, seasons):
     await user.open("/")
     await _go(user, labels.TAB_TAGS)
-    await user.should_see(marker="tag-table")
+    await user.should_see(marker="tag-tree")
     await user.should_not_see(marker="tag-name")
-    assert user.find(marker="tag-table").elements.pop().rows[0]["name"] == "GCHD"
+    assert user.find(marker="tag-tree").elements.pop()._props["rows"][0]["name"] == "GCHD"
 
-    user.find(marker="tag-table").trigger("rowClick", [{}, {"id": 1}, 0])
+    user.find(marker="tag-tree").trigger("tag_select", {"id": 1})
     await user.should_see(marker="tag-name")
     assert user.find(marker="tag-name").elements.pop().value == "GCHD"
+
+
+def _tree_rows(user: User) -> dict[str, dict]:
+    return {r["name"]: r for r in user.find(marker="tag-tree").elements.pop()._props["rows"]}
+
+
+async def test_the_tags_tree_lists_the_tags_indented_under_the_tag_they_imply(user: User, seasons):
+    mutations.add_tag(seasons, "8.M", parent_id=1)
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    rows = _tree_rows(user)
+    assert (rows["GCHD"]["depth"], rows["GCHD"]["parent_id"], rows["GCHD"]["has_children"]) == (0, None, True)
+    assert (rows["8.M"]["depth"], rows["8.M"]["parent_id"], rows["8.M"]["has_children"]) == (1, 1, False)
+
+
+async def test_dropping_a_tag_on_another_moves_it_under_it_and_on_the_empty_space_makes_it_a_root(user: User, seasons):
+    mutations.add_tag(seasons, "8.M")
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+
+    user.find(marker="tag-tree").trigger("tag_move", {"id": 2, "parent_id": 1})
+    await asyncio.sleep(0.2)
+    assert [(t["name"], t["parent_id"]) for t in _state(seasons)["tags"]] == [("GCHD", None), ("8.M", 1)]
+    assert _tree_rows(user)["8.M"]["depth"] == 1
+
+    user.find(marker="tag-tree").trigger("tag_move", {"id": 2, "parent_id": None})
+    await asyncio.sleep(0.2)
+    assert [t["parent_id"] for t in _state(seasons)["tags"]] == [None, None]
+
+
+async def test_a_drop_that_would_make_a_tag_its_own_ancestor_is_refused_and_changes_nothing(user: User, seasons):
+    mutations.add_tag(seasons, "8.M", parent_id=1)
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    user.find(marker="tag-tree").trigger("tag_move", {"id": 1, "parent_id": 2})
+    await asyncio.sleep(0.2)
+    assert [(t["name"], t["parent_id"]) for t in _state(seasons)["tags"]] == [("GCHD", None), ("8.M", 1)]
+
+
+async def test_folding_a_branch_is_remembered_across_redraws(user: User, seasons):
+    mutations.add_tag(seasons, "8.M", parent_id=1)
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    user.find(marker="tag-tree").trigger("tag_toggle", {"id": 1, "collapsed": True})
+    user.find(marker="add-tag").click()  # a redraw of the step
+    await user.should_see(marker="tag-name")
+    await _go(user, labels.TAB_PEOPLE)
+    await _go(user, labels.TAB_TAGS)
+    assert user.find(marker="tag-tree").elements.pop()._props["collapsed"] == [1]
 
 
 async def test_the_new_tag_button_opens_the_create_form_and_then_the_new_tag(user: User, seasons):
