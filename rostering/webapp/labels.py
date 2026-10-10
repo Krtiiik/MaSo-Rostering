@@ -53,3 +53,70 @@ def organizer_field_label(key: str) -> str:
 
 SEASON_LABEL_FIELD = "Označení ročníku"
 SEASON_LABEL_HELP = "Rok a jaro nebo podzim, např. 2026-jaro."
+
+
+# The list of differences shown when importing a Season (``rostering.season_diff``):
+# its categories and the persisted field names are English, so only the display
+# is translated; a field with no entry is shown as it is stored.
+DIFF_CATEGORY_LABELS = {
+    "label": "Označení ročníku",
+    "helpers": "Pomocníci",
+    "organizers": "Organizátoři",
+    "assignments": "Přiřazení",
+    "locks": "Zámky",
+    "flags": "Příznaky (Nemůže se zúčastnit)",
+    "tags": "Štítky",
+    "forced_groups": "Vynucené skupinky kamarádů",
+    "layout": "Budovy a místnosti",
+    "manual_roles": "Manuální role",
+    "merges": "Sloučené buňky",
+    "solver_config": "Parametry rozřazování",
+    "versions": "Uložené verze",
+}
+DIFF_FIELD_LABELS = {
+    "name": "jméno",
+    "email": "e-mail",
+    "phone": "telefon",
+    "tshirt_size": "velikost trička",
+    "building": "budova",
+    "room": "místnost",
+    "role": "role",
+    "colour": "barva",
+    "note": "poznámka",
+    "parent_id": "nadřazený štítek",
+    "tags": "štítky",
+    "friends": "kamarádi",
+    "role_preferences": "preference rolí",
+    "building_preferences": "preferované budovy",
+    "can_bring_notebook": "notebook",
+    "can_bring_camera": "fotoaparát",
+    "cant_attend": "nemůže se zúčastnit",
+    "locked": "zámek",
+    "capacities": "počty lidí",
+    "rules": "pravidla",
+    "members": "členové",
+}
+
+
+# Parts of a Season the difference list reports as one piece, without fields.
+DIFF_WHOLE_PARTS = ("manual_roles", "merges", "solver_config")
+
+
+def diff_category_title(category: dict) -> str:
+    return DIFF_CATEGORY_LABELS.get(category["key"], category["key"])
+
+
+def diff_category_lines(category: dict) -> list[str]:
+    """One line per difference of a category: ``+`` what the import adds, ``−``
+    what it takes away and ``~`` what it changes (with the fields)."""
+    lines = [f"+ {name}" for name in category["added"]]
+    lines += [f"− {name}" for name in category["removed"]]
+    for change in category["changed"]:
+        fields = ", ".join(DIFF_FIELD_LABELS.get(f, f) for f in change["fields"])
+        if fields:
+            lines.append(f"~ {change['label']} ({fields})")
+        elif category["key"] in DIFF_WHOLE_PARTS:
+            lines.append("~ změněno")
+        else:
+            lines.append(f"~ {change['label']}")
+    return lines

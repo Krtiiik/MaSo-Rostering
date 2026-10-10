@@ -45,6 +45,22 @@ def label_sort_key(label: str) -> tuple[int, int]:
     return int(year), HALVES.index(half)
 
 
+def next_free_label(label: str, taken: Iterable[str]) -> Optional[str]:
+    """The first label after ``label`` (a normalized one), going half-year by
+    half-year, that is not in ``taken`` — the suggestion for a copy of a Season
+    that cannot keep its own label. ``None`` only if forty half-years are all taken."""
+    taken = set(taken)
+    year, half = label_sort_key(label)
+    for _ in range(40):
+        half += 1
+        if half == len(HALVES):
+            year, half = year + 1, 0
+        candidate = f"{year:04d}-{HALVES[half]}"
+        if candidate not in taken:
+            return candidate
+    return None
+
+
 def half_of(when: date | datetime) -> str:
     """January to June is jaro, July to December is podzim."""
     return "jaro" if when.month <= 6 else "podzim"

@@ -44,7 +44,7 @@ async def run_in_modal(title: str, work: Callable[[], Any], *, client: Optional[
         error = f"Neočekávaná chyba: {exc}"
     else:
         dialog.close()
-        dialogs._discard(dialog)
+        dialogs.discard(dialog)
         return result
     spinner.delete()
     message.text = error
@@ -52,7 +52,7 @@ async def run_in_modal(title: str, work: Callable[[], Any], *, client: Optional[
     with message.parent_slot.parent:
         ui.button("Zavřít", on_click=dialog.close)
     await dialog
-    dialogs._discard(dialog)
+    dialogs.discard(dialog)
     return None
 
 

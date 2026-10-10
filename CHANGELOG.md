@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ("Vzhled: světlý") and dark ("Vzhled: tmavý"). The choice is remembered in the
   browser; with none stored the app follows the system. The roster grid, chips
   and details card have dark colours too.
+- Ročníky (postranní panel): "Exportovat" uloží vybrané ročníky (všechny jsou
+  zaškrtnuté) do jednoho souboru .zip, volitelně s uloženými verzemi; "Importovat"
+  ho načte jinde. Před importem se zobrazí, co soubor obsahuje. Nový ročník se
+  jednoduše přidá; ročník, který už v aplikaci je (stejné ID, nebo stejné označení
+  u jiného ročníku), ukáže seznam rozdílů (pomocníci, organizátoři, přiřazení,
+  štítky, skupinky, budovy, verze, ...) a musí se vybrat Nahradit, Ponechat obě
+  (kopie dostane nové označení a ID) nebo Přeskočit. Před importem se dosavadní
+  ročníky zazálohují do složky `backups/`, import se provede celý, nebo vůbec, a
+  do prázdné aplikace se znovu otevře ročník, který byl při exportu otevřený.
 
 ## [3.2.0] - 2026-10-09
 

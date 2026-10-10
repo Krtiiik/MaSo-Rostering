@@ -39,7 +39,7 @@ def page_dialog(*, auto_delete: bool = True, client: Optional[Client] = None) ->
     return dialog
 
 
-def _discard(dialog: ui.dialog) -> None:
+def discard(dialog: ui.dialog) -> None:
     if not dialog.is_deleted:
         dialog.delete()
 
@@ -62,7 +62,7 @@ async def confirm(spec: ConfirmSpec, *, client: Optional[Client] = None) -> bool
                 "color=negative" if spec.danger else "color=primary"
             ).mark("confirm-ok")
     result = await dialog
-    _discard(dialog)
+    discard(dialog)
     return bool(result)
 
 
@@ -87,7 +87,7 @@ async def choose(
             for index, (label, value) in enumerate(options):
                 ui.button(label, on_click=lambda _, v=value: dialog.submit(v)).props("color=negative").mark(f"choose-{index}")
     result = await dialog
-    _discard(dialog)
+    discard(dialog)
     return result
 
 
@@ -112,7 +112,7 @@ async def ask_text(
             ui.button(CANCEL, on_click=lambda: dialog.submit(None)).props("flat")
             ui.button(ok_label, on_click=lambda: dialog.submit(field.value)).props("color=primary").mark("ask-ok")
     result = await dialog
-    _discard(dialog)
+    discard(dialog)
     if result is None:
         return None
     return str(result).strip()

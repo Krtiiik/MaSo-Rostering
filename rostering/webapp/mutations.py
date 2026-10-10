@@ -47,7 +47,7 @@ from rostering.ingest.raw_survey import (
     read_submission_timestamps,
     resolve_friend_names,
 )
-from rostering.persistence import config_store
+from rostering.persistence import config_store, transfer
 from rostering.persistence.season_label import display_label, guess_label, label_sort_key, school_years_crossed
 from rostering.persistence.serialize import (
     assignment_from_dict,
@@ -113,7 +113,7 @@ def _season_errors(func: _F) -> _F:
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except SeasonError as exc:
+        except (SeasonError, transfer.TransferError) as exc:
             raise RosteringError(str(exc)) from exc
 
     return wrapper  # type: ignore[return-value]
@@ -223,6 +223,44 @@ def delete_season(workspace: Workspace, season_id: str) -> None:
     """Delete a stored Season together with its Versions. Refused for the open
     Season."""
     workspace.delete_season(season_id)
+
+
+# -- Season export and import --------------------------------------------------
+
+
+@_season_errors
+def export_seasons(
+    workspace: Workspace, season_ids: Optional[list[str]] = None, include_versions: bool = True
+) -> bytes:
+    """The stored Seasons ``season_ids`` (default: every one) as an export file
+    (.zip, see ``rostering.persistence.transfer``), with their saved Versions
+    unless ``include_versions`` is off."""
+    return workspace.export_package(season_ids, include_versions)
+
+
+@_season_errors
+def preview_import(workspace: Workspace, file_bytes: bytes) -> dict:
+    """Read an export file in full and say what importing it would do, changing
+    nothing: ``seasons`` (each with ``status`` ``new`` / ``same_id`` /
+    ``label_clash`` / ``identical``, the stored Season it ``local``ly meets, the
+    ``diff`` categories from ``rostering.season_diff`` and a ``suggested_label``
+    for keeping both), plus the file's ``app_version``, ``exported_at``,
+    ``includes_versions`` and whether the Workspace is ``into_empty`` (an
+    import then reopens the Season that was open when the file was made)."""
+    return workspace.preview_import(transfer.read_package(file_bytes))
+
+
+@_season_errors
+def import_seasons(workspace: Workspace, file_bytes: bytes, decisions: dict[str, dict]) -> dict:
+    """Import an export file, all or nothing, after a backup of the stored
+    Seasons. ``decisions`` maps a Season id of the file to ``{"action": "add" |
+    "replace" | "keep_both" | "skip", "label"}``: a new Season defaults to add and
+    an identical one to skip; one that already exists needs an explicit action,
+    and ``keep_both`` a free ``label`` (the copy gets a new Season id). Returns
+    ``added`` / ``replaced`` / ``kept_both`` / ``skipped`` (labels), the
+    ``backup`` path (None when there was nothing to back up) and
+    ``open_season_changed`` (the caller must then reload the Workspace)."""
+    return workspace.apply_import(transfer.read_package(file_bytes), decisions)
 
 
 def migrate_legacy_workspace(workspace: Workspace, label: Optional[str] = None) -> Optional[dict]:
