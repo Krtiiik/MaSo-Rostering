@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The `rostering ingest` and `rostering solve` commands (and the `roster.py` shim,
+  the `examples/` folder and the CSV/YAML input formats they used). The web app
+  (`rostering serve`, also what a bare `rostering` runs) is the only interface.
+
 ### Added
 
 - Štítky: pravidlo „musí sdílet budovu / místnost / roli“ je teď i u štítku (dosud

@@ -1,9 +1,5 @@
-from pathlib import Path
-
 from rostering.config import load_buildings
 from rostering.domain import Role
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 GENERATED_CONFIG = """Alfa:
@@ -37,12 +33,6 @@ def test_load_generated_config(tmp_path):
     a1 = next(r for r in alfa.rooms if r.name == "A1")
     assert a1.capacities[Role.Opravovatel].minimum == 3
     assert a1.capacities[Role.Menic].minimum == 2
-
-
-def test_load_example_config():
-    buildings = load_buildings(REPO_ROOT / "examples" / "buildings.example.yaml")
-    s4 = next(r for r in buildings["Malá Strana"].rooms if r.name == "S4")
-    assert s4.capacities[Role.Kreslic].minimum == 2
 
 
 def test_missing_config_produces_no_buildings(tmp_path):

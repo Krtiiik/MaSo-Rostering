@@ -64,32 +64,6 @@ jobs:
           test -f dist/rostering/_internal/rostering/webapp/ui/grid/roster_grid.js
           test -d dist/rostering/_internal/nicegui/static
 
-      - name: Smoke-test the built executable (CLI)
-        shell: bash
-        # examples/*.example.* has far more role capacity than its 3 sample
-        # helpers can fill, so `solve` correctly reports infeasible (exit 1,
-        # "No feasible roster found") — that still proves ortools' native
-        # solver loaded and ran. Only a crash (a different exit code, or a
-        # Python traceback from a missing module/DLL) means packaging broke.
-        run: |
-          set -eux
-          BIN=dist/rostering/rostering
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then BIN="dist/rostering/rostering.exe"; fi
-          "$BIN" --help
-          # Hard rules relax instead of making a solve infeasible, so the
-          # example data (too few helpers for every minimum) still yields a
-          # roster, with the bent rules listed on stderr.
-          ROSTER="$RUNNER_TEMP/smoke-roster.xlsx"
-          set +e
-          OUTPUT=$("$BIN" solve examples/buildings.example.yaml examples/helpers.example.csv -o "$ROSTER" 2>&1)
-          STATUS=$?
-          set -e
-          echo "$OUTPUT"
-          if [ "$STATUS" -ne 0 ] || [ ! -s "$ROSTER" ] || ! echo "$OUTPUT" | grep -q "Wrote roster"; then
-            echo "Unexpected solve failure (packaging likely broken)"
-            exit 1
-          fi
-
       - name: Smoke-test the built executable (serve)
         shell: bash
         run: |

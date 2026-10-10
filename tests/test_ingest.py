@@ -2,7 +2,6 @@ import pandas as pd
 import pytest
 
 from rostering.domain import Helper, Preference, Role, parse_tshirt_size
-from rostering.ingest.legacy import load_helpers_csv, write_helpers_csv
 from rostering.ingest.raw_survey import parse_raw_survey
 from tests.survey_factory import UNRESOLVABLE_FRIEND, generate_survey, write_survey
 
@@ -69,49 +68,6 @@ def test_friend_names_resolve_to_the_named_registrant(tmp_path):
     result = parse_raw_survey(write_survey(tmp_path / "survey.xlsx"))
     assert result.helpers[3].friends == [5]
     assert not result.helpers[3].unresolved_friend_names
-
-
-def test_legacy_csv_round_trip(tmp_path):
-    helpers = [
-        Helper(
-            id=1,
-            name="Anna",
-            role_preferences={Role.Opravovatel: Preference.Ano},
-            building_preferences=frozenset({"Karlov", "Malá Strana"}),
-            friends=[2],
-            can_bring_notebook=True,
-            can_bring_camera=False,
-            unresolved_friend_names=["Some Unresolved Name"],
-        ),
-        Helper(id=2, name="Petr"),
-    ]
-    csv_path = tmp_path / "helpers.csv"
-    write_helpers_csv(helpers, csv_path)
-
-    result = load_helpers_csv(csv_path)
-    assert result.warnings == []
-    loaded = {h.id: h for h in result.helpers}
-    assert loaded[1].name == "Anna"
-    assert loaded[1].role_preferences == {Role.Opravovatel: Preference.Ano}
-    assert loaded[1].building_preferences == frozenset({"Karlov", "Malá Strana"})
-    assert loaded[1].friends == [2]
-    assert loaded[1].can_bring_notebook is True
-    assert loaded[1].can_bring_camera is False
-
-
-def test_legacy_single_building_csv_warns_and_defaults_ineligible(tmp_path):
-    csv_path = tmp_path / "old.csv"
-    csv_path.write_text(
-        "id,name,role_preferences,building_preference,friends\n"
-        "1,Anna,Opravovatel=Ano,Karlov,\n",
-        encoding="utf-8",
-    )
-    result = load_helpers_csv(csv_path)
-    assert len(result.warnings) == 1
-    helper = result.helpers[0]
-    assert helper.building_preferences == frozenset({"Karlov"})
-    assert helper.can_bring_notebook is False
-    assert helper.can_bring_camera is False
 
 
 # ---- T-shirt size (synthetic surveys; never the real Season exports) ----
@@ -211,23 +167,6 @@ def test_tshirt_size_header_wording_is_matched_loosely(tmp_path):
     path = tmp_path / "survey.xlsx"
     pd.DataFrame({_NAME_HEADER: ["Anna"], "tvoje  VELIKOST tricka": ["L"]}).to_excel(path, index=False)
     assert parse_raw_survey(path).helpers[0].tshirt_size == "L"
-
-
-def test_legacy_csv_round_trips_tshirt_size_and_defaults_unknown_when_column_absent(tmp_path):
-    helpers = [Helper(id=1, name="Anna", tshirt_size="XL"), Helper(id=2, name="Petr")]
-    csv_path = tmp_path / "helpers.csv"
-    write_helpers_csv(helpers, csv_path)
-    loaded = {h.id: h for h in load_helpers_csv(csv_path).helpers}
-    assert loaded[1].tshirt_size == "XL"
-    assert loaded[2].tshirt_size == "Unknown"
-
-    old = tmp_path / "old.csv"
-    old.write_text(
-        "id,name,role_preferences,building_preferences,friends,can_bring_notebook,can_bring_camera\n"
-        "1,Anna,,,,false,false\n",
-        encoding="utf-8",
-    )
-    assert load_helpers_csv(old).helpers[0].tshirt_size == "Unknown"
 
 
 # -- submission timestamps (Season label prefill) -----------------------------

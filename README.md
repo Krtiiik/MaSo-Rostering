@@ -111,24 +111,6 @@ hand-written JavaScript module (`roster_grid.js`, served as is) handles the
 dragging and clicking. See [CLAUDE.md](.claude/CLAUDE.md) for the domain
 glossary and implementation notes.
 
-## Command line (secondary)
-
-The same solver is available without the web app, for scripting:
-
-```
-# 1. Convert a raw Google Forms export into the canonical helpers CSV
-rostering ingest raw-response.xlsx -o helpers.csv
-
-# 2. Solve and export a roster
-rostering solve config.yaml helpers.csv \
-    -o roster.xlsx --manual-roles manual-roles.yaml
-```
-
-See `examples/buildings.example.yaml`, `examples/helpers.example.csv`, and
-`examples/manual-roles.example.yaml` for the input file formats. In a release
-the command is the same executable (`rostering ingest ...`, `rostering solve
-...`, `rostering serve`); running it with no arguments starts the web app.
-
 ## Building an executable locally
 
 Every `vX.Y.Z` tag push builds and publishes the standalone executables to
