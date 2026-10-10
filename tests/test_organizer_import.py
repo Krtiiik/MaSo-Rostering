@@ -2,7 +2,6 @@
 parser's column mapping, what a row becomes on the Organizer record, recognizing
 the same person again on a re-upload, the summary it leaves behind and the
 shirt size reaching the export. Everything runs on generated, fictional sheets."""
-import importlib
 import io
 
 import openpyxl
@@ -35,10 +34,6 @@ from tests.survey_factory import (
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     ws = Workspace(root=tmp_path / "seasons")
     mutations.upload_responses(ws, survey_bytes(10, seed=3), "helpers.xlsx", label="2026-podzim")
     return ws
@@ -205,10 +200,6 @@ def test_a_name_a_helper_shares_is_reported_and_nothing_is_removed(workspace):
 
 
 def test_an_email_column_recognizes_people_and_links_returners(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     ws = Workspace(root=tmp_path / "seasons")
     mutations.upload_responses(ws, survey_bytes(3), "helpers.xlsx", label="2025-podzim")
     mutations.add_organizer(ws, "Dana Stará", "dana@example.test")
@@ -261,7 +252,8 @@ def test_a_reupload_refreshes_in_place_and_reports_what_changed(workspace):
 def test_a_reupload_leaves_placement_tags_flags_and_hand_typed_fields_alone(workspace):
     first = _import_two(workspace)
     anna = next(o for o in first["organizers"] if o["name"] == "Anna Nováková")
-    building = workspace.load()["config"][0]["name"]
+    building = "Karlín"
+    mutations.put_config(workspace, [{"name": building, "rooms": [], "capacities": {}}])
     mutations.assign_organizer(workspace, anna["id"], "VedouciBudovy", building)
     mutations.update_organizer(workspace, anna["id"], phone="999 000")
     mutations.set_organizer_cant_attend(workspace, anna["id"], True, confirmed=True)

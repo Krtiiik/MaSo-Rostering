@@ -7,6 +7,7 @@ it can be unit-tested directly and reused unchanged by any caller.
 """
 from __future__ import annotations
 
+import copy
 import functools
 import re
 import tempfile
@@ -47,7 +48,7 @@ from rostering.ingest.raw_survey import (
     read_submission_timestamps,
     resolve_friend_names,
 )
-from rostering.persistence import config_store, transfer
+from rostering.persistence import transfer
 from rostering.persistence.season_label import display_label, guess_label, label_sort_key, school_years_crossed
 from rostering.persistence.serialize import (
     assignment_from_dict,
@@ -3157,6 +3158,9 @@ class ImportContext:
     # What the user ticked, by section key (see :func:`import_from_season`); a
     # section with no entry imports everything it offers.
     selections: dict[str, Any] = field(default_factory=dict)
+    # Whether the user already agreed to what a section would throw away (a
+    # section that would raises ``ConfirmationRequired`` unless this is set).
+    confirmed: bool = False
 
 
 @dataclass(frozen=True)
@@ -3450,11 +3454,132 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
     }
 
 
+# The layout section comes first: Tag rules are copied only with the Buildings and
+# Rooms the Season has (``dropped_constraint_entries``), so the layout must be
+# there before the Tags are.
+#
+# A new Season starts with no Buildings; this is how an earlier Season's layout
+# (Buildings, Rooms, counts, sideways merges and tall cells, never the
+# leadership slot holders) is brought in. With no tick it is taken only into a
+# Season that has no layout yet; replacing a built one needs an explicit tick and
+# a confirmation.
+
+LAYOUT_KEY = "layout"
+
+
+def _layout_signature(config: list[dict]) -> list:
+    """A layout reduced to what it means (names and non-zero counts), so two
+    layouts that read the same compare equal."""
+
+    def counts(capacities: Optional[dict]) -> dict[str, int]:
+        found = {role: int((cap or {}).get("minimum") or 0) for role, cap in (capacities or {}).items()}
+        return {role: n for role, n in found.items() if n}
+
+    return [
+        (
+            b["name"],
+            counts(b.get("capacities")),
+            [(r["name"], counts(r.get("capacities"))) for r in b.get("rooms") or []],
+        )
+        for b in config
+    ]
+
+
+def _layout_overview(context: ImportContext) -> dict[str, Any]:
+    """What the layout section offers: the source's ``buildings`` (name and Room
+    names), ``importable`` (it has any), ``already_present`` (this Season's layout
+    reads the same) and ``replaces`` (importing it would replace a different
+    layout this Season has built)."""
+    source, current = context.source_state["config"], context.state["config"]
+    same = _layout_signature(source) == _layout_signature(current)
+    return {
+        "buildings": [{"name": b["name"], "rooms": [r["name"] for r in b["rooms"]]} for b in source],
+        "importable": bool(source),
+        "already_present": bool(source) and same,
+        "replaces": bool(source) and bool(current) and not same,
+    }
+
+
+def _layout_impact(state: dict[str, Any], source_label: str, buildings: list[dict]) -> list[str]:
+    """What replacing the Season's layout touches, one line each."""
+    rooms = {(b["name"], r["name"]) for b in buildings for r in b["rooms"]}
+    names = {b["name"] for b in buildings}
+    placed = sum(1 for a in state["assignments"] if (a["building"], a["room"]) not in rooms)
+    slots = sum(
+        1
+        for e in state["manual_roles"]["structural"]
+        if e.get("building") not in names or (e.get("room") and (e["building"], e["room"]) not in rooms)
+    )
+    held = ", ".join(f"{b['name']} ({len(b['rooms'])})" for b in state["config"])
+    lines = [f"Stávající budovy (a počet místností) budou nahrazeny: {held}"]
+    if placed:
+        lines.append(f"Pomocníci zařazení do míst, která nové rozložení nemá: {placed}")
+    if slots:
+        lines.append(f"Obsazení rolí vedoucích na místech, která nové rozložení nemá: {slots}")
+    if any(state.get("cell_merges", {}).values()) or state.get("row_merges"):
+        lines.append(f"Sloučené buňky v mřížce budou nahrazeny sloučením z ročníku {source_label}")
+    return lines
+
+
+def _import_layout_section(context: ImportContext) -> dict[str, Any]:
+    state, source = context.state, context.source_state
+    overview = _layout_overview(context)
+    ticked = context.selections.get(LAYOUT_KEY)
+    if not overview["importable"]:
+        return {"imported": False, "lines": ["Zdrojový ročník nemá žádné budovy, rozložení se neimportuje."]}
+    if overview["already_present"]:
+        return {"imported": False, "lines": ["Rozložení budov je v tomto ročníku už stejné, přeskočeno."]}
+    if ticked is False:
+        return {"imported": False, "lines": ["Rozložení budov vynecháno na vlastní přání."]}
+    if ticked is None and state["config"]:
+        return {
+            "imported": False,
+            "lines": ["Rozložení budov tohoto ročníku zůstává; jiné zdrojové rozložení se importuje jen na přání."],
+        }
+    buildings = copy.deepcopy(source["config"])
+    if overview["replaces"] and not context.confirmed:
+        raise ConfirmationRequired(
+            f"Import nahradí rozložení budov tohoto ročníku rozložením z ročníku {context.source['label']}.",
+            _layout_impact(state, context.source["label"], buildings),
+        )
+    # The old tall cells are split as if by hand before the layout changes, the
+    # source's merges come in once it has, and its tall cells then fold the
+    # people already in their slots.
+    for cell in tall_cells(state):
+        _unfold_tall_cell(state, cell)
+    state["cell_merges"], state["row_merges"] = {}, []
+    placed = bool(state["assignments"])
+    _set_layout(state, buildings)
+    state["cell_merges"] = _prune_cell_merges(buildings, source.get("cell_merges") or {})
+    cells = tall_rows.tall_cells(buildings, state["cell_merges"], source.get("row_merges") or [])
+    state["row_merges"] = [tall_rows.to_record(c) for c in cells]
+    for cell in cells:
+        _fold_tall_cell(state, cell)
+    _sync_placements(state)
+    if overview["replaces"] and placed:
+        _add_stale_reason(
+            state, f"Rozložení budov bylo nahrazeno rozložením z ročníku {context.source['label']}: sestavte rozdělení znovu"
+        )
+    rooms = sum(len(b["rooms"]) for b in buildings)
+    return {
+        "imported": True,
+        "lines": [
+            f"Rozložení budov z ročníku {context.source['label']}: {len(buildings)} "
+            f"{plural(len(buildings), 'budova', 'budovy', 'budov')}, {rooms} "
+            f"{plural(rooms, 'místnost', 'místnosti', 'místností')}"
+        ],
+    }
+
+
+register_import_section(ImportSection(LAYOUT_KEY, "Rozložení budov", _import_layout_section, _layout_overview))
 register_import_section(ImportSection("tags", "Štítky", _import_tags_section))
 
 
 def _import_context(
-    workspace: Workspace, source_season_id: str, selections: Optional[dict[str, Any]] = None
+    workspace: Workspace,
+    source_season_id: str,
+    selections: Optional[dict[str, Any]] = None,
+    confirmed: bool = False,
 ) -> ImportContext:
     """What the sections work on for an import from ``source_season_id`` into the
     open Season (see :class:`ImportContext`); refuses with no Season open or a
@@ -3473,6 +3598,7 @@ def _import_context(
         season,
         workspace.person_records(),
         dict(selections or {}),
+        confirmed,
     )
 
 
@@ -3490,20 +3616,28 @@ def import_overview(workspace: Workspace, source_season_id: str) -> dict:
     return {"source": context.source, "sections": sections}
 
 
-def import_from_season(workspace: Workspace, source_season_id: str, selections: Optional[dict[str, Any]] = None) -> dict:
+def import_from_season(
+    workspace: Workspace,
+    source_season_id: str,
+    selections: Optional[dict[str, Any]] = None,
+    confirmed: bool = False,
+) -> dict:
     """Import from one earlier stored Season into the open one: every registered
     section runs against the source (Tags first) and everything is saved
     together — or nothing, if any of it fails. Running it again, from this or
     another Season, is additive and never copies a Tag twice. The source Season
     is only read. ``selections`` carries what the user ticked, by section key
-    (Forced friends groups: ``{"forced_groups": [source group ids]}``); a
-    section with no entry imports everything it offers. Returns ``{"source":
+    (Forced friends groups: ``{"forced_groups": [source group ids]}``, the layout
+    ``{"layout": bool}``, which with no entry is taken only into a Season with no
+    layout); a section with no entry imports everything it offers. Replacing a
+    built layout raises ``ConfirmationRequired`` (nothing is saved) unless
+    ``confirmed``. Returns ``{"source":
     {"id", "label"}, "sections": [...], "promotion_prompt": bool}``, each section
     its ``key``, ``title`` and own summary (the Tags section's is described in
     :func:`_import_tags_section`); ``promotion_prompt`` says the Class promotion
     dialog should open by itself (the open Season is podzim and a school year
     turned since the source)."""
-    context = _import_context(workspace, source_season_id, selections)
+    context = _import_context(workspace, source_season_id, selections, confirmed)
     season, source, state = context.season, context.source, context.state
     record = state.setdefault("tag_imports", {}).setdefault(
         source["id"], {"label": source["label"], "deleted_tag_ids": []}
@@ -3771,7 +3905,7 @@ def _set_layout(state: dict[str, Any], buildings: list[dict]) -> None:
         _sync_placements(state)
 
 
-def put_config(workspace: Workspace, buildings: list[dict], config_path: Optional[Path] = None) -> dict:
+def put_config(workspace: Workspace, buildings: list[dict]) -> dict:
     try:
         config_from_list(buildings)
     except (KeyError, ValueError) as exc:
@@ -3779,10 +3913,6 @@ def put_config(workspace: Workspace, buildings: list[dict], config_path: Optiona
     state = workspace.load()
     _set_layout(state, buildings)
     workspace.save(state)
-    if config_path is None:
-        config_store.save_default_config(buildings)
-    else:
-        config_store.save_default_config(buildings, path=config_path)
     return state
 
 
@@ -3958,7 +4088,6 @@ def put_config_from_sheet(
     workspace: Workspace,
     buildings: list[dict],
     pending: dict,
-    config_path: Optional[Path] = None,
     confirmed: bool = False,
     warnings: Optional[list[str]] = None,
 ) -> dict:
@@ -4035,10 +4164,6 @@ def put_config_from_sheet(
     else:
         state.pop("organizer_slot_offers", None)
     workspace.save(state)
-    if config_path is None:
-        config_store.save_default_config(buildings)
-    else:
-        config_store.save_default_config(buildings, path=config_path)
     return state
 
 

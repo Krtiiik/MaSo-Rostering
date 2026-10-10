@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Nový ročník začíná bez budov. Výchozí rozložení budov (přibalené k aplikaci a
+  ukládané do `data/buildings-config.yaml`) už neexistuje; soubor se nečte, lze ho
+  smazat. „Začít znovu“ proto smaže i rozložení budov.
+- Import z dřívějšího ročníku začíná částí „Rozložení budov“, která zkopíruje
+  budovy, místnosti, počty a sloučené buňky (ne obsazení rolí vedoucích). Do
+  ročníku bez rozložení se vezme rovnou; jiné už sestavené rozložení nahradí jen
+  na zaškrtnutí a po potvrzení. Import lze spustit i z karty Budovy.
+
 ### Removed
+
+- Tlačítko „Obnovit výchozí budovy“ a proměnná prostředí
+  `ROSTERING_BUILDINGS_CONFIG_PATH`.
 
 - The `rostering ingest` and `rostering solve` commands (and the `roster.py` shim,
   the `examples/` folder and the CSV/YAML input formats they used). The web app

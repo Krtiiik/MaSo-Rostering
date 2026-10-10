@@ -2,7 +2,6 @@
 an unplaced Organizer takes a slot, a chip dragged out of another slot cell moves
 instead of adding a second slot, and a drop on the chip's own cell changes nothing.
 Runs against a temp-dir workspace with synthetic data only."""
-import importlib
 
 import pytest
 
@@ -17,10 +16,6 @@ CONFIG = [
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     ws = Workspace(root=tmp_path / "seasons")
     mutations.put_config(ws, CONFIG)
     return ws

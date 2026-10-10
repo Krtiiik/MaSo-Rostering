@@ -1,7 +1,6 @@
 """Class promotion: renaming school-class Tags one school year up per school year
 crossed since the imported Season. Mutation-layer tests against a temp-dir
 workspace holding several synthetic stored Seasons (never anything from data/)."""
-import importlib
 import io
 from datetime import datetime
 
@@ -22,10 +21,6 @@ PETR = "petr@example.test"
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "seasons")
 
 

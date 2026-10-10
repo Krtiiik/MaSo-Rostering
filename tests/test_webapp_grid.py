@@ -50,7 +50,7 @@ def workspace(tmp_path, monkeypatch):
     ]
     workspace.save(state)
     workspace.create_season("2026-jaro")
-    mutations.put_config(workspace, CONFIG, config_path=tmp_path / "buildings-config.yaml")
+    mutations.put_config(workspace, CONFIG)
     mutations.move_helper(workspace, 1, "Karlín", "K1", "Opravovatel")
     mutations.move_helper(workspace, 2, "Karlín", "K1", "Menic")
     mutations.move_helper(workspace, 3, "Troja", "T1", "Menic")

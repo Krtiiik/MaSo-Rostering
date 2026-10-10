@@ -6,7 +6,6 @@ live against their placement and never blocking a hand placement. Mutation-layer
 tests run against a temp-dir workspace seeded with synthetic Helpers and
 Organizers (never anything from data/); the solver, the checker and the export are
 driven on plain domain objects."""
-import importlib
 
 import pytest
 
@@ -48,10 +47,6 @@ CONFIG = [
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "seasons")
 
 

@@ -73,7 +73,7 @@ def test_layout_change_rewrites_preferences_and_resolution_is_kept(workspace, tm
         {"id": 1, "name": "Anna", "building_preferences": ["Malá Strana", "Dejvice"]},
     ]
     workspace.create_season("2026-jaro", state)
-    mutations.put_config(workspace, [_building("Mala Strana"), _building("Nove")], config_path=tmp_path / "c.yaml")
+    mutations.put_config(workspace, [_building("Mala Strana"), _building("Nove")])
     state = workspace.load()
     assert state["helpers"][0]["building_preferences"] == ["Dejvice", "Mala Strana"]
     offers = mutations.get_building_match_offers(workspace)

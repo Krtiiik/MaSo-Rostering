@@ -6,7 +6,6 @@ relaxation) and by the live Broken-rule checker.
 Mutation-layer tests run against a temp-dir workspace seeded with synthetic
 Helpers (never anything from data/); the solver tests drive it on domain objects.
 """
-import importlib
 import random
 
 import pytest
@@ -34,10 +33,6 @@ ROLE_NAMES = [role.name for role in Role]
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "workspace")
 
 

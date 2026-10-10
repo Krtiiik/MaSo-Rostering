@@ -74,7 +74,6 @@ jobs:
           BIN="$GITHUB_WORKSPACE/$BIN"
           cd "$RUNNER_TEMP"  # NiceGUI keeps its .nicegui/ storage in the working directory
           export ROSTERING_WORKSPACE_DIR="$RUNNER_TEMP/rostering-smoke-workspace"
-          export ROSTERING_BUILDINGS_CONFIG_PATH="$RUNNER_TEMP/rostering-smoke-buildings.yaml"
           "$BIN" serve --port 8501 --headless < /dev/null > "$RUNNER_TEMP/serve.log" 2>&1 &
           SERVER_PID=$!
 

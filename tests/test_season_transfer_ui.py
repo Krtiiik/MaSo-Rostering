@@ -9,7 +9,6 @@ import pytest
 from nicegui.elements.upload_files import SmallFileUpload
 from nicegui.testing.user_simulation import user_simulation
 
-from rostering.persistence import config_store
 from rostering.persistence.workspace import Workspace
 from rostering.webapp import labels, mutations
 from rostering.webapp.ui import season_transfer
@@ -43,10 +42,6 @@ def _make(root_dir, seasons):
 @pytest.fixture
 def seasons(tmp_path, monkeypatch):
     monkeypatch.setenv("ROSTERING_SEASONS_DIR", str(tmp_path / "seasons"))
-    save_default = config_store.save_default_config
-    monkeypatch.setattr(
-        config_store, "save_default_config", lambda buildings, path=None: save_default(buildings, path=tmp_path / "b.yaml")
-    )
     _make(tmp_path / "seasons", {"2025-podzim": ["Anna", "Petr"], "2026-jaro": ["Jana"]})
     return Workspace()
 

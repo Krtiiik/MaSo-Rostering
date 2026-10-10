@@ -1,7 +1,6 @@
 """Export and import of Seasons as a .zip (``rostering.persistence.transfer``,
 ``Workspace.apply_import``, the Season-transfer section of ``mutations``),
 against temp-dir workspaces with synthetic data."""
-import importlib
 import io
 import json
 import zipfile
@@ -15,14 +14,6 @@ from rostering.persistence.workspace import Workspace
 from rostering.webapp import mutations
 
 _NAME_HEADER = "Tvoje jméno a příjmení"
-
-
-@pytest.fixture(autouse=True)
-def _isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
 
 
 def _survey(names) -> bytes:

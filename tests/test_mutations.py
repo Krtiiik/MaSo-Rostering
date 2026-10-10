@@ -1,4 +1,3 @@
-import importlib
 import io
 
 import openpyxl
@@ -31,10 +30,6 @@ SMALL_CONFIG = [
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "workspace")
 
 
@@ -94,19 +89,16 @@ def _seed_helper_with_unresolved_friend(workspace: Workspace) -> None:
     workspace.save(state)
 
 
-def test_initial_state_has_default_config(workspace):
+def test_initial_state_has_no_buildings(workspace):
     data = mutations.get_state(workspace)
     assert data["helpers"] == []
     assert data["assignments"] == []
-    # Seeded from the bundled default (a copy of the latest season's
-    # roster), not empty — see rostering/persistence/config_store.py.
-    assert {b["name"] for b in data["config"]} == {"Mala Strana", "Karlov", "Troja", "Karlin"}
+    assert data["config"] == []  # a layout comes from an earlier Season or the sheet, never from a default
 
 
-def test_config_persists_across_reset(workspace, tmp_path):
+def test_start_over_empties_the_layout(workspace):
     mutations.put_config(workspace, SMALL_CONFIG)
-    assert mutations.reset_workspace(workspace)["config"][0]["name"] == "B"
-    assert (tmp_path / "buildings-config.yaml").exists()
+    assert mutations.reset_workspace(workspace)["config"] == []
 
 
 def test_upload_ingests_a_generated_survey(workspace):

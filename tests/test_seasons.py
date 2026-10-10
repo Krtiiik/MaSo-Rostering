@@ -1,7 +1,6 @@
 """Stored Seasons and the open Workspace, exercised through the mutation layer
 against a temp-dir workspace with synthetic data (no real ``data/`` is ever
 read or written)."""
-import importlib
 import io
 import json
 from datetime import datetime
@@ -25,11 +24,7 @@ OTHER_CONFIG = [{"name": "Z", "rooms": [{"name": "Q1", "capacities": {}}], "capa
 
 
 @pytest.fixture
-def seasons_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
+def seasons_root(tmp_path):
     return tmp_path / "seasons"
 
 
@@ -296,7 +291,7 @@ def test_opening_a_stored_season_replaces_the_workspace_contents(workspace):
     mutations.put_config(workspace, SMALL_CONFIG)
     other = mutations.open_season(workspace, ids["2026-podzim"])
     assert [h["name"] for h in other["helpers"]] == ["Klara"]
-    assert other["config"][0]["name"] != "B"
+    assert other["config"] == []
     assert mutations.open_season(workspace, ids["2026-jaro"])["config"][0]["name"] == "B"
 
 
@@ -469,14 +464,15 @@ def test_a_version_snapshot_contains_no_identity(workspace, seasons_root):
 # -- buildings layout ---------------------------------------------------------
 
 
-def test_the_saved_layout_seeds_each_new_season_and_survives_start_over(workspace):
+def test_a_new_season_starts_without_buildings_and_start_over_empties_them(workspace):
     _create(workspace, "2026-jaro")
-    mutations.put_config(workspace, SMALL_CONFIG)  # also saved as the default layout
+    mutations.put_config(workspace, SMALL_CONFIG)
     mutations.new_season(workspace)
     seeded = _create(workspace, "2026-podzim")
-    assert seeded["config"][0]["name"] == "B"
+    assert seeded["config"] == []  # no default layout: the last one saved does not carry over
 
-    assert mutations.reset_workspace(workspace)["config"][0]["name"] == "B"
+    mutations.put_config(workspace, OTHER_CONFIG)
+    assert mutations.reset_workspace(workspace)["config"] == []
 
 
 def test_each_season_keeps_its_own_snapshot_of_the_layout_it_used(workspace):

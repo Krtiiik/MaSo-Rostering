@@ -17,7 +17,7 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setenv("ROSTERING_SEASONS_DIR", str(tmp_path / "seasons"))
     workspace = Workspace()
     workspace.create_season("2026-jaro")
-    mutations.put_config(workspace, CONFIG, config_path=tmp_path / "buildings-config.yaml")
+    mutations.put_config(workspace, CONFIG)
     return workspace
 
 
@@ -141,7 +141,7 @@ def test_a_layout_that_cannot_hold_a_tall_cell_splits_it(workspace, tmp_path):
     mutations.set_row_merge(workspace, "VedouciBudovy", "Alfa", "A1", True)
 
     renamed = [{**CONFIG[0], "rooms": [{"name": "X1", "capacities": {}}, {"name": "A2", "capacities": {}}]}, CONFIG[1]]
-    mutations.put_config(workspace, renamed, config_path=tmp_path / "other.yaml")
+    mutations.put_config(workspace, renamed)
 
     state = mutations.get_state(workspace)
     assert state["row_merges"] == []

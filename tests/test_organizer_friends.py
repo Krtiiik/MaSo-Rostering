@@ -5,7 +5,6 @@ unified reference that resolves to a Helper (a plain id) or an Organizer
 objects). Mutation-layer tests run against a temp-dir workspace seeded with
 synthetic data (never anything from data/); the solver is exercised on plain
 domain objects."""
-import importlib
 from datetime import datetime
 
 import pandas as pd
@@ -277,10 +276,6 @@ CONFIG = [
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "seasons")
 
 

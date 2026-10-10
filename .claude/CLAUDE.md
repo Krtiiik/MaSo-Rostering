@@ -797,8 +797,8 @@ pushing the tag, not just creating it locally.
 - Tag import (`mutations.py`, "Tag import" section; UI in
   `ui/tag_import.py`): `import_from_season(workspace, source_season_id,
   selections=None)` runs every `ImportSection` in `_IMPORT_SECTIONS`
-  (`register_import_section`; Tags is the first, Forced friends groups the
-  second) over one earlier stored Season (read through `Workspace.stored_state`,
+  (`register_import_section`; the building layout is the first, Tags the second,
+  Forced friends groups the third) over one earlier stored Season (read through `Workspace.stored_state`,
   never written) against the open state, saved once, and returns `{"source",
   "sections"}`; the Tags section summary has `tags_created`, `tags_restored`,
   `tags_reused`, `helpers_tagged`, `dropped_constraint_entries`,
@@ -971,10 +971,17 @@ pushing the tag, not just creating it locally.
   (by dropping chips, never typing; the Additional roles take a helper's
   existing chip onto their own building's/room's cell) and
   merged in at export time.
-- The web app's buildings/rooms layout defaults to a bundled copy of the most
-  recent season's config and persists separately in
-  `data/buildings-config.yaml` (`rostering/persistence/config_store.py`),
-  distinct from each Season's saved state (which carries its own snapshot
-  of the layout it used) — so it
-  survives "start over" resets and app restarts instead of needing to be
-  re-entered by hand each time.
+- There is no default buildings/rooms layout: `Workspace.empty_state()` has
+  `config: []`, so a new Season, a blank draft and "Start over" all begin with no
+  Buildings (the layout lives only in each Season's own state). It comes from an
+  earlier Season through the first section of the import offer, `mutations.py`
+  `_import_layout_section` (key `layout`, run before Tags because Tag rules are
+  copied only with the Buildings the Season has): it copies `config` and the
+  `cell_merges` / `row_merges` that still fit (unfolding the old tall cells first
+  and folding the new ones), never the leadership slot holders. With no
+  `selections["layout"]` it goes only into a Season whose layout is empty; a
+  different built layout is replaced only when ticked, after a
+  `ConfirmationRequired` (`import_from_season(..., confirmed=True)`, asked through
+  `UiSession.act` in `ui/tag_import.py`), and raises the stale flag when a roster
+  exists. The Buildings tab's "Převzít z dřívějšího ročníku" opens the same dialog
+  (`where="buildings"`). Or from the sheet import / by hand.

@@ -11,9 +11,8 @@ from nicegui import events, ui
 
 from rostering.czech import plural
 from rostering.domain import Role
-from rostering.persistence import config_store
 from rostering.webapp import mutations
-from rostering.webapp.ui import dialogs, fix_focus, solving
+from rostering.webapp.ui import dialogs, fix_focus, solving, tag_import
 from rostering.webapp.ui.session import UiSession
 
 _ROLE_LABELS = {r.name: r.value for r in Role}
@@ -60,6 +59,7 @@ class BuildingsTab:
             "Určete budovy, jejich místnosti a kolik pomocníků v každé roli musí každá z nich v tomto ročníku mít."
         )
         fix = fix_focus.render_callout(s, "buildings")
+        tag_import.render_summary(s, "buildings")
         buildings = self.draft
         for bi, building in enumerate(buildings):
             self._building(buildings, bi, fix.building if fix else None)
@@ -164,8 +164,11 @@ class BuildingsTab:
                 solve.disable()
                 ui.label("Nejdřív nahrajte odpovědi pomocníků.").classes("text-sm text-gray-500")
             self._import_button()
-            ui.button("Obnovit výchozí budovy", on_click=self._reset).props("flat").mark("buildings-reset").tooltip(
-                "Nahradí rozložení zde výchozím, které je součástí aplikace. Uloží se až kliknutím na Uložit konfiguraci."
+            ui.button(
+                "Převzít z dřívějšího ročníku", icon="download", on_click=lambda: tag_import.open_import(s, "buildings")
+            ).props("flat").mark("buildings-import").tooltip(
+                "Otevře import z dřívějšího ročníku; část „Rozložení budov“ zkopíruje budovy, místnosti, počty "
+                "i sloučené buňky z vybraného ročníku."
             )
             self._unsaved()
 
@@ -255,9 +258,3 @@ class BuildingsTab:
             ui.notify(f"{summary} Konfigurace uložena.", type="positive")
         else:
             ui.notify(f"{summary} Uložte konfiguraci, aby se použilo.", type="positive")
-
-    def _reset(self) -> None:
-        """Replace the draft with the bundled default; nothing is saved."""
-        self.session.view.buildings_draft = config_store.load_bundled_config()
-        self.session.view.sheet_pending = None
-        self._structure_changed()

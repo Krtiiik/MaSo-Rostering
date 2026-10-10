@@ -1,9 +1,9 @@
 """The Tag import offer (see CONTEXT.md "Tag import") and Class promotion.
 
-The import dialog lists the sections the import will bring (Tags, then Forced
-friends groups, with one tick per group) and opens from the Tags tab and from the
-to-do panel's banner (shown while the Season has no Tags and an earlier one has
-some). Its result is kept on the session and shown until hidden. After a link is
+The import dialog lists the sections the import will bring (the building
+layout, with one tick; Tags; then Forced friends groups, with one tick per group)
+and opens from the Tags tab, from the Buildings tab and from the to-do panel's
+banner (shown while the Season has no Tags and an earlier one has some). Its result is kept on the session and shown until hidden. After a link is
 confirmed, the to-do panel asks whether to apply that Person's Tags from an
 already-imported Season. Class promotion's dialog opens from the Tags tab and by
 itself after an import that crossed a school year into podzim."""
@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from nicegui import ui
 
-from rostering.czech import count_helpers
+from rostering.czech import count_helpers, plural
 from rostering.webapp import mutations
 from rostering.webapp.ui import dialogs
 from rostering.webapp.ui.session import UiSession
 
 _GROUPS_KEY = "forced_groups"  # the Forced friends section of the offer (see forced_groups)
+_LAYOUT_KEY = mutations.LAYOUT_KEY  # the building layout section of the offer
 
 
 def _source_label(source: dict) -> str:
@@ -25,7 +26,7 @@ def _source_label(source: dict) -> str:
 
 async def open_import(session: UiSession, where: str) -> None:
     """The "Import from an earlier Season" dialog; ``where`` is the place whose
-    summary area shows the result ("tags" or "todo")."""
+    summary area shows the result ("tags", "buildings" or "todo")."""
     workspace = session.workspace
     offer = mutations.tag_import_offer(workspace)
     sources = {s["id"]: s for s in offer["sources"]}
@@ -51,34 +52,73 @@ async def open_import(session: UiSession, where: str) -> None:
                 "nich. Ve zdrojovém ročníku se nic nemění."
             ).classes("text-sm text-gray-600")
             ticks: dict[int, ui.checkbox] = {}
+            layout_tick: list[ui.checkbox] = []
 
             @ui.refreshable
             def overview() -> None:
                 ticks.clear()
+                layout_tick.clear()
                 for section in mutations.import_overview(workspace, source.value)["sections"]:
-                    if section["key"] == _GROUPS_KEY:
+                    if section["key"] == _LAYOUT_KEY:
+                        _layout_overview(section, layout_tick)
+                    elif section["key"] == _GROUPS_KEY:
                         _groups_overview(section, ticks)
 
             overview()
             source.on_value_change(overview.refresh)
 
             async def run_import() -> None:
-                selections = {_GROUPS_KEY: [gid for gid, box in ticks.items() if box.value]}
-                try:
-                    summary = mutations.import_from_season(workspace, source.value, selections)
-                except mutations.RosteringError as exc:
-                    ui.notify(str(exc), type="negative")
+                selections: dict = {_GROUPS_KEY: [gid for gid, box in ticks.items() if box.value]}
+                if layout_tick:
+                    selections[_LAYOUT_KEY] = bool(layout_tick[0].value)
+                summary = await session.act(
+                    lambda confirmed: mutations.import_from_season(workspace, source.value, selections, confirmed),
+                    confirm=dialogs.ConfirmSpec(
+                        title="Nahradit rozložení budov?",
+                        ok_label="Nahradit a importovat",
+                        intro="Import **nahradí** budovy a místnosti tohoto ročníku rozložením z dřívějšího ročníku:",
+                    ),
+                )
+                if summary is None:
                     return
                 dialog.close()
+                if any(s["key"] == _LAYOUT_KEY and s.get("imported") for s in summary["sections"]):
+                    session.view.buildings_draft = None  # the Buildings tab shows what was imported
+                    session.view.sheet_pending = None
                 session.view.import_summary = {"where": where, "summary": summary}
-                session.reload()
+                session.refresh()
                 if summary["promotion_prompt"]:
                     await open_promotion(session)
 
             with ui.row().classes("w-full justify-end gap-2"):
                 ui.button("Zrušit", on_click=dialog.close).props("flat")
-                ui.button("Importovat", on_click=run_import).props("color=primary")
+                ui.button("Importovat", on_click=run_import).props("color=primary").mark("import-run")
     dialog.open()
+
+
+def _layout_overview(section: dict, tick: list[ui.checkbox]) -> None:
+    """The single tick of the building layout section. It is ticked from the start
+    when this Season has no layout; a layout this Season already has is replaced
+    only when ticked (and confirmed), and one that reads the same is skipped."""
+    ui.label(section["title"]).classes("font-bold mt-2")
+    if not section["importable"]:
+        ui.label("Zdrojový ročník nemá žádné budovy.").classes("text-sm text-gray-600")
+        return
+    rooms = sum(len(b["rooms"]) for b in section["buildings"])
+    box = ui.checkbox(
+        f"{', '.join(b['name'] for b in section['buildings'])} "
+        f"({rooms} {plural(rooms, 'místnost', 'místnosti', 'místností')})",
+        value=not section["replaces"] and not section["already_present"],
+    ).mark("import-layout-tick")
+    if section["already_present"]:
+        box.disable()
+        note = "stejné rozložení tento ročník už má, proto se přeskočí"
+    elif section["replaces"]:
+        note = "tento ročník už má jiné rozložení; zaškrtnutím se nahradí (před tím se zeptáme)"
+    else:
+        note = "budovy, místnosti, počty a sloučené buňky; obsazení rolí vedoucích se nekopíruje"
+    ui.label(note).classes("text-xs text-gray-600 pl-8 -mt-2")
+    tick.append(box)
 
 
 def _groups_overview(section: dict, ticks: dict[int, ui.checkbox]) -> None:

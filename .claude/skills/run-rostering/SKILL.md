@@ -52,7 +52,6 @@ poll until healthy. `--headless` stops it from opening a browser tab:
 
 ```bash
 ROSTERING_SEASONS_DIR=/tmp/rostering-run/seasons \
-ROSTERING_BUILDINGS_CONFIG_PATH=/tmp/rostering-run/buildings-config.yaml \
   rostering serve --port "$port" --headless > /tmp/rostering-run/serve.log 2>&1 &
 
 timeout 30 bash -c "until curl -sf http://127.0.0.1:$port/ >/dev/null 2>&1; do sleep 1; done" && echo APP_UP

@@ -1,7 +1,6 @@
 """Dragging a Helper out of a Room also takes them out of the Additional role
 entries held there (asking first). Mutation-layer tests on a temp-dir workspace
 with synthetic Helpers."""
-import importlib
 
 import pytest
 
@@ -24,10 +23,6 @@ CONFIG = [
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     ws = Workspace(root=tmp_path / "workspace")
     state = ws.load()
     state["helpers"] = [

@@ -22,7 +22,7 @@ hiddenimports = []
 
 for pkg in ("nicegui", "ortools", "rostering"):
     # "rostering" is collect_all'd too, not just left to the import graph: its
-    # package data (the bundled default buildings config, the grid's JS) is
+    # package data (the grid's JS) is
     # not Python and so invisible to PyInstaller's import analysis.
     pkg_datas, pkg_binaries, pkg_hiddenimports = collect_all(pkg)
     datas += pkg_datas

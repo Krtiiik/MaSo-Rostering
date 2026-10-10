@@ -1,7 +1,6 @@
 """The uncertain-match review list, and undoing / hand-making Person links,
 exercised through the mutation layer against a temp-dir workspace with
 synthetic surveys and people (no real ``data/`` is ever read or written)."""
-import importlib
 import io
 from datetime import datetime
 
@@ -22,10 +21,6 @@ PETR = "petr.svoboda@example.test"
 
 @pytest.fixture
 def seasons_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return tmp_path / "seasons"
 
 

@@ -98,10 +98,10 @@ machine, hand a Season to a colleague, or seed a fresh install. Before an import
 changes anything, the stored Seasons are backed up as a `.zip` in `data/backups/`
 (next to `data/seasons/`).
 
-The buildings/rooms layout is pre-filled with a default (seeded from the most
-recent season's roster) and persists separately in `data/buildings-config.yaml`
-— it's saved there whenever you edit it on the Buildings tab, so it survives
-"start over" resets and app restarts.
+A new Season starts with no buildings. Bring the layout in from an earlier
+Season (the "Rozložení budov" part of the import from an earlier Season), load it
+from the "Pomocníci v místnostech" sheet, or enter it on the Buildings tab; it is
+saved with the Season like everything else.
 
 The app's code lives in `rostering/webapp/`: `mutations.py` and
 `forced_groups.py` hold the UI-free state-mutation functions, and `ui/` the

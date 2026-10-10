@@ -2,7 +2,6 @@
 covered by the end-to-end smoke script; here the pure data it is handed: each
 Helper's pills (direct and implied) and which Helpers the filter dims. Runs
 against a temp-dir workspace seeded with synthetic Helpers (never data/)."""
-import importlib
 
 import pytest
 
@@ -21,10 +20,6 @@ CONFIG = [
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "workspace")
 
 

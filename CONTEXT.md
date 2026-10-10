@@ -167,7 +167,10 @@ Czech: Organizátor.
 **Building**:
 A venue hosting part of the competition. The set of Buildings is not stable
 across Seasons — always driven by that Season's configuration, never
-hardcoded.
+hardcoded, and there is no default layout: a new Season has no Buildings until
+the user brings a layout from an earlier Season (the "Rozložení budov" section
+of the import offer, see **Tag import**), reads it from the "Pomocníci v
+místnostech" sheet or enters it by hand.
 Czech: Budova.
 
 **Room**:
@@ -314,7 +317,7 @@ A resolved Friend preference can be hardened with "make forced", which creates a
 new group of those two people with the one rule to share a Room and leaves the Friend preference
 as it was. A group belongs to the people in it, not to one Season, so it carries
 over to a later Season in the same "Import from an earlier Season" offer as Tag
-import, as its second section after Tags (see **Tag import**): every group of the
+import, as its third section, after the layout and Tags (see **Tag import**): every group of the
 source that has at least one member recognized this Season is copied whole, with
 the members not registered here as dim "not registered" placeholders (a group left
 with fewer than two active members is imported inactive), each group ticked in one
@@ -499,8 +502,13 @@ constraints) rather than sharing it, and an imported Tag remembers which
 earlier Tag it came from (its origin, surviving renames). One source Season
 per import, by default the most recent earlier stored one; importing again
 from another Season is additive. Offered by a button in the Tags tab and by a
-banner after the first upload while the Season has no Tags; the offer is made
-of sections (Tags first, then Forced friends groups). Only
+banner after the first upload while the Season has no Tags, and from the
+Buildings tab; the offer is made of sections (the building layout first, since
+Tag rules are copied only with the Buildings the Season has, then Tags, then
+Forced friends groups). The layout section copies the source's Buildings, Rooms,
+counts, sideways merges and tall cells (never the leadership slot holders); with
+no tick it goes into a Season that has no layout and nothing else, and it replaces
+a built layout only when ticked and confirmed. Only
 directly carried Tags are re-applied, to confidently linked Persons, whether
 they are a Helper or an Organizer this Season and whichever they were in the
 source (a Helper promoted since gets their Helper Tags as an Organizer);

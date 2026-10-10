@@ -11,7 +11,6 @@ from nicegui import ui
 from nicegui.testing import User
 from nicegui.testing.user_simulation import user_simulation
 
-from rostering.persistence import config_store
 from rostering.persistence.workspace import Workspace
 from rostering.solver.model import MAX_ROLE_COST, SolverConfig
 from rostering.persistence.serialize import solver_config_to_dict
@@ -52,11 +51,6 @@ def seasons(tmp_path, monkeypatch):
     """A Season with Anna and Bára (Helpers), Boss (Organizer, holding Vedoucí
     budovy at Karlín) and one Tag, "GCHD"."""
     monkeypatch.setenv("ROSTERING_SEASONS_DIR", str(tmp_path / "seasons"))
-    # The default layout is a user-level file: keep it out of the repository.
-    save_default = config_store.save_default_config
-    monkeypatch.setattr(
-        config_store, "save_default_config", lambda buildings, path=None: save_default(buildings, path=tmp_path / "b.yaml")
-    )
     workspace = Workspace()
     state = workspace.load()
     state["helpers"] = [_helper(1, "Anna"), _helper(2, "Bára")]
@@ -549,11 +543,24 @@ async def test_buildings_edits_are_an_unsaved_draft_until_saved(user: User, seas
     assert len(names) == 3 and len(set(names)) == 3
 
 
-async def test_reset_restores_the_bundled_layout_as_an_unsaved_draft(user: User, seasons):
+async def test_the_buildings_tab_takes_a_layout_from_an_earlier_season_after_confirming(user: User, seasons):
+    earlier = [{"name": "Stará", "rooms": [{"name": "S1", "capacities": {}}], "capacities": {}}]
+    stored = Workspace()
+    current = stored.open_season()["id"]
+    stored.create_season("2025-podzim", {**stored.load(), "config": earlier})
+    mutations.open_season(stored, current)
+
     await _go(user, labels.TAB_BUILDINGS)
-    user.find(marker="buildings-reset").click()
-    await user.should_see(marker="unsaved")
-    assert layout_key(_state(seasons)["config"]) == layout_key(CONFIG)  # only the draft changed
+    user.find(marker="buildings-import").click()
+    await user.should_see(marker="import-layout-tick")
+    user.find(marker="import-layout-tick").click()  # this Season has a layout: replacing needs the tick
+    user.find(marker="import-run").click()
+    await user.should_see("Nahradit rozložení budov?")
+    assert [b["name"] for b in _state(seasons)["config"]] == ["Karlín", "Impakt"]  # nothing until confirmed
+    user.find(marker="confirm-ok").click()
+    await asyncio.sleep(0.3)
+    assert [b["name"] for b in _state(seasons)["config"]] == ["Stará"]
+    await user.should_see("Stará")  # the tab shows what was imported, not the old draft
 
 
 async def test_loading_a_sheet_saves_the_layout_after_confirming(user: User, seasons):

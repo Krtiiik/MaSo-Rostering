@@ -264,17 +264,17 @@ def test_names_are_matched_to_organizers_by_name_and_the_rest_reported(workspace
 
 def test_saving_a_sheet_replaces_the_leaders_and_merges_in_one_save(workspace, tmp_path):
     ids = {n: mutations.add_organizer(workspace, n)["organizers"][-1]["id"] for n in ("Anna Nováková", "Dana Dvorakova", "Old Boss")}
-    mutations.put_config(workspace, [{"name": "Alfa", "capacities": {}, "rooms": [{"name": "A1", "capacities": {}}]}], config_path=tmp_path / "c.yaml")
+    mutations.put_config(workspace, [{"name": "Alfa", "capacities": {}, "rooms": [{"name": "A1", "capacities": {}}]}])
     mutations.assign_organizer(workspace, ids["Old Boss"], "VedouciBudovy", "Alfa")
     buildings, pending, _ = mutations.read_building_sheet(workspace, _sheet(_with_leaders))
 
     with pytest.raises(mutations.ConfirmationRequired) as asked:
-        mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml")
+        mutations.put_config_from_sheet(workspace, buildings, pending)
     assert asked.value.lines == ["Vedoucí budovy: Old Boss (Alfa)"]
     assert [b["name"] for b in mutations.get_state(workspace)["config"]] == ["Alfa"]  # nothing changed yet
 
     notes: list[str] = []
-    state = mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True, warnings=notes)
+    state = mutations.put_config_from_sheet(workspace, buildings, pending, confirmed=True, warnings=notes)
 
     assert [b["name"] for b in state["config"]] == ["Alfa", "Beta"]
     held = {(e["role"], e["building"], e.get("room"), e["organizer_id"]) for e in state["manual_roles"]["structural"]}
@@ -305,7 +305,7 @@ def test_an_organizer_named_in_two_places_is_placed_at_the_last_with_a_note(work
 
     buildings, pending, _ = mutations.read_building_sheet(workspace, _sheet(build))
     notes: list[str] = []
-    state = mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True, warnings=notes)
+    state = mutations.put_config_from_sheet(workspace, buildings, pending, confirmed=True, warnings=notes)
 
     assert {(e["role"], e["building"], e.get("room")) for e in state["manual_roles"]["structural"] if e["organizer_id"] == anna} == {
         ("TechnickaPodpora", "Beta", None)
@@ -332,7 +332,7 @@ def test_names_without_an_exact_organizer_become_todo_offers_with_similar_candid
     assert any("Cyril Cerny" in line and "Podobná jména" in line for line in warnings)
     assert any("Bob Beran" in line and "zatím nezařazen" in line for line in warnings)
 
-    mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True)
+    mutations.put_config_from_sheet(workspace, buildings, pending, confirmed=True)
     offers = {o["name"]: o for o in mutations.get_organizer_slot_offers(workspace)}
 
     assert [c["organizer_id"] for c in offers["Cyril Cerny"]["candidates"]] == [ids["Cyrill Cerny"]]
@@ -355,7 +355,7 @@ def test_names_without_an_exact_organizer_become_todo_offers_with_similar_candid
 
 def test_an_organizer_added_later_is_offered_for_the_waiting_name(workspace, tmp_path):
     buildings, pending, _ = mutations.read_building_sheet(workspace, _sheet(_with_leaders))
-    mutations.put_config_from_sheet(workspace, buildings, pending, config_path=tmp_path / "c.yaml", confirmed=True)
+    mutations.put_config_from_sheet(workspace, buildings, pending, confirmed=True)
     assert next(o for o in mutations.get_organizer_slot_offers(workspace) if o["name"] == "Bob Beran")["candidates"] == []
 
     bob = mutations.add_organizer(workspace, "Bob Beran")["organizers"][-1]["id"]

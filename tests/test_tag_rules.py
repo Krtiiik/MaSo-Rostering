@@ -6,7 +6,6 @@ saved Tags, Tag import and the rule editor's draft round trip.
 
 Mutation-layer tests run against a temp-dir workspace with synthetic Helpers
 (never anything from data/); the solver tests drive it on domain objects."""
-import importlib
 
 import pytest
 
@@ -25,10 +24,6 @@ from tests.test_tag_import import ANNA, _season, _source_id, _tag, _tags_section
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "workspace")
 
 

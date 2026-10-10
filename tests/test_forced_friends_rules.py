@@ -797,7 +797,7 @@ def test_imports_copy_the_rules_whole(workspace):
 
     (group,) = mutations.get_state(workspace)["forced_groups"]
     assert group["rules"] == [Rule.share("room").to_dict(), Rule.be("building", ["A"]).to_dict()]
-    overview = mutations.import_overview(workspace, source)["sections"][0]["groups"]
+    overview = mutations.import_overview(workspace, source)["sections"][-1]["groups"]
     assert overview[0]["rule_texts"] == ["musí sdílet místnost", "musí být v budově A"]
     assert overview[0]["already_present"] is True
     assert summary["sections"][-1]["groups_imported"] == ["Pevná"]

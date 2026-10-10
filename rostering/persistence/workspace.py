@@ -30,7 +30,7 @@ from typing import Any, Callable, Iterable, Optional
 
 from rostering import building_prefs, forced_friends, tags as tag_tree
 from rostering.domain import ManualRoles
-from rostering.persistence import config_store, transfer
+from rostering.persistence import transfer
 from rostering.persons import PersonRecord, ensure_person_ids, records_from_state
 from rostering.persistence.season_label import (
     LABEL_FORMAT_HINT,
@@ -201,7 +201,7 @@ class Workspace:
         return {
             "helpers": [],
             "ingestion_warnings": [],
-            "config": config_store.load_default_config(),
+            "config": [],  # a layout comes from an earlier Season, a sheet or the Buildings tab
             "solver_config": solver_config_to_dict(SolverConfig()),
             "assignments": [],
             "manual_roles": manual_roles_to_dict(ManualRoles()),

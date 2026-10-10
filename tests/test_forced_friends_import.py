@@ -6,7 +6,6 @@ Seasons (never anything from data/): the overview, the per-group tick, recognize
 people, placeholders for the missing, independent copies, repeat imports and the
 result summary.
 """
-import importlib
 import io
 from datetime import datetime
 
@@ -28,10 +27,6 @@ KAREL = "karel@example.test"
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "seasons")
 
 
@@ -109,13 +104,13 @@ def _standard(workspace):
 # -- the offer and the overview --------------------------------------------------
 
 
-def test_forced_friends_groups_are_the_second_section_of_the_offer(workspace):
+def test_forced_friends_groups_are_the_third_section_of_the_offer(workspace):
     _standard(workspace)
 
     sections = mutations.tag_import_offer(workspace)["sections"]
 
-    assert [s["key"] for s in sections] == ["tags", "forced_groups"]
-    assert sections[1]["title"] == "Vynucené skupinky kamarádů"
+    assert [s["key"] for s in sections] == ["layout", "tags", "forced_groups"]
+    assert sections[2]["title"] == "Vynucené skupinky kamarádů"
 
 
 def test_the_overview_lists_each_groups_returning_and_missing_members(workspace):
@@ -123,8 +118,8 @@ def test_the_overview_lists_each_groups_returning_and_missing_members(workspace)
 
     overview = mutations.import_overview(workspace, _source_id(workspace))
 
-    assert [s["key"] for s in overview["sections"]] == ["forced_groups"]  # Tags has nothing to choose
-    groups = {g["name"]: g for g in overview["sections"][0]["groups"]}
+    assert [s["key"] for s in overview["sections"]] == ["layout", "forced_groups"]  # Tags has nothing to choose
+    groups = {g["name"]: g for g in overview["sections"][-1]["groups"]}
     assert set(groups) == {"Rodina", "Dvojice", "Cizinci"}
     rodina = groups["Rodina"]
     assert rodina["rules"] == [{"kind": "share", "axis": "building"}, {"kind": "share", "axis": "room"}]
@@ -140,7 +135,7 @@ def test_the_overview_says_which_groups_are_already_in_this_season(workspace):
     _standard(workspace)
     mutations.import_from_season(workspace, _source_id(workspace))
 
-    groups = {g["name"]: g for g in mutations.import_overview(workspace, _source_id(workspace))["sections"][0]["groups"]}
+    groups = {g["name"]: g for g in mutations.import_overview(workspace, _source_id(workspace))["sections"][-1]["groups"]}
 
     assert groups["Rodina"]["already_present"] and groups["Dvojice"]["already_present"]
     assert not groups["Cizinci"]["already_present"]
@@ -256,7 +251,7 @@ def test_a_returning_person_who_is_an_organizer_now_is_recognized_and_keeps_the_
 
 def test_an_unticked_group_is_left_out(workspace):
     _standard(workspace)
-    overview = mutations.import_overview(workspace, _source_id(workspace))["sections"][0]["groups"]
+    overview = mutations.import_overview(workspace, _source_id(workspace))["sections"][-1]["groups"]
     rodina = next(g for g in overview if g["name"] == "Rodina")
 
     summary = mutations.import_from_season(workspace, _source_id(workspace), {"forced_groups": [rodina["group_id"]]})
@@ -267,7 +262,7 @@ def test_an_unticked_group_is_left_out(workspace):
 
 def test_a_group_without_a_recognized_person_cannot_be_ticked_in(workspace):
     _standard(workspace)
-    overview = mutations.import_overview(workspace, _source_id(workspace))["sections"][0]["groups"]
+    overview = mutations.import_overview(workspace, _source_id(workspace))["sections"][-1]["groups"]
     cizinci = next(g for g in overview if g["name"] == "Cizinci")
 
     summary = mutations.import_from_season(workspace, _source_id(workspace), {"forced_groups": [cizinci["group_id"]]})
@@ -282,7 +277,7 @@ def test_ticking_nothing_imports_no_group_but_still_imports_tags(workspace):
     summary = mutations.import_from_season(workspace, _source_id(workspace), {"forced_groups": []})
 
     assert mutations.get_state(workspace)["forced_groups"] == []
-    assert [s["key"] for s in summary["sections"]] == ["tags", "forced_groups"]
+    assert [s["key"] for s in summary["sections"]] == ["layout", "tags", "forced_groups"]
 
 
 # -- copies and repeats ----------------------------------------------------------
@@ -366,7 +361,7 @@ def test_the_summary_reports_groups_alongside_tags(workspace):
 
     summary = mutations.import_from_season(workspace, _source_id(workspace))
 
-    assert [s["key"] for s in summary["sections"]] == ["tags", "forced_groups"]
+    assert [s["key"] for s in summary["sections"]] == ["layout", "tags", "forced_groups"]
     section = _groups_section(summary)
     assert section["title"] == "Vynucené skupinky kamarádů"
     assert section["lines"][0] == "Importované skupinky: 2 (Rodina, Dvojice)"

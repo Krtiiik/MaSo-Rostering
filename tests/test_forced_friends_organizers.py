@@ -8,7 +8,6 @@ Organizer is ever on the Role axis (they have no solved Role). Solver tests run
 on plain domain objects, mutation tests against a temp-dir workspace of
 synthetic Helpers (never anything from data/).
 """
-import importlib
 import random
 
 import pytest
@@ -258,10 +257,6 @@ def test_the_checker_agrees_with_the_solvers_own_bent_groups_with_organizers(see
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("ROSTERING_BUILDINGS_CONFIG_PATH", str(tmp_path / "buildings-config.yaml"))
-    from rostering.persistence import config_store as config_store_module
-
-    importlib.reload(config_store_module)
     return Workspace(root=tmp_path / "workspace")
 
 

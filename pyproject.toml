@@ -28,7 +28,6 @@ build-backend = "setuptools.build_meta"
 include = ["rostering*"]
 
 [tool.setuptools.package-data]
-"rostering.persistence" = ["default-buildings-config.yaml"]
 # The roster grid's browser half, served by NiceGUI as is (no build step).
 "rostering.webapp.ui.grid" = ["*.js"]
 # The Tags tab's drag-and-drop tree, likewise.
