@@ -53,6 +53,8 @@ class SeasonView:
     solver_draft: Optional[dict] = None
     fix_focus: Optional[FixFocus] = None
     selected_tag: Any = None  # a Tag id, "new" or None
+    tags_collapsed: set[int] = field(default_factory=set)  # branches folded in the Tags tree
+    tags_search: str = ""
     focus_group_id: Optional[int] = None
     grid_overlays: list[str] = field(default_factory=lambda: ["friends"])
     grid_tag_filter: list[int] = field(default_factory=list)

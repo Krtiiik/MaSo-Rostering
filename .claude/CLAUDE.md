@@ -720,6 +720,16 @@ pushing the tag, not just creating it locally.
   the Season is refused. The Organizers' sheet answers are not carried. A
   re-upload still replaces the whole Helper list, so it brings a promoted
   Helper back into the pool.
+- Tags tab tree (`ui/tagtree/`): `build_rows(state, focus_tag_id)` (pure) makes the rows
+  in `tags.tree_order` (`id`, `parent_id`, `depth`, `name`, pill `style`, counts, `note`,
+  `has_children`, `focus`) and `TagTree` shows them through `tag_tree.js`, a plain ES-module
+  Vue component (package data of `rostering.webapp.ui.tagtree`) that keeps the fold
+  state and search filter client-side and emits `tag_select`, `tag_move {id, parent_id}`
+  (null = root) and `tag_toggle`; it offers no drop on the Tag itself, a descendant
+  or the current parent, but `TagsTab._move` just calls `mutations.update_tag(parent_id=...)`,
+  which does the real validation. Siblings stay alphabetical, so a drop picks no position.
+  `SeasonView.tags_collapsed` / `tags_search` survive redraws; the ancestors of the
+  selected / "Go fix" Tag are opened on each draw.
 - Tags (`rostering/tags.py`, the Tags mutations in `mutations.py`): the
   Season's Tag tree is `state["tags"]` (dicts `id`, `name`, `colour`, `note`,
   `parent_id`; ids from the high-water mark `state["next_tag_id"]`, never

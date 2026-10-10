@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Štítky: the Tags tab lists the Tags as a collapsible tree, like a file explorer,
+  instead of a flat indented table. Drag a Tag onto another to put it under that
+  Tag (the Tag it is dropped on then implies it), or onto the empty space below the
+  tree to make it a top-level Tag; a move that would make a Tag its own ancestor is
+  not offered and one that would leave someone with no allowed building, room or
+  role is refused with the reason. Branches fold (the fold is remembered while the
+  Season is open), hovering a folded branch while dragging opens it, and the search
+  keeps the branches above each match. The "Odvozuje" column is gone: the tree shows it.
+
 ## [3.2.0] - 2026-10-09
 
 ### Added
