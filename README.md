@@ -52,6 +52,9 @@ re-upload changed, ...) collects in the **K vyřízení** panel behind the
 checklist button in the header. Named versions of the roster can be saved,
 restored and deleted from the left drawer.
 
+A step-by-step guide in Czech, with screenshots, is in
+[docs/manual/navod.md](docs/manual/navod.md).
+
 ### Your data
 
 Every Season (a year plus `jaro` or `podzim`, e.g. `2026-jaro`) is stored

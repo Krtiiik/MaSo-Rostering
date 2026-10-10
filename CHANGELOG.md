@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Uživatelský návod v češtině s obrázky z aplikace (`docs/manual/navod.md`):
+  celý postup od nahrání odpovědí po export do Excelu. Obrázky na vymyšlených datech
+  vytváří skript `docs/manual/tools/make_screenshots.py`.
+
 ## [3.4.0] - 2026-10-10
 
 ### Changed
