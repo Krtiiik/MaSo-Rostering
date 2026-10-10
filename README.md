@@ -1,10 +1,11 @@
 # Rostering
 
 Assigns registered helpers (*pomocníci*) to buildings, rooms and roles for the
-MaSo math competition, based on their preferences, and lets you tidy up the
-result by hand before exporting it to Excel.
+[MaSo](https://maso.mff.cuni.cz/) math competition, based on their preferences,
+and lets you tidy up the result by hand before exporting it to Excel.
 
-The app's interface is in Czech.
+A step-by-step guide in Czech, with screenshots, is in
+[docs/manual/navod.md](docs/manual/navod.md).
 
 ## Getting started (using a release)
 
@@ -51,9 +52,6 @@ Anything waiting on a decision (possible returning helpers to link, what a
 re-upload changed, ...) collects in the **K vyřízení** panel behind the
 checklist button in the header. Named versions of the roster can be saved,
 restored and deleted from the left drawer.
-
-A step-by-step guide in Czech, with screenshots, is in
-[docs/manual/navod.md](docs/manual/navod.md).
 
 ### Your data
 
