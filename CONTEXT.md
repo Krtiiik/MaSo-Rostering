@@ -233,8 +233,14 @@ A list of rules a Tag places on the people who carry it, inherited by every
 Helper who carries that Tag directly or through implication. They are the same
 rules a Forced friends group states about each member, written and edited the
 same way: "must / must not be in some Buildings or Rooms", "must / must not have
-some Roles" (each an any-of set). Only those: sharing a Building, Room or Role
-is what a Forced friends group is for, so a Tag refuses it. A Helper's effective
+some Roles" (each an any-of set), and "must share a Building / Room / Role". The
+"be" and "have" rules restrict each carrier on their own; a "share" rule binds all
+the people carrying the Tag (directly or through implication, Helpers and placed
+Organizers alike) together, exactly as if they were a Forced friends group: it
+needs two of them to bind, restricts nobody's allowed set, is a Broken rule when
+the carriers end up apart (worded "Štítek 8.M [...] je rozdělen mezi místnosti ..."),
+is bent in the Forced-friend tier, and its "Go fix" leads to the Tag. Unlike a
+group it never blocks an edit. A Helper's effective
 allowed set per axis is the intersection of every applicable "must" rule (a Tag
 with none doesn't narrow it), minus anything any applicable "must not" rule
 names — a "must not" always wins. A Room is allowed when the Room rules allow it

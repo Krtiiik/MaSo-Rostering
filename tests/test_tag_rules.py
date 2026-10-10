@@ -87,14 +87,32 @@ def test_a_tag_stores_the_same_rule_dicts_a_group_does(workspace):
     ]
 
 
-def test_a_tag_refuses_a_share_rule_and_a_repeated_rule(workspace):
+def test_a_tag_keeps_a_share_rule_and_refuses_a_repeated_rule(workspace):
     _seed(workspace)
 
-    with pytest.raises(mutations.RosteringError, match="jen pravidla"):
-        mutations.add_tag(workspace, "8.M", rules=[{"kind": SHARE, "axis": ROOM}])
+    state = mutations.add_tag(workspace, "8.M", rules=[{"kind": SHARE, "axis": ROOM}, rule(BUILDING, ["A"])])
+    assert state["tags"][0]["rules"] == [{"kind": SHARE, "axis": ROOM}, rule(BUILDING, ["A"])]
+    assert [r.text() for r in tag_tree.tag_from_dict(state["tags"][0]).rules] == [
+        "musí sdílet místnost",
+        "musí být v budově A",
+    ]
+
     with pytest.raises(mutations.RosteringError, match="opakuje"):
-        mutations.add_tag(workspace, "8.M", rules=[rule(BUILDING, ["A"]), rule(BUILDING, ["A"])])
-    assert mutations.get_state(workspace)["tags"] == []
+        mutations.add_tag(workspace, "9.M", rules=[{"kind": SHARE, "axis": ROOM}, {"kind": SHARE, "axis": ROOM}])
+    with pytest.raises(mutations.RosteringError, match="opakuje"):
+        mutations.add_tag(workspace, "9.M", rules=[rule(BUILDING, ["A"]), rule(BUILDING, ["A"])])
+    assert [t["name"] for t in mutations.get_state(workspace)["tags"]] == ["8.M"]
+
+
+def test_a_share_rule_restricts_nobody_on_their_own(workspace):
+    _seed(workspace)
+    tag_id = _new_tag(workspace, "8.M", rules=[{"kind": SHARE, "axis": BUILDING}])
+    mutations.set_helper_tags(workspace, 1, [tag_id])
+
+    allowed = mutations.helper_allowed(mutations.get_state(workspace), 1)
+
+    assert allowed["buildings"] == ["A", "B"]
+    assert len(allowed["rooms"]) == 4
 
 
 def test_update_tag_replaces_the_whole_rule_list_and_leaves_it_when_not_given(workspace):
@@ -246,7 +264,73 @@ def test_a_forbidden_room_is_a_broken_rule_the_checker_and_solver_word_alike():
     assert live[0].cells == (("A", "A1", None),)
 
 
+# -- a Tag's share rules: its carriers act as a Forced friends group ---------------------
+
+
+def _share_competition(helpers_tags, axis=ROOM, extra_tags=()):
+    comp = _competition(helpers_tags, [{"kind": SHARE, "axis": axis}])
+    for helper in comp.helpers:
+        helper.person_id = f"p{helper.id}"
+    comp.tags.extend(extra_tags)
+    return comp
+
+
+def test_the_solver_keeps_the_carriers_of_a_share_rule_in_one_room():
+    comp = _share_competition([[1], [1], [1], []])
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=10))
+
+    placed = {a.helper_id: (a.building, a.room) for a in result.assignments}
+    assert len({placed[1], placed[2], placed[3]}) == 1
+    assert result.broken_rules == []
+    assert check_roster(comp, result.assignments) == []
+
+
+def test_a_split_share_rule_is_a_broken_rule_worded_for_the_tag():
+    from rostering.domain import Assignment
+
+    comp = _share_competition([[1], [1], []])
+    fixed = [
+        Assignment(helper_id=1, helper_name="H1", building="A", room="A1", role=Role.Zaloha),
+        Assignment(helper_id=2, helper_name="H2", building="B", room="B1", role=Role.Zaloha),
+        Assignment(helper_id=3, helper_name="H3", building="A", room="A2", role=Role.Zaloha),
+    ]
+
+    result = solve_competition(comp, SolverConfig(time_limit_seconds=10), fixed_assignments=fixed)
+    live = check_roster(comp, fixed)
+
+    assert [b.instance for b in live] == [RuleInstance("forced_friends", (-1, "share:room"))]
+    assert live[0].line == "Štítek Pinned [H1, H2] je rozdělen mezi místnosti A1 a B1"
+    assert live[0].amount == 1
+    assert live[0].helper_ids == (1, 2) or live[0].helper_ids == (2, 1)
+    assert live[0].fix.tab == "tags" and live[0].fix.tag_id == 1
+    assert [(b.instance, b.amount, b.line) for b in result.broken_rules] == [(live[0].instance, 1, live[0].line)]
+
+
+def test_a_carrier_through_a_child_tag_is_held_to_the_parents_share_rule():
+    child = tag_tree.Tag(id=2, name="Child", colour="#dc3912", parent_id=1)
+    comp = _share_competition([[1], [2], []], axis=BUILDING, extra_tags=[child])
+
+    groups = comp.rule_groups()
+
+    assert [(g.tag_id, g.person_ids) for g in groups] == [(1, ("p1", "p2"))]
+
+
+def test_a_share_rule_nobody_carries_makes_no_group():
+    assert _share_competition([[], []]).rule_groups() == []
+
+
 # -- Tag import ----------------------------------------------------------------------
+
+
+def test_tag_import_keeps_a_share_rule(workspace):
+    _season(workspace, "2025-podzim", [("Anna Nováková", ANNA)], buildings=("A", "B"))
+    mutations.add_tag(workspace, "Together", rules=[{"kind": SHARE, "axis": ROOM}])
+    _season(workspace, "2026-jaro", [("Anna Nováková", ANNA)], buildings=("A", "B"))
+
+    mutations.import_from_season(workspace, _source_id(workspace, "2025-podzim"))
+
+    assert _tag(mutations.get_state(workspace), "Together")["rules"] == [{"kind": SHARE, "axis": ROOM}]
 
 
 def test_tag_import_copies_room_rules_and_drops_rooms_the_season_lacks(workspace):

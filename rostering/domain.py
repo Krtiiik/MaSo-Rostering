@@ -247,6 +247,14 @@ class Competition:
     # cells instead of piling it into one.
     cell_merges: dict[str, dict[str, list[list[str]]]] = field(default_factory=dict)
 
+    def rule_groups(self) -> list["ForcedGroup"]:
+        """Every group the solver and the live check hold the roster to: the
+        saved Forced friends groups plus one derived from each Tag with ``share``
+        rules (its carriers must share a Building, Room or Role)."""
+        from rostering.forced_friends import tag_groups  # deferred: forced_friends imports this module
+
+        return [*self.forced_groups, *tag_groups(self.tags, self.helpers, self.organizers)]
+
     def attending(self) -> "Competition":
         """This Competition without the Helpers flagged Can't attend: the one
         rule for who takes part, applied by the solver, the Broken-rule check

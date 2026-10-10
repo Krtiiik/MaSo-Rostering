@@ -504,13 +504,14 @@ def _be_slack(ctx: ModelContext, rule: forced_friends.GroupRule, n: int, room_id
 
 def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
     comp = ctx.competition
-    if not comp.forced_groups:
+    groups = comp.rule_groups()
+    if not groups:
         return []
     placed = {a.helper_id: a for a in ctx.assignments}
     known_rooms = {(b.name, r.name) for b in comp.buildings.values() for r in b.rooms}
     broken: list[BrokenRule] = []
     known_buildings = {name: [r.name for r in b.rooms] for name, b in comp.buildings.items()}
-    for rule in forced_friends.group_rules(comp.helpers, comp.forced_groups, comp.organizers, known_buildings):
+    for rule in forced_friends.group_rules(comp.helpers, groups, comp.organizers, known_buildings):
         # A member with no Assignment, or one in a Room the configuration no
         # longer has, is judged by nothing (like the other families).
         members = [
@@ -543,7 +544,11 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
                 line=rule.line(members),
                 cells=tuple(dict.fromkeys(cells)),
                 helper_ids=tuple(a.helper_id for a in flagged),
-                fix=FixTarget("forced_friends", group_id=rule.group.id),
+                fix=(
+                    FixTarget("tags", tag_id=rule.group.tag_id)
+                    if rule.group.tag_id is not None
+                    else FixTarget("forced_friends", group_id=rule.group.id)
+                ),
                 organizer_ids=tuple(anchor.organizer_id for anchor in flagged_anchors),
             )
         )

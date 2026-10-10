@@ -22,6 +22,7 @@ NEW = "new"
 _RULES_HELP = (
     "Pravidla platí pro každého, kdo štítek nese (i odvozeně). Všechna musí platit zároveň; u „být v“ a „mít "
     "roli“ stačí jedna z vybraných hodnot. „Musí“ člověka omezuje jen na vybrané, „nesmí“ vždy vyhrává. "
+    "„Musí sdílet“ platí pro všechny nositele štítku dohromady (jako u vynucené skupinky). "
     "Nastavení, po kterém by někdo neměl žádnou povolenou budovu, místnost ani roli, se odmítne."
 )
 
@@ -224,7 +225,7 @@ class TagSheet:
         not silently drop it."""
         ui.label("Pravidla: kdo štítek nese").classes("text-sm mt-2 font-bold")
         ui.label(_RULES_HELP).classes("text-xs text-gray-600")
-        editor = RuleEditor(state["config"], tag["rules"] if tag else [], allow_share=False)
+        editor = RuleEditor(state["config"], tag["rules"] if tag else [], allow_share=True, new_op="be_must")
         editor.build()
         for note in forced_groups.missing_places(state, tag_tree.record_rules(tag) if tag else []):
             with ui.row().classes("items-center gap-1 text-orange-800"):

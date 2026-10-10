@@ -905,15 +905,27 @@ pushing the tag, not just creating it locally.
   hover; never a bare `dimmed`, which is a Quasar utility class that lays a dark
   overlay over the nearest positioned ancestor — the whole cell). Covered by `tests/test_grid_tags.py`, `tests/test_webapp_grid.py` and
   the smoke script (`scripts/e2e/smoke.mjs`).
-- Tag constraints: a Tag record carries `rules`, a list of the same `be` rule
+- Tag constraints: a Tag record carries `rules`, a list of the same rule
   dicts a Forced friends group has (`{"kind": "be", "must", "axis", "values"}`,
-  axis building / room / role, any-of `values`; a Room is `[building, room]`). The
+  axis building / room / role, any-of `values`; a Room is `[building, room]`; or
+  `{"kind": "share", "axis"}`). The
   rule model (`Rule`, `value_label`, `effective_values`, `violates_be`) lives in
   `rostering/placement_rules.py`, shared with `forced_friends` (which re-exports
-  it); `Tag.rules` holds them as `Rule`s and a Tag refuses a `share` rule
-  (`mutations._validated_tag_rules`; roles may be written as display names). The
-  editor is `ui/tabs/rule_editor.py` `RuleEditor`, used by the Forced friends
-  dialog (`allow_share=True`) and `TagSheet` (`allow_share=False`). A Tag saved as
+  it); `Tag.rules` holds them as `Rule`s (`mutations._validated_tag_rules`; roles
+  may be written as display names). `be` rules restrict each carrier on their own
+  (`tags.restrictions` skips `share`); a `share` rule is a group of the Tag's
+  carriers: `forced_friends.tag_groups` derives, per Tag with `share` rules, an
+  unsaved `ForcedGroup` (`id` = minus the Tag's, `tag_id` set, members = the
+  `person_id`s of every Helper and Organizer whose effective Tags include it),
+  and `Competition.rule_groups()` (saved groups plus these) is what the solver's
+  `ModelContext` and `_check_forced_friends` read, so they ride the existing
+  `group_rules` / `FORCED_FRIENDS_FAMILY` machinery (line "Štítek X [..] je
+  rozdělen ...", `FixTarget("tags", tag_id=...)`). Everything else that reads
+  `Competition.forced_groups` (edit-time Tag clashes, grid chip marks, the Forced
+  friends tab) sees saved groups only, so a Tag's share rule never blocks an edit.
+  The editor is `ui/tabs/rule_editor.py` `RuleEditor`, used by the Forced friends
+  dialog and `TagSheet` (both `allow_share=True`; a Tag's new row starts on
+  "musí být v", `new_op`). A Tag saved as
   `building_allow` / `building_deny` / `role_allow` / `role_deny` is read as the
   equivalent rules (`tags.legacy_rules`) and rewritten on load
   (`tags.migrate_state`, called next to `forced_friends.migrate_state`). The single

@@ -2629,11 +2629,10 @@ def _with_role_names(item: Any) -> Any:
 
 
 def _validated_tag_rules(rules: Optional[Sequence[Any]]) -> list[dict]:
-    """A Tag's rules as stored (``Rule``s or their saved dicts): the same ``be``
-    rules a Forced friends group states, refused when malformed, repeated or a
-    ``share`` rule (a Tag restricts each carrier on their own; sharing is what a
-    group is for). A Building or Room entry is kept as given -- it may name one
-    the Season no longer has, which is inert, not wrong."""
+    """A Tag's rules as stored (``Rule``s or their saved dicts): the same rules a
+    Forced friends group states, refused when malformed or repeated. A Building
+    or Room entry is kept as given -- it may name one the Season no longer has,
+    which is inert, not wrong."""
     normalized: list[Rule] = []
     seen: set[str] = set()
     for item in rules or []:
@@ -2641,8 +2640,6 @@ def _validated_tag_rules(rules: Optional[Sequence[Any]]) -> list[dict]:
             rule = Rule.from_dict(_with_role_names(item))
         except (ValueError, KeyError, TypeError) as exc:
             raise RosteringError(str(exc)) from exc
-        if rule.kind != forced_friends.BE:
-            raise RosteringError("Štítek může mít jen pravidla o tom, kde člověk smí být a jakou smí mít roli.")
         if rule.key in seen:
             raise RosteringError(f"Pravidlo se opakuje: {rule.text()}.")
         seen.add(rule.key)
@@ -2744,7 +2741,7 @@ def add_tag(
     unique among the Season's Tags ignoring case, a hex colour (each new Tag
     otherwise gets the next colour of a fixed palette), a free note, an
     optional single parent Tag it implies and its Tag constraints -- ``rules``, the
-    same ``be`` rules a Forced friends group has (:func:`_validated_tag_rules`).
+    same rules a Forced friends group has (:func:`_validated_tag_rules`).
     The new Tag is the last of
     ``state["tags"]``. Nobody carries a new Tag, so no constraint can strand
     anyone yet."""
@@ -3352,6 +3349,9 @@ def _import_tags_section(context: ImportContext) -> dict[str, Any]:
         if target is None:
             kept_rules = []
             for rule in tag_tree.record_rules(source_tag):
+                if rule.kind == forced_friends.SHARE:  # names no place: carried whole
+                    kept_rules.append(rule.to_dict())
+                    continue
                 kept = tuple(v for v in rule.values if tag_tree.entry_in_universe(rule.axis, v, universes[rule.axis]))
                 for entry in rule.values:
                     if entry not in kept:

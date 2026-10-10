@@ -119,6 +119,10 @@ class ForcedGroup:
     name: str
     rules: tuple[Rule, ...]
     person_ids: tuple[str, ...]
+    # Set on a group derived from a Tag's ``share`` rules (see :func:`tag_groups`):
+    # the Tag it comes from. Such a group is never saved, and its ``id`` is the
+    # negative of the Tag's, so it cannot meet a saved group's.
+    tag_id: Optional[int] = None
 
     @property
     def share_axes(self) -> tuple[str, ...]:
@@ -163,6 +167,38 @@ def groups_from_state(state: dict[str, Any]) -> list[ForcedGroup]:
     """The groups saved in a Season's state (``state["forced_groups"]``; a state
     saved before groups existed has none)."""
     return [group_from_dict(g) for g in state.get("forced_groups") or []]
+
+
+def tag_groups(
+    tag_defs: Sequence[tags_module.Tag], helpers: Iterable[Helper], organizers: Iterable[Organizer] = ()
+) -> list[ForcedGroup]:
+    """The groups a Tag's ``share`` rules stand for: for each Tag with any, one
+    group of every Person carrying it, directly or through a Tag that implies it,
+    bound by that Tag's ``share`` rules. They run through the same
+    :func:`group_rules` as saved groups, so the solver, the live check and the
+    wording cannot drift. A Tag nobody carries makes none."""
+    tag_defs = list(tag_defs)
+    sharing = [t for t in tag_defs if any(r.kind == SHARE for r in t.rules)]
+    if not sharing:
+        return []
+    carriers: dict[int, list[str]] = {t.id: [] for t in sharing}
+    for person in (*helpers, *organizers):
+        if not person.person_id:
+            continue
+        for tag_id in tags_module.effective_tag_ids(tag_defs, person.tags):
+            if tag_id in carriers and person.person_id not in carriers[tag_id]:
+                carriers[tag_id].append(person.person_id)
+    return [
+        ForcedGroup(
+            id=-tag.id,
+            name=tag.name,
+            rules=tuple(r for r in tag.rules if r.kind == SHARE),
+            person_ids=tuple(carriers[tag.id]),
+            tag_id=tag.id,
+        )
+        for tag in sharing
+        if carriers[tag.id]
+    ]
 
 
 def place_value(axis: str, building: str, room: str, role: str) -> Hashable:
@@ -279,7 +315,8 @@ class GroupRule:
 
     def _subject(self) -> str:
         names = [*self.helper_names, *(a.name for a in self.anchors)]
-        return f"Skupinka {self.group.name} [{', '.join(names)}]"
+        noun = "Štítek" if self.group.tag_id is not None else "Skupinka"
+        return f"{noun} {self.group.name} [{', '.join(names)}]"
 
     def line(self, assignments: Sequence[Assignment] = ()) -> str:
         """The violation in words, from the members' ``assignments`` (and the
@@ -301,7 +338,8 @@ class GroupRule:
         if self.axis == ROOM and len(set(labels)) < len(labels):
             # The same Room name in two Buildings: say which is which.
             labels = [f"{label} ({building})" for label, building in places.values()]
-        return f"{self._subject()} je rozdělena mezi {_PLURALS[self.axis]}" + (
+        split = "rozdělen" if self.group.tag_id is not None else "rozdělena"
+        return f"{self._subject()} je {split} mezi {_PLURALS[self.axis]}" + (
             f" {_joined(labels)}" if labels else ""
         )
 

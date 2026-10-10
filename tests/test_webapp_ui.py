@@ -513,18 +513,26 @@ async def test_a_tag_gets_its_rules_from_the_same_rule_rows_a_group_uses(user: U
     user.find(marker="add-tag").click()
     await user.should_see(marker="tag-name")
     user.find(marker="tag-name").type("Jen K1")
-    user.find(marker="rule-add").click()  # a new Tag starts with no rule; a Tag cannot share, so the row is "musí být v"
+    user.find(marker="rule-add").click()  # a new Tag starts with no rule; its first row is the "be" kind
     await asyncio.sleep(0.1)
     ops = user.find(marker="rule-op-0").elements.pop()
-    assert "share" not in ops.options and "be_must" in ops.options
+    assert "share" in ops.options and ops.value == "be_must"
     user.find(marker="rule-axis-0").elements.pop().value = "room"
     await asyncio.sleep(0.1)
     user.find(marker="rule-values-0").elements.pop().value = ["KarlínK1"]
+    user.find(marker="rule-add").click()
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-op-1").elements.pop().value = "share"
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-axis-1").elements.pop().value = "building"
     user.find(marker="tag-save").click()
     await asyncio.sleep(0.2)
 
     tag = next(t for t in _state(seasons)["tags"] if t["name"] == "Jen K1")
-    assert tag["rules"] == [{"kind": "be", "must": True, "axis": "room", "values": [["Karlín", "K1"]]}]
+    assert tag["rules"] == [
+        {"kind": "be", "must": True, "axis": "room", "values": [["Karlín", "K1"]]},
+        {"kind": "share", "axis": "building"},
+    ]
 
 
 # ---------------------------------------------------------------------- Buildings

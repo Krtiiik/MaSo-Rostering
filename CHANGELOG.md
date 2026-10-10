@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Štítky: pravidlo „musí sdílet budovu / místnost / roli“ je teď i u štítku (dosud
+  jen u vynucených skupinek). Všichni nositelé štítku (i odvozeně) pak musí být
+  spolu; porušení se hlásí jako „Štítek … je rozdělen mezi …“ a „Opravit“ vede na
+  štítek. Přebírá se i při importu štítků z dřívějšího ročníku.
+
 ## [3.3.0] - 2026-10-10
 
 ### Added

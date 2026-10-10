@@ -45,9 +45,10 @@ class Tag:
     note: str = ""
     # The one Tag this Tag implies, or None for a root.
     parent_id: Optional[int] = None
-    # Tag constraints: the same ``be`` rules a Forced friends group states
+    # Tag constraints: the same rules a Forced friends group states. ``be`` rules
     # ("must / must not be in Building or Room ...", "must / must not have role
-    # ..."), applying to each Helper carrying the Tag. Empty states nothing.
+    # ...") apply to each carrier on their own; ``share`` rules bind all the
+    # carriers together (see ``forced_friends.tag_groups``). Empty states nothing.
     rules: tuple[Rule, ...] = ()
 
 
@@ -76,7 +77,7 @@ def legacy_rules(record: Mapping[str, Any]) -> list[dict[str, Any]]:
 def record_rules(record: Mapping[str, Any]) -> tuple[Rule, ...]:
     """The rules of a saved Tag record, whichever shape it was saved in."""
     raw = record["rules"] if "rules" in record else legacy_rules(record)
-    return tuple(rule for rule in (Rule.from_dict(r) for r in raw or []) if rule.kind == BE)
+    return tuple(Rule.from_dict(r) for r in raw or [])
 
 
 def migrate_state(state: dict[str, Any]) -> bool:

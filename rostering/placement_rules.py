@@ -3,8 +3,8 @@ Forced friends group, Tag constraint).
 
 A rule is one of
 
-- ``share``: the members must share a Building, a Room or a Role (never negated);
-  only a group states these;
+- ``share``: the members (of a Tag: everyone carrying it) must share a
+  Building, a Room or a Role (never negated);
 - ``be``: every member must (or must not) be in one of some Buildings or Rooms,
   or have one of some Roles (``values`` is the set, "any of"). A group and a Tag
   both state these, so the same rule reads, is validated and is worded the same

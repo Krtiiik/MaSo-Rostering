@@ -1,8 +1,9 @@
 """The rule-list editor shared by Forced friends groups and Tags: one row per
 rule, each saying what it demands (share a Building / Room / Role, be / not be
 in some Buildings or Rooms, have / not have some Roles), with the add and remove
-controls. A group's editor offers every row kind; a Tag's leaves out "share"
-(a Tag restricts each carrier on their own, see ``rostering.placement_rules``).
+controls. Both a group's and a Tag's editor offer every row kind: "share" binds the
+group's members, or all the carriers of the Tag, together (see
+``rostering.forced_friends.tag_groups``).
 
 The editor keeps its rows as drafts and turns them into saved rule dicts only on
 ``rules()``; validation happens in the mutation that saves them."""
@@ -65,9 +66,12 @@ class RuleEditor:
         rules: list[dict],
         *,
         allow_share: bool,
+        new_op: Optional[str] = None,
         on_change: Optional[Callable[[], None]] = None,
     ) -> None:
         self.allow_share = allow_share
+        # What a freshly added row says; a group starts on "share", a Tag on "be_must".
+        self.new_op = new_op or ("share" if allow_share else "be_must")
         self.on_change = on_change
         self.rows: list[dict] = [draft_from_rule(r) for r in rules]
         self._building_options = {b["name"]: b["name"] for b in layout}
@@ -81,7 +85,7 @@ class RuleEditor:
         return [rule_from_draft(row) for row in self.rows]
 
     def new_row(self) -> dict:
-        if self.allow_share:
+        if self.new_op == "share":
             return {"op": "share", "axis": pr.ROOM, "values": []}
         return {"op": "be_must", "axis": pr.BUILDING, "values": []}
 
