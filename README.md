@@ -92,6 +92,12 @@ open Season is recorded in `data/seasons/open-season.json`. Everything is under
 `data/` (gitignored, since it holds real helper data). A state saved by an
 earlier version (`data/workspace/`) is moved into a Season on first launch.
 
+The sidebar's Seasons panel can export chosen Seasons (with or without their
+Versions) to one `.zip` and import such a file elsewhere — to move to another
+machine, hand a Season to a colleague, or seed a fresh install. Before an import
+changes anything, the stored Seasons are backed up as a `.zip` in `data/backups/`
+(next to `data/seasons/`).
+
 The buildings/rooms layout is pre-filled with a default (seeded from the most
 recent season's roster) and persists separately in `data/buildings-config.yaml`
 — it's saved there whenever you edit it on the Buildings tab, so it survives

@@ -23,16 +23,23 @@ import os
 import re
 import shutil
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from rostering import building_prefs, forced_friends, tags as tag_tree
 from rostering.domain import ManualRoles
-from rostering.persistence import config_store
+from rostering.persistence import config_store, transfer
 from rostering.persons import PersonRecord, ensure_person_ids, records_from_state
-from rostering.persistence.season_label import LABEL_FORMAT_HINT, label_sort_key, normalize_label
+from rostering.persistence.season_label import (
+    LABEL_FORMAT_HINT,
+    label_sort_key,
+    next_free_label,
+    normalize_label,
+)
 from rostering.persistence.serialize import manual_roles_to_dict, solver_config_to_dict
+from rostering.season_diff import diff_seasons
 from rostering.solver.model import SolverConfig
 
 
@@ -74,6 +81,32 @@ def _read_json(path: Path) -> Any:
 def _write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     _digests.pop(str(path), None)
+
+
+def _move(source: Path, target: Path) -> None:
+    shutil.move(str(source), str(target))
+
+
+def migrate_loaded_state(state: dict[str, Any]) -> bool:
+    """Bring a state saved by an older version up to date, in memory: the keys
+    and shapes added since. Returns whether anything was rewritten (Person ids
+    are not part of it; ``ensure_person_ids`` runs when a stored Season is read)."""
+    # A state saved before Tags existed has none.
+    state.setdefault("tags", [])
+    state.setdefault("tag_imports", {})
+    # ... and one saved before Organizers existed has none.
+    state.setdefault("organizers", [])
+    # ... and one saved before Forced friends groups existed has none.
+    state.setdefault("forced_groups", [])
+    # ... and a group saved before rules existed carries axes instead.
+    migrated = forced_friends.migrate_state(state)
+    # ... and a Tag saved before its constraints were rules carries four allow/deny lists.
+    migrated = tag_tree.migrate_state(state) or migrated
+    # ... and a Helper's Building preference may name a Building the layout spells otherwise.
+    migrated = building_prefs.reconcile(state) or migrated
+    # ... and one saved before tall cells existed has none.
+    state.setdefault("row_merges", [])
+    return migrated
 
 
 class _Digest:
@@ -120,6 +153,29 @@ def _digest(state_path: Path) -> Optional[_Digest]:
     digest.helper_count = len(state.get("helpers", [])) if isinstance(state, dict) else 0
     _digests[str(state_path)] = (stamp, digest)
     return digest
+
+
+@dataclass
+class _ImportEntry:
+    """One Season of an export file met with the stored Seasons."""
+
+    season: transfer.PackageSeason
+    status: str  # new | same_id | label_clash | identical
+    local: Optional[tuple[Path, dict[str, str]]]  # the stored Season it meets
+    diff: list[dict[str, Any]]
+    suggested_label: Optional[str]
+
+
+@dataclass
+class _ImportItem:
+    """What is to be done with one Season of an export file."""
+
+    season: transfer.PackageSeason
+    action: str  # add | replace | keep_both | skip
+    state: dict[str, Any]  # with the identity it will be stored under
+    new_id: str
+    label: str
+    removes: Optional[tuple[Path, dict[str, str]]]  # the stored Season a replace takes out
 
 
 class Workspace:
@@ -209,21 +265,7 @@ class Workspace:
         written back at once, so the ids are stable from then on."""
         path = season_dir / "state.json"
         state = _read_json(path)
-        # A state saved before Tags existed has none.
-        state.setdefault("tags", [])
-        state.setdefault("tag_imports", {})
-        # ... and one saved before Organizers existed has none.
-        state.setdefault("organizers", [])
-        # ... and one saved before Forced friends groups existed has none.
-        state.setdefault("forced_groups", [])
-        # ... and a group saved before rules existed carries axes instead.
-        migrated = forced_friends.migrate_state(state)
-        # ... and a Tag saved before its constraints were rules carries four allow/deny lists.
-        migrated = tag_tree.migrate_state(state) or migrated
-        # ... and a Helper's Building preference may name a Building the layout spells otherwise.
-        migrated = building_prefs.reconcile(state) or migrated
-        # ... and one saved before tall cells existed has none.
-        state.setdefault("row_merges", [])
+        migrated = migrate_loaded_state(state)
         if ensure_person_ids(state) or migrated:
             _write_json(path, state)
         return state
@@ -433,6 +475,314 @@ class Workspace:
             season_dir.rmdir()  # only succeeds if nothing hand-placed is left
         except OSError:
             pass
+
+    # -- export and import of Seasons (see rostering.persistence.transfer) -----
+
+    def _version_slugs(self, season_dir: Path) -> list[str]:
+        folder = season_dir / "versions"
+        return sorted(p.stem for p in folder.glob("*.json")) if folder.is_dir() else []
+
+    def _version_files(self, season_dir: Path) -> dict[str, dict[str, Any]]:
+        """A stored Season's Versions as they are on disk (not migrated), by slug."""
+        folder = season_dir / "versions"
+        return {p.stem: _read_json(p) for p in sorted(folder.glob("*.json"))} if folder.is_dir() else {}
+
+    def export_package(self, season_ids: Optional[list[str]] = None, include_versions: bool = True) -> bytes:
+        """The stored Seasons ``season_ids`` (default: every one) as an export
+        file. Hand-placed files in a Season's directory are not included."""
+        stored = list(self._scan())
+        if season_ids is None:
+            chosen = stored
+        else:
+            by_id = {identity["id"]: (season_dir, identity) for season_dir, identity in stored}
+            wanted = list(dict.fromkeys(season_ids))
+            if not wanted:
+                raise SeasonError("Vyberte alespoň jeden ročník k exportu.")
+            if any(season_id not in by_id for season_id in wanted):
+                raise SeasonError("Takový ročník neexistuje.")
+            chosen = [by_id[season_id] for season_id in wanted]
+        if not chosen:
+            raise SeasonError("Není co exportovat — zatím nemáte žádný uložený ročník.")
+        exports = []
+        for season_dir, identity in chosen:
+            state = self._read_state(season_dir)
+            modified = datetime.fromtimestamp((season_dir / "state.json").stat().st_mtime, timezone.utc)
+            exports.append(
+                transfer.SeasonExport(
+                    id=identity["id"],
+                    label=identity["label"],
+                    state=state,
+                    versions=self._version_files(season_dir) if include_versions else {},
+                    modified_at=modified.isoformat(),
+                )
+            )
+        return transfer.build_package(exports, (self.open_season() or {}).get("id"), include_versions)
+
+    def write_backup(self) -> Path:
+        """Write every stored Season (Versions included) as an export file in
+        ``backups/`` next to the seasons directory, and return its path."""
+        folder = self.root.parent / "backups"
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        path = folder / f"pre-import-{stamp}.zip"
+        counter = 1
+        while path.exists():
+            counter += 1
+            path = folder / f"pre-import-{stamp}-{counter}.zip"
+        path.write_bytes(self.export_package(None, True))
+        return path
+
+    def _is_empty(self) -> bool:
+        """No stored Season and nothing worth keeping in the unsaved draft."""
+        return not any(True for _ in self._scan()) and not (self._draft or {}).get("helpers")
+
+    def _import_entries(self, package: transfer.Package) -> list[_ImportEntry]:
+        stored = list(self._scan())
+        by_id = {identity["id"]: (d, identity) for d, identity in stored}
+        by_label = {identity["label"]: (d, identity) for d, identity in stored}
+        taken = {identity["label"] for _, identity in stored}
+        entries = []
+        for season in package.seasons:
+            migrate_loaded_state(season.state)
+            local = by_id.get(season.id)
+            status = "same_id"
+            if local is None:
+                local = by_label.get(season.label)
+                status = "label_clash" if local is not None else "new"
+            diff: list[dict[str, Any]] = []
+            if local is not None:
+                local_dir, local_identity = local
+                # A file without Versions says nothing about them: they are not compared.
+                diff = diff_seasons(
+                    self._read_state(local_dir),
+                    season.state,
+                    self._version_slugs(local_dir) if package.includes_versions else [],
+                    season.versions.keys() if package.includes_versions else [],
+                )
+                if status == "same_id" and local_identity["label"] != season.label:
+                    renamed = {"label": f"{local_identity['label']} → {season.label}", "fields": []}
+                    diff.insert(0, {"key": "label", "added": [], "removed": [], "changed": [renamed]})
+                if status == "same_id" and not diff:
+                    status = "identical"
+            suggestion = None if status == "new" else next_free_label(season.label, taken)
+            entries.append(_ImportEntry(season, status, local, diff, suggestion))
+        return entries
+
+    def preview_import(self, package: transfer.Package) -> dict[str, Any]:
+        """What importing ``package`` would do, without touching anything: each
+        Season with its status (``new``, ``same_id``, ``label_clash`` or
+        ``identical``), the stored Season it meets, and the differences."""
+        seasons = []
+        for entry in self._import_entries(package):
+            season = entry.season
+            seasons.append(
+                {
+                    "id": season.id,
+                    "label": season.label,
+                    "status": entry.status,
+                    "helper_count": len(season.state.get("helpers", [])),
+                    "organizer_count": len(season.state.get("organizers", [])),
+                    "version_count": len(season.versions),
+                    "modified_at": season.modified_at,
+                    "local": None if entry.local is None else dict(entry.local[1]),
+                    "diff": entry.diff,
+                    "suggested_label": entry.suggested_label,
+                }
+            )
+        return {
+            "app_version": package.app_version,
+            "exported_at": package.exported_at,
+            "schema_version": package.schema_version,
+            "includes_versions": package.includes_versions,
+            "into_empty": self._is_empty(),
+            "seasons": seasons,
+        }
+
+    def _resolve_import(
+        self, entries: list[_ImportEntry], decisions: dict[str, dict[str, Any]]
+    ) -> list[_ImportItem]:
+        """Turn the organizer's decisions into what is to be done per Season,
+        or raise :class:`SeasonError`. Nothing is written."""
+        items: list[_ImportItem] = []
+        for entry in entries:
+            season = entry.season
+            decision = decisions.get(season.id) or {}
+            action = decision.get("action")
+            if action is None:
+                if entry.status == "new":
+                    action = "add"
+                elif entry.status == "identical":
+                    action = "skip"
+                else:
+                    raise SeasonError(
+                        f"Ročník {season.label} už existuje — vyberte, jestli ho nahradit, ponechat obě verze, "
+                        "nebo přeskočit."
+                    )
+            allowed = ("add", "skip") if entry.status == "new" else ("replace", "keep_both", "skip")
+            if action not in allowed:
+                raise SeasonError(f"S ročníkem {season.label} nelze udělat „{action}“.")
+            state = copy.deepcopy(season.state)
+            new_id, label = season.id, season.label
+            if action == "keep_both":
+                label = normalize_label(decision.get("label"))
+                if label is None:
+                    raise SeasonError(
+                        f"Ročník {season.label} ponechte pod novým označením ({LABEL_FORMAT_HINT})."
+                    )
+                new_id = uuid.uuid4().hex
+            state["season"] = {"id": new_id, "label": label}
+            removes = entry.local if action == "replace" else None
+            items.append(_ImportItem(season, action, state, new_id, label, removes))
+
+        # The labels the stored Seasons will have once everything is applied.
+        final = {identity["id"]: identity["label"] for _, identity in self._scan()}
+        for item in items:
+            if item.removes is not None:
+                final.pop(item.removes[1]["id"], None)
+        labels = list(final.values()) + [item.label for item in items if item.action != "skip"]
+        for label in dict.fromkeys(labels):
+            if labels.count(label) > 1:
+                raise SeasonError(f"Po importu by existovaly dva ročníky s označením {label}.")
+        return items
+
+    def apply_import(self, package: transfer.Package, decisions: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        """Apply the organizer's ``decisions`` (Season id -> ``{"action":
+        "add" | "replace" | "keep_both" | "skip", "label"}``) for ``package``,
+        all or nothing: everything is validated and written to a staging
+        directory first, a backup of the current Seasons is taken, and only then
+        are the files moved into place — with a way back if any move fails.
+
+        A Season already stored needs an explicit action (a new one defaults to
+        add, an identical one to skip). Replace swaps its state, and its Versions
+        when the file carries them, for the incoming ones. Returns ``{"added",
+        "replaced", "kept_both", "skipped", "backup", "open_season_changed"}``."""
+        items = self._resolve_import(self._import_entries(package), decisions)
+        writes = [item for item in items if item.action != "skip"]
+        report: dict[str, Any] = {
+            "added": [i.label for i in writes if i.action == "add"],
+            "replaced": [i.label for i in writes if i.action == "replace"],
+            "kept_both": [i.label for i in writes if i.action == "keep_both"],
+            "skipped": [i.season.label for i in items if i.action == "skip"],
+            "backup": None,
+            "open_season_changed": False,
+        }
+        if not writes:
+            return report
+
+        into_empty = self._is_empty()
+        open_before = self._resolve_open()
+        pointer_before = self.pointer_path.read_bytes() if self.pointer_path.exists() else None
+        stage = self.root / f".import-{uuid.uuid4().hex[:8]}"
+        trash = stage / "trash"
+        undo: list[Callable[[], None]] = []
+        touched: list[Path] = []
+
+        def displace(path: Path) -> None:
+            """Move something out of the way, into the staging area, undoably."""
+            if path.exists():
+                spot = trash / str(len(undo))
+                spot.mkdir(parents=True, exist_ok=True)
+                _move(path, spot / path.name)
+                undo.append(lambda: _move(spot / path.name, path))
+
+        try:
+            stage.mkdir()
+            for n, item in enumerate(writes):
+                transfer.write_staged_season(
+                    stage / f"new-{n}", item.state, item.season.versions if package.includes_versions else {}
+                )
+            if any(True for _ in self._scan()):
+                report["backup"] = str(self.write_backup())
+
+            for item in writes:
+                if item.removes is not None:
+                    old_dir = item.removes[0]
+                    touched.append(old_dir)
+                    displace(old_dir / "state.json")
+                    if package.includes_versions:
+                        displace(old_dir / "versions")
+            for n, item in enumerate(writes):
+                staged = stage / f"new-{n}"
+                target = self.root / item.label
+                touched.append(target)
+                if not target.exists():
+                    target.mkdir()
+                    undo.append(lambda t=target: t.rmdir() if not any(t.iterdir()) else None)
+                displace(target / "state.json")
+                _move(staged / "state.json", target / "state.json")
+                undo.append(lambda t=target: (t / "state.json").unlink(missing_ok=True))
+                if (staged / "versions").is_dir():
+                    displace(target / "versions")
+                    _move(staged / "versions", target / "versions")
+                    undo.append(lambda t=target: shutil.rmtree(t / "versions", ignore_errors=True))
+                elif item.removes is not None and not package.includes_versions and item.removes[0] != target:
+                    # A file without Versions says nothing about them: the Season keeps its own.
+                    old_versions = item.removes[0] / "versions"
+                    if old_versions.is_dir():
+                        displace(target / "versions")
+                        _move(old_versions, target / "versions")
+                        undo.append(lambda a=old_versions, t=target: _move(t / "versions", a))
+
+            new_pointer = self._pointer_after_import(writes, open_before, into_empty, package)
+            if new_pointer is not None:
+                undo.append(self._restore_pointer(pointer_before))
+                self._write_pointer(*new_pointer)
+                self._draft = None
+                report["open_season_changed"] = True
+        except Exception as exc:
+            for step in reversed(undo):
+                try:
+                    step()
+                except Exception:  # keep undoing what can be undone
+                    pass
+            self._forget_states(touched)
+            if isinstance(exc, OSError):
+                raise SeasonError(f"Import se nepodařil a nic se nezměnilo: {exc}") from exc
+            raise
+        else:
+            self._forget_states(touched)
+            for old_dir in {i.removes[0] for i in writes if i.removes is not None}:
+                try:
+                    old_dir.rmdir()  # only if nothing hand-placed is left (and it is not a target)
+                except OSError:
+                    pass
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
+        return report
+
+    def _pointer_after_import(
+        self,
+        writes: list[_ImportItem],
+        open_before: Optional[dict[str, Any]],
+        into_empty: bool,
+        package: transfer.Package,
+    ) -> Optional[tuple[str, str]]:
+        """The Season the pointer should name after the import, or None to leave
+        it: the replacement of the open Season when that was replaced, or the
+        Season that was open on the other machine when this workspace was empty."""
+        if open_before is not None:
+            for item in writes:
+                if item.removes is not None and item.removes[1]["id"] == open_before["id"]:
+                    return item.new_id, item.label
+            return None
+        if into_empty:
+            for item in writes:
+                if item.action == "add" and item.season.id == package.open_season_id:
+                    return item.new_id, item.label
+        return None
+
+    def _restore_pointer(self, before: Optional[bytes]) -> Callable[[], None]:
+        def restore() -> None:
+            if before is None:
+                self.pointer_path.unlink(missing_ok=True)
+            else:
+                self.pointer_path.write_bytes(before)
+
+        return restore
+
+    def _forget_states(self, season_dirs: Iterable[Path]) -> None:
+        for season_dir in season_dirs:
+            _digests.pop(str(season_dir / "state.json"), None)
 
     # -- first-launch migration of the pre-Seasons single saved state -----
 

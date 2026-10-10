@@ -537,6 +537,23 @@ several Seasons at once. Earlier Seasons stay stored and can be reopened
 into the Workspace, which is the only way to correct them.
 Czech: Pracovní plocha.
 
+**Season export**:
+A single `.zip` carrying chosen stored Seasons (state and, optionally, their
+Versions, never raw uploads or the default layout) from one machine to another:
+the way to move the whole data state, hand a Season to a colleague, or seed a
+fresh install. Importing reads and validates the whole file first and previews
+each Season: a new one is added; one that meets a stored Season (same Season id,
+or the same label under another id) shows a list of differences (Pomocníci,
+Přiřazení, Štítky, ...) and needs an explicit choice — Replace (the Season and,
+when the file has them, its Versions are swapped for the incoming ones), Keep
+both (the copy gets a new Season id and a free label the organizer picks) or
+Skip; an identical one is skipped. There is no field-level merge: the whole
+Season goes one way or the other. A backup of the stored Seasons is written
+first, the apply is all or nothing, and Person ids are kept as they arrive (the
+same human under two ids is the ordinary uncertain-match review). Into an empty
+workspace the Season that was open when the file was made is reopened.
+Czech: Export ročníků / Import ročníků.
+
 **Version**:
 A named, timestamped snapshot of the open Season's whole state, saved and
 restorable on demand. Restoring rolls back everything the Season holds

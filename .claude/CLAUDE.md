@@ -202,6 +202,28 @@ pushing the tag, not just creating it locally.
   submission timestamps (`export_timestamps`), which the label prefill and the
   migration use; a legacy state has none, so its migration asks for the label
   (prefilled from the file's last-modified date).
+- Season export and import (`rostering/persistence/transfer.py` pure zip build/read
+  and validation, `season_diff.py` pure differences, `Workspace.export_package` /
+  `preview_import` / `apply_import` / `write_backup`, `mutations.export_seasons` /
+  `preview_import` / `import_seasons`, UI in `ui/season_transfer.py` opened from the
+  sidebar's Seasons panel; see `CONTEXT.md` "Season export"): the file is
+  `manifest.json` (`schema_version`, `app_version`, `open_season_id`, per-Season id,
+  label, counts) plus `seasons/<label>/state.json` and `versions/*.json`. A newer
+  `schema_version` is refused; an older one is read, its states migrating through
+  `workspace.migrate_loaded_state` (the same function `_read_state` uses). Import
+  first resolves the decisions (`{season id: {"action": add | replace | keep_both |
+  skip, "label"}}`; a stored Season needs an explicit one) and checks the labels
+  the stored Seasons will have afterwards are unique (so a label swapped between two
+  Seasons works), stages every file in `<seasons>/.import-*`, writes a backup to
+  `<seasons>/../backups/`, then only moves files, with an undo log (`_move` is the one
+  seam) that restores everything if a move or the pointer write fails. Replace removes
+  the matched Season (same id, else the one holding the label) and adds the incoming
+  one, keeping hand-placed files in a reused directory; a file without Versions
+  (`includes_versions` false) neither compares nor touches them. Labels must stay
+  valid and unique, so Keep both takes a label from the user (the preview suggests
+  the next free half-year). The pointer follows a replaced open Season; into an empty
+  workspace (no stored Season, no draft Helpers) it opens the file's open Season.
+  Person ids are kept as they arrive.
 - Persons (`rostering/persons.py`): there is no Person registry. Every Helper
   record in a saved state carries `email` (normalized: trimmed, lower-cased;
   read through the `email` column mapping) and a never-reused random

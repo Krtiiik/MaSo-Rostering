@@ -6,7 +6,7 @@ from nicegui import ui
 
 from rostering.czech import count_helpers
 from rostering.webapp import labels, mutations
-from rostering.webapp.ui import dialogs
+from rostering.webapp.ui import dialogs, season_transfer
 from rostering.webapp.ui.session import UiSession
 
 
@@ -32,6 +32,7 @@ class Sidebar:
                 icon="add",
                 on_click=lambda: s.act(lambda: mutations.new_season(s.workspace), replaced=True),
             ).props("flat dense no-caps")
+        self._transfer_buttons()
         seasons = mutations.list_seasons(s.workspace)
         if not seasons:
             ui.label("Zatím žádné uložené ročníky.").classes("text-sm text-gray-500")
@@ -58,6 +59,21 @@ class Sidebar:
                             # Delete is never offered on the open Season.
                             if not season["open"]:
                                 ui.menu_item("Smazat", on_click=lambda se=season: self._delete(se))
+
+    def _transfer_buttons(self) -> None:
+        """Export the stored Seasons to a .zip, or import one (a hidden Quasar
+        uploader behind the button, like the People tab's)."""
+        s = self.session
+        with ui.row().classes("w-full items-center gap-1"):
+            ui.button("Exportovat", icon="download", on_click=lambda: season_transfer.export_dialog(s)).props(
+                "flat dense no-caps"
+            ).mark("export-seasons").tooltip("Uloží vybrané ročníky do jednoho souboru .zip.")
+            uploader = ui.upload(
+                on_upload=lambda e: season_transfer.import_file(s, e), auto_upload=True, max_files=1
+            ).props('accept=".zip"').classes("hidden").mark("import-seasons-upload")
+            ui.button("Importovat", icon="upload", on_click=lambda: uploader.run_method("pickFiles")).props(
+                "flat dense no-caps"
+            ).mark("import-seasons").tooltip("Načte ročníky ze souboru .zip vytvořeného exportem.")
 
     async def _rename(self, season: dict) -> None:
         label = await dialogs.ask_text(
