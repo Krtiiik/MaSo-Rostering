@@ -28,8 +28,7 @@ If the user's prompt narrows or widens any of this, their prompt wins.
 
 ## Setup (once per run)
 
-1. Read `docs/agents/issue-tracker.md` (gh conventions, race-safe edits,
-   blocking) and `CONTEXT.md`.
+1. Read `CONTEXT.md`. Issues live in `Krtiiik/MaSo-Rostering`; use `gh`.
 2. Make sure `.claude/agents/issue-implementer.md` exists on `main` and is
    committed. It already does in this repo; if it's missing, recreate it
    (frontmatter `model: sonnet`, `effort: high`; body: implement exactly one
@@ -122,9 +121,12 @@ intent. If a conflict needs a product decision, treat it as a failure
    On `ALL_CLOSED: yes`, close the spec with a comment listing the delivered
    tickets (`#n title`). If the spec itself is under a Map, leave the Map
    alone; closing Maps is out of scope for this run.
-4. Any body edit (for example, ticking a task list in a spec) follows the
-   race-safe rule in `docs/agents/issue-tracker.md`. Don't edit bodies you
-   don't need to.
+4. Any body edit (for example, ticking a task list in a spec) is race-safe:
+   other sessions may edit the same issue, and `gh issue edit` overwrites
+   whole fields. Re-fetch the body right before writing, splice your change
+   into it, and compare `updated_at` (`gh api repos/<owner>/<repo>/issues/<n>
+   --jq .updated_at`) before and after; if it changed, redo from the fresh
+   body. Don't edit bodies you don't need to.
 
 Then go back to step 1.
 

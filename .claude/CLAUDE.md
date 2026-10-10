@@ -978,14 +978,3 @@ pushing the tag, not just creating it locally.
   of the layout it used) — so it
   survives "start over" resets and app restarts instead of needing to be
   re-entered by hand each time.
-
-## Agent skills
-
-### Issue tracker
-
-Issues and specs live as GitHub issues in `Krtiiik/MaSo-Rostering`, using the
-`gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Domain docs
-
-Single-context: one `CONTEXT.md` at the repo root. See `docs/agents/domain.md`.
