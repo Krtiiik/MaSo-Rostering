@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ročníky zazálohují do složky `backups/`, import se provede celý, nebo vůbec, a
   do prázdné aplikace se znovu otevře ročník, který byl při exportu otevřený.
 
+### Changed
+
+- Tags are sorted naturally everywhere they are listed, so "11. M" comes after
+  "2. M" instead of before it.
+
 ## [3.2.0] - 2026-10-09
 
 ### Added

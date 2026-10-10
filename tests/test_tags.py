@@ -498,3 +498,12 @@ def test_tags_survive_a_re_upload_even_when_the_rows_change_position(workspace):
     assert _direct(state, by_name["Anna Nováková"]) == [eightm]
     assert _implied(state, by_name["Anna Nováková"]) == [gchd]
     assert _direct(state, by_name["Petr Svoboda"]) == []
+
+
+def test_tags_are_sorted_naturally_so_11_m_follows_2_m():
+    from rostering import tags as tag_tree
+
+    names = ["11. M", "2. M", "10. F", "2. F", "GCHD", "9. M"]
+    definitions = [tag_tree.Tag(id=i, name=n, colour="#000000") for i, n in enumerate(names)]
+    ordered = [t.name for t, _depth in tag_tree.tree_order(definitions)]
+    assert ordered == ["2. F", "2. M", "9. M", "10. F", "11. M", "GCHD"]

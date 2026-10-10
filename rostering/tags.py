@@ -112,6 +112,17 @@ def name_key(name: str) -> str:
     return (name or "").strip().casefold()
 
 
+def sort_key(name: str) -> tuple:
+    """Natural ordering for Tag names: a run of digits compares as a number, so
+    "2. M" comes before "11. M" (plain text order would put "11" first). Case
+    is ignored; equal-looking names fall back to the plain comparison key."""
+    key = name_key(name)
+    # re.split with a group alternates text, number, text, ... so the tuples
+    # always compare str with str and int with int.
+    parts = tuple(int(p) if i % 2 else p for i, p in enumerate(re.split(r"(\d+)", key)))
+    return parts, key
+
+
 def ancestors(tags: Iterable[Tag], tag_id: int) -> list[int]:
     """The Tags ``tag_id`` implies, nearest first (its parent, then the
     parent's parent, ...). Empty for a root. A malformed loop is cut rather
@@ -200,7 +211,7 @@ def matches_filter(tags: Iterable[Tag], direct: Iterable[int], wanted: Iterable[
 
 def tree_order(tags: Iterable[Tag]) -> list[tuple[Tag, int]]:
     """The Tags depth-first as ``(tag, depth)``: roots first, every Tag right
-    before the Tags that imply it, siblings alphabetical."""
+    before the Tags that imply it, siblings in natural order (see ``sort_key``)."""
     tags = list(tags)
     ids = {t.id for t in tags}
     by_parent: dict[Optional[int], list[Tag]] = {}
@@ -208,7 +219,7 @@ def tree_order(tags: Iterable[Tag]) -> list[tuple[Tag, int]]:
         # A Tag whose parent is missing is shown as a root rather than lost.
         by_parent.setdefault(tag.parent_id if tag.parent_id in ids else None, []).append(tag)
     for siblings in by_parent.values():
-        siblings.sort(key=lambda t: name_key(t.name))
+        siblings.sort(key=lambda t: sort_key(t.name))
     ordered: list[tuple[Tag, int]] = []
     seen: set[int] = set()
 

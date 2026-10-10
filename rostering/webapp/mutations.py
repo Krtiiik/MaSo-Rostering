@@ -3652,7 +3652,7 @@ def class_promotion_offer(workspace: Workspace) -> dict:
             tag = item["tag"]
             target = tag_tree.promoted_class_name(tag["name"], item["remaining"])
             suggestions.append({"tag_id": tag["id"], "name": tag["name"], "target": target})
-    suggestions.sort(key=lambda s: (int(s["name"].split(".")[0]), tag_tree.name_key(s["name"])))
+    suggestions.sort(key=lambda s: tag_tree.sort_key(s["name"]))
     suggested = {s["tag_id"] for s in suggestions}
     return {
         "suggestions": suggestions,
