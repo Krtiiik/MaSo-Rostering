@@ -591,7 +591,7 @@ puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the late
   between cells, save/restore named versions, export to Excel. Every Season
   stays stored and is managed from the sidebar's Seasons panel (open, rename,
   delete, New Season); the open Season's label shows in a header above the
-  tabs. Run via `rostering serve` (see README.md).
+  tabs. Run via `rostering serve` (see CONTRIBUTING.md).
 - Season storage (`rostering/persistence/workspace.py`, label rules in
   `season_label.py`): each Season is a directory `data/seasons/<label>/`
   holding `state.json` and `versions/*.json`, next to any hand-placed

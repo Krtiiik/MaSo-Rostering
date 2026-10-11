@@ -17,7 +17,7 @@ each step. Paths below are relative to the repo root.
 ## Prerequisites
 
 A virtualenv with the project installed editable (`pip install -e ".[dev]"`,
-per `README.md`) — that gives you the `rostering` CLI and NiceGUI. Node is only
+per `CONTRIBUTING.md`) — that gives you the `rostering` CLI and NiceGUI. Node is only
 needed for the Playwright driver (`scripts/e2e/`). Playwright needs a browser:
 either its own (`npx playwright install chromium`) or an installed one picked
 with `PLAYWRIGHT_CHANNEL` (`msedge`, `chrome`, `chromium`) — on Windows,

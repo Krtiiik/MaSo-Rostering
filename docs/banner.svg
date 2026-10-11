@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" width="1200" height="280" role="img" aria-label="Český návod k aplikaci: Rozdělování pomocníků krok za krokem">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="0.55" stop-color="#c026d3"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+    <linearGradient id="btn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fde68a"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="card"><rect width="1200" height="280" rx="28"/></clipPath>
+    <clipPath id="btnClip"><rect x="80" y="182" width="340" height="70" rx="35"/></clipPath>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="1200" height="280" fill="url(#bg)"/>
+
+    <!-- decorative circles -->
+    <circle cx="1090" cy="40" r="170" fill="#ffffff" opacity="0.10"/>
+    <circle cx="1010" cy="250" r="120" fill="#ffffff" opacity="0.10"/>
+    <circle cx="640" cy="-30" r="90" fill="#ffffff" opacity="0.07"/>
+
+    <!-- stylised roster grid on the right -->
+    <g transform="translate(800 52)" filter="url(#shadow)">
+      <rect width="320" height="176" rx="16" fill="#ffffff" opacity="0.95"/>
+      <g fill="#e0e7ff">
+        <rect x="16" y="16" width="88" height="36" rx="8"/>
+        <rect x="116" y="16" width="88" height="36" rx="8"/>
+        <rect x="216" y="16" width="88" height="36" rx="8"/>
+        <rect x="16" y="62" width="88" height="36" rx="8"/>
+        <rect x="216" y="62" width="88" height="36" rx="8"/>
+        <rect x="16" y="108" width="88" height="36" rx="8"/>
+        <rect x="116" y="108" width="88" height="36" rx="8"/>
+      </g>
+      <rect x="116" y="62" width="88" height="36" rx="8" fill="#f97316">
+        <animate attributeName="x" values="116;216;116" keyTimes="0;0.5;1" dur="4s" repeatCount="indefinite" calcMode="spline" keySplines="0.6 0 0.4 1;0.6 0 0.4 1"/>
+      </rect>
+      <rect x="216" y="108" width="88" height="36" rx="8" fill="#4f46e5"/>
+    </g>
+
+    <!-- text -->
+    <text x="80" y="92" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4" fill="#ffffff" opacity="0.85">ČESKÝ NÁVOD  ·  KROK ZA KROKEM  ·  S OBRÁZKY</text>
+    <text x="80" y="146" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="800" fill="#ffffff">Rozdělování pomocníků</text>
+
+    <!-- button -->
+    <g filter="url(#shadow)">
+      <rect x="80" y="182" width="340" height="70" rx="35" fill="url(#btn)"/>
+    </g>
+    <g clip-path="url(#btnClip)">
+      <rect x="-120" y="182" width="90" height="70" fill="url(#sheen)" transform="skewX(-20)">
+        <animate attributeName="x" values="-120;620" dur="3.2s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+    <text x="250" y="227" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="30" font-weight="800" fill="#4c1d95">Otevřít návod  →</text>
+  </g>
+</svg>
