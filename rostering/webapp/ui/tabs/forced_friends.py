@@ -30,7 +30,8 @@ _RULES_HELP = (
     "Všechna pravidla musí platit zároveň. „Sdílet“ znamená, že aktivní členové mají společnou budovu, místnost "
     "nebo roli (stačí dva). U „být v“ a „mít roli“ se pravidlo týká každého člena zvlášť a stačí jedna z "
     "vybraných hodnot. Organizátora role neomezují (žádnou nemá); organizátor vedoucí celou budovu nemá místnost, "
-    "takže se u něj místnost posuzuje jen podle budovy."
+    "takže se u něj místnost posuzuje jen podle budovy. Zámeček vlevo přepíná pravidlo mezi tvrdým a měkkým: "
+    "měkké pravidlo smí řešení porušit, když je jinak lepší."
 )
 
 
@@ -64,8 +65,8 @@ class ForcedFriendsTab:
             "Vynucená skupinka kamarádů jsou lidé, na které platí seznam pravidel: musí sdílet budovu, místnost nebo "
             "roli, musí (nebo nesmí) být v určité budově či místnosti, musí (nebo nesmí) mít určitou roli. Pravidla "
             "platí všechna zároveň, na rozdíl od přání být s kamarádem, které je jen přáním. Člověk může být ve více "
-            "skupinkách. Řešení drží skupinku pohromadě, kdykoli to jde; pravidlo, které splnit nejde, se hlásí jako "
-            "porušené pravidlo. Změna skupinek po sestavení nikoho nepřesouvá a rozdělení pomocníků je do dalšího "
+            "skupinkách. Řešení drží tvrdá pravidla skupinky, kdykoli to jde; pravidlo, které splnit nejde, se hlásí jako "
+            "porušené pravidlo. Měkké pravidlo smí porušit, když je rozdělení jinak lepší. Změna skupinek po sestavení nikoho nepřesouvá a rozdělení pomocníků je do dalšího "
             "sestavení neaktuální."
         ).classes("text-sm text-gray-600")
         fix = fix_focus.render_callout(s, "forced_friends")

@@ -56,13 +56,22 @@ class SolverTab:
 
     def render(self) -> None:
         draft = self.draft
-        ui.label("Jak rozřazování váží preference budovy, přání kamarádů a preference rolí a jak dlouho smí hledat.")
+        ui.label(
+            "Jak rozřazování váží preference budovy, přání kamarádů, měkká pravidla a preference rolí "
+            "a jak dlouho smí hledat."
+        )
         weights = draft["weights"]
         with ui.card().classes("w-full max-w-[48rem]"):
             ui.label("Váhy").classes("text-lg font-bold")
             with ui.row().classes("w-full gap-4 no-wrap"):
                 self._number(weights, "building_mismatch", "Váha nesplněné preference budovy").classes("grow")
                 self._number(weights, "friend_unsatisfied", "Váha nesplněného přání kamaráda").classes("grow")
+                self._number(weights, "soft_rule", "Váha porušeného měkkého pravidla", minimum=0).classes(
+                    "grow"
+                ).tooltip(
+                    "Kolik stojí každý pomocník, který poruší měkké pravidlo štítku nebo skupinky. "
+                    "Tvrdá pravidla se ohýbají vždy až jako poslední."
+                ).mark("soft-rule-weight")
 
         with ui.card().classes("w-full max-w-[48rem]"):
             ui.label("Ceny rolí").classes("text-lg font-bold")

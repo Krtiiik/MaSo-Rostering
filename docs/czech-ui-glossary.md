@@ -49,6 +49,9 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 | Make forced | Vynutit |
 | Forced friends group rule (must share / must be in / must not be in / must have role / must not have role) | Pravidlo skupinky (musí sdílet / musí být v / nesmí být v / musí mít roli / nesmí mít roli) |
 | Add rule | Přidat pravidlo |
+| Hard rule / Soft rule (lock button left of a rule; tooltips) | Tvrdé pravidlo / Měkké pravidlo (zámeček; „Tvrdé pravidlo: poruší se až v nouzi…“, „Měkké pravidlo: smí se porušit…“) |
+| Soft rule weight (Solver tab) | Váha porušeného měkkého pravidla |
+| Soft mark on a Broken rule | (měkké) |
 
 ## Conventions
 

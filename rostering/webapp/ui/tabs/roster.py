@@ -153,8 +153,10 @@ class RosterTab:
                 if broken:
                     count = len(broken)
                     noun = plural(count, "porušené pravidlo", "porušená pravidla", "porušených pravidel")
+                    # Red while any hard rule is broken; amber when only soft ones are.
+                    color = "negative" if any(not b.soft for b in broken) else "warning"
                     ui.button(f"{count} {noun}", icon="warning", on_click=self._open_broken).props(
-                        "color=negative outline"
+                        f"color={color} outline"
                     )
                 elif assignments:
                     ui.label("✓ Žádná porušená pravidla").classes("text-sm text-positive")
@@ -324,7 +326,7 @@ class RosterTab:
 
     def _broken_line(self, rule: BrokenRule, dialog: ui.dialog) -> None:
         with ui.row().classes("w-full items-start no-wrap gap-2"):
-            ui.label(f"• {rule.line}").classes("grow text-sm")
+            ui.label(f"• {rule.line}").classes("grow text-sm" + (" text-gray-600" if rule.soft else ""))
             if fix_focus.can_go_fix(rule):
 
                 def go(r: BrokenRule = rule) -> None:

@@ -402,6 +402,35 @@ async def test_a_forced_friends_group_is_made_from_a_list_of_rules_in_the_dialog
     await user.should_see("Členové musí sdílet místnost")
 
 
+async def test_a_group_rule_is_hard_until_its_lock_is_clicked_and_then_soft(user: User, seasons):
+    people = {h["id"]: h["person_id"] for h in _state(seasons)["helpers"]}
+    await user.open("/")
+    await _go(user, labels.TAB_FORCED)
+    user.find("Nová skupinka").click()
+    await user.should_see(marker="group-name")
+    user.find(marker="group-name").type("Měkká")
+    user.find(marker="group-people").elements.pop().value = [people[1], people[2]]
+    user.find(marker="rule-op-0").elements.pop().value = "be_must"
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-values-0").elements.pop().value = ["Karlín"]
+    user.find(marker="rule-add").click()
+    await asyncio.sleep(0.1)
+    assert user.find(marker="rule-hard-0").elements.pop().props["icon"] == "lock"  # hard by default
+    user.find(marker="rule-hard-1").click()  # the second row (shares a Room) becomes soft
+    await asyncio.sleep(0.1)
+    assert user.find(marker="rule-hard-1").elements.pop().props["icon"] == "lock_open"
+    assert user.find(marker="rule-hard-0").elements.pop().props["icon"] == "lock"
+    user.find(marker="group-save").click()
+    await asyncio.sleep(0.2)
+
+    (group,) = _state(seasons)["forced_groups"]
+    assert group["rules"] == [
+        {"kind": "be", "must": True, "axis": "building", "values": ["Karlín"]},
+        {"kind": "share", "axis": "room", "hard": False},
+    ]
+    await user.should_see("Členové musí sdílet místnost (měkké)")
+
+
 async def test_the_dialog_refuses_contradictory_rules_and_keeps_the_group_unsaved(user: User, seasons):
     people = {h["id"]: h["person_id"] for h in _state(seasons)["helpers"]}
     await user.open("/")
@@ -503,6 +532,30 @@ async def test_folding_a_branch_is_remembered_across_redraws(user: User, seasons
     await _go(user, labels.TAB_PEOPLE)
     await _go(user, labels.TAB_TAGS)
     assert user.find(marker="tag-tree").elements.pop()._props["collapsed"] == [1]
+
+
+async def test_a_tag_rule_can_be_switched_to_soft_and_back_to_hard(user: User, seasons):
+    await user.open("/")
+    await _go(user, labels.TAB_TAGS)
+    user.find(marker="add-tag").click()
+    await user.should_see(marker="tag-name")
+    user.find(marker="tag-name").type("Měkký")
+    user.find(marker="rule-add").click()
+    await asyncio.sleep(0.1)
+    user.find(marker="rule-values-0").elements.pop().value = ["Karlín"]
+    user.find(marker="rule-hard-0").click()
+    await asyncio.sleep(0.1)
+    assert user.find(marker="rule-hard-0").elements.pop().props["icon"] == "lock_open"
+    user.find(marker="rule-hard-0").click()
+    await asyncio.sleep(0.1)
+    assert user.find(marker="rule-hard-0").elements.pop().props["icon"] == "lock"
+    user.find(marker="rule-hard-0").click()
+    await asyncio.sleep(0.1)
+    user.find(marker="tag-save").click()
+    await asyncio.sleep(0.2)
+
+    tag = next(t for t in _state(seasons)["tags"] if t["name"] == "Měkký")
+    assert tag["rules"] == [{"kind": "be", "must": True, "axis": "building", "values": ["Karlín"], "hard": False}]
 
 
 async def test_the_new_tag_button_opens_the_create_form_and_then_the_new_tag(user: User, seasons):
@@ -656,6 +709,17 @@ async def test_a_saved_cost_above_the_maximum_is_shown_at_the_top(user: User, se
     await user.open("/")
     await _go(user, labels.TAB_SOLVER)
     assert user.find(marker="cost-ne").elements.pop().value == MAX_ROLE_COST
+
+
+async def test_the_soft_rule_weight_is_edited_and_saved_with_the_other_weights(user: User, seasons):
+    await _go(user, labels.TAB_SOLVER)
+    assert user.find(marker="soft-rule-weight").elements.pop().value == SolverConfig().weights.soft_rule
+    user.find(marker="soft-rule-weight").elements.pop().value = 7
+    await user.should_see(marker="unsaved")
+    user.find(marker="solver-save").click()
+    await asyncio.sleep(0.2)
+
+    assert _state(seasons)["solver_config"]["weights"]["soft_rule"] == 7
 
 
 async def test_the_solver_tab_cannot_be_left_with_unsaved_changes(user: User, seasons):
