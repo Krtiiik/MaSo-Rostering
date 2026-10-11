@@ -644,7 +644,8 @@ puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the late
   those records, so Start over and Season deletion forget what only they held.
   A state saved before Persons existed gets `person_id`s written back on first
   load. Duplicate rows with one e-mail collapse inside `parse_raw_survey`
-  (latest submission wins) before ids are assigned. Uncertain (same-name)
+  (the latest submission's answers win, placed where the person's first
+  submission stood) before ids are assigned. Uncertain (same-name)
   matches are derived, not stored: `persons.uncertain_candidates` proposes,
   for each unsettled Helper of the open Season (one that shares its
   `person_id` with no other record and has no `link_confirmed`), every other
@@ -662,6 +663,21 @@ puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the late
   re-upload with the other `_SURVEY_FIELDS` and listed in the person sheet's
   "Odpovědi z dotazníku" tab. A duplicate-e-mail resubmission keeps only the
   latest row's responses.
+- Registration order (`Helper.registration_order`, saved on the record):
+  lower = registered earlier, and only the order counts (ties rank by id). The
+  parser numbers the rows 1..N after the duplicate collapse; a re-upload leaves a
+  recognized Helper's value alone and gives a new registrant
+  `mutations._next_registration_order` (above every Helper held, so after the
+  rows appended before it), as do `add_helper` and Organizer demotion. It is a
+  stored field rather than the id because the id also serves as identity and a
+  hand-added Helper must not look like an early registrant: a record saved
+  without it falls back to its id (`serialize.registration_order_of`, ids were
+  handed out in registration order). The solver (`solve_competition`) ranks the
+  Helpers of the solve (Can't attend already dropped) and adds
+  `late_zaloha * (last_rank - rank) / last_rank` to the Záloha cost, after the
+  Ano multiplier and independent of the role-cost unit; `late_zaloha` is a
+  `SolverWeights` field (default 2, solver tab). `OBJECTIVE_SCALE` is 6000 so
+  neighbouring ranks stay distinct for a few hundred Helpers (rounding is floor).
 - The roster grid (`rostering/webapp/ui/grid/`) is native to the app, with no
   npm or build step: `data.py` builds the view model from the state (pure; rows,
   merged cell groups, chip data, friend statuses, satisfaction, Broken-rule

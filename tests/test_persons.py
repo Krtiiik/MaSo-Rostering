@@ -203,7 +203,7 @@ def test_a_person_accumulates_every_email_across_seasons(workspace):
 # -- duplicate rows inside one export --------------------------------------------
 
 
-def test_duplicate_rows_with_the_same_email_become_one_helper_with_the_latest_submission(workspace):
+def test_duplicate_rows_with_the_same_email_become_one_helper_with_the_latest_answers_at_the_first_place(workspace):
     state = _new_season(
         workspace,
         "2026-jaro",
@@ -211,7 +211,8 @@ def test_duplicate_rows_with_the_same_email_become_one_helper_with_the_latest_su
         _row("Petr Svoboda", PETR, when=datetime(2026, 2, 2)),
         _row("Anna N.", ANNA.upper(), when=datetime(2026, 2, 3)),
     )
-    assert [h["name"] for h in state["helpers"]] == ["Petr Svoboda", "Anna N."]
+    # The latest answers, in the place of Anna's first submission.
+    assert [h["name"] for h in state["helpers"]] == ["Anna N.", "Petr Svoboda"]
     assert [h["id"] for h in state["helpers"]] == [1, 2]
     assert len(mutations.list_persons(workspace)) == 2
     assert any(ANNA in w for w in state["ingestion_warnings"])

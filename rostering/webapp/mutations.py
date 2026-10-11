@@ -61,6 +61,7 @@ from rostering.persistence.serialize import (
     manual_roles_from_dict,
     manual_roles_to_dict,
     organizer_from_dict,
+    registration_order_of,
     solver_config_from_dict,
     solver_config_to_dict,
 )
@@ -548,7 +549,13 @@ def _merge_survey_rows(state: dict[str, Any], rows: list[Helper], known: list, e
             for f in row.friends
             if isinstance(f, OrganizerRef) or (f in id_map and id_map[f] != helper_id)
         ]
-        fresh = helper_to_dict(replace(row, id=helper_id, person_id=person_id, friends=friends))
+        # A new registrant registers after every Helper already in the Season
+        # (and after the earlier rows of this export, which are appended first).
+        # A recognized Helper keeps their own (the refresh never touches it).
+        order = _next_registration_order(state) if record is None else row.registration_order
+        fresh = helper_to_dict(
+            replace(row, id=helper_id, person_id=person_id, friends=friends, registration_order=order)
+        )
         fresh["friend_name_order"] = list(row.unresolved_friend_names)
         fresh["survey_tshirt_size"] = row.tshirt_size
         fresh["building_preferences"] = building_prefs.resolve_preferences(
@@ -1484,6 +1491,13 @@ def _next_helper_id(state: dict[str, Any]) -> int:
     return new_id
 
 
+def _next_registration_order(state: dict[str, Any]) -> int:
+    """A registration order after every Helper of the Season: whoever is added
+    later (a new registrant on re-upload, a Helper added by hand) counts as the
+    latest to register."""
+    return max((registration_order_of(h) for h in state["helpers"]), default=0) + 1
+
+
 def _person_id_for_new_email(workspace: Workspace, email: Optional[str]) -> str:
     """The Person link for a Helper added by hand: a confident match by e-mail
     to a Person an earlier stored Season recorded, otherwise a fresh Person. The
@@ -1538,7 +1552,14 @@ def add_helper(
         tshirt_size=tshirt_size,
     )
     person_id = _person_id_for_new_email(workspace, fields.get("email"))
-    record = helper_to_dict(Helper(id=_next_helper_id(state), name=name, person_id=person_id))
+    record = helper_to_dict(
+        Helper(
+            id=_next_helper_id(state),
+            name=name,
+            person_id=person_id,
+            registration_order=_next_registration_order(state),
+        )
+    )
     record.update(fields)
     record["hand_added"] = True
     _mark_hand_typed(
@@ -1962,6 +1983,7 @@ def demote_organizer(workspace: Workspace, organizer_id: int, confirmed: bool = 
             tshirt_size=organizer.get("tshirt_size") or UNKNOWN_TSHIRT_SIZE,
             person_id=person_id,
             cant_attend=bool(organizer.get("cant_attend")),
+            registration_order=_next_registration_order(state),
         )
     )
     helper["hand_added"] = True

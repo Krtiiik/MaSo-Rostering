@@ -163,7 +163,9 @@ def _collapse_duplicate_emails(
     timestamp; the later row when timestamps tie or can't be read, since
     exports list submissions chronologically). Rows with no e-mail are never
     merged, and neither are rows that merely share a name — those are for the
-    user to judge. Row order is otherwise preserved."""
+    user to judge. Row order is otherwise preserved, and the kept answers take
+    the place of the person's *first* submission, so a resubmission doesn't
+    make them a later registrant."""
     email_col = columns.get("email")
     if email_col is None:
         return df
@@ -185,18 +187,23 @@ def _collapse_duplicate_emails(
         if current is None or submitted(position) > submitted(current):
             winner_by_email[email] = position
 
-    keep = [
-        position
-        for position, email in enumerate(emails)
-        if email is None or winner_by_email[email] == position
-    ]
+    # Walk the rows in order; the first row of an e-mail stands for the person
+    # and is replaced by that e-mail's winning (latest) row.
+    keep: list[int] = []
+    seen: set[str] = set()
+    for position, email in enumerate(emails):
+        if email is None:
+            keep.append(position)
+        elif email not in seen:
+            seen.add(email)
+            keep.append(winner_by_email[email])
     for email, count in count_by_email.items():
         if count > 1:
             kept_name = str(df[name_col].iloc[winner_by_email[email]]).strip()
             warnings.append(
                 f"{kept_name}: {count} odeslání s e-mailem {email} — ponecháno jen nejnovější"
             )
-    if len(keep) == len(df):
+    if keep == list(range(len(df))):
         return df
     return df.iloc[keep].reset_index(drop=True)
 
@@ -435,6 +442,7 @@ def parse_raw_survey(
         helpers.append(
             Helper(
                 id=idx,
+                registration_order=idx,
                 name=name,
                 role_preferences=role_preferences,
                 building_preferences=building_preferences,

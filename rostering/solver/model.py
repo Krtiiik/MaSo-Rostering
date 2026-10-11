@@ -18,6 +18,9 @@ Soft (minimized) objective terms, dominated by any rule penalty:
   "Ano" ratings (a blank never counts) has every non-Ano Role's cost
   multiplied by ``1 + 1/k``, so a single "Ano" is guarded more fiercely than
   one of several;
+- Záloha costs more the earlier the helper registered (``late_zaloha``, by
+  ``Helper.registration_order``): the earliest pays the full weight, the latest
+  nothing, so among otherwise equal rosters the later registrants take it;
 - being placed in a building outside the helper's acceptable set (see
   CLAUDE.md "Building preference is a SET, not a single choice");
 - unsatisfied friend requests, scored via ``rostering.solver.scoring``.
@@ -61,11 +64,14 @@ from rostering.solver.scoring import FriendScoringConfig, build_friend_pairs, bu
 @dataclass
 class SolverWeights:
     # ``role_preference`` is the unit ``u`` scaling the whole role cost (see
-    # ``RoleCosts``); the other two weigh a Building mismatch and an
-    # unsatisfied friend request.
+    # ``RoleCosts``); the next two weigh a Building mismatch and an
+    # unsatisfied friend request; ``late_zaloha`` is the extra cost of Záloha
+    # for the Helper who registered first, falling linearly to 0 for the one who
+    # registered last (a tie-breaker that sends later registrants there first).
     role_preference: int = 1
     building_mismatch: int = 3
     friend_unsatisfied: int = 5
+    late_zaloha: int = 2
 
 
 # The largest cost the solver tab offers for a Preference rating or for Záloha
@@ -99,7 +105,9 @@ class RoleCosts:
 
 # Every objective term is multiplied by this so the CP-SAT costs stay integers
 # once a cost is scaled by a fraction; the reported objective divides it out.
-OBJECTIVE_SCALE = 60
+# Fine enough (60 for the Ano multiplier times 100) that the registration-order
+# term still tells neighbouring ranks apart for a few hundred Helpers.
+OBJECTIVE_SCALE = 6000
 
 # Cost, in the weights' unit, of each person placed over an even share of a
 # merged cell (see the balance term in ``solve_competition``). Fixed: it is a
@@ -236,6 +244,12 @@ def solve_competition(
     # "Troja" vs "Impakt + Troja"), so preferences are matched by key.
     room_building_keys = [building_keys(bname) for bname, _room in rooms]
 
+    # Registration order, earliest first (ties by id): the earliest Helper pays
+    # the full ``late_zaloha`` weight for Záloha, the latest nothing.
+    by_registration = sorted(helpers, key=lambda h: (h.registration_order, h.id))
+    last_rank = len(by_registration) - 1
+    rank = {h.id: position for position, h in enumerate(by_registration)}
+
     for h in helpers:
         # A Role the Helper left blank counts as Nevadí; Záloha is scored like
         # a Role, from its own table entry. Only an explicit "Ano" counts
@@ -253,6 +267,8 @@ def solve_competition(
             weight = cost * config.weights.role_preference * scale
             if k and pref is not Preference.Ano:
                 weight = weight * (k + 1) // k
+            if role is Role.Zaloha and last_rank:
+                weight += config.weights.late_zaloha * scale * (last_rank - rank[h.id]) // last_rank
             if weight:
                 penalty_terms.append(weight * assign_role[h.id, role])
                 ordinary_max += weight

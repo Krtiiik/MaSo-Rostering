@@ -63,6 +63,13 @@ class SolverTab:
             with ui.row().classes("w-full gap-4 no-wrap"):
                 self._number(weights, "building_mismatch", "Váha nesplněné preference budovy").classes("grow")
                 self._number(weights, "friend_unsatisfied", "Váha nesplněného přání kamaráda").classes("grow")
+                self._number(weights, "late_zaloha", "Váha Zálohy podle pořadí registrace", minimum=0).classes(
+                    "grow"
+                ).mark("late-zaloha").tooltip(
+                    "Přirážka k ceně Zálohy: nejdřív registrovaný pomocník ji platí celou, poslední nic, ostatní "
+                    "úměrně pořadí. Při jinak stejných možnostech tak do Zálohy půjdou dřív ti, kdo se registrovali později. "
+                    "0 funkci vypne."
+                )
 
         with ui.card().classes("w-full max-w-[48rem]"):
             ui.label("Ceny rolí").classes("text-lg font-bold")

@@ -205,6 +205,12 @@ class Helper:
     # understands and the ones it ignores alike. Display-only: nothing reads it
     # but the person sheet. Empty for a Helper not read from a survey.
     survey_responses: list[tuple[str, str]] = field(default_factory=list)
+    # Where the Helper stands in the order of registration, lower = registered
+    # earlier (the first submission's row of the export; a Helper added later,
+    # by re-upload or by hand, comes after everyone). Only the order matters,
+    # not the value: equal values rank by id. The solver prefers Záloha for the
+    # later ones.
+    registration_order: int = 0
 
 
 @dataclass

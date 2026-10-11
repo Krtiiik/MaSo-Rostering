@@ -293,7 +293,7 @@ def test_blank_email_is_none_and_a_missing_column_warns_once(tmp_path):
     assert len([w for w in missing.warnings if "'email'" in w]) == 1
 
 
-def test_duplicate_rows_with_the_same_email_collapse_to_the_latest_submission(tmp_path):
+def test_duplicate_rows_with_the_same_email_collapse_to_the_latest_answers_at_the_first_place(tmp_path):
     from datetime import datetime
 
     path = tmp_path / "survey.xlsx"
@@ -307,10 +307,12 @@ def test_duplicate_rows_with_the_same_email_collapse_to_the_latest_submission(tm
     ).to_excel(path, index=False)
 
     result = parse_raw_survey(path)
-    assert [h.name for h in result.helpers] == ["Petr", "Anna Nováková (oprava)", "Klára"]
-    assert [h.tshirt_size for h in result.helpers] == ["M", "L", "XL"]
-    # Ids are sequential over the Helpers that remain.
+    # The latest answers stand in the place of Anna's first submission.
+    assert [h.name for h in result.helpers] == ["Anna Nováková (oprava)", "Petr", "Klára"]
+    assert [h.tshirt_size for h in result.helpers] == ["L", "M", "XL"]
+    # Ids are sequential over the Helpers that remain, and so is the order of registration.
     assert [h.id for h in result.helpers] == [1, 2, 3]
+    assert [h.registration_order for h in result.helpers] == [1, 2, 3]
     assert any("anna@example.test" in w for w in result.warnings)
 
 
@@ -366,8 +368,8 @@ def test_friend_names_resolve_against_the_collapsed_helpers(tmp_path):
     ).to_excel(path, index=False)
 
     result = parse_raw_survey(path)
-    assert [h.name for h in result.helpers] == ["Petr Svoboda", "Anna Nováková"]
-    assert result.helpers[0].friends == [2]  # Anna's surviving id, not her dropped first row's
+    assert [h.name for h in result.helpers] == ["Anna Nováková", "Petr Svoboda"]
+    assert result.helpers[1].friends == [1]  # Anna's surviving id, which is her first row's place
 
 
 # -- phone capture (display-only hint for uncertain matches) ---------------------

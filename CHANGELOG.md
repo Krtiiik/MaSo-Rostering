@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rozřazování při jinak stejných možnostech posílá do Zálohy dřív pomocníky, kteří se
+  registrovali později. Cena Zálohy má přirážku, která klesá lineárně od plné váhy
+  u nejdřív registrovaného po nulu u posledního (podle pořadí řádků v exportu
+  dotazníku). Váhu nastavíte na záložce Parametry rozřazování („Váha Zálohy podle pořadí
+  registrace“, výchozí 2, 0 funkci vypne); je to jen přirážka, takže skutečná
+  preference role ji přebije. Pomocník přidaný ručně nebo novým nahráním se počítá
+  jako registrovaný poslední.
+
+### Changed
+
+- Když stejný e-mail odešle dotazník víckrát, ponechají se nejnovější odpovědi, ale na
+  místě prvního odeslání (dřív na místě posledního), aby opakované odeslání
+  nezpůsobilo, že se pomocník bude brát jako registrovaný později.
+
 ## [3.5.0] - 2026-10-11
 
 ### Changed

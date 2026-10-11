@@ -594,6 +594,11 @@ budovy, přání být s kamarádem, nebo přání role. Výchozí hodnoty jsou r
 Měň je jen tehdy, když výsledek nesedí. Nahoře je také **časový limit**
 výpočtu (výchozí je 60 sekund).
 
+Je-li jinak všechno stejné, posílá počítač do **Zálohy** dřív ty, kdo se
+registrovali později. Jak moc se to počítá, určuje **Váha Zálohy podle pořadí
+registrace** (výchozí 2; 0 to vypne). Je to jen drobná přirážka, takže
+skutečné přání role ji vždy přebije.
+
 ![Záložka Parametry rozřazování](img/21-parametry.png)
 
 Nahoře u časového limitu hledání jsou vidět sekundy. Změny uložíš dole

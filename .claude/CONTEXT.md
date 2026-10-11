@@ -227,7 +227,18 @@ Photographer. Requires Equipment eligibility for a camera.
 Reserve/overflow. Not a Preference option on the survey; absorbs excess
 Helpers with no capacity limit. Not free to fill: the solver scores it like
 any other Role, at a cost worse than Nevadí but better than Spíš ne or Ne, so
-a Helper who is fine with a real Role gets that rather than Záloha.
+a Helper who is fine with a real Role gets that rather than Záloha. Among
+otherwise equal rosters it goes to the later registrants first (see
+**Registration order**).
+
+**Registration order**:
+A Helper's place in the order they registered: the row of their first
+submission in the survey export; anyone who arrives later (a new registrant on a
+re-upload, a Hand-added Helper) comes after everyone. The solver adds a
+surcharge to Záloha that falls linearly from the full `late_zaloha` weight for
+the earliest attending Helper to nothing for the latest — a tie-breaker, not a
+rule.
+Czech: Pořadí registrace.
 
 #### Manual roles
 

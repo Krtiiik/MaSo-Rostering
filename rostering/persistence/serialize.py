@@ -116,6 +116,7 @@ def helper_to_dict(h: Helper) -> dict:
         "phone": h.phone,
         "person_id": h.person_id,
         "cant_attend": h.cant_attend,
+        "registration_order": h.registration_order,
     }
     if h.tags:  # a missing key means no direct Tags
         data["tags"] = list(h.tags)
@@ -155,7 +156,17 @@ def helper_from_dict(data: dict) -> Helper:
         tags=[int(t) for t in data.get("tags") or []],
         # Absent from workspaces saved before the raw responses were kept.
         survey_responses=[(r["question"], r["answer"]) for r in data.get("survey_responses") or []],
+        # Absent from workspaces saved before the registration order existed;
+        # ids were handed out in registration order, so the id stands in.
+        registration_order=registration_order_of(data),
     )
+
+
+def registration_order_of(record: dict) -> int:
+    """A saved Helper record's place in the registration order (its id when the
+    record predates the field)."""
+    order = record.get("registration_order")
+    return int(record["id"] if order is None else order)
 
 
 def assignment_to_dict(a: Assignment) -> dict:
@@ -299,6 +310,7 @@ def solver_config_to_dict(config: SolverConfig) -> dict:
             _ROLE_COST_UNIT_KEY: config.weights.role_preference,
             "building_mismatch": config.weights.building_mismatch,
             "friend_unsatisfied": config.weights.friend_unsatisfied,
+            "late_zaloha": config.weights.late_zaloha,
         },
         "role_costs": {name: getattr(config.role_costs, name) for name in _ROLE_COST_FIELDS},
         "friend_scoring": {
@@ -327,6 +339,7 @@ def solver_config_from_dict(data: dict) -> SolverConfig:
             ),
             building_mismatch=weights_data.get("building_mismatch", defaults.weights.building_mismatch),
             friend_unsatisfied=weights_data.get("friend_unsatisfied", defaults.weights.friend_unsatisfied),
+            late_zaloha=_non_negative_int(weights_data, "late_zaloha", defaults.weights.late_zaloha),
         ),
         role_costs=RoleCosts(
             **{

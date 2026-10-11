@@ -647,6 +647,17 @@ async def test_restore_defaults_puts_the_role_costs_back(user: User, seasons):
         assert (slider.props["min"], slider.props["max"]) == (0, MAX_ROLE_COST)
 
 
+async def test_the_late_registration_weight_is_shown_edited_and_saved(user: User, seasons):
+    await _go(user, labels.TAB_SOLVER)
+    weight = user.find(marker="late-zaloha").elements.pop()
+    assert weight.value == SolverConfig().weights.late_zaloha
+    weight.value = 7
+    await user.should_see(marker="unsaved")
+    user.find(marker="solver-save").click()
+    await asyncio.sleep(0.2)
+    assert _state(seasons)["solver_config"]["weights"]["late_zaloha"] == 7
+
+
 async def test_a_saved_cost_above_the_maximum_is_shown_at_the_top(user: User, seasons):
     config = solver_config_to_dict(SolverConfig())
     config["role_costs"]["ne"] = 99
