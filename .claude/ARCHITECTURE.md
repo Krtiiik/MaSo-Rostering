@@ -11,7 +11,7 @@ Rostering assigns registered helpers to a Building, Room and Role for a recurrin
 - **Solver** builds the CP-SAT model from the domain and returns an assignment plus the rules it had to bend. Its **live checker** judges any roster, solved or hand-edited, against the same rule families.
 - **Persistence** keeps each Season as a JSON state dict plus named Versions on disk, and handles Season zip export/import.
 - **Mutation layer** (`webapp` core): every user action is a function over the Workspace's state dict, which loads the state, changes it, saves it and returns. It is the only writer of state, raises `RosteringError` or `ConfirmationRequired`, and is tested without a UI.
-- **UI** (`webapp/ui`): a per-browser-tab session holds the Workspace plus view-only state. It runs a mutation, shows errors or confirmations, then redraws. The tabs follow the work order: People, Tags, Forced friends, Buildings, Solver, Roster. The roster grid has a pure view-model builder, an HTML renderer and a small browser-side JS component that reports drag, click and lock events back to Python.
+- **UI** (`webapp/ui`): a per-browser-tab session holds the Workspace plus view-only state. It runs a mutation, shows errors or confirmations, then redraws. The tabs follow the work order: People, Buildings, Tags, Forced friends, Solver, Roster (Buildings before Tags and Forced friends because their rules pick Buildings and Rooms from the layout). The roster grid has a pure view-model builder, an HTML renderer and a small browser-side JS component that reports drag, click and lock events back to Python.
 - **Export** writes the final Excel file from the state, merging in the manual overlay.
 
 Typical flow: upload survey, then ingest, then mutations save state; Solve runs the solver off the event loop and stores assignments; a drag calls a mutation, the checker recomputes broken rules on the redraw; export reads the state. Details of each piece are in "Implementation notes" below, and the glossary terms are in `CONTEXT.md`.
@@ -804,8 +804,11 @@ puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the late
   (`person_sheet.set_cant_attend`); flagging a placed person asks first.
 - People tab (`tabs/people.py`, "1. Lidé"): the "Načíst pomocníky" button in the
   Helpers table header (same `_import_button` as the Organizers' "Načíst
-  organizátory"; with no Season open it is the only thing on the tab and
-  creates the Season, asking for the label), a summary, then two
+  organizátory"; with no Season open these two buttons are the only thing on the
+  tab, Organizers first, and either creates the Season, asking for the label —
+  the Organizers' sheet has no dates to prefill it from). The intended upload order is
+  Organizers, Helpers, Buildings sheet: the Buildings sheet names Organizers
+  that must already exist, and Helpers' friend names can resolve to them. A summary, then two
   `ui.table`s — Organizers above, Helpers below — with search, sorting, the
   Can't attend checkbox and the Tag pills in the row (Vue cell slots emitting
   `cant_attend` / `open_friends`). A click on a row opens the person sheet

@@ -102,7 +102,7 @@ if (xlsxPath) {
   }
 
   // Buildings tab -> Save & solve (shows the Roster tab when done).
-  await tab("4. Budovy").click();
+  await tab("2. Budovy").click();
   await page.getByRole("button", { name: "Uložit a sestavit rozdělení" }).click();
   await page.waitForTimeout(500);
   const replace = page.getByRole("button", { name: "Sestavit rozdělení", exact: true });
@@ -132,7 +132,7 @@ if (xlsxPath) {
   // to one Helper, then on the Roster tab check that the Tags overlay renders
   // stripes (off by default) and that the filter (shown with the Tags overlay
   // only) dims every other Helper without hiding anyone.
-  await tab("2. Štítky").click();
+  await tab("3. Štítky").click();
   await page.getByRole("button", { name: "Nový štítek" }).click();
   await page.getByLabel("Název", { exact: true }).fill("SmokeTag");
   await page.getByRole("button", { name: "Vytvořit štítek" }).click();

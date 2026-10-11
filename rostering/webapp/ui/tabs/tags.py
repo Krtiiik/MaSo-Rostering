@@ -1,4 +1,4 @@
-"""Tab 2: the Season's Tags — the Tag tree as a searchable, collapsible,
+"""Tab 3: the Season's Tags — the Tag tree as a searchable, collapsible,
 drag-and-drop tree (``ui/tagtree``, with how many Helpers and Organizers carry
 each Tag). Dragging a Tag onto another makes it that Tag's child, onto the empty
 space a root. A click on a row opens that Tag's sheet beside the tree

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Záložka „Budovy“ je nově druhá (před „Štítky“ a „Vynucenými skupinkami kamarádů“),
+  protože pravidla štítků a skupinek vybírají budovy a místnosti z rozložení. Číslování
+  záložek je nyní: 1. Lidé, 2. Budovy, 3. Štítky, 4. Vynucené skupinky kamarádů,
+  5. Parametry rozřazování, 6. Rozdělení pomocníků. Tlačítko pod tabulkami na záložce Lidé
+  nově vede na budovy.
+- Lidé: v prázdné aplikaci je tlačítko „Načíst organizátory“ před „Načíst pomocníky“.
+  Doporučené pořadí nahrávání je organizátoři, pomocníci, tabulka budov.
+
 ### Added
 
 - Uživatelský návod v češtině s obrázky z aplikace (`docs/manual/navod.md`):

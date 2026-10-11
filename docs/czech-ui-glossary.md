@@ -11,9 +11,9 @@ glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 |---|---|
 | Page title / app name | Rozdělování pomocníků |
 | 1. People | 1. Lidé |
-| 2. Tags | 2. Štítky |
-| 3. Forced friends | 3. Vynucené skupinky kamarádů |
-| 4. Buildings | 4. Budovy |
+| 2. Buildings | 2. Budovy |
+| 3. Tags | 3. Štítky |
+| 4. Forced friends | 4. Vynucené skupinky kamarádů |
 | 5. Solver | 5. Parametry rozřazování |
 | 6. Roster | 6. Rozdělení pomocníků |
 | Seasons (sidebar) | Ročníky |

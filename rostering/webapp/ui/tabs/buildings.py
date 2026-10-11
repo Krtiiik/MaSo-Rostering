@@ -1,4 +1,4 @@
-"""Tab 4: the Buildings, their Rooms and how many Helpers each Role must have in
+"""Tab 2: the Buildings, their Rooms and how many Helpers each Role must have in
 each (the minimums). One card per Building holds a Role × Room matrix edited in
 place; the layout is a draft on the session until saved (Save, or Save & solve),
 and an "unsaved changes" chip says when the draft differs from the Season."""

@@ -184,6 +184,22 @@ async def test_with_no_season_open_both_sheets_can_be_loaded_to_create_one(seaso
         user.find(kind=ui.button, content="Načíst organizátory")
 
 
+async def test_with_no_season_open_the_organizers_sheet_is_offered_before_the_helpers(seasons):
+    # The upload order the manual teaches: Organizers, Helpers, then the Buildings sheet.
+    mutations.new_season(seasons)
+    async with user_simulation(root=root) as user:
+        await user.open("/")
+        organizers = user.find(kind=ui.button, content="Načíst organizátory").elements.pop()
+        helpers = user.find(kind=ui.button, content="Načíst pomocníky").elements.pop()
+        assert organizers.id < helpers.id
+
+
+def test_the_buildings_tab_comes_before_the_tags_and_groups_that_refer_to_its_buildings():
+    assert labels.TABS.index(labels.TAB_BUILDINGS) < labels.TABS.index(labels.TAB_TAGS)
+    assert labels.TABS.index(labels.TAB_BUILDINGS) < labels.TABS.index(labels.TAB_FORCED)
+    assert [tab.split(".")[0] for tab in labels.TABS] == ["1", "2", "3", "4", "5", "6"]
+
+
 async def test_ticking_a_helpers_cant_attend_flags_them(user: User, seasons):
     user.find(marker="helper-table").trigger("cant_attend", {"id": 1, "value": True})
     await asyncio.sleep(0.1)

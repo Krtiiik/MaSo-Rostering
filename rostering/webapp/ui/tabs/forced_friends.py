@@ -1,4 +1,4 @@
-"""Tab 3: the Season's Forced friends groups — named hard constraints on people,
+"""Tab 4: the Season's Forced friends groups — named hard constraints on people,
 each a list of rules that must all hold: share a Building / Room / Role, or
 (not) be in some Buildings or Rooms, or (not) have some Roles (see
 ``CONTEXT.md``). One card per group with its rules, members and status badge;

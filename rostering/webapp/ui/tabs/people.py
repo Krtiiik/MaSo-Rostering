@@ -4,9 +4,10 @@ sortable table. A click on a row opens that person's sheet beside the table
 (``person_sheet``), where everything about them is edited; Can't attend is
 toggled right in the row. What waits on a decision after an upload (matches to
 review, the Tag-import offer, ...) is in the "K vyřízení" panel. Each table loads
-its own sheet through the same button in its header ("Načíst pomocníky" /
-"Načíst organizátory"); with no Season open either one creates it (then the tab
-shows just those two buttons)."""
+its own sheet through the same button in its header ("Načíst organizátory" /
+"Načíst pomocníky"; the Organizers come first because the Buildings sheet and the
+Helpers' friend names look them up); with no Season open either one creates it
+(then the tab shows just those two buttons)."""
 from __future__ import annotations
 
 from html import escape
@@ -77,7 +78,7 @@ class PeopleTab:
         self._organizers()
         self._helpers(focus_helper_id=fix.helper_id if fix else None)
         with ui.row().classes("w-full justify-end mt-2"):
-            ui.button("Pokračovat na štítky", on_click=lambda: s.switch_tab(labels.TAB_TAGS)).props(
+            ui.button("Pokračovat na budovy", on_click=lambda: s.switch_tab(labels.TAB_BUILDINGS)).props(
                 "color=primary icon-right=arrow_forward"
             )
 
@@ -91,8 +92,8 @@ class PeopleTab:
                 "text-sm text-gray-600"
             )
             with ui.row():
-                self._helper_import_button()
                 self._organizer_import_button()
+                self._helper_import_button()
 
     @staticmethod
     def _import_button(label: str, mark: str, on_upload, tooltip: str) -> None:
