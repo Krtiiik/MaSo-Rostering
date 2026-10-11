@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registrace“, výchozí 2, 0 funkci vypne); je to jen přirážka, takže skutečná
   preference role ji přebije. Pomocník přidaný ručně nebo novým nahráním se počítá
   jako registrovaný poslední.
+- Pravidla štítků i vynucených skupinek mohou být **tvrdá** (výchozí), nebo **měkká**.
+  Zámeček vlevo od pravidla ho přepíná. Měkké pravidlo smí počítač porušit, když je
+  rozdělení jinak lepší; porušení ukáže mezi porušenými pravidly jako „(měkké)“
+  a nikdy neodmítne úpravu. Váha porušeného měkkého pravidla (výchozí 2) je na
+  záložce Parametry rozřazování.
 
 ### Changed
 

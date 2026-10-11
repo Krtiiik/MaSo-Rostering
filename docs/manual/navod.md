@@ -490,6 +490,26 @@ Jak se pravidla skládají:
 - Nastavení, po kterém by někdo neměl **žádnou** povolenou budovu, místnost ani
   roli, aplikace **odmítne** a řekne proč.
 
+### Tvrdé a měkké pravidlo
+
+Každé pravidlo je buď **tvrdé** (výchozí), nebo **měkké**. Přepíná se
+**zámečkem** vlevo od pravidla: zavřený zámek (modrý) je tvrdé pravidlo,
+otevřený (šedý) měkké. Funguje stejně u štítků i u vynucených skupinek.
+
+- **Tvrdé pravidlo** se dodrží vždy, když to nějak jde. Poruší se až
+  v nouzi (viz níže) a rozdělení, které by ho porušilo, ti aplikace nenabídne
+  jen proto, že je „o trochu lepší“.
+- **Měkké pravidlo** se počítači **jen doporučuje**. Porušení má cenu, kterou
+  počítač váží proti přáním budovy, kamarádů a rolí. Když je jinak výsledek
+  výrazně lepší, měkké pravidlo klidně poruší. Jak moc „měkké“ je, nastavíš
+  na záložce **5. Parametry rozřazování** v poli **Váha porušeného měkkého
+  pravidla** (výchozí 2, tedy méně než přání budovy nebo kamaráda).
+- Porušené měkké pravidlo se mezi **porušenými pravidly** objeví také, jen je
+  šedé a u pravidla stojí **(měkké)**. Tlačítko s počtem je oranžové, pokud
+  jsou porušená jen měkká pravidla.
+- Měkké pravidlo **nikdy nic neodmítne**: nevadí, že by si s jiným pravidlem
+  odporovalo, ani že by člověku nenechalo žádnou povolenou budovu.
+
 ### Komu štítek dát
 
 Štítek přiřadíš dvěma způsoby:
@@ -511,8 +531,9 @@ Jak se pravidla skládají:
 
 ### Co se stane, když se pravidlo nedá splnit
 
-Pravidla štítků jsou pro počítač tvrdá a snaží se je dodržet. Když se nedají
-splnit všechna najednou, rozdělení **přesto vytvoří** a to, co porušil, ukáže
+Tvrdá pravidla štítků se počítač snaží dodržet za každou cenu (měkká jen
+doporučují, viz [Tvrdé a měkké pravidlo](#tvrdé-a-měkké-pravidlo)). Když se
+nedají splnit všechna najednou, rozdělení **přesto vytvoří** a to, co porušil, ukáže
 jako **porušené pravidlo** (červené tlačítko na záložce
 **6. Rozdělení pomocníků**; tlačítko **Opravit** tě zavede ke štítku).
 Napřed „obětuje“ počty lidí v místnostech, potom pravidla štítků, potom
@@ -544,7 +565,9 @@ Skupinku vytvoříš tlačítkem **Nová skupinka**:
    člověk může být ve více skupinkách.
 3. **Pravidla** — co všechno musí platit. Jsou stejná jako u štítků: *musí
    sdílet* budovu / místnost / roli, *musí být v*, *nesmí být v*, *musí mít roli*
-   a *nesmí mít roli*. Další přidáš tlačítkem **Přidat pravidlo**.
+   a *nesmí mít roli*. Další přidáš tlačítkem **Přidat pravidlo**. Zámeček
+   vlevo od pravidla ho přepíná mezi **tvrdým** a **měkkým**
+   (viz [Tvrdé a měkké pravidlo](#tvrdé-a-měkké-pravidlo)).
 4. **Vytvořit skupinku** dole.
 
 Hotová skupinka je na záložce vidět jako karta:
@@ -571,8 +594,11 @@ Pravidla skupinek:
   kvůli štítkům jejích členů nešlo nikdy splnit (třeba členům štítky zakazují
   jedinou společnou budovu).
 - Velikost skupinky, kapacity ani uzamčená přiřazení skupinku nezablokují.
-- Počítač skupinku drží pohromadě, kdykoli to jde. Když ne, ukáže
-  **porušené pravidlo**, jako u štítků.
+- Počítač drží **tvrdá** pravidla skupinky, kdykoli to jde. Když ne, ukáže
+  **porušené pravidlo**, jako u štítků. **Měkké** pravidlo smí porušit, pokud
+  je rozdělení jinak lepší. Měkké „musí sdílet místnost“ vedle tvrdého „musí
+  sdílet budovu“ tak drží lidi vždy v jedné budově, ale v jedné místnosti
+  jen pokud to nic nestojí.
 
 **Po změně skupinek se nikdo nepřesouvá.** Nová skupinka nebo změna jejích lidí
 a pravidel jen označí rozdělení jako **neaktuální**.
@@ -600,6 +626,10 @@ registrace** (výchozí 2; 0 to vypne). Je to jen drobná přirážka, takže
 skutečné přání role ji vždy přebije.
 
 ![Záložka Parametry rozřazování](img/21-parametry.png)
+
+Mezi váhami je také **Váha porušeného měkkého pravidla**: kolik stojí každý
+člověk, který poruší měkké pravidlo štítku nebo skupinky. Tvrdá pravidla váha
+neovlivní, ta se ohýbají vždy až jako poslední.
 
 Nahoře u časového limitu hledání jsou vidět sekundy. Změny uložíš dole
 tlačítkem **Uložit parametry**.

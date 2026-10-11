@@ -5,6 +5,10 @@ controls. Both a group's and a Tag's editor offer every row kind: "share" binds 
 group's members, or all the carriers of the Tag, together (see
 ``rostering.forced_friends.tag_groups``).
 
+Each row starts with a lock button that switches the rule between hard (closed
+lock, the default) and soft (open lock): a soft rule may be broken for a better
+roster (see CONTEXT.md "Soft rule").
+
 The editor keeps its rows as drafts and turns them into saved rule dicts only on
 ``rules()``; validation happens in the mutation that saves them."""
 from __future__ import annotations
@@ -24,6 +28,8 @@ OPS = {
     "role_must": ("musí mít roli", pr.BE, True),
     "role_not": ("nesmí mít roli", pr.BE, False),
 }
+HARD_HINT = "Tvrdé pravidlo: poruší se až v nouzi, když nejde nic jiného. Kliknutím ho změníte na měkké."
+SOFT_HINT = "Měkké pravidlo: smí se porušit, pokud je rozdělení jinak lepší. Kliknutím ho změníte na tvrdé."
 _PLACE_AXES = {pr.BUILDING: "budově", pr.ROOM: "místnosti"}
 _SHARE_AXES = {pr.BUILDING: "budovu", pr.ROOM: "místnost", pr.ROLE: "roli"}
 _ROOM_SEP = "\x1f"
@@ -35,24 +41,30 @@ def room_key(building: str, room: str) -> str:
 
 def draft_from_rule(rule: dict) -> dict:
     """One row of the editor from a saved rule."""
+    hard = rule.get("hard", True) is not False
     if rule["kind"] == pr.SHARE:
-        return {"op": "share", "axis": rule["axis"], "values": []}
+        return {"op": "share", "axis": rule["axis"], "values": [], "hard": hard}
     must = rule.get("must", True)
     if rule["axis"] == pr.ROLE:
-        return {"op": "role_must" if must else "role_not", "axis": pr.ROLE, "values": list(rule["values"])}
+        return {"op": "role_must" if must else "role_not", "axis": pr.ROLE, "values": list(rule["values"]), "hard": hard}
     values = [room_key(*v) if rule["axis"] == pr.ROOM else v for v in rule["values"]]
-    return {"op": "be_must" if must else "be_not", "axis": rule["axis"], "values": values}
+    return {"op": "be_must" if must else "be_not", "axis": rule["axis"], "values": values, "hard": hard}
 
 
 def rule_from_draft(row: dict) -> dict:
-    """The rule a row stands for (validated on save)."""
+    """The rule a row stands for (validated on save); ``hard`` is written only
+    for a soft rule, like the saved form."""
     _label, kind, must = OPS[row["op"]]
     if kind == pr.SHARE:
-        return {"kind": kind, "axis": row["axis"]}
-    if row["op"].startswith("role"):
-        return {"kind": kind, "must": must, "axis": pr.ROLE, "values": list(row["values"])}
-    values = [v.split(_ROOM_SEP, 1) if row["axis"] == pr.ROOM else v for v in row["values"]]
-    return {"kind": kind, "must": must, "axis": row["axis"], "values": values}
+        rule = {"kind": kind, "axis": row["axis"]}
+    elif row["op"].startswith("role"):
+        rule = {"kind": kind, "must": must, "axis": pr.ROLE, "values": list(row["values"])}
+    else:
+        values = [v.split(_ROOM_SEP, 1) if row["axis"] == pr.ROOM else v for v in row["values"]]
+        rule = {"kind": kind, "must": must, "axis": row["axis"], "values": values}
+    if not row.get("hard", True):
+        rule["hard"] = False
+    return rule
 
 
 class RuleEditor:
@@ -86,8 +98,8 @@ class RuleEditor:
 
     def new_row(self) -> dict:
         if self.new_op == "share":
-            return {"op": "share", "axis": pr.ROOM, "values": []}
-        return {"op": "be_must", "axis": pr.BUILDING, "values": []}
+            return {"op": "share", "axis": pr.ROOM, "values": [], "hard": True}
+        return {"op": "be_must", "axis": pr.BUILDING, "values": [], "hard": True}
 
     def _changed(self) -> None:
         self._list.refresh()
@@ -119,6 +131,10 @@ class RuleEditor:
             row["axis"], row["values"] = pr.BUILDING, []
         self._changed()
 
+    def _toggle_hard(self, row: dict) -> None:
+        row["hard"] = not row.get("hard", True)
+        self._changed()
+
     def _set_axis(self, row: dict, axis: str, clear: bool) -> None:
         if axis != row["axis"]:
             row["axis"] = axis
@@ -139,6 +155,13 @@ class RuleEditor:
 
     def _draw_row(self, index: int, row: dict) -> None:
         with ui.row().classes("w-full items-center gap-2 no-wrap"):
+            hard = row.get("hard", True)
+            ui.button(
+                icon="lock" if hard else "lock_open",
+                on_click=lambda row=row: self._toggle_hard(row),
+            ).props(f"flat dense round color={'primary' if hard else 'grey-6'}").tooltip(
+                HARD_HINT if hard else SOFT_HINT
+            ).mark(f"rule-hard-{index}")
             ui.select(
                 self._ops,
                 value=row["op"],

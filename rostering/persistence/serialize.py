@@ -311,6 +311,7 @@ def solver_config_to_dict(config: SolverConfig) -> dict:
             "building_mismatch": config.weights.building_mismatch,
             "friend_unsatisfied": config.weights.friend_unsatisfied,
             "late_zaloha": config.weights.late_zaloha,
+            "soft_rule": config.weights.soft_rule,
         },
         "role_costs": {name: getattr(config.role_costs, name) for name in _ROLE_COST_FIELDS},
         "friend_scoring": {
@@ -340,6 +341,7 @@ def solver_config_from_dict(data: dict) -> SolverConfig:
             building_mismatch=weights_data.get("building_mismatch", defaults.weights.building_mismatch),
             friend_unsatisfied=weights_data.get("friend_unsatisfied", defaults.weights.friend_unsatisfied),
             late_zaloha=_non_negative_int(weights_data, "late_zaloha", defaults.weights.late_zaloha),
+            soft_rule=_non_negative_int(weights_data, "soft_rule", defaults.weights.soft_rule),
         ),
         role_costs=RoleCosts(
             **{

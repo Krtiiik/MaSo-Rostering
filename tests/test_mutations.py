@@ -133,6 +133,15 @@ def test_solver_config_round_trips_the_unit_and_role_costs(workspace):
     assert config.role_costs == RoleCosts(ano=1, klidne=2, nevadi=3, zaloha=9, spise_ne=5, ne=20)
 
 
+def test_the_soft_rule_weight_round_trips_and_defaults_when_missing(workspace):
+    mutations.put_solver_config(workspace, {"weights": {"soft_rule": 6}})
+    assert solver_config_from_dict(mutations.get_state(workspace)["solver_config"]).weights.soft_rule == 6
+
+    assert solver_config_from_dict({"weights": {}}).weights.soft_rule == SolverWeights().soft_rule
+    with pytest.raises(mutations.RosteringError):
+        mutations.put_solver_config(workspace, {"weights": {"soft_rule": -1}})
+
+
 def test_a_fresh_workspace_saves_the_solver_defaults(workspace):
     saved = mutations.get_state(workspace)["solver_config"]
 

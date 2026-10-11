@@ -10,7 +10,7 @@ Equipment eligibility. A solve never fails because they clash;
 each rule carries a slack penalized in strict priority tiers, and the rules
 the solver had to bend come back as ``SolveResult.broken_rules``.
 
-Soft (minimized) objective terms, dominated by any rule penalty:
+Soft (minimized) objective terms, dominated by any hard rule penalty:
 - role Preference cost: each Role (Záloha included) costs what the helper's
   rating of it costs in ``RoleCosts`` (Ano 0, Klidně 1, Nevadí 2, Záloha 4,
   Spíš ne 6, Ne 12 by default; a blank rating counts as Nevadí), times the
@@ -23,7 +23,9 @@ Soft (minimized) objective terms, dominated by any rule penalty:
   nothing, so among otherwise equal rosters the later registrants take it;
 - being placed in a building outside the helper's acceptable set (see
   CLAUDE.md "Building preference is a SET, not a single choice");
-- unsatisfied friend requests, scored via ``rostering.solver.scoring``.
+- unsatisfied friend requests, scored via ``rostering.solver.scoring``;
+- violations of Soft Tag and Forced friends rules, ``soft_rule`` per violating
+  Helper (a relaxation marked ``soft`` is weighed here instead of in its tier).
 
 Every soft term is scaled by ``OBJECTIVE_SCALE`` inside the model; the reported
 ``objective_value`` divides it back out, so it stays in the unscaled units.
@@ -72,6 +74,8 @@ class SolverWeights:
     building_mismatch: int = 3
     friend_unsatisfied: int = 5
     late_zaloha: int = 2
+    # One violating Helper (or value) of a Soft Tag / Forced friends rule.
+    soft_rule: int = 2
 
 
 # The largest cost the solver tab offers for a Preference rating or for Záloha
@@ -345,12 +349,23 @@ def solve_competition(
                 penalty_terms.append(weight * excess)
                 ordinary_max += weight * len(helpers)
 
+    # Soft rules: a weighted part of the ordinary objective, so they trade off
+    # against preferences and friends, while every hard rule still dominates them.
+    soft_weight = config.weights.soft_rule * scale
+    for _family, relaxation in relaxed:
+        if relaxation.soft and soft_weight:
+            penalty_terms.append(soft_weight * relaxation.slack)
+            ordinary_max += soft_weight * relaxation.max_units
+
     ordinary_objective = sum(penalty_terms)
     units_by_tier: dict[Tier, int] = {}
     for family, relaxation in relaxed:
-        units_by_tier[family.tier] = units_by_tier.get(family.tier, 0) + relaxation.max_units
+        if not relaxation.soft:
+            units_by_tier[family.tier] = units_by_tier.get(family.tier, 0) + relaxation.max_units
     weights = tier_weights(ordinary_max, units_by_tier)
-    rule_penalty = sum(weights[family.tier] * relaxation.slack for family, relaxation in relaxed)
+    rule_penalty = sum(
+        weights[family.tier] * relaxation.slack for family, relaxation in relaxed if not relaxation.soft
+    )
     model.Minimize(ordinary_objective + rule_penalty)
 
     solver = cp_model.CpSolver()

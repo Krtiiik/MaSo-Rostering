@@ -23,7 +23,9 @@ _RULES_HELP = (
     "Pravidla platí pro každého, kdo štítek nese (i odvozeně). Všechna musí platit zároveň; u „být v“ a „mít "
     "roli“ stačí jedna z vybraných hodnot. „Musí“ člověka omezuje jen na vybrané, „nesmí“ vždy vyhrává. "
     "„Musí sdílet“ platí pro všechny nositele štítku dohromady (jako u vynucené skupinky). "
-    "Nastavení, po kterém by někdo neměl žádnou povolenou budovu, místnost ani roli, se odmítne."
+    "Nastavení, po kterém by někdo neměl žádnou povolenou budovu, místnost ani roli, se odmítne. "
+    "Zámeček vlevo přepíná pravidlo mezi tvrdým a měkkým; měkké pravidlo smí řešení porušit, když je jinak lepší, "
+    "a nic neodmítá."
 )
 
 

@@ -24,7 +24,7 @@ Typical flow: upload survey, then ingest, then mutations save state; Solve runs 
 
 **Pure view-model modules separate from rendering.** The grid's data, the to-do queries, the checker, Tag and forced-group logic compute from the state without NiceGUI. Tests exercise them directly, with only a few NiceGUI user-simulation tests for the UI. This replaced the earlier Streamlit AppTest tests. Views redraw from state after every mutation rather than tracking widget state.
 
-**Hard rules are relaxed through tiered slack, never made infeasible.** A solve must always return a full roster, because the organiser then fixes it by hand. Minimums, Tag restrictions, Forced friends and Equipment are each a rule family with a penalty slack, ordered so a higher tier is bent only after a lower one. Commit 2c277ac introduced this, replacing an INFEASIBLE outcome. Locks, Can't attend and Tag rules likewise never block a solve. Only the one-Room/one-Role shape and fixed assignments stay absolute.
+**Hard rules are relaxed through tiered slack, never made infeasible.** A solve must always return a full roster, because the organiser then fixes it by hand. Minimums, Tag restrictions, Forced friends and Equipment are each a rule family with a penalty slack, ordered so a higher tier is bent only after a lower one. Commit 2c277ac introduced this, replacing an INFEASIBLE outcome. Locks, Can't attend and Tag rules likewise never block a solve. Only the one-Room/one-Role shape and fixed assignments stay absolute. A Tag or group rule may instead be switched to **soft**: it then skips the tiers and is a weighted term of the ordinary objective (`SolverWeights.soft_rule`, default 2, below the Building mismatch and friend weights), so every hard tier still dominates it and it can lose to a preference.
 
 **One rule definition feeds both solver and live checker.** Each rule family registers its relaxation and a check under the same rule identity, and tests assert the two agree. That lets hand edits be judged and toasted instantly, without re-solving or storing results. Broken rules are therefore derived on each render, never persisted (the saved solver report is not shown).
 
@@ -1359,7 +1359,21 @@ puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the late
   the checker's are identical (`Štítek 8.M, musí být v budově Karlín`, the rule's
   own `Rule.text()`), and its `FixTarget` is `("tags", helper_id, tag_id)` (the
   first Tag that excludes the placement), which `fix_focus.go_fix` turns into the
-  Tags tab's selection (`SeasonView.selected_tag`). A "must" Room rule does not
+  Tags tab's selection (`SeasonView.selected_tag`). Hard and soft rules: `Rule.hard`
+  (default True, written to the dict only when False, so old files need no migration;
+  not part of `Rule.key`, so a hard and a soft copy of one rule are a repeat).
+  `tags.restrictions(hard=True)` is hard-only by default, which makes the allowed sets,
+  dead-end/stranded refusals, `contradictions` and `tag_clashes` ignore soft rules;
+  the solver and checker ask for `hard=None` and split the blockers of each value by
+  hardness, so one value blocked by both yields two instances (soft ones get a
+  `_soft` kind suffix: `tag_building_soft`, ...). A `Relaxation(soft=True)` is
+  skipped in the tier weights and its slack, times `soft_rule`, joins the ordinary
+  objective (and `ordinary_max`); `SolveResult.objective_value` therefore includes
+  soft penalties. `BrokenRule.soft` marks it; lines say "(měkké)" (`Rule.text()`, and
+  "(měkké pravidlo)" after a soft split). Share axes: `group_rules` judges the hard
+  and the soft share rules apart; a hard Room subsumes a Building of either
+  hardness, a soft Room only a soft Building, so soft Room + hard Building keeps
+  both enforced. A "must" Room rule does not
   also narrow the Buildings (so `forced_friends.tag_clashes`, which looks at
   Building and Role only, ignores Room rules). Validation is one shared step in
   `mutations` (`_stranded` / `_refuse_new_dead_ends`), run by `set_helper_tags`,
