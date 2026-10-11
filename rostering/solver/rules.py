@@ -112,6 +112,9 @@ class Relaxation:
     # Optionally words the violation from the finished roster (it needs to say
     # where people ended up, which no slack knows); ``describe`` is the fallback.
     describe_placed: Optional[Callable[[int, Sequence[Assignment]], str]] = None
+    # A Soft rule: its slack is not bent in the family's tier but weighed in the
+    # ordinary objective (``SolverWeights.soft_rule`` per unit).
+    soft: bool = False
 
 
 @dataclass
@@ -306,6 +309,21 @@ def _tag_universes(buildings: list[Building], roles: list[Role]) -> dict[str, li
 
 
 _TAG_KINDS = {tags_module.BUILDING: "tag_building", tags_module.ROOM: "tag_room", tags_module.ROLE: "tag_role"}
+# A soft Tag rule keeps its own identity: one value can be blocked by a hard and
+# a soft rule at once, and each is a Broken rule of its own.
+_SOFT_TAG_KINDS = {axis: f"{kind}_soft" for axis, kind in _TAG_KINDS.items()}
+
+
+def _tag_kind(axis: str, soft: bool) -> str:
+    return (_SOFT_TAG_KINDS if soft else _TAG_KINDS)[axis]
+
+
+def _blockers_by_hardness(found: list[tags_module.Restriction], value) -> list[tuple[bool, list[tags_module.Restriction]]]:
+    """The restrictions that keep ``value`` out, as ``(soft, blockers)`` for the
+    hard ones and the soft ones, whichever have any."""
+    blockers = tags_module.blocking(found, value)
+    split = [(False, [r for r in blockers if r.rule.hard]), (True, [r for r in blockers if not r.rule.hard])]
+    return [(soft, rs) for soft, rs in split if rs]
 
 
 def _tag_entity(helper_id, axis: str, value) -> tuple:
@@ -324,10 +342,10 @@ def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
         if not helper.tags:
             continue
         for axis, universe in universes.items():
-            found = tags_module.restrictions(ctx.tags, helper.tags, axis, universe)
+            found = tags_module.restrictions(ctx.tags, helper.tags, axis, universe, hard=None)
             for value in universe:
-                blockers = tags_module.blocking(found, value)
-                if not blockers:
+                by_hardness = _blockers_by_hardness(found, value)
+                if not by_hardness:
                     continue
                 if axis == tags_module.BUILDING:
                     building_rooms = ctx.building_rooms.get(value, [])
@@ -338,14 +356,16 @@ def _tag_restrictions(ctx: ModelContext) -> list[Relaxation]:
                     slack = ctx.assign_room[helper.id, room_ids[value]]
                 else:
                     slack = ctx.assign_role[helper.id, Role[value]]
-                relaxations.append(
-                    Relaxation(
-                        instance=RuleInstance(_TAG_KINDS[axis], _tag_entity(helper.id, axis, value)),
-                        slack=slack,
-                        max_units=1,
-                        describe=lambda _short, line=_tag_line(helper.name, blockers, axis, value): line,
+                for soft, blockers in by_hardness:
+                    relaxations.append(
+                        Relaxation(
+                            instance=RuleInstance(_tag_kind(axis, soft), _tag_entity(helper.id, axis, value)),
+                            slack=slack,
+                            max_units=1,
+                            describe=lambda _short, line=_tag_line(helper.name, blockers, axis, value): line,
+                            soft=soft,
+                        )
                     )
-                )
     return relaxations
 
 
@@ -366,22 +386,22 @@ def _check_organizer_tag_restrictions(ctx: CheckContext, universes: dict[str, li
         if organizer.room and (organizer.building, organizer.room) in universes[tags_module.ROOM]:
             places.append((tags_module.ROOM, (organizer.building, organizer.room)))
         for axis, value in places:
-            blockers = tags_module.blocking(
-                tags_module.restrictions(comp.tags, organizer.tags, axis, universes[axis]), value
-            )
-            if not blockers:
-                continue
-            broken.append(
-                BrokenRule(
-                    instance=RuleInstance(_TAG_KINDS[axis], ("organizer", *_tag_entity(organizer.id, axis, value))),
-                    family="tag_restrictions",
-                    amount=1,
-                    line=_tag_line(organizer.name, blockers, axis, value, kind="Organizátor"),
-                    cells=((organizer.building, organizer.room, None),) if organizer.room else (),
-                    fix=FixTarget("tags", organizer_id=organizer.id, tag_id=blockers[0].tag.id),
-                    organizer_ids=(organizer.id,),
+            found = tags_module.restrictions(comp.tags, organizer.tags, axis, universes[axis], hard=None)
+            for soft, blockers in _blockers_by_hardness(found, value):
+                broken.append(
+                    BrokenRule(
+                        instance=RuleInstance(
+                            _tag_kind(axis, soft), ("organizer", *_tag_entity(organizer.id, axis, value))
+                        ),
+                        family="tag_restrictions",
+                        amount=1,
+                        line=_tag_line(organizer.name, blockers, axis, value, kind="Organizátor"),
+                        cells=((organizer.building, organizer.room, None),) if organizer.room else (),
+                        fix=FixTarget("tags", organizer_id=organizer.id, tag_id=blockers[0].tag.id),
+                        organizer_ids=(organizer.id,),
+                        soft=soft,
+                    )
                 )
-            )
     return broken
 
 
@@ -405,20 +425,20 @@ def _check_tag_restrictions(ctx: CheckContext) -> list[BrokenRule]:
             # A Building or Room the configuration no longer has is judged by nothing.
             if value not in universes[axis]:
                 continue
-            blockers = tags_module.blocking(tags_module.restrictions(comp.tags, helper.tags, axis, universes[axis]), value)
-            if not blockers:
-                continue
-            broken.append(
-                BrokenRule(
-                    instance=RuleInstance(_TAG_KINDS[axis], _tag_entity(helper.id, axis, value)),
-                    family="tag_restrictions",
-                    amount=1,
-                    line=_tag_line(helper.name, blockers, axis, value),
-                    cells=((a.building, a.room, None),),
-                    helper_ids=(helper.id,),
-                    fix=FixTarget("tags", helper_id=helper.id, tag_id=blockers[0].tag.id),
+            found = tags_module.restrictions(comp.tags, helper.tags, axis, universes[axis], hard=None)
+            for soft, blockers in _blockers_by_hardness(found, value):
+                broken.append(
+                    BrokenRule(
+                        instance=RuleInstance(_tag_kind(axis, soft), _tag_entity(helper.id, axis, value)),
+                        family="tag_restrictions",
+                        amount=1,
+                        line=_tag_line(helper.name, blockers, axis, value),
+                        cells=((a.building, a.room, None),),
+                        helper_ids=(helper.id,),
+                        fix=FixTarget("tags", helper_id=helper.id, tag_id=blockers[0].tag.id),
+                        soft=soft,
+                    )
                 )
-            )
     broken.extend(_check_organizer_tag_restrictions(ctx, universes))
     return broken
 
@@ -445,6 +465,7 @@ def _forced_friends(ctx: ModelContext) -> list[Relaxation]:
                 max_units=rule.max_units,
                 describe=lambda _units, rule=rule: rule.line(),
                 describe_placed=lambda _units, assignments, rule=rule: rule.line(assignments),
+                soft=not rule.hard,
             )
         )
     return relaxations
@@ -550,6 +571,7 @@ def _check_forced_friends(ctx: CheckContext) -> list[BrokenRule]:
                     else FixTarget("forced_friends", group_id=rule.group.id)
                 ),
                 organizer_ids=tuple(anchor.organizer_id for anchor in flagged_anchors),
+                soft=not rule.hard,
             )
         )
     return broken
@@ -606,4 +628,6 @@ def to_broken_rule(
         if relaxation.describe_placed is not None
         else relaxation.describe(units)
     )
-    return BrokenRule(instance=relaxation.instance, family=family.name, amount=units, line=line)
+    return BrokenRule(
+        instance=relaxation.instance, family=family.name, amount=units, line=line, soft=relaxation.soft
+    )

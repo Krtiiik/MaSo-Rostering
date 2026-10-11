@@ -191,13 +191,23 @@ placed into.
 Czech: Přiřazení.
 
 **Broken rule**:
-A hard rule the current roster fails to satisfy: a Room or Building role count,
+A rule the current roster fails to satisfy: a Room or Building role count,
 a Tag constraint, a Forced-friend group, or Equipment eligibility. A solve never
 fails because of one; it returns a full roster with as few Broken rules as it can
 and lists what it bent. Judged live against the roster as it stands, and a hand
-edit is never refused for breaking one.
+edit is never refused for breaking one. A broken Soft rule is a Broken rule too,
+marked soft ("(měkké)").
 Czech: Porušené pravidlo.
 _Avoid_: Infeasible solve
+
+**Hard rule / Soft rule**:
+Every rule of a Tag or a Forced friends group is one or the other (a lock button
+left of the rule; hard by default). A hard rule bends only in the fixed tier order
+when nothing else can; a Soft rule is only a weighted penalty (the Solver tab's
+"soft rule" weight) that the solver trades off against Building preferences and
+friend requests, so it may break one for a better roster. A Soft rule never refuses
+an edit and never counts as a contradiction or dead end.
+Czech: Tvrdé / Měkké pravidlo.
 
 #### Solver roles
 

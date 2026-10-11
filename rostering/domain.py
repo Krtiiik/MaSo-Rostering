@@ -315,10 +315,11 @@ class FixTarget:
 
 @dataclass(frozen=True)
 class BrokenRule:
-    """One hard rule the roster fails to satisfy (see CONTEXT.md "Broken
-    rule"): ``family`` is the rule family's name, ``amount`` the size of the
-    violation in people (a minimum's shortfall; 1 for an all-or-nothing rule)
-    and ``line`` the human-readable description.
+    """One rule the roster fails to satisfy (see CONTEXT.md "Broken rule"):
+    ``family`` is the rule family's name, ``amount`` the size of the violation
+    in people (a minimum's shortfall; 1 for an all-or-nothing rule), ``line``
+    the human-readable description and ``soft`` whether the rule is a Soft rule
+    (one the solver may break for a better roster).
 
     The rest is filled only by the live checker (the solver's report leaves
     it empty): ``cells`` the grid cells affected, as ``(building, room, role
@@ -334,14 +335,15 @@ class BrokenRule:
     helper_ids: tuple[int, ...] = ()
     fix: Optional[FixTarget] = None
     organizer_ids: tuple[int, ...] = ()
+    soft: bool = False
 
 
 @dataclass
 class SolveResult:
     assignments: list[Assignment]
     status: str
-    # The ordinary preference/friend objective only; the penalties for
-    # Broken rules are not included.
+    # The ordinary preference/friend objective, including the penalties of
+    # Soft rules; the penalties for Broken hard rules are not included.
     objective_value: float
     # (helper_a_id, helper_b_id) pairs whose friend request was not satisfied.
     unsatisfied_friend_pairs: list[tuple[int, int]] = field(default_factory=list)

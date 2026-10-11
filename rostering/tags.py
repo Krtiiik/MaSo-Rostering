@@ -278,18 +278,26 @@ def entry_in_universe(axis: str, entry: Any, universe: Iterable[Any]) -> bool:
     return any(same_value(axis, entry, value) for value in universe)
 
 
-def restrictions(tags: Iterable[Tag], direct: Iterable[int], axis: str, universe: Sequence[Any]) -> list[Restriction]:
+def restrictions(
+    tags: Iterable[Tag],
+    direct: Iterable[int],
+    axis: str,
+    universe: Sequence[Any],
+    hard: Optional[bool] = True,
+) -> list[Restriction]:
     """The live restrictions on ``axis`` from every Tag that applies to a Helper
     carrying ``direct`` (their own Tags plus every ancestor), in effective-Tag
     order. A rule with no entry naming anything in ``universe`` states nothing,
-    so a "must" of absent entries never narrows."""
+    so a "must" of absent entries never narrows. Only hard rules by default (the
+    allowed sets and the edit-time refusals are built on hard rules; a soft one
+    may be broken); ``hard=False`` gives the soft ones, ``None`` all of them."""
     tags = list(tags)
     by_id = {t.id: t for t in tags}
     found: list[Restriction] = []
     for tag_id in effective_tag_ids(tags, direct):
         tag = by_id[tag_id]
         for rule in tag.rules:
-            if rule.kind != BE or rule.axis != axis:
+            if rule.kind != BE or rule.axis != axis or (hard is not None and rule.hard != hard):
                 continue
             live = tuple(v for v in universe if any(same_value(axis, e, v) for e in rule.values))
             if live:

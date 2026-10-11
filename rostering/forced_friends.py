@@ -127,12 +127,22 @@ class ForcedGroup:
     @property
     def share_axes(self) -> tuple[str, ...]:
         """The axes its ``share`` rules name, in the canonical order."""
-        shared = {r.axis for r in self.rules if r.kind == SHARE}
+        return self.shared_axes(None)
+
+    def shared_axes(self, hard: Optional[bool]) -> tuple[str, ...]:
+        """The axes its hard (``hard`` True), soft (False) or all (None) ``share``
+        rules name, in the canonical order."""
+        shared = {r.axis for r in self.rules if r.kind == SHARE and (hard is None or r.hard == hard)}
         return tuple(a for a in AXES if a in shared)
 
     @property
     def be_rules(self) -> tuple[Rule, ...]:
         return tuple(r for r in self.rules if r.kind == BE)
+
+    @property
+    def hard_be_rules(self) -> tuple[Rule, ...]:
+        """The ``be`` rules that may refuse an edit; a soft one may be broken."""
+        return tuple(r for r in self.be_rules if r.hard)
 
 
 def enforced_axes(axes: Sequence[str]) -> tuple[str, ...]:
@@ -290,6 +300,9 @@ class GroupRule:
     anchors: tuple[Anchor, ...] = ()
     rule: Optional[Rule] = None
     values: tuple[RuleValue, ...] = ()
+    # Soft: the solver weighs a violation against the rest of the roster
+    # instead of bending it in its tier (see ``rostering.solver.rules``).
+    hard: bool = True
 
     @property
     def key(self) -> str:
@@ -339,9 +352,9 @@ class GroupRule:
             # The same Room name in two Buildings: say which is which.
             labels = [f"{label} ({building})" for label, building in places.values()]
         split = "rozdělen" if self.group.tag_id is not None else "rozdělena"
-        return f"{self._subject()} je {split} mezi {_PLURALS[self.axis]}" + (
-            f" {_joined(labels)}" if labels else ""
-        )
+        line = f"{self._subject()} je {split} mezi {_PLURALS[self.axis]}" + (f" {_joined(labels)}" if labels else "")
+        # A ``be`` rule's wording says it is soft itself (``Rule.text``); a split has to.
+        return line if self.hard else f"{line} (měkké pravidlo)"
 
     def offenders(self, assignments: Sequence[Assignment]) -> list[tuple[str, str]]:
         """``(name, where)`` of each member breaking this ``be`` rule in the
@@ -414,6 +427,11 @@ def group_rules(
 
     ``be`` rules: one per rule, over every active member (one is enough). A rule
     whose values the layout no longer has at all is inert and left out.
+
+    Each rule is hard or soft on its own. Room subsumes Building only between
+    rules of the same hardness: a soft Building next to a hard Room adds nothing
+    (the Room already holds it hard), while a soft Room next to a hard Building
+    leaves both in force, each at its own hardness.
     ``buildings`` (Building name -> its Room names), when given, drops an anchor
     whose placement the configuration no longer has."""
     known = {name: set(rooms) for name, rooms in buildings.items()} if buildings is not None else None
@@ -425,27 +443,34 @@ def group_rules(
             for o in active_organizers(group, organizers)
             if known is None or (o.building in known and (not o.room or o.room in known[o.building]))
         ]
-        shared = group.share_axes
-        axes = list(enforced_axes(shared))
-        if ROOM in shared and any(a.room is None for a in anchors):
-            axes.insert(0, BUILDING)
         ids, names = tuple(h.id for h in active), tuple(h.name for h in active)
-        for axis in axes:
-            if axis == ROLE:
-                on_axis: tuple[Anchor, ...] = ()
-            elif axis == ROOM:
-                on_axis = tuple(a for a in anchors if a.room)
-            else:
-                on_axis = tuple(anchors)
-            rule = GroupRule(group, axis, ids, names, on_axis)
-            if rule.size >= 2:
-                rules.append(rule)
+        enforced: set[str] = set()  # axes already in force at a stricter hardness
+        for hard in (True, False):
+            shared = group.shared_axes(hard)
+            axes = list(enforced_axes(shared))
+            if ROOM in shared and any(a.room is None for a in anchors):
+                axes.insert(0, BUILDING)
+            for axis in axes:
+                if axis in enforced:
+                    continue
+                if axis == ROLE:
+                    on_axis: tuple[Anchor, ...] = ()
+                elif axis == ROOM:
+                    on_axis = tuple(a for a in anchors if a.room)
+                else:
+                    on_axis = tuple(anchors)
+                rule = GroupRule(group, axis, ids, names, on_axis, hard=hard)
+                if rule.size >= 2:
+                    rules.append(rule)
+                    enforced.add(axis)
+            if hard and ROOM in shared:
+                enforced.add(BUILDING)  # a hard shared Room holds the Building hard too
         for be in group.be_rules:
             values = effective_values(be, buildings)
             if not values:
                 continue
             on_axis = () if be.axis == ROLE else tuple(anchors)
-            rule = GroupRule(group, be.axis, ids, names, on_axis, rule=be, values=values)
+            rule = GroupRule(group, be.axis, ids, names, on_axis, rule=be, values=values, hard=be.hard)
             if rule.size >= 1:
                 rules.append(rule)
     return rules
@@ -460,7 +485,7 @@ def contradictions(rules: Sequence[Rule], buildings: Mapping[str, Iterable[str]]
     messages. Judged against the layout (Building name -> its Room names):
     values it does not have are inert, as everywhere. ``share`` rules never
     contradict anything provably (they depend on the roster)."""
-    be = [r for r in rules if r.kind == BE]
+    be = [r for r in rules if r.kind == BE and r.hard]  # a soft rule may be broken
     problems: list[str] = []
 
     roles = [r for r in be if r.axis == ROLE]
@@ -540,7 +565,7 @@ def _listed_values(group: ForcedGroup, axis: str, universe: Sequence[str]) -> Op
     in X's Building); values the universe lacks are inert."""
     allowed = set(universe)
     texts: list[str] = []
-    for rule in group.be_rules:
+    for rule in group.hard_be_rules:
         if axis == tags_module.ROLE:
             if rule.axis != ROLE:
                 continue
@@ -580,7 +605,7 @@ def tag_clashes(
         active = active_helpers(group, helpers)
         if not active:
             continue
-        shared = set(group.share_axes)
+        shared = set(group.shared_axes(True))
         for axis in (tags_module.BUILDING, tags_module.ROLE):
             universe = list(universes.get(axis) or [])
             if not universe:

@@ -97,29 +97,39 @@ class Rule:
     axis: str
     must: bool = True
     values: tuple[RuleValue, ...] = ()
+    # A soft rule may be broken for a better roster (a weighted penalty in the
+    # solver); a hard one only bends when nothing else can (see CONTEXT.md
+    # "Soft rule"). It is not part of the rule's identity (``key``).
+    hard: bool = True
 
     @staticmethod
-    def share(axis: str) -> "Rule":
+    def share(axis: str, hard: bool = True) -> "Rule":
         if axis not in AXES:
             raise ValueError(f"Neznámá osa: {axis!r}")
-        return Rule(SHARE, axis)
+        return Rule(SHARE, axis, hard=bool(hard))
 
     @staticmethod
-    def be(axis: str, values: Iterable[Any], must: bool = True) -> "Rule":
+    def be(axis: str, values: Iterable[Any], must: bool = True, hard: bool = True) -> "Rule":
         if axis not in AXES:
             raise ValueError(f"Neznámá osa: {axis!r}")
-        return Rule(BE, axis, bool(must), _canonical_values(axis, values))
+        return Rule(BE, axis, bool(must), _canonical_values(axis, values), bool(hard))
 
     @property
     def key(self) -> str:
-        """Identity within a group (a group never holds two equal rules)."""
+        """Identity within a group (a group never holds two equal rules); hard
+        and soft versions of the same rule are the same rule."""
         if self.kind == SHARE:
             return f"share:{self.axis}"
         shown = "|".join("/".join(v) if isinstance(v, tuple) else v for v in self.values)
         return f"{'must' if self.must else 'not'}:{self.axis}:{shown}"
 
     def text(self) -> str:
-        """The rule in words: ``musí sdílet místnost``, ``nesmí být v budově Troja ani Impakt``."""
+        """The rule in words: ``musí sdílet místnost``, ``nesmí být v budově Troja ani Impakt``;
+        a soft rule says so (``... (měkké)``)."""
+        return self.hard_text() if self.hard else f"{self.hard_text()} (měkké)"
+
+    def hard_text(self) -> str:
+        """The rule in words, without the mark of a soft one."""
         if self.kind == SHARE:
             return f"musí sdílet {_SHARE_OBJECT[self.axis]}"
         labels = [value_label(self.axis, v) for v in self.values]
@@ -131,10 +141,16 @@ class Rule:
         return f"{verb} být {place} {joined}"
 
     def to_dict(self) -> dict[str, Any]:
+        """The saved form; ``hard`` is written only when False, so a file saved
+        before the toggle existed reads as all-hard and a hard rule is unchanged."""
         if self.kind == SHARE:
-            return {"kind": SHARE, "axis": self.axis}
-        values = [list(v) if isinstance(v, tuple) else v for v in self.values]
-        return {"kind": BE, "must": self.must, "axis": self.axis, "values": values}
+            data: dict[str, Any] = {"kind": SHARE, "axis": self.axis}
+        else:
+            values = [list(v) if isinstance(v, tuple) else v for v in self.values]
+            data = {"kind": BE, "must": self.must, "axis": self.axis, "values": values}
+        if not self.hard:
+            data["hard"] = False
+        return data
 
     @staticmethod
     def from_dict(data: Union["Rule", str, Mapping[str, Any]]) -> "Rule":
@@ -144,10 +160,11 @@ class Rule:
             return Rule.share(data)
         kind = data.get("kind")
         axis = data.get("axis")
+        hard = data.get("hard", True) is not False
         if kind == SHARE:
-            return Rule.share(axis)
+            return Rule.share(axis, hard)
         if kind == BE:
-            return Rule.be(axis, data.get("values") or [], data.get("must", True))
+            return Rule.be(axis, data.get("values") or [], data.get("must", True), hard)
         raise ValueError(f"Neznámý druh pravidla: {kind!r}")
 
 
