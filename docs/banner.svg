@@ -6,7 +6,7 @@
       <stop offset="1" stop-color="#ffd842" stop-opacity="0"/>
     </linearGradient>
     <clipPath id="card"><rect width="1200" height="280" rx="28"/></clipPath>
-    <clipPath id="btnClip"><rect x="80" y="182" width="340" height="70" rx="35"/></clipPath>
+    <clipPath id="btnClip"><rect x="80" y="176" width="340" height="70" rx="35"/></clipPath>
   </defs>
 
   <g clip-path="url(#card)">
@@ -15,7 +15,7 @@
     <!-- decorative shapes -->
     <circle cx="1090" cy="40" r="170" fill="#ffe953" opacity="0.7"/>
     <circle cx="1010" cy="250" r="120" fill="#ffffff" opacity="0.25"/>
-    <rect x="0" y="262" width="1200" height="18" fill="#000000"/>
+    <rect x="0" y="270" width="1200" height="10" fill="#000000"/>
 
     <!-- stylised roster grid on the right -->
     <g transform="translate(800 40)">
@@ -37,17 +37,17 @@
     </g>
 
     <!-- text -->
-    <text x="80" y="84" font-family="'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif" font-size="18" font-weight="700" letter-spacing="4" fill="#000000">ČESKÝ NÁVOD  ·  KROK ZA KROKEM  ·  S OBRÁZKY</text>
-    <text x="80" y="146" font-family="'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif" font-size="52" font-weight="800" fill="#000000">Rozdělování pomocníků</text>
+    <text x="80" y="78" font-family="'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif" font-size="18" font-weight="700" letter-spacing="4" fill="#000000">ČESKÝ NÁVOD  ·  KROK ZA KROKEM  ·  S OBRÁZKY</text>
+    <text x="80" y="140" font-family="'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif" font-size="52" font-weight="800" fill="#000000">Rozdělování pomocníků</text>
 
     <!-- button -->
-    <rect x="86" y="188" width="340" height="70" rx="35" fill="#ffffff"/>
-    <rect x="80" y="182" width="340" height="70" rx="35" fill="#000000"/>
+    <rect x="86" y="182" width="340" height="70" rx="35" fill="#ffffff"/>
+    <rect x="80" y="176" width="340" height="70" rx="35" fill="#000000"/>
     <g clip-path="url(#btnClip)">
-      <rect x="-120" y="182" width="90" height="70" fill="url(#sheen)" transform="skewX(-20)">
+      <rect x="-120" y="176" width="90" height="70" fill="url(#sheen)" transform="skewX(-20)">
         <animate attributeName="x" values="-120;620" dur="3.2s" repeatCount="indefinite"/>
       </rect>
     </g>
-    <text x="250" y="227" text-anchor="middle" font-family="'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif" font-size="30" font-weight="800" fill="#ffffff">Otevřít návod  →</text>
+    <text x="250" y="221" text-anchor="middle" font-family="'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif" font-size="30" font-weight="800" fill="#ffffff">Otevřít návod  →</text>
   </g>
 </svg>
