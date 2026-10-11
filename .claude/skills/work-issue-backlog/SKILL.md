@@ -28,11 +28,11 @@ If the user's prompt narrows or widens any of this, their prompt wins.
 
 ## Setup (once per run)
 
-1. Read `CONTEXT.md`. Issues live in `Krtiiik/MaSo-Rostering`; use `gh`.
+1. Read `.claude/CONTEXT.md`. Issues live in `Krtiiik/MaSo-Rostering`; use `gh`.
 2. Make sure `.claude/agents/issue-implementer.md` exists on `main` and is
    committed. It already does in this repo; if it's missing, recreate it
    (frontmatter `model: sonnet`, `effort: high`; body: implement exactly one
-   issue, read `CONTEXT.md` + `.claude/CLAUDE.md` first, test-first with the
+   issue, read `.claude/CONTEXT.md` + `.claude/CLAUDE.md` + `.claude/ARCHITECTURE.md` first, test-first with the
    `mattpocock-skills:tdd` skill, `CHANGELOG.md` entry under
    `## [Unreleased]` for user-facing changes, full pytest suite green,
    Conventional Commit referencing the issue, never merge/push/touch

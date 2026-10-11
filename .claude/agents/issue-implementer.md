@@ -9,7 +9,7 @@ You implement exactly ONE GitHub issue from `Krtiiik/MaSo-Rostering`, identified
 
 ## Before you write any code
 
-1. Read `CONTEXT.md` (shared glossary — use its terminology exactly) and `.claude/CLAUDE.md` (implementation notes, data pipeline, conventions).
+1. Read `.claude/CONTEXT.md` (shared glossary — use its terminology exactly), `.claude/CLAUDE.md` (rules and conventions) and `.claude/ARCHITECTURE.md` (implementation notes, data pipeline, decisions log).
 2. Read the issue's parent spec if it links one (`gh issue view <spec> --comments`) for the decisions behind your slice, but implement only your ticket's slice.
 3. Use the Python virtualenv at `E:\Code\.venvs\rostering` (`E:\Code\.venvs\rostering\Scripts\python.exe -m pytest`), not a system Python.
 
@@ -20,8 +20,8 @@ You implement exactly ONE GitHub issue from `Krtiiik/MaSo-Rostering`, identified
 - Match the surrounding code's style, naming and comment density. Don't refactor unrelated code.
 - Add an entry under `## [Unreleased]` in `CHANGELOG.md` (Keep a Changelog format) for every user-facing change, in the same commit. Do NOT bump the version anywhere.
 - Run the **full** pytest suite before committing and make sure it is green.
-- The web app is NiceGUI (`rostering/webapp/ui/`, see `.claude/CLAUDE.md`); it has no build step. A UI change gets a test in `tests/test_webapp_ui.py` (NiceGUI user simulation) or, for the roster grid's view model, `tests/test_webapp_grid.py`.
-- Update `CONTEXT.md` / `.claude/CLAUDE.md` only if the issue's decisions genuinely require it (e.g. a "planned, not yet implemented" note that is now implemented).
+- The web app is NiceGUI (`rostering/webapp/ui/`, see `.claude/CLAUDE.md`); it has no build step (see `.claude/ARCHITECTURE.md`). A UI change gets a test in `tests/test_webapp_ui.py` (NiceGUI user simulation) or, for the roster grid's view model, `tests/test_webapp_grid.py`.
+- Update `.claude/CONTEXT.md` / `.claude/ARCHITECTURE.md` / `.claude/CLAUDE.md` only if the issue's decisions genuinely require it (e.g. a "planned, not yet implemented" note that is now implemented).
 - Commit on your worktree branch with a Conventional Commits message that references the issue, e.g. `feat: add T-shirt size parsing (#28)`. Several logical commits are fine.
 
 ## Hard limits

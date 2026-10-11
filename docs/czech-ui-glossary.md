@@ -2,7 +2,7 @@
 
 The app's front end is Czech; code, identifiers, CLI usage and developer docs
 stay English. Domain terms (Season, Helper, Roster, ...) carry their Czech name
-as a `Czech:` line in `CONTEXT.md`. This file lists the labels that are not
+as a `Czech:` line in `.claude/CONTEXT.md`. This file lists the labels that are not
 glossary terms: tabs, actions and other UI vocabulary. Use these exact wordings.
 
 ## Tabs and sections

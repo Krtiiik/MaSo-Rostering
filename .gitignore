@@ -5,11 +5,19 @@
 # not just the intended one at the repo root.
 data/
 
-# Claude Code harness state, not project content, except skills, which
-# are project tooling meant to be shared and discovered by future agents.
+# Claude Code harness state, not project content, except skills, agents,
+# the shared docs (CLAUDE/CONTEXT/ARCHITECTURE/ISSUE-TRACKING), the project
+# settings and the guard hooks, which are project tooling meant to be shared
+# and discovered by future agents. settings.local.json stays ignored.
 /.claude/*
 !/.claude/skills/
 !/.claude/agents/
+!/.claude/hooks/
+!/.claude/settings.json
+!/.claude/CLAUDE.md
+!/.claude/CONTEXT.md
+!/.claude/ARCHITECTURE.md
+!/.claude/ISSUE-TRACKING.md
 /.agents/
 
 __pycache__/
