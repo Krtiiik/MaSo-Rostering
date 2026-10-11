@@ -35,20 +35,26 @@ systém a spustit ji.
    programu nechte při práci otevřené; když ho zavřete, aplikace přestane
    fungovat.
 
-Programy nejsou digitálně podepsané, takže se vás systém při prvním spuštění
-může zeptat, jestli ho opravdu chcete spustit.
+Programy nejsou digitálně podepsané, takže je Windows a macOS při prvním
+spuštění mohou zablokovat. Co udělat hned po stažení, aby se to nestalo, je
+v [návodu](docs/manual/navod.md#potíže-se-spuštěním--udělej-to-hned).
+
+Aplikace běží v prohlížeči: používejte Chrome, Edge nebo Firefox. V Safari
+nefunguje správně.
 
 ## Co aplikace umí
 
 Šest očíslovaných záložek nahoře jde za sebou tak, jak se pracuje:
 
-1. **Lidé** — nahrajte export z Google Formulářů s odpověďmi pomocníků
-   („Načíst pomocníky“) a případně organizátorů („Načíst organizátory“). První
-   nahrání vytvoří ročník.
-2. **Štítky** — označte lidi štítky a omezte, kde smějí nositelé štítku
+1. **Lidé** — nahrajte export z Google Formulářů s odpověďmi organizátorů
+   („Načíst organizátory“) a pak pomocníků („Načíst pomocníky“). První nahrání
+   vytvoří ročník.
+2. **Budovy** — budovy, místnosti, kolik pomocníků která role potřebuje a kdo
+   vede. Nejrychlejší je načíst tabulku „Pomocníci v místnostech“
+   („Načíst konfiguraci budov“); ta dosadí i organizátory na místa vedoucích.
+3. **Štítky** — označte lidi štítky a omezte, kde smějí nositelé štítku
    pracovat.
-3. **Vynucené skupinky kamarádů** — skupinky, které musí skončit spolu.
-4. **Budovy** — budovy, místnosti a kolik pomocníků která role potřebuje.
+4. **Vynucené skupinky kamarádů** — skupinky, které musí skončit spolu.
 5. **Parametry rozřazování** — váhy, se kterými program rozděluje.
 6. **Rozdělení pomocníků** — spusťte rozdělování, pak přetahováním pomocníků
    mezi buňkami výsledek upravte a vyexportujte do Excelu.
@@ -58,9 +64,10 @@ změnilo po opětovném nahrání, ...), se sbírá v panelu **K vyřízení** z
 se seznamem v záhlaví. Pojmenované verze rozdělení se ukládají, obnovují a
 mažou v levém panelu.
 
-Nový ročník začíná bez budov. Rozložení budov můžete převzít z dřívějšího
-ročníku (část „Rozložení budov“ při importu z dřívějšího ročníku), načíst z listu
-„Pomocníci v místnostech“, nebo ho zadat na záložce Budovy.
+Nový ročník začíná bez budov. Doporučený postup je nahrát soubory v pořadí
+organizátoři, pomocníci, tabulka budov „Pomocníci v místnostech“. Rozložení
+budov můžete také převzít z dřívějšího ročníku (část „Rozložení budov“ při
+importu z dřívějšího ročníku), nebo ho zadat ručně na záložce Budovy.
 
 ## Vaše data
 

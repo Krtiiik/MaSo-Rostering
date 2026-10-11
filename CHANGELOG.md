@@ -20,8 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Uživatelský návod v češtině s obrázky z aplikace (`docs/manual/navod.md`):
-  celý postup od nahrání odpovědí po export do Excelu. Obrázky na vymyšlených datech
-  vytváří skript `docs/manual/tools/make_screenshots.py`.
+  stažení a spuštění programu (včetně řešení blokování na Windows a macOS), celý
+  postup od nahrání organizátorů, pomocníků a tabulky budov po export do Excelu
+  a podrobně pravidla štítků a vynucených skupinek. Návod tyká. Obrázky na vymyšlených
+  datech vytváří skript `docs/manual/tools/make_screenshots.py`.
 
 ## [3.4.0] - 2026-10-10
 

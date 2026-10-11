@@ -1,10 +1,10 @@
 // Playwright driver for the rostering web app (NiceGUI).
-// Lives in scripts/e2e/ (own package.json + node_modules) rather than inside
+// Lives in tests/scripts/e2e/ (own package.json + node_modules) rather than inside
 // a Claude Code skill directory: Node's ESM resolver walks up from the
 // script's own file location, not the process's cwd, so `playwright` must be
 // found in a node_modules that's a physical ancestor of this file.
 //
-// Usage (from scripts/e2e/):
+// Usage (from tests/scripts/e2e/):
 //   npm run smoke -- [path/to/raw-response.xlsx]
 //   node smoke.mjs [path/to/raw-response.xlsx]
 // ROSTERING_APP_URL picks the running app (default http://localhost:8000/).
