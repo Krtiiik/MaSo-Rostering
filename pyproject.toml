@@ -37,6 +37,8 @@ include = ["rostering*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# tests/scripts/e2e is a Node project (Playwright); keep pytest out of its node_modules.
+norecursedirs = ["node_modules"]
 # The web app's tests drive NiceGUI's async user simulation.
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

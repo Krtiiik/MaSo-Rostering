@@ -9,7 +9,7 @@ There is no separate frontend, no build step and no HTTP API of our own —
 `rostering serve` starts the NiceGUI server directly. The roster grid's
 browser half is a plain ES module (`rostering/webapp/ui/grid/roster_grid.js`)
 served as is. Drive the running app with the committed Playwright script at
-`scripts/e2e/smoke.mjs` (or `npm run smoke` from `scripts/e2e/`), which
+`tests/scripts/e2e/smoke.mjs` (or `npm run smoke` from `tests/scripts/e2e/`), which
 uploads a raw survey `.xlsx`, matches a friend name, solves, drags a chip in
 the grid, checks the Overlays / Tag filter / details card, and screenshots
 each step. Paths below are relative to the repo root.
@@ -18,7 +18,7 @@ each step. Paths below are relative to the repo root.
 
 A virtualenv with the project installed editable (`pip install -e ".[dev]"`,
 per `CONTRIBUTING.md`) — that gives you the `rostering` CLI and NiceGUI. Node is only
-needed for the Playwright driver (`scripts/e2e/`). Playwright needs a browser:
+needed for the Playwright driver (`tests/scripts/e2e/`). Playwright needs a browser:
 either its own (`npx playwright install chromium`) or an installed one picked
 with `PLAYWRIGHT_CHANNEL` (`msedge`, `chrome`, `chromium`) — on Windows,
 `PLAYWRIGHT_CHANNEL=msedge` uses the Edge that is always there.
@@ -31,7 +31,7 @@ points at. To run the worktree's own code, put the worktree first on the path:
 ## Setup
 
 ```bash
-cd scripts/e2e && npm install
+cd tests/scripts/e2e && npm install
 ```
 
 ## Run (agent path)
@@ -57,7 +57,7 @@ ROSTERING_SEASONS_DIR=/tmp/rostering-run/seasons \
 timeout 30 bash -c "until curl -sf http://127.0.0.1:$port/ >/dev/null 2>&1; do sleep 1; done" && echo APP_UP
 ```
 
-Drive it with the smoke script (from `scripts/e2e/`), against an *empty*
+Drive it with the smoke script (from `tests/scripts/e2e/`), against an *empty*
 seasons dir (the upload must create the Season):
 
 ```bash
@@ -66,7 +66,7 @@ PLAYWRIGHT_CHANNEL=msedge ROSTERING_APP_URL="http://127.0.0.1:$port/" \
 ```
 
 With no path argument it only checks the app shell loads. Screenshots land in
-`scripts/e2e/screenshots/` (`01-app-loaded.png` … `06-tag-filter.png`). The
+`tests/scripts/e2e/screenshots/` (`01-app-loaded.png` … `06-tag-filter.png`). The
 script prints one `ok:`/`FAILED:` line per check and exits non-zero on a failed
 check or any browser console error. A Solve may use its whole time limit
 (60 s by default), so the script waits up to 3 minutes for it.

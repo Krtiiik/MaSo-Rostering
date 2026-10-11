@@ -1302,7 +1302,7 @@ puts Quasar's `!important` utilities (`bg-white`, `text-black`, ...) in the late
   with the defaults again. Dimming is a `chip-dimmed` class (opacity, restored on
   hover; never a bare `dimmed`, which is a Quasar utility class that lays a dark
   overlay over the nearest positioned ancestor — the whole cell). Covered by `tests/test_grid_tags.py`, `tests/test_webapp_grid.py` and
-  the smoke script (`scripts/e2e/smoke.mjs`).
+  the smoke script (`tests/scripts/e2e/smoke.mjs`).
 - Tag constraints: a Tag record carries `rules`, a list of the same rule
   dicts a Forced friends group has (`{"kind": "be", "must", "axis", "values"}`,
   axis building / room / role, any-of `values`; a Room is `[building, room]`; or
